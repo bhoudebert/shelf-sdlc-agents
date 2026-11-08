@@ -11,20 +11,27 @@
 
   <section class="secret" aria-labelledby="secret-title">
     <div class="secret-head">
-      <h2 id="secret-title">Add to <code>deploy/.env</code></h2>
+      <h2 id="secret-title">1. Add to <code>deploy/.env</code></h2>
       <button class="btn" type="button" data-copy="#env-block" data-done="Copied">Copy all</button>
     </div>
 <pre id="env-block" tabindex="0"><code>GITHUB_APP_ID={{ credentials.app_id }}
 GITHUB_APP_SLUG={{ credentials.slug }}
 GITHUB_APP_CLIENT_ID={{ credentials.client_id }}
 GITHUB_APP_CLIENT_SECRET={{ credentials.client_secret }}
-GITHUB_WEBHOOK_SECRET={{ credentials.webhook_secret }}
-GITHUB_APP_PRIVATE_KEY="{{ credentials.private_key | replace('\n', '\\n') }}"</code></pre>
-    <p class="muted">The private key is on one line, with <code>\n</code> for line breaks, which is the form the file expects. Keep the file private; do not commit it.</p>
+GITHUB_WEBHOOK_SECRET={{ credentials.webhook_secret }}</code></pre>
+    <p class="muted">Also add your model credential: <code>ANTHROPIC_API_KEY</code> or <code>CLAUDE_CODE_OAUTH_TOKEN</code>.</p>
+  </section>
+
+  <section class="secret" aria-labelledby="key-title">
+    <div class="secret-head">
+      <h2 id="key-title">2. Save the private key as <code>deploy/secrets/github-app.pem</code></h2>
+      <a class="btn" download="github-app.pem" href="data:application/x-pem-file;charset=utf-8,{{ credentials.private_key | urlencode }}">Download github-app.pem</a>
+    </div>
+    <p class="muted">A file, not a line in <code>.env</code>: nothing to paste or escape. Download it, then copy it to your server, for example
+      <code>scp github-app.pem you@server:~/shelf-sdlc-agents/deploy/secrets/</code></p>
   </section>
 
   <ol class="howto steps" aria-label="What to do next">
-    <li><strong>Paste it into <code>deploy/.env</code></strong>, and add your model credential (<code>ANTHROPIC_API_KEY</code> or <code>CLAUDE_CODE_OAUTH_TOKEN</code>).</li>
     <li><strong>Restart the stack:</strong> <code>sh deploy/install.sh</code></li>
     <li><strong>Install the App</strong> on the repositories you want to use, then sign in.<br>
       <a class="btn quiet" href="https://github.com/apps/{{ credentials.slug }}/installations/new">Install on GitHub</a></li>

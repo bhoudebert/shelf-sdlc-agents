@@ -68,12 +68,12 @@ The system SHALL subscribe the manifest only to events an App may select, and on
 
 ### Requirement: Registering by hand is fully explained
 
-The system SHALL explain, on the setup page, every field of GitHub's form with the exact value to type, where each credential is found on the App's page, and SHALL offer a converter, running only in the browser, that turns a private key file into the one-line value the environment file needs.
+The system SHALL explain, on the setup page, every field of GitHub's form with the exact value to type, where each credential is found on the App's page, and SHALL say to put the private key file at `deploy/secrets/github-app.pem`.
 
 #### Scenario: A manual registration
 
 - **WHEN** a person opens the by-hand guide
-- **THEN** they see each form field with its value, a table of where each credential comes from, and the key converter
+- **THEN** they see each form field with its value, a table of where each credential comes from, and where the key file goes
 
 #### Scenario: A missing credential
 

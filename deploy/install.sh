@@ -25,6 +25,11 @@ if [ ! -f "$env_file" ]; then
   echo "Wrote $env_file. Add your model credentials (ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN) before the first run."
 fi
 
+# If the GitHub App is configured, its private key must be there: a file in deploy/secrets (or inline in the env file).
+if grep -q '^GITHUB_APP_ID=.\+' "$env_file" && ! grep -q '^GITHUB_APP_PRIVATE_KEY=.\+' "$env_file" && [ ! -s "$here/secrets/github-app.pem" ]; then
+  echo "WARNING: GITHUB_APP_ID is set but there is no private key. Put the .pem you downloaded at $here/secrets/github-app.pem" >&2
+fi
+
 # The access file must be valid TOML: say so now, not after a build and a crash loop.
 if command -v python3 >/dev/null 2>&1 && python3 -c 'import tomllib' 2>/dev/null; then
   if ! python3 -c 'import sys, tomllib; tomllib.load(open(sys.argv[1], "rb"))' "$here/shelf.toml" 2>/tmp/shelf-toml-error; then

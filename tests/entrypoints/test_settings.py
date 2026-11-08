@@ -31,6 +31,13 @@ def test_a_registered_app_is_read_with_its_inline_key_unescaped() -> None:
     assert settings.github.slug == "shelf"
 
 
+def test_a_key_file_that_is_not_there_is_reported_where_to_put_it(tmp_path: Path) -> None:
+    environ = {**BASE, **APP, "GITHUB_APP_PRIVATE_KEY_PATH": str(tmp_path / "absent.pem")}
+    del environ["GITHUB_APP_PRIVATE_KEY"]
+    with pytest.raises(MissingSettingError, match=r"deploy/secrets/github-app\.pem"):
+        from_environ(environ)
+
+
 def test_the_private_key_can_come_from_a_file(tmp_path: Path) -> None:
     key = tmp_path / "app.pem"
     key.write_text("PEM")
@@ -54,7 +61,7 @@ def test_a_missing_setting_says_where_to_find_it() -> None:
         ("PUBLIC_URL", "PUBLIC_URL is required"),
         ("SESSION_SECRET", "SESSION_SECRET is required"),
         ("GITHUB_APP_CLIENT_SECRET", "GITHUB_APP_CLIENT_SECRET is required"),
-        ("GITHUB_APP_PRIVATE_KEY", "GITHUB_APP_PRIVATE_KEY is required with GITHUB_APP_ID"),
+        ("GITHUB_APP_PRIVATE_KEY", "deploy/secrets/github-app.pem"),
     ],
 )
 def test_a_missing_setting_is_named(remove: str, message: str) -> None:

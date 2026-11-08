@@ -166,16 +166,11 @@ The system SHALL offer a button that copies a marked block of text to the clipbo
 - **WHEN** a person presses the copy button next to the credentials
 - **THEN** the whole block is copied and the button says so briefly
 
-### Requirement: A private key can be turned into an environment value in the browser
+### Requirement: The credentials page hands over the private key as a file
 
-The system SHALL offer, on the setup page, a converter that reads a private key file or pasted text in the browser, shows the single-line environment value with escaped line breaks, refuses text that is not a private key, and sends nothing to the server.
+The system SHALL show the credentials after registration with the private key kept out of the environment lines, and SHALL offer the key as a file to download, so that nothing has to be pasted or escaped.
 
-#### Scenario: A valid key
+#### Scenario: After registering
 
-- **WHEN** a person chooses the downloaded key file
-- **THEN** the one-line `GITHUB_APP_PRIVATE_KEY` value appears with a button to copy it
-
-#### Scenario: Something else
-
-- **WHEN** the text is not a private key
-- **THEN** the converter says so and shows no value
+- **WHEN** the credentials are shown
+- **THEN** the environment block lists the five values without the key, and a download offers the key as `github-app.pem`

@@ -27,3 +27,8 @@ dist/
 .coverage
 .coverage.*
 htmlcov/
+
+# The GitHub App private key and any other secret files
+deploy/secrets/*
+!deploy/secrets/.gitkeep
+*.pem

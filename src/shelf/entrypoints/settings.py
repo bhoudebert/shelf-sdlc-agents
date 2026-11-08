@@ -41,6 +41,9 @@ class Settings:
     revision: str
 
 
+KEY_FILE = "github-app.pem"
+"""The private key's file name inside deploy/secrets, mounted at /run/secrets in the containers."""
+
 WHERE: dict[str, str] = {
     "PUBLIC_URL": "the address people reach this instance at, e.g. https://shelf.example.org",
     "SESSION_SECRET": "any long random string: run `openssl rand -hex 32`",
@@ -49,7 +52,7 @@ WHERE: dict[str, str] = {
     "GITHUB_APP_CLIENT_ID": "the Client ID at the top of your App's settings page, starting with Iv",
     "GITHUB_APP_CLIENT_SECRET": "generate one under Client secrets on your App's settings page (shown once)",
     "GITHUB_WEBHOOK_SECRET": "the string you typed in the Webhook secret field of the App",
-    "GITHUB_APP_PRIVATE_KEY": "the .pem you downloaded under Private keys, on one line (the setup page converts it)",
+    "GITHUB_APP_PRIVATE_KEY": f"the .pem you downloaded under Private keys: put the file at deploy/secrets/{KEY_FILE}",
 }
 """Where each setting comes from, so a missing one says what to do and not only its name."""
 
@@ -67,8 +70,8 @@ def _private_key(environ: Mapping[str, str]) -> str | None:
     inline = environ.get("GITHUB_APP_PRIVATE_KEY", "").strip()
     if inline:
         return inline.replace("\\n", "\n")
-    path = environ.get("GITHUB_APP_PRIVATE_KEY_PATH", "").strip()
-    return Path(path).read_text(encoding="utf-8") if path else None
+    path = Path(environ.get("GITHUB_APP_PRIVATE_KEY_PATH", "").strip() or "/nonexistent")
+    return path.read_text(encoding="utf-8") if path.is_file() else None
 
 
 def _github(environ: Mapping[str, str]) -> GitHubApp | None:
@@ -77,7 +80,7 @@ def _github(environ: Mapping[str, str]) -> GitHubApp | None:
         return None
     key = _private_key(environ)
     if key is None:
-        message = f"GITHUB_APP_PRIVATE_KEY is required with GITHUB_APP_ID: {WHERE['GITHUB_APP_PRIVATE_KEY']}"
+        message = f"the private key is missing: {WHERE['GITHUB_APP_PRIVATE_KEY']} (or set GITHUB_APP_PRIVATE_KEY)"
         raise MissingSettingError(message)
     return GitHubApp(
         app_id=_required(environ, "GITHUB_APP_ID"),

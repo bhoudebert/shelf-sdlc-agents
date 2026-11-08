@@ -19,9 +19,13 @@ x-shelf: &shelf
   environment:
     TEMPORAL_ADDRESS: temporal:7233
     SHELF_CONFIG: /etc/shelf/shelf.toml
+    GITHUB_APP_PRIVATE_KEY_PATH: /run/secrets/github-app.pem
   volumes:
     # The operator's access list and mode. Read-only.
     - ./shelf.toml:/etc/shelf/shelf.toml:ro
+    # The GitHub App's private key: put the .pem you downloaded at deploy/secrets/github-app.pem. A directory is mounted, not
+    # the file, so a missing key never makes Docker invent a directory in its place.
+    - ./secrets:/run/secrets:ro
   depends_on:
     temporal:
       condition: service_healthy
@@ -64,6 +68,7 @@ services:
     environment:
       TEMPORAL_ADDRESS: temporal:7233
       SHELF_CONFIG: /etc/shelf/shelf.toml
+      GITHUB_APP_PRIVATE_KEY_PATH: /run/secrets/github-app.pem
       # Claude Code's sandbox inside a container needs its weaker nested mode.
       SHELF_NESTED_SANDBOX: "1"
     # The agents' sandbox (bubblewrap) needs user namespaces, which the default seccomp profile blocks. This is the only

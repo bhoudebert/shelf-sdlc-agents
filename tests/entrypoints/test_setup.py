@@ -41,7 +41,10 @@ def test_the_returned_code_is_traded_for_credentials_shown_once_and_never_cached
     response = client().get("/setup/registered", params={"code": "abc"})
     assert "GITHUB_APP_ID=9" in response.text
     assert "GITHUB_APP_CLIENT_SECRET=cs" in response.text
-    assert "A\\nB" in response.text
+    env_block = response.text.split('id="env-block"')[1].split("</pre>")[0]
+    assert "BEGIN" not in env_block
+    assert 'download="github-app.pem"' in response.text
+    assert "data:application/x-pem-file;charset=utf-8,A%0AB" in response.text
     assert response.headers["cache-control"] == "no-store"
 
 
