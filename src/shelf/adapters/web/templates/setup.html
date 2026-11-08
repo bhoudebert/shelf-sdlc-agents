@@ -51,23 +51,17 @@
           <tr><td><code>GITHUB_APP_SLUG</code></td><td>The name in the App's public link, <code>github.com/apps/<em>slug</em></code>: the App name in lowercase, spaces as hyphens.</td></tr>
           <tr><td><code>GITHUB_APP_CLIENT_SECRET</code></td><td>The client secret you generated in step 2.</td></tr>
           <tr><td><code>GITHUB_WEBHOOK_SECRET</code></td><td>The string you made up in step 1. Same value, exactly.</td></tr>
-          <tr><td><code>GITHUB_APP_PRIVATE_KEY</code></td><td>The <code>.pem</code> file, on one line. Step 4 does it for you.</td></tr>
+          <tr><td>the private key</td><td>Not in <code>.env</code>: the <code>.pem</code> file itself. Step 4.</td></tr>
         </tbody>
       </table></div>
 
-      <h3>4. Turn the .pem into one line</h3>
-      <p>A <code>.env</code> value must be on a single line, with <code>\n</code> in place of line breaks. Choose the file you downloaded and copy the result. <strong>The file never leaves your browser</strong>: nothing is sent to the server.</p>
-      <div class="pem" data-pem>
-        <label class="btn btn-secondary pem-pick">Choose the .pem file<input type="file" accept=".pem,.key,text/plain" data-pem-file hidden></label>
-        <p class="muted">or paste its contents here:</p>
-        <textarea data-pem-text rows="4" spellcheck="false" autocomplete="off" aria-label="Contents of the .pem file"></textarea>
-        <p class="pem-error" data-pem-error role="alert" hidden></p>
-        <pre id="pem-out" data-pem-out tabindex="0" hidden><code></code></pre>
-        <button class="btn" type="button" data-copy="#pem-out" data-done="Copied" data-pem-copy hidden>Copy the line</button>
-      </div>
+      <h3>4. Put the private key on the server</h3>
+      <p>Copy the <code>.pem</code> you downloaded to <code>deploy/secrets/github-app.pem</code> in your checkout. It is a file, not a line in <code>.env</code>, so there is nothing to paste or escape.</p>
+      <p><code>scp ~/Downloads/*.pem you@server:~/shelf-sdlc-agents/deploy/secrets/github-app.pem</code></p>
+      <p class="muted">On most servers your user is uid 1000 and <code>chmod 600</code> on the file is enough. If the service says it cannot read the key, run <code>chmod 644</code> on it: the directory is private to you.</p>
 
       <h3>5. Restart</h3>
-      <p>Add the six variables (and a model key, <code>ANTHROPIC_API_KEY</code>) to <code>deploy/.env</code>, then run <code>sh deploy/install.sh</code> on the server. If something is missing, the log names it and says where to find it:
+      <p>Add the five variables (and a model key, <code>ANTHROPIC_API_KEY</code>) to <code>deploy/.env</code>, then run <code>sh deploy/install.sh</code> on the server. If something is missing, the log names it and says where to find it:
         <code>docker compose -f deploy/compose.yml logs web</code>.</p>
     </details>
   </section>

@@ -102,29 +102,4 @@
     selection.removeAllRanges();
     selection.addRange(range);
   }
-
-  // Private-key helper: turns a .pem into the one-line value a .env file needs. Everything happens in the browser.
-  Array.prototype.forEach.call(document.querySelectorAll("[data-pem]"), function (root) {
-    var file = root.querySelector("[data-pem-file]");
-    var text = root.querySelector("[data-pem-text]");
-    var out = root.querySelector("[data-pem-out]");
-    var copy = root.querySelector("[data-pem-copy]");
-    var error = root.querySelector("[data-pem-error]");
-    function show(raw) {
-      var pem = (raw || "").replace(/\r/g, "").trim();
-      var ok = /-----BEGIN [A-Z ]*PRIVATE KEY-----/.test(pem) && /-----END [A-Z ]*PRIVATE KEY-----/.test(pem);
-      out.hidden = copy.hidden = ok ? false : true;
-      error.hidden = ok || !pem;
-      if (!ok) { error.textContent = pem ? "That does not look like a private key. It should start with -----BEGIN RSA PRIVATE KEY-----." : ""; return; }
-      out.querySelector("code").textContent = 'GITHUB_APP_PRIVATE_KEY="' + pem.split("\n").map(function (l) { return l.trim(); }).filter(Boolean).join("\\n") + '"';
-    }
-    file.addEventListener("change", function () {
-      var chosen = file.files && file.files[0];
-      if (!chosen) return;
-      var reader = new FileReader();
-      reader.onload = function () { text.value = String(reader.result); show(text.value); };
-      reader.readAsText(chosen);
-    });
-    text.addEventListener("input", function () { show(text.value); });
-  });
 })();

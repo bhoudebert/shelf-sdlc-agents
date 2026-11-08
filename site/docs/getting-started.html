@@ -34,7 +34,7 @@ sh deploy/install.sh https://shelf.example.org</code></pre> This writes <code>de
 <tr><td><code>SESSION_SECRET</code></td><td>Random secret that signs the session cookies. <code>install.sh</code> generates one.</td></tr>
 <tr><td><code>WEB_PORT</code></td><td>The host port the web service is published on (default 8080).</td></tr>
 <tr><td><code>GITHUB_APP_ID</code>, <code>GITHUB_APP_SLUG</code>, <code>GITHUB_APP_CLIENT_ID</code>, <code>GITHUB_APP_CLIENT_SECRET</code>, <code>GITHUB_WEBHOOK_SECRET</code></td><td>The App's credentials, shown once after the one-click registration. Empty on the first start.</td></tr>
-<tr><td><code>GITHUB_APP_PRIVATE_KEY</code> or <code>GITHUB_APP_PRIVATE_KEY_PATH</code></td><td>The App's private key: inline with <code>\n</code> for line breaks, or a PEM path inside the container.</td></tr>
+<tr><td>the private key file</td><td>Not an environment variable: put the <code>.pem</code> you downloaded at <code>deploy/secrets/github-app.pem</code>. It is mounted read-only into the containers.</td></tr>
 <tr><td><code>ANTHROPIC_API_KEY</code>, <code>CLAUDE_CODE_OAUTH_TOKEN</code>, or <code>ANTHROPIC_BASE_URL</code></td><td>How the agents get a model. Set one.</td></tr>
 <tr><td><code>SHELF_MODEL</code>, <code>SHELF_MAX_TURNS</code>, <code>SHELF_MAX_BUDGET_USD</code></td><td>Optional: force a model, and bound what one step may use.</td></tr>
 <tr><td><code>TEMPORAL_ADDRESS</code>, <code>TEMPORAL_NAMESPACE</code></td><td>Use your own Temporal instead of the bundled one (and delete that service).</td></tr>
