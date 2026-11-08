@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Architecture - shelf-sdlc docs</title><meta name="description" content="Hexagonal layers around a pure functional core.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Crect width='28' height='28' fill='%230f2e25'/%3E%3Crect x='4' y='8' width='20' height='3' fill='%23e8f0ea'/%3E%3Crect x='4' y='17' width='20' height='3' fill='%23ff8a6b'/%3E%3C/svg%3E">
+<script>try{var t=localStorage.getItem('shelf-theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;display=swap"><link rel="stylesheet" href="../assets/site.css"></head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="bar"><a class="brand" href="../index.html"><svg viewBox="0 0 28 28" aria-hidden="true"><rect x="2" y="3" width="24" height="3" fill="currentColor"/><rect x="2" y="12" width="24" height="3" fill="currentColor"/><rect x="2" y="21" width="24" height="3" fill="currentColor"/><rect x="6" y="6" width="5" height="6" fill="#c1301a"/><rect x="14" y="15" width="7" height="6" fill="#c1301a"/></svg>shelf-sdlc</a>
+<nav aria-label="Main"><a href="getting-started.html" aria-current="page">Docs</a><a href="https://github.com/bhoudebert/shelf-sdlc-agents" class="hide-sm">GitHub</a>
+<button class="icon-btn" id="theme" type="button" aria-label="Toggle dark theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button></nav></header>
+<div class="docs"><aside class="side"><nav aria-label="Documentation"><p>Documentation</p><ul><li><a href="getting-started.html">Getting started</a></li><li><a href="github-app.html">The GitHub App</a></li><li><a href="concepts.html">Concepts</a></li><li><a href="configuration.html">Configuration</a></li><li><a href="architecture.html" aria-current="page">Architecture</a></li><li><a href="security.html">Security model</a></li><li><a href="contributing.html">Contributing</a></li></ul></nav></aside>
+<main id="main" class="doc"><h1>Architecture</h1><p class="lead">Hexagonal layers around a pure functional core.</p>
+<h2 id="layers">Layers</h2>
+<div class="table-wrap"><table><thead><tr><th>Layer</th><th>Holds</th></tr></thead><tbody>
+<tr><td><code>domain</code></td><td>The work-item state machine and access rules. Pure, with no I/O.</td></tr>
+<tr><td><code>ports</code></td><td>The interfaces the application needs from the outside world.</td></tr>
+<tr><td><code>application</code></td><td>Use cases that orchestrate the domain through ports.</td></tr>
+<tr><td><code>adapters</code></td><td>Implementations of the ports, such as the GitHub App adapter (being built).</td></tr>
+<tr><td><code>entrypoints</code></td><td>The web app, the worker and webhook handlers that start everything.</td></tr></tbody></table></div>
+<div class="diagram"><svg viewBox="0 0 640 330" role="img" aria-labelledby="ad-t"><title id="ad-t">Dependencies point inward: entrypoints and adapters depend on application, application on ports and domain.</title>
+<rect class="box" x="10" y="10" width="620" height="310"/><text x="22" y="34">adapters and entrypoints</text>
+<rect class="box" x="60" y="50" width="520" height="250" fill="var(--surface)"/><text x="72" y="74">application (use cases)</text>
+<rect class="box" x="110" y="90" width="420" height="190"/><text x="122" y="114">ports (interfaces)</text>
+<rect class="core" x="170" y="130" width="300" height="130"/><text class="core-t" x="190" y="160" font-weight="700">domain</text>
+<text class="core-t" x="190" y="188">decide(state, event)</text><text class="core-t" x="190" y="212">-&gt; (state, commands)</text><text class="core-t" x="190" y="240">pure: no I/O, no clock</text></svg></div>
+<p>Dependencies point inward only. The domain knows nothing about Temporal, GitHub or the web. The repository enforces this with an import linter in CI.</p>
+<h2 id="decider">The pure decider, the thin workflow</h2>
+<p>All the rules live in one function:</p>
+<pre><code>decide(state, event) -&gt; (state, commands)</code></pre>
+<p>Given the current state and an event (a person decided, a check finished, a round ended), it returns the next state and a list of commands for the outside world. The Temporal workflow does nothing clever: it receives events, calls <code>decide</code>, and carries out the commands. Because the function is pure it is tested with property-based tests, and the workflow stays small enough to read in one sitting.</p>
+<h2 id="stack">Stack</h2>
+<p>Python 3.13, strict typing, Temporal for durability, the Claude Agent SDK for agents, property-based tests, Apache-2.0. See the <a href="https://github.com/bhoudebert/shelf-sdlc-agents/tree/main/docs/adr">decision records</a> for the reasons behind these choices.</p>
+<nav class="pager" aria-label="Pages"><a href="configuration.html">&larr; Configuration</a><a href="security.html">Security model &rarr;</a></nav></main></div>
+<footer class="foot"><p class="big" aria-hidden="true">shelf-sdlc</p>
+<ul><li><a href="getting-started.html">Documentation</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents">Repository</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents/blob/main/CONTRIBUTING.md">Contributing</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents/issues">Issues</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents/blob/main/LICENSE">Apache-2.0</a></li></ul>
+<small>shelf-sdlc is open source under the Apache-2.0 licence and in early development.</small></footer>
+<script src="../assets/site.js"></script>
+</body></html>
