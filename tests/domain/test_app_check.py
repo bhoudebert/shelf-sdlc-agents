@@ -115,9 +115,10 @@ def test_the_workflows_permission_is_off_by_default_and_that_is_fine() -> None:
     assert "cannot change" in note.title
 
 
-def test_a_granted_workflows_permission_is_flagged_for_attention() -> None:
+def test_a_granted_workflows_permission_is_accepted_and_names_the_safeguards() -> None:
     permissions = {**REQUIRED_PERMISSIONS, "workflows": "write"}
     found = check_app(facts(permissions=permissions), URL)
     note = next(finding for finding in found if "CI workflow files" in finding.title)
-    assert note.level is Level.WARNING
-    assert "repository's secrets" in note.advice
+    assert note.level is Level.OK
+    assert "CODEOWNERS" in note.advice
+    assert "required reviewers" in note.advice

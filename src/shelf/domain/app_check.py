@@ -113,10 +113,11 @@ def _permissions(facts: AppFacts) -> Finding:
 def _workflows(facts: AppFacts) -> Finding:
     if _LEVELS.get(facts.permissions.get("workflows", "none"), 0) >= _LEVELS["write"]:
         return Finding(
-            Level.WARNING,
+            Level.OK,
             "Agents may change CI workflow files (the Workflows permission is granted).",
-            "A changed workflow runs with the repository's secrets, so review pull requests that touch "
-            ".github/workflows as carefully as the agents' own code. Remove the permission to forbid it.",
+            "A changed workflow runs with the repository's secrets, so keep GitHub's own safeguards on: a CODEOWNERS "
+            "line for .github/ with code-owner review required, environments with required reviewers for deploy "
+            "secrets, and approval for workflows from forks. They apply to the agents' changes as to anyone's.",
         )
     return Finding(
         Level.OK,
