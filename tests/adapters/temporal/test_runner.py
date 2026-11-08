@@ -45,7 +45,7 @@ async def test_the_runner_starts_work_with_the_policy_of_the_repository(env: Wor
     runner = runner_for(env, configs)
     async with worker(env, FakeSteps(), FakePulls()):
         work_id = await runner.start(WorkRequest(REPO, "alice", EntryPoint.NEED, "x"))
-        board = await _until_waiting(runner, work_id, Reason.MERGE)
+        board = await _until(runner, work_id, lambda v: v.waiting_for is Reason.MERGE and bool(v.pull_request_url))
     assert board.pull_request_url.endswith("/pull/1")
 
 

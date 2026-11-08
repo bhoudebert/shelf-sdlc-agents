@@ -130,7 +130,7 @@ async def test_work_from_a_need_publishes_a_pull_request_and_stops_at_the_spec_g
         waiting = await until(handle, lambda s: s.waiting_for == "gate")
         assert waiting.phase == Phase.SPEC_APPROVAL
         await handle.signal(WorkItemWorkflow.decided, wire.DecisionDto("carol", DecisionKind.APPROVE, ""))
-        waiting = await until(handle, lambda s: s.waiting_for == "merge")
+        waiting = await until(handle, lambda s: s.waiting_for == "merge" and bool(s.pull_request_url))
         assert waiting.pull_request_url.endswith("/pull/1")
         await handle.signal(WorkItemWorkflow.pull_request_closed, True)
         assert await handle.result() == "merged"
