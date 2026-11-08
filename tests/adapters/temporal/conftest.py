@@ -1,8 +1,7 @@
-"""A real Temporal server for the workflow tests.
+"""A real Temporal dev server for the workflow tests.
 
-CI uses the time-skipping test server that temporalio downloads. Where that binary cannot run (NixOS), set
-``SHELF_TEMPORAL_DEV_SERVER`` to a ``temporal`` CLI and the tests use its dev server: the tests use short real timers
-so they pass on both.
+It supports everything the board needs (listing workflows included). temporalio downloads it on first use; where that
+binary cannot run (NixOS), set ``SHELF_TEMPORAL_DEV_SERVER`` to a ``temporal`` CLI. The tests use short real timers.
 """
 
 import os
@@ -14,12 +13,8 @@ from temporalio.testing import WorkflowEnvironment
 
 @pytest.fixture
 async def env() -> AsyncIterator[WorkflowEnvironment]:
-    path = os.environ.get("SHELF_TEMPORAL_DEV_SERVER")
-    if path:
-        environment = await WorkflowEnvironment.start_local(  # pyright: ignore[reportUnknownMemberType]
-            dev_server_existing_path=path
-        )
-    else:
-        environment = await WorkflowEnvironment.start_time_skipping()
+    environment = await WorkflowEnvironment.start_local(  # pyright: ignore[reportUnknownMemberType]
+        dev_server_existing_path=os.environ.get("SHELF_TEMPORAL_DEV_SERVER")
+    )
     async with environment:
         yield environment

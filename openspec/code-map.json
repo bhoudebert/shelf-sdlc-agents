@@ -47,11 +47,30 @@
     "durable-workflow": {
       "code": [
         "src/shelf/adapters/temporal/*.py",
-        "src/shelf/domain/polling.py",
         "src/shelf/ports/steps.py"
       ],
       "tests": [
         "tests/adapters/temporal/*.py",
+        "tests/domain/test_polling.py",
+        "tests/adapters/temporal/test_runner.py"
+      ]
+    },
+    "github-app": {
+      "code": [
+        "src/shelf/adapters/github_app/*.py"
+      ],
+      "tests": [
+        "tests/adapters/github_app/*.py"
+      ]
+    },
+    "configuration": {
+      "code": [
+        "src/shelf/adapters/config/*.py",
+        "src/shelf/domain/operator.py",
+        "src/shelf/domain/polling.py"
+      ],
+      "tests": [
+        "tests/adapters/config/*.py",
         "tests/domain/test_polling.py"
       ]
     }

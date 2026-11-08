@@ -6,6 +6,8 @@ readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.13"
 dependencies = [
+    "httpx>=0.28",
+    "pyjwt[crypto]>=2.10",
     "temporalio>=1.8",
 ]
 
@@ -30,6 +32,7 @@ packages = ["src/shelf"]
 [tool.ruff]
 line-length = 120
 src = ["src", "tests"]
+extend-exclude = [".claude"]
 target-version = "py313"
 
 [tool.ruff.lint]
@@ -43,7 +46,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "S105", "S106", "PLR2004", "D", "ANN", "ARG002", "FBT003"]
+"tests/**" = ["S101", "S105", "S106", "PLR2004", "D", "ANN", "ARG001", "ARG002", "FBT003"]
 # A state machine is a table of transitions: one return per case is the clearest form.
 "src/shelf/domain/work.py" = ["PLR0911"]
 
@@ -52,6 +55,7 @@ convention = "google"
 
 [tool.pyright]
 include = ["src", "tests"]
+exclude = [".claude", ".venv"]
 pythonVersion = "3.13"
 venvPath = "."
 venv = ".venv"
