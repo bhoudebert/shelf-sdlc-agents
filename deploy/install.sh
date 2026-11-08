@@ -25,6 +25,12 @@ if [ ! -f "$env_file" ]; then
   echo "Wrote $env_file. Add your model credentials (ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN) before the first run."
 fi
 
+# Your access file is yours: created once from the example, then never touched or committed.
+if [ ! -f "$here/shelf.toml" ]; then
+  cp "$here/shelf.toml.example" "$here/shelf.toml"
+  echo "Created $here/shelf.toml from the example. Edit it to say who may sign in (it ships open to any GitHub account)."
+fi
+
 # If the GitHub App is configured, its private key must be there: a file in deploy/secrets (or inline in the env file).
 if grep -q '^GITHUB_APP_ID=.\+' "$env_file" && ! grep -q '^GITHUB_APP_PRIVATE_KEY=.\+' "$env_file" && [ ! -s "$here/secrets/github-app.pem" ]; then
   echo "WARNING: GITHUB_APP_ID is set but there is no private key. Put the .pem you downloaded at $here/secrets/github-app.pem" >&2
@@ -37,6 +43,11 @@ if command -v python3 >/dev/null 2>&1 && python3 -c 'import tomllib' 2>/dev/null
     echo "       Names go in quotes, for example: users = [\"alice\", \"bob\"]" >&2
     exit 1
   fi
+fi
+
+# Say loudly when nobody is restricted: an open instance spends the operator's model quota.
+if ! grep -Eq '^[[:space:]]*(orgs|users|admins)[[:space:]]*=[[:space:]]*\[[[:space:]]*"' "$here/shelf.toml"; then
+  echo "WARNING: $here/shelf.toml lists no organisation, user or admin: anyone with a GitHub account may sign in and use your model quota." >&2
 fi
 
 # The revision this checkout is at. It is built into the image and reported by /healthz, so you can see what really runs.

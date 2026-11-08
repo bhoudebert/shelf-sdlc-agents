@@ -21,7 +21,7 @@ x-shelf: &shelf
     SHELF_CONFIG: /etc/shelf/shelf.toml
     GITHUB_APP_PRIVATE_KEY_PATH: /run/secrets/github-app.pem
   volumes:
-    # The operator's access list and mode. Read-only.
+    # The operator's access list and mode (deploy/shelf.toml, created from shelf.toml.example by install.sh). Read-only.
     - ./shelf.toml:/etc/shelf/shelf.toml:ro
     # The GitHub App's private key: put the .pem you downloaded at deploy/secrets/github-app.pem. A directory is mounted, not
     # the file, so a missing key never makes Docker invent a directory in its place.
