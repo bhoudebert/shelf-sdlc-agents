@@ -1,6 +1,6 @@
 # Shelf SDLC Agents
 
-A shelf of agents covering the software development lifecycle.
+A self-hosted software factory: drive agent work on your GitHub repositories from a web UI, from a need to a pull request.
 
 ## Status
 
@@ -9,8 +9,8 @@ A shelf of agents covering the software development lifecycle.
 ## Getting started
 
 ```bash
-npm install
-npm test
+python -m pip install uv && uv sync --frozen
+uv run pytest
 ```
 <!-- A minimal example of use, with its real output. -->
 
@@ -30,4 +30,4 @@ npm test
 
 ## Licence
 
-MIT, see [LICENSE](LICENSE).
+Apache-2.0, see [LICENSE](LICENSE).

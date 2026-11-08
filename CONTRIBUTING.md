@@ -19,9 +19,9 @@ Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md).
 ## Setup
 
 ```bash
-npm install
+python -m pip install uv && uv sync --frozen
 sh scripts/setup-hooks.sh   # once per clone: the git hooks
-npm run quality             # the gate: it must pass before you push
+uv run ruff check . && uv run ruff format --check . && uv run pyright && uv run lint-imports && uv run pytest             # the gate: it must pass before you push
 ```
 
 ## Workflow
@@ -41,7 +41,7 @@ flowchart TD
   nospec --> code["Code and tests"]
   code --> docs["Docs: README, ENGINEERING, ROADMAP"]
   docs --> commit["git commit<br/>commit-msg hook: Conventional Commits"]
-  commit --> quality["npm run quality"]
+  commit --> quality["uv run ruff check . && uv run ruff format --check . && uv run pyright && uv run lint-imports && uv run pytest"]
   quality --> push["git push<br/>pre-push hook: quality gate"]
   push --> pr["Pull request: the template,<br/>a title in Conventional Commit form"]
   pr --> ci{"Required checks on main"}
@@ -72,7 +72,7 @@ your reason. When unsure, update the spec.
 | When         | What runs                                                                | Skippable?                                              |
 | ------------ | ------------------------------------------------------------------------ | ------------------------------------------------------- |
 | `git commit` | commit-msg: Conventional Commits. | `--no-verify`, or no hooks installed yet                |
-| `git push`   | pre-push: `npm run quality` and the spec review. | `--no-verify`, `SKIP_PRE_PUSH=1`, or no hooks installed |
+| `git push`   | pre-push: `uv run ruff check . && uv run ruff format --check . && uv run pyright && uv run lint-imports && uv run pytest` and the spec review. | `--no-verify`, `SKIP_PRE_PUSH=1`, or no hooks installed |
 | Pull request | CI: the quality gate, the PR title, the spec review of the diff, CodeQL. | **No.** Required checks on `main`; only an administrator can merge past them. |
 | Merge        | GitHub merges when the required checks are green. A person reads the pull request. | Administrators                                |
 
@@ -84,7 +84,7 @@ A git hook is a convenience on one machine: it can be skipped, and a fresh clone
 1. Branch from `main`: `feat/...`, `fix/...`, `docs/...`, `chore/...`.
 2. Decide as the chart shows: a decision record, a spec, or a reason for none.
 3. Code with tests. Never let a test reach a paid or external service for real.
-4. `npm run quality` must pass.
+4. `uv run ruff check . && uv run ruff format --check . && uv run pyright && uv run lint-imports && uv run pytest` must pass.
 5. Commit with Conventional Commits, one concern per commit, in the order of the chart.
 6. Open a pull request with the template filled in: the decision and spec, what was verified, what was not. The **PR
    title follows the commit convention too**: a squash merge turns it into the commit on `main`, which release
@@ -153,7 +153,7 @@ No attribution trailers or generated-by footers in commits or pull requests.
 
 ## Licence of contributions
 
-Contributions are accepted under the project's MIT licence; by opening a pull request you agree to it.
+Contributions are accepted under the project's Apache-2.0 licence; by opening a pull request you agree to it.
 
 ## Releases
 

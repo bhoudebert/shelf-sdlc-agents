@@ -9,8 +9,8 @@ How Shelf SDLC Agents is built. Keep this page true: update it in the same pull 
 ## Layout
 
 ```
-src/    the code
-test/   the tests
+src/shelf/    the code
+tests/   the tests
 docs/       this page, the workflow (EVOLVING.md) and the decision records (adr/)
 ```
 
@@ -28,7 +28,7 @@ The reasons live in [`docs/adr/`](adr/README.md). The ones that shape everything
 
 ## Quality gate
 
-`npm run quality` runs everything CI runs. The pull request checks are required on `main`.
+`uv run ruff check . && uv run ruff format --check . && uv run pyright && uv run lint-imports && uv run pytest` runs everything CI runs. The pull request checks are required on `main`.
 
 ## External services
 

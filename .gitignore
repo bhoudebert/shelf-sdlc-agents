@@ -10,3 +10,12 @@ result
 result-*
 
 .spec-review/
+
+# project-foundation
+__pycache__/
+*.pyc
+.venv/
+dist/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/

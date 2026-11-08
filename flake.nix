@@ -22,7 +22,10 @@
             git
             gh
             jq
-            nodejs_24
+            python313
+            ruff
+            pyright
+            uv
           ];
         };
       });
