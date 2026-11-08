@@ -85,3 +85,20 @@ async def test_many_callers_share_one_set_of_temporal_lookups_for_a_moment(env: 
         assert listing.call_count == 1
         assert [v.id for v in first] == [v.id for v in second] == [work_id]
         assert third == []
+
+
+async def test_a_piece_of_work_that_cannot_be_read_is_shown_as_failed_not_hidden(env: WorkflowEnvironment) -> None:
+    from unittest.mock import patch  # noqa: PLC0415
+
+    from temporalio.client import WorkflowHandle  # noqa: PLC0415
+
+    runner = runner_for(env)
+    async with worker(env, FakeSteps(), FakePulls()):
+        work_id = await runner.start(WorkRequest(REPO, "alice", EntryPoint.NEED, "x"))
+        await _until_waiting(runner, work_id, Reason.GATE)
+        with patch.object(WorkflowHandle, "query", side_effect=RuntimeError("workflow task failing")):
+            view = await runner.view(work_id)
+    assert view is not None
+    assert view.waiting_for is Reason.FAILURE
+    assert "cannot be read" in view.detail
+    assert (view.repo, view.requester) == (REPO, "alice")

@@ -4,7 +4,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 from shelf.domain.pipeline import KIND, EntryPoint, Kind, Phase
-from shelf.domain.policy import Course, Policy, course_for
+from shelf.domain.policy import CURRENT_PROTOCOL, Course, Policy, course_for
 from shelf.domain.work import (
     AskPerson,
     AwaitingPerson,
@@ -312,3 +312,21 @@ def test_changes_asked_on_the_pull_request_put_it_back_to_draft() -> None:
     _, commands = decide(course, waiting, PersonDecided(PERSON, DecisionKind.CHANGES, "rename it"))
     assert commands[0] == SetPullRequestReady(ready=False)
     assert RunStep(Phase.IMPLEMENT, 0, "rename it") in commands
+
+
+def test_work_started_before_the_early_pull_request_keeps_its_original_behaviour() -> None:
+    course = course_for(EntryPoint.NEED, Policy(), protocol=1)
+    _, first = decide(course, Running(Phase.INTAKE), StepDone(Produced()))
+    assert PublishPullRequest() not in first
+    _, merge = decide(course, Running(Phase.CODE_REVIEW), StepDone(Reviewed(Verdict.APPROVE)))
+    assert PublishPullRequest() in merge  # the original: published at the merge
+    assert SetPullRequestReady(ready=True) not in merge
+    _, back = decide(
+        course, AwaitingPerson(Phase.PULL_REQUEST, Reason.MERGE), PersonDecided(PERSON, DecisionKind.CHANGES)
+    )
+    assert SetPullRequestReady(ready=False) not in back
+
+
+def test_new_work_starts_with_the_current_protocol() -> None:
+    assert course_for(EntryPoint.NEED, Policy()).protocol == CURRENT_PROTOCOL
+    assert course_for(EntryPoint.NEED, Policy()).opens_early

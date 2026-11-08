@@ -89,3 +89,12 @@ The system SHALL order the pull request to be published once the first step of w
 
 - **WHEN** work reviews an existing pull request
 - **THEN** the system never orders it published or readied
+
+### Requirement: Behaviour changes are gated on a protocol
+
+The system SHALL derive from the work's protocol whether the pull request opens early, is readied at the merge and is labelled, so that work on the original protocol decides exactly as before.
+
+#### Scenario: The original protocol
+
+- **WHEN** work on protocol 1 finishes its first step
+- **THEN** no publication is ordered until the merge
