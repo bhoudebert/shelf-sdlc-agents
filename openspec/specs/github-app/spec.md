@@ -61,6 +61,11 @@ The system SHALL build the App's manifest from the instance's public address, po
 
 The system SHALL subscribe the manifest only to events an App may select, and only to events covered by a permission it requests, and SHALL NOT list the events GitHub always sends.
 
+#### Scenario: Only the events the system reads
+
+- **WHEN** the manifest is built
+- **THEN** it subscribes to `pull_request` and `issue_comment` and to nothing else, and the setup page and the site list the same two
+
 #### Scenario: Always-sent events
 
 - **WHEN** the manifest is built
