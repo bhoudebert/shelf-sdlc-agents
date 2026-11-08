@@ -1,6 +1,14 @@
 {% extends "base.html" %}
+{% block title %}Not open to you · shelf-sdlc{% endblock %}
 {% block content %}
-<h1>This instance is not open to you</h1>
-<p>{{ reason }}</p>
-<p>Ask the operator to add you to the access list.</p>
+<div class="narrow">
+  <section class="empty denied" aria-labelledby="denied-title">
+    <div class="empty-main">
+      <h1 id="denied-title">This instance is not open to you</h1>
+      <p class="lead reason" role="alert">{{ reason }}</p>
+      <p>Ask the operator to add you to the access list.</p>
+      <p><a class="btn quiet" href="/">Back to sign in</a></p>
+    </div>
+  </section>
+</div>
 {% endblock %}

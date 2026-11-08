@@ -3,23 +3,39 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
   <title>{% block title %}shelf-sdlc{% endblock %}</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Crect width='28' height='28' fill='%230f2e25'/%3E%3Crect x='4' y='8' width='20' height='3' fill='%23e8f0ea'/%3E%3Crect x='4' y='17' width='20' height='3' fill='%23ff8a6b'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/theme.js"></script>
   <script src="/static/htmx.min.js" defer></script>
   <script src="/static/htmx-sse.min.js" defer></script>
+  <script src="/static/app.js" defer></script>
 </head>
 <body>
-  <header>
-    <a href="/">shelf-sdlc</a>
+  <a class="skip" href="#main">Skip to content</a>
+  {% set path = request.url.path %}
+  <header class="bar">
+    <a class="brand" href="/" aria-label="shelf-sdlc, home">
+      <svg viewBox="0 0 28 28" aria-hidden="true" focusable="false"><rect x="2" y="3" width="24" height="3" fill="currentColor"/><rect x="2" y="12" width="24" height="3" fill="currentColor"/><rect x="2" y="21" width="24" height="3" fill="currentColor"/><rect x="6" y="6" width="5" height="6" class="mark"/><rect x="14" y="15" width="7" height="6" class="mark"/></svg>
+      <span>shelf-sdlc</span>
+    </a>
     {% if user %}
-    <nav>
-      <a href="/board">Board</a>
-      <a href="/start">Start</a>
-      <span>{{ user }}</span>
-      <form method="post" action="/auth/logout"><button>Sign out</button></form>
+    <nav aria-label="Main">
+      <a href="/board"{% if path.startswith("/board") or path.startswith("/work") %} aria-current="page"{% endif %}>Board</a>
+      <a href="/start"{% if path.startswith("/start") %} aria-current="page"{% endif %}>Start</a>
     </nav>
     {% endif %}
+    <div class="bar-end">
+      {% if user %}
+      <span class="who"><span class="avatar" aria-hidden="true">{{ user[:1]|upper }}</span><span class="who-name">{{ user }}</span></span>
+      <form method="post" action="/auth/logout"><button class="btn-quiet">Sign out</button></form>
+      {% endif %}
+      <button class="icon-btn" id="theme" type="button" aria-label="Switch between light and dark theme">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      </button>
+    </div>
   </header>
-  <main>{% block content %}{% endblock %}</main>
+  <main id="main" tabindex="-1">{% block content %}{% endblock %}</main>
 </body>
 </html>

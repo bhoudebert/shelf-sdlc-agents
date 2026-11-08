@@ -1,15 +1,51 @@
+{% from "_macros.html" import glyph, mini %}
 {% if items %}
-<ul class="items">
-{% for item in items %}
-  <li class="item {{ item.status.value }}">
-    <a href="/work/{{ item.id }}">{{ item.repo }}</a>
-    <span>{{ item.entry }}</span>
-    <span>{{ item.phase }}</span>
-    <span>{{ item.waiting or item.outcome or "Running" }}</span>
-    <span>{{ item.requester }}</span>
-  </li>
+{% set groups = [
+  ("waiting", "Needs you", "Gates to decide, failures to resume, pull requests waiting for the merge."),
+  ("running", "Running", "Agents are working. Nothing for you to do."),
+  ("done", "Finished", "Merged, closed or aborted."),
+] %}
+{% for key, title, hint in groups %}
+{% set rows = items|selectattr("status.value", "equalto", key)|list %}
+{% if rows %}
+{% set ordered = rows|sort(attribute="reason") if key == "waiting" else rows %}
+<section class="group group-{{ key }}" data-group="{{ key }}" aria-labelledby="g-{{ key }}">
+  <div class="group-head">
+    <h2 id="g-{{ key }}">{{ title }} <span class="n">{{ rows|length }}</span></h2>
+    <p class="hint">{{ hint }}</p>
+  </div>
+  <ul class="items">
+  {% for item in ordered %}
+    {% if item.status.value == "running" %}{% set g = "running" %}
+    {% elif item.status.value == "waiting" %}{% set g = "stopped" if item.reason == "failure" else "waiting" %}
+    {% else %}{% set g = "done" if item.outcome == "Merged" else "stopped" %}
+    {% endif %}
+    <li class="item {{ item.status.value }}" data-reason="{{ item.reason }}">
+      <div class="item-main">
+        <a class="item-link" href="/work/{{ item.id }}">{{ item.repo }}</a>
+        <span class="meta">{{ item.entry }} · {{ item.requester }}</span>
+      </div>
+      <div class="item-state">
+        <span class="chip chip-{{ item.status.value }}{% if item.reason == 'failure' %} chip-failed{% endif %}">
+          {{ glyph(g) }}
+          <span>{{ item.waiting or item.outcome or "Running" }}</span>
+        </span>
+      </div>
+      <div class="item-where">
+        {{ mini(item) }}
+        <span class="phase">{{ item.phase }}</span>
+      </div>
+    </li>
+  {% endfor %}
+  </ul>
+</section>
+{% endif %}
 {% endfor %}
-</ul>
 {% else %}
-<p>Nothing running yet.</p>
+<div class="empty board-empty">
+  <div class="empty-main">
+    <h2>Nothing running yet</h2>
+    <p>Use <a href="/start">Start work</a> to begin. What you start shows up here and moves along the pipeline by itself, and anything that needs a person comes first.</p>
+  </div>
+</div>
 {% endif %}

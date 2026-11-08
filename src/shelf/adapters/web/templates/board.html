@@ -1,17 +1,24 @@
 {% extends "base.html" %}
 {% block title %}Board · shelf-sdlc{% endblock %}
 {% block content %}
-<h1>Board</h1>
-{% if not has_repos %}
-<section class="empty">
-  <h2>No repositories yet</h2>
-  <p>Install the GitHub App on the repositories you want to work on. They appear here once you do.</p>
-  <p><a href="{{ install_url }}">Install or configure on GitHub</a></p>
-</section>
-{% else %}
-<p><a href="/start">Start work</a></p>
-{% endif %}
-<div id="board" hx-ext="sse" sse-connect="/board/stream" sse-swap="board">
-  {% include "_board_items.html" %}
+<div class="page">
+  <div class="page-head">
+    <h1>Board</h1>
+    {% if has_repos %}<a class="btn" href="/start">Start work</a>{% endif %}
+  </div>
+  {% if not has_repos %}
+  {% set heading = "No repositories yet" %}
+  {% include "_install.html" %}
+  {% else %}
+  <div class="filters" role="group" aria-label="Show">
+    <button type="button" data-filter="all" aria-pressed="true">All <span class="count" data-count="all"></span></button>
+    <button type="button" data-filter="waiting" aria-pressed="false">Needs you <span class="count" data-count="waiting"></span></button>
+    <button type="button" data-filter="running" aria-pressed="false">Running <span class="count" data-count="running"></span></button>
+    <button type="button" data-filter="done" aria-pressed="false">Finished <span class="count" data-count="done"></span></button>
+  </div>
+  {% endif %}
+  <div id="board" role="region"{% if not has_repos %} class="no-repos"{% endif %} hx-ext="sse" sse-connect="/board/stream" sse-swap="board" aria-live="polite" aria-label="Work on your repositories" data-filter="all">
+    {% include "_board_items.html" %}
+  </div>
 </div>
 {% endblock %}

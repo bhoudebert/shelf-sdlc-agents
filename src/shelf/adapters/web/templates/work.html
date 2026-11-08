@@ -1,7 +1,12 @@
 {% extends "base.html" %}
 {% block title %}{{ item.repo }} · shelf-sdlc{% endblock %}
 {% block content %}
-<h1>{{ item.repo }}</h1>
-<p>{{ item.entry }} · requested by {{ item.requester }}</p>
-{% include "_work_panel.html" %}
+<div class="page">
+  <p class="crumb"><a href="/board">Board</a></p>
+  <div class="page-head work-head">
+    <h1>{{ item.repo }}</h1>
+    <p class="meta">{{ item.entry }} · requested by {{ item.requester }}</p>
+  </div>
+  {% include "_work_panel.html" %}
+</div>
 {% endblock %}
