@@ -41,7 +41,11 @@ class Settings:
     revision: str
     temporal_ui_upstream: str
     temporal_ui_writable: bool
+    model_credential: bool
 
+
+MODEL_CREDENTIALS = ("CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL")
+"""Any of these gives the agents a model: a Claude token, an API key, or a gateway."""
 
 KEY_FILE = "github-app.pem"
 """The private key's file name inside deploy/secrets, mounted at /run/secrets in the containers."""
@@ -117,6 +121,7 @@ def from_environ(environ: Mapping[str, str]) -> Settings:
         nested_sandbox=environ.get("SHELF_NESTED_SANDBOX", "").strip().lower() in {"1", "true", "yes"},
         port=int(environ.get("PORT", "8080")),
         revision=environ.get("SHELF_REVISION", "unknown"),
+        model_credential=any(environ.get(key, "").strip() for key in MODEL_CREDENTIALS),
         temporal_ui_upstream=environ.get("TEMPORAL_UI_UPSTREAM", "").strip().rstrip("/"),
         temporal_ui_writable=environ.get("TEMPORAL_UI_WRITABLE", "").strip().lower() in {"1", "true", "yes"},
     )

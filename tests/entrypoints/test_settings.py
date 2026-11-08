@@ -86,3 +86,12 @@ def test_the_budget_and_the_model_are_read() -> None:
 def test_the_revision_of_the_build_is_read_and_defaults_to_unknown() -> None:
     assert from_environ(BASE).revision == "unknown"
     assert from_environ({**BASE, "SHELF_REVISION": "abc1234"}).revision == "abc1234"
+
+
+@pytest.mark.parametrize(
+    "key", ["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL"]
+)
+def test_any_model_credential_counts(key: str) -> None:
+    assert not from_environ(BASE).model_credential
+    assert from_environ({**BASE, key: "x"}).model_credential
+    assert not from_environ({**BASE, key: "  "}).model_credential

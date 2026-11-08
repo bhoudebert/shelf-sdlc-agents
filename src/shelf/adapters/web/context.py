@@ -41,6 +41,8 @@ class WebSettings:
     temporal_writable: bool = False
     """Whether the proxy lets administrators change workflows (signal, terminate). Reading and queries always pass."""
     temporal_namespace: str = "default"
+    model_configured: bool = True
+    """False when no model credential is set: the interface then warns that agents will fail."""
 
     @property
     def secure(self) -> bool:
@@ -84,6 +86,7 @@ class Web:
             "user": session.identity.login if session else None,
             "mode": self.deps.settings.mode.value,
             "admin": self.is_admin(session),
+            "model_ready": self.deps.settings.model_configured,
         }
         return self.templates.TemplateResponse(request, name, {**base, **context})
 

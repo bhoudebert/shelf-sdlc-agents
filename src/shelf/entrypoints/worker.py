@@ -27,6 +27,12 @@ async def run() -> None:
         )
         await asyncio.Event().wait()
         return
+    if not settings.model_credential:
+        log.warning(
+            "No model credential is set: every agent step will fail with 'Not logged in'. "
+            "Run `claude setup-token` and set CLAUDE_CODE_OAUTH_TOKEN (or ANTHROPIC_API_KEY) in deploy/.env, "
+            "then run sh deploy/install.sh."
+        )
     temporal = await connect(settings)
     async with httpx.AsyncClient(timeout=30) as client:
         services = build_services(settings, settings.github, client, temporal)

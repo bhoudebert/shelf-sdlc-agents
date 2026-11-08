@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import json
 from collections.abc import Callable, Mapping
+from dataclasses import replace
 from urllib.parse import parse_qs, urlparse
 
 import httpx
@@ -261,3 +262,25 @@ def test_an_ordinary_person_sees_neither_other_repositories_nor_the_temporal_lin
     assert "acme/secret" not in app.client.get("/board").text
     assert app.client.get("/work/work-9").status_code == 404
     assert "workflows/work-1" not in app.client.get("/work/work-1").text
+
+
+def test_the_board_and_the_start_page_warn_when_no_model_credential_is_set() -> None:
+    fixture = Fixture(AccessRules(admins=frozenset({"alice"})), settings=replace(SETTINGS, model_configured=False))
+    fixture.sign_in()
+    for path in ("/board", "/start"):
+        page = fixture.client.get(path).text
+        assert "No model credential is set" in page
+        assert "claude setup-token" in page
+
+
+def test_an_ordinary_person_is_told_to_ask_the_administrator_when_no_credential_is_set() -> None:
+    fixture = Fixture(settings=replace(SETTINGS, model_configured=False))
+    fixture.sign_in()
+    page = fixture.client.get("/board").text
+    assert "Ask the administrator" in page
+    assert "claude setup-token" not in page
+
+
+def test_no_warning_is_shown_when_a_model_credential_is_set(app: Fixture) -> None:
+    app.sign_in()
+    assert "No model credential" not in app.client.get("/board").text
