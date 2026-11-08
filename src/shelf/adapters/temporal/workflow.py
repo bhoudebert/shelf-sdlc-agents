@@ -28,6 +28,7 @@ with workflow.unsafe.imports_passed_through():
         PublishPullRequest,
         PullRequestClosed,
         RunStep,
+        SetPullRequestReady,
         State,
         StepDone,
         StepFailed,
@@ -39,6 +40,8 @@ RUN_STEP = "shelf_run_step"
 ANNOUNCE = "shelf_announce"
 PUBLISH = "shelf_publish_pull_request"
 POLL = "shelf_poll_pull_request"
+STAGE = "shelf_set_stage"
+READY = "shelf_set_ready"
 
 STEP_TIMEOUT = timedelta(minutes=45)
 STEP_HEARTBEAT = timedelta(seconds=60)
@@ -100,23 +103,58 @@ class WorkItemWorkflow:
             match command:
                 case RunStep(phase):
                     self._phase = phase
+                    await self._stage(work, phase, "")
                     self._step = asyncio.create_task(self._run_step(work, command))
                 case CancelStep():
                     self._cancel_step()
                 case AskPerson(phase, reason, detail):
                     self._phase = phase
+                    await self._stage(work, phase, reason)
                     await self._announce(work, phase, reason, detail)
+                case SetPullRequestReady(ready):
+                    await self._set_ready(work, ready=ready)
                 case PublishPullRequest():
-                    self._pull_request_url = await workflow.execute_activity(
-                        PUBLISH,
-                        work,
-                        result_type=str,
-                        start_to_close_timeout=GITHUB_TIMEOUT,
-                        retry_policy=RetryPolicy(maximum_attempts=5),
-                    )
+                    await self._publish(work)
                 case Conclude(outcome):
                     self._outcome = outcome
                     self._cancel_step()
+
+    async def _stage(self, work: wire.WorkInput, phase: Phase, reason: str) -> None:
+        """Show on the pull request what is happening. Cosmetic: a failure never stops the work."""
+        try:
+            await workflow.execute_activity(
+                STAGE,
+                wire.StageInput(work, phase, reason),
+                start_to_close_timeout=GITHUB_TIMEOUT,
+                retry_policy=RetryPolicy(maximum_attempts=2),
+            )
+        except ActivityError:
+            workflow.logger.warning("could not set the stage label at %s", phase)
+
+    async def _set_ready(self, work: wire.WorkInput, *, ready: bool) -> None:
+        """Mark the pull request ready for review, or back to draft."""
+        try:
+            await workflow.execute_activity(
+                READY,
+                wire.ReadyInput(work, ready),
+                start_to_close_timeout=GITHUB_TIMEOUT,
+                retry_policy=RetryPolicy(maximum_attempts=3),
+            )
+        except ActivityError:
+            workflow.logger.warning("could not change the draft state of the pull request")
+
+    async def _publish(self, work: wire.WorkInput) -> None:
+        """Open the pull request (or find it). Failing to is logged, not fatal: the merge phase asks again."""
+        try:
+            self._pull_request_url = await workflow.execute_activity(
+                PUBLISH,
+                work,
+                result_type=str,
+                start_to_close_timeout=GITHUB_TIMEOUT,
+                retry_policy=RetryPolicy(maximum_attempts=5),
+            )
+        except ActivityError:
+            workflow.logger.warning("could not open the pull request yet")
 
     def _cancel_step(self) -> None:
         if self._step is not None and not self._step.done():

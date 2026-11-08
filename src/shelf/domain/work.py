@@ -176,13 +176,20 @@ class PublishPullRequest:
 
 
 @dataclass(frozen=True, slots=True)
+class SetPullRequestReady:
+    """Mark the pull request ready for review (``ready``), or back to draft while agents rework it."""
+
+    ready: bool
+
+
+@dataclass(frozen=True, slots=True)
 class Conclude:
     """Close the work with its outcome."""
 
     outcome: Outcome
 
 
-type Command = RunStep | AskPerson | CancelStep | PublishPullRequest | Conclude
+type Command = RunStep | AskPerson | CancelStep | PublishPullRequest | SetPullRequestReady | Conclude
 
 
 class Transition(NamedTuple):
@@ -216,7 +223,7 @@ def decide(course: Course, state: State, event: Event) -> Transition:
 def _when_running(course: Course, state: Running, event: Event) -> Transition:
     match event:
         case StepDone(result):
-            return _after_step(course, state, result)
+            return _with_publication(course, state, _after_step(course, state, result))
         case StepFailed(reason):
             return _ask(state.phase, Reason.FAILURE, reason)
         case PersonDecided(kind=DecisionKind.ABORT):
@@ -229,6 +236,18 @@ def _when_running(course: Course, state: Running, event: Event) -> Transition:
             return Transition(state)
         case _ as unreachable:
             assert_never(unreachable)
+
+
+def _with_publication(course: Course, state: Running, transition: Transition) -> Transition:
+    """Open the pull request as soon as the first step is done, so that everything after it happens in the open.
+
+    Asking again is harmless: the adapter returns the pull request that already exists.
+    """
+    if not course.publishes_pull_request or state.phase is not course.phases[0]:
+        return transition
+    if isinstance(transition.state, Finished) or PublishPullRequest() in transition.commands:
+        return transition
+    return Transition(transition.state, (PublishPullRequest(), *transition.commands))
 
 
 def _after_step(course: Course, state: Running, result: StepResult) -> Transition:
@@ -263,7 +282,10 @@ def _when_waiting(course: Course, state: AwaitingPerson, event: Event) -> Transi
         case PersonDecided(kind=DecisionKind.APPROVE) if state.reason in (Reason.GATE, Reason.ESCALATION):
             return _advance(course, state.phase, 0)
         case PersonDecided(kind=DecisionKind.CHANGES, note=note):
-            return _enter(course, LOOP_BACK.get(state.phase, state.phase), feedback=note)
+            back = _enter(course, LOOP_BACK.get(state.phase, state.phase), feedback=note)
+            if state.reason is Reason.MERGE and course.publishes_pull_request:  # back to draft while agents rework it
+                return Transition(back.state, (SetPullRequestReady(ready=False), *back.commands))
+            return back
         case PersonDecided(kind=DecisionKind.RESUME, note=note) if state.reason in (
             Reason.ESCALATION,
             Reason.FAILURE,
@@ -284,7 +306,9 @@ def _enter(course: Course, phase: Phase, attempt: int = 0, feedback: str = "") -
         case Kind.GATE:
             return _ask(phase, Reason.GATE, "")
         case Kind.MERGE:
-            publish: tuple[Command, ...] = (PublishPullRequest(),) if course.publishes_pull_request else ()
+            publish: tuple[Command, ...] = (
+                (PublishPullRequest(), SetPullRequestReady(ready=True)) if course.publishes_pull_request else ()
+            )
             return Transition(AwaitingPerson(phase, Reason.MERGE), (*publish, AskPerson(phase, Reason.MERGE, "")))
         case Kind.PRODUCE | Kind.REVIEW | Kind.VERIFY:
             return Transition(Running(phase, attempt, feedback), (RunStep(phase, attempt, feedback),))

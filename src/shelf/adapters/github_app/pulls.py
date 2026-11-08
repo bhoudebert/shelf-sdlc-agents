@@ -3,6 +3,7 @@
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
@@ -10,6 +11,7 @@ from shelf.adapters.github_app.settings import GitHubAppSettings
 from shelf.domain.commands import HELP, MARKER, is_ours, parse_command
 from shelf.domain.model import RepoRef, WorkContext
 from shelf.domain.pipeline import EntryPoint
+from shelf.domain.stage import PREFIX, Stage
 from shelf.domain.work import AskPerson, Event, PersonDecided, PullRequestClosed, Reason
 
 TRUSTED = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
@@ -70,6 +72,9 @@ class GitHubPullRequests:
     async def publish(self, work: WorkContext) -> str:
         """Open a draft pull request from the work's branch and return its URL."""
         repo = work.request.repo
+        existing = await self._number(work)
+        if existing is not None:
+            return await self._url(work, existing)
         body = f"{MARKER}{work.id} -->\n{work.request.text}\n\nRequested-by: {work.request.requester}"
         response = await self._call(
             "POST",
@@ -87,22 +92,52 @@ class GitHubPullRequests:
 
     async def announce(self, work: WorkContext, ask: AskPerson) -> None:
         """Comment on the pull request with what the work waits for."""
+        await self.comment(work, announcement(work, ask))
+
+    async def set_ready(self, work: WorkContext, *, ready: bool) -> None:
+        """Mark the pull request ready for review, or back to draft. GitHub offers this only through GraphQL."""
         repo = work.request.repo
         number = await self._number(work)
+        if number is None:
+            return
+        pull = (await self._call("GET", repo, f"/repos/{repo.full_name}/pulls/{number}")).json()
+        if bool(pull.get("draft")) != ready:  # already in the wanted state
+            return
+        mutation = "markPullRequestReadyForReview" if ready else "convertPullRequestToDraft"
+        query = f"mutation($id: ID!) {{ {mutation}(input: {{pullRequestId: $id}}) {{ pullRequest {{ id }} }} }}"
+        await self._call("POST", repo, "/graphql", json={"query": query, "variables": {"id": pull["node_id"]}})
+
+    async def set_stage(self, work: WorkContext, stage: Stage) -> None:
+        """Keep exactly one ``shelf:`` label on the pull request: ``stage``."""
+        repo = work.request.repo
+        number = await self._number(work)
+        if number is None:
+            return
+        base = f"/repos/{repo.full_name}"
         await self._call(
-            "POST", repo, f"/repos/{repo.full_name}/issues/{number}/comments", json={"body": announcement(work, ask)}
+            "POST", repo, f"{base}/labels", json={"name": stage.name, "color": stage.color}, tolerate=(422,)
         )
+        current = (await self._call("GET", repo, f"{base}/issues/{number}/labels?per_page=100")).json()
+        names = {str(label["name"]) for label in current}
+        for stale in sorted(name for name in names if name.startswith(PREFIX) and name != stage.name):
+            await self._call("DELETE", repo, f"{base}/issues/{number}/labels/{quote(stale, safe='')}", tolerate=(404,))
+        if stage.name not in names:
+            await self._call("POST", repo, f"{base}/issues/{number}/labels", json={"labels": [stage.name]})
 
     async def comment(self, work: WorkContext, body: str) -> None:
         """Post ``body`` as a comment on the pull request."""
         repo = work.request.repo
         number = await self._number(work)
+        if number is None:  # the pull request is not open yet: the first step's result is in the commit
+            return
         await self._call("POST", repo, f"/repos/{repo.full_name}/issues/{number}/comments", json={"body": body})
 
     async def poll(self, work: WorkContext) -> Sequence[Event]:
         """The merge or close of the pull request, and decisions typed in comments since the last announcement."""
         repo = work.request.repo
         number = await self._number(work)
+        if number is None:
+            return []
         pull = (await self._call("GET", repo, f"/repos/{repo.full_name}/pulls/{number}")).json()
         if pull["state"] == "closed":
             return [PullRequestClosed(merged=bool(pull.get("merged")))]
@@ -111,7 +146,12 @@ class GitHubPullRequests:
         ).json()
         return events_from(comments)
 
-    async def _number(self, work: WorkContext) -> int:
+    async def _url(self, work: WorkContext, number: int) -> str:
+        repo = work.request.repo
+        return str((await self._call("GET", repo, f"/repos/{repo.full_name}/pulls/{number}")).json()["html_url"])
+
+    async def _number(self, work: WorkContext) -> int | None:
+        """The pull request of this work, or ``None`` while there is none."""
         if work.request.entry is EntryPoint.PULL_REQUEST_REVIEW and work.request.pull_request is not None:
             return work.request.pull_request
         repo = work.request.repo
@@ -120,10 +160,15 @@ class GitHubPullRequests:
                 "GET", repo, f"/repos/{repo.full_name}/pulls?head={repo.owner}:{branch_name(work)}&state=all"
             )
         ).json()
-        return int(found[0]["number"])
+        return int(found[0]["number"]) if found else None
 
     async def _call(
-        self, method: str, repo: RepoRef, path: str, json: Mapping[str, Any] | None = None
+        self,
+        method: str,
+        repo: RepoRef,
+        path: str,
+        json: Mapping[str, Any] | None = None,
+        tolerate: tuple[int, ...] = (),
     ) -> httpx.Response:
         token = await self.token_for(repo)
         response = await self.client.request(
@@ -136,5 +181,6 @@ class GitHubPullRequests:
             },
             json=json,
         )
-        response.raise_for_status()
+        if response.status_code not in tolerate:
+            response.raise_for_status()
         return response

@@ -1,3 +1,4 @@
+import tempfile
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
@@ -20,7 +21,7 @@ REVIEW = WorkContext(WorkId("work-2"), WorkRequest(REPO, "alice", EntryPoint.PUL
 
 @dataclass
 class FakeWorkspace:
-    path: Path = Path("/clone")
+    path: Path = field(default_factory=lambda: Path(tempfile.mkdtemp()))
     commands: dict[str, int] = field(default_factory=dict[str, int])
     ran: list[str] = field(default_factory=list[str])
     pushed: list[str] = field(default_factory=list[str])
@@ -97,7 +98,7 @@ async def test_a_reviewer_reads_the_verdict_and_pushes_nothing() -> None:
         NEED, RunStep(Phase.SPEC_REVIEW, 0, "")
     )
     assert result == Reviewed(Verdict.CHANGES, "Too vague.")
-    assert workspaces.workspace.pushed == []
+    assert workspaces.workspace.pushed == ["chore(shelf): record the request for work-1"]
 
 
 async def test_the_code_review_of_a_pull_request_is_posted_on_it_and_reads_its_head() -> None:
@@ -106,7 +107,7 @@ async def test_the_code_review_of_a_pull_request_is_posted_on_it_and_reads_its_h
         REVIEW, RunStep(Phase.CODE_REVIEW, 0, "")
     )
     assert result == Reviewed(Verdict.CHANGES, "Rename it.")
-    assert pulls.commented == ["**Review (changes)**\n\nRename it."]
+    assert pulls.commented == ["**code_reviewer: changes**\n\nRename it."]
     assert workspaces.opened[0].pull_request == 7
 
 
@@ -149,3 +150,44 @@ def test_a_reviewers_prompt_asks_for_a_verdict_line() -> None:
 
 def test_the_branch_belongs_to_the_work() -> None:
     assert branch_of(NEED) == "shelf/work-1"
+
+
+async def test_the_submitted_text_is_recorded_in_the_repository_for_everyone_to_read() -> None:
+    workspaces = FakeWorkspaces()
+    await steps(workspaces=workspaces).run(NEED, RunStep(Phase.INTAKE, 0, ""))
+    recorded = workspaces.workspace.path / "docs/shelf/work-1/request.md"
+    assert recorded.read_text() == "loyalty points\n"
+
+
+async def test_a_submitted_spec_is_recorded_as_the_spec_the_reviewers_read() -> None:
+    workspaces = FakeWorkspaces()
+    work = WorkContext(WorkId("work-3"), WorkRequest(REPO, "alice", EntryPoint.SPEC, "The system SHALL..."))
+    await steps(workspaces=workspaces).run(work, RunStep(Phase.SPEC_REVIEW, 0, ""))
+    assert (workspaces.workspace.path / "docs/shelf/work-3/spec.md").read_text() == "The system SHALL...\n"
+    assert workspaces.workspace.pushed == ["chore(shelf): record the request for work-3"]
+
+
+async def test_the_recorded_request_is_never_overwritten_by_a_later_step() -> None:
+    workspaces = FakeWorkspaces()
+    target = workspaces.workspace.path / "docs/shelf/work-1/request.md"
+    target.parent.mkdir(parents=True)
+    target.write_text("edited by a person\n")
+    await steps(workspaces=workspaces).run(NEED, RunStep(Phase.INTAKE, 1, "more"))
+    assert target.read_text() == "edited by a person\n"
+
+
+async def test_a_producer_says_what_it_did_and_where_on_the_pull_request() -> None:
+    pulls = FakePulls()
+    await steps(FakeAgents("Wrote 3 requirements."), pulls=pulls).run(NEED, RunStep(Phase.INTAKE, 0, ""))
+    [comment] = pulls.commented
+    assert comment.startswith("**intake** finished (round 0).")
+    assert "`docs/shelf/work-1/spec.md`" in comment
+    assert "Wrote 3 requirements." in comment
+
+
+async def test_every_review_and_check_is_reported_on_the_pull_request() -> None:
+    pulls = FakePulls()
+    runner = steps(FakeAgents("Too vague.\nVERDICT: CHANGES"), pulls=pulls, config=RepoConfig(checks=("make test",)))
+    await runner.run(NEED, RunStep(Phase.SPEC_REVIEW, 0, ""))
+    await runner.run(NEED, RunStep(Phase.VERIFY, 0, ""))
+    assert pulls.commented == ["**spec_critic: changes**\n\nToo vague.", "**Checks: passed**"]

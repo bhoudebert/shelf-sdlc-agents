@@ -74,6 +74,24 @@ class AskInput:
 
 
 @dataclass(frozen=True, slots=True)
+class StageInput:
+    """The input of the activity that sets the pull request's stage label."""
+
+    work: WorkInput
+    phase: str
+    reason: str = ""
+    """Why a person is awaited, or empty while a step runs."""
+
+
+@dataclass(frozen=True, slots=True)
+class ReadyInput:
+    """The input of the activity that marks the pull request ready for review or back to draft."""
+
+    work: WorkInput
+    ready: bool
+
+
+@dataclass(frozen=True, slots=True)
 class EventDto:
     """An event found on the pull request, as a tagged record."""
 
