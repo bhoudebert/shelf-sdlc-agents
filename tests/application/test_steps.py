@@ -224,3 +224,49 @@ async def test_failing_checks_are_listed_with_their_output_for_everyone_to_read(
     assert "✅ `make lint`" in comment
     assert "❌ `make test` (exit 2)" in comment
     assert "output of make test" in comment
+
+
+def test_a_reviewer_is_told_the_base_branch_so_it_can_run_the_diff_it_is_asked_for() -> None:
+    prompt = task_prompt(NEED, RunStep(Phase.CODE_REVIEW, 0, ""), "develop")
+    assert "git diff develop...HEAD" in prompt
+    assert "git diff" not in task_prompt(NEED, RunStep(Phase.IMPLEMENT, 0, ""), "develop")
+
+
+def test_the_prompts_of_the_reviewers_only_promise_what_they_can_do() -> None:
+    from shelf.adapters.claude_agent.prompts import load_prompt  # noqa: PLC0415
+
+    assert "read-only git" in load_prompt("code_reviewer")
+    assert "cannot build or run tests" in load_prompt("code_reviewer")
+
+
+async def test_every_agent_is_pointed_at_the_specs_decisions_and_conventions_of_the_repository() -> None:
+    agents, workspaces = FakeAgents(), FakeWorkspaces()
+    root = workspaces.workspace.path
+    for name in ("AGENTS.md", "openspec/specs/pipeline/spec.md", "docs/adr/0001-first.md", "docs/shelf/work-0/spec.md"):
+        (root / name).parent.mkdir(parents=True, exist_ok=True)
+        (root / name).write_text("x")
+    await steps(agents, workspaces).run(NEED, RunStep(Phase.DESIGN, 0, ""))
+    [task] = agents.tasks
+    assert "- AGENTS.md" in task.prompt
+    assert "- openspec/specs/pipeline/spec.md" in task.prompt
+    assert "- docs/adr/0001-first.md" in task.prompt
+    assert "- docs/shelf/work-0/spec.md" in task.prompt
+
+
+async def test_the_current_works_own_spec_is_not_listed_as_earlier_work() -> None:
+    agents, workspaces = FakeAgents(), FakeWorkspaces()
+    own = workspaces.workspace.path / "docs/shelf/work-1/spec.md"
+    own.parent.mkdir(parents=True)
+    own.write_text("x")
+    await steps(agents, workspaces).run(NEED, RunStep(Phase.SPEC_REVIEW, 0, ""))
+    assert "Specs of earlier work" not in agents.tasks[0].prompt
+
+
+def test_every_reviewer_is_told_that_a_contradiction_is_a_major_issue() -> None:
+    from shelf.adapters.claude_agent.prompts import load_prompt  # noqa: PLC0415
+
+    for role in ("spec_critic", "design_reviewer", "code_reviewer"):
+        assert "contradiction" in load_prompt(role)
+        assert "whole picture" in load_prompt(role)
+    for role in ("intake", "architect", "planner", "implementer"):
+        assert "whole picture" in load_prompt(role)

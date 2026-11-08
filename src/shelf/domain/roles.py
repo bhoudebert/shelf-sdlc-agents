@@ -6,9 +6,19 @@ from typing import Final
 from shelf.domain.model import WorkId
 from shelf.domain.pipeline import KIND, EntryPoint, Kind, Phase
 
-READ_ONLY: Final = ("Read", "Glob", "Grep")
+READ_GIT: Final = (
+    "Bash(git diff:*)",
+    "Bash(git log:*)",
+    "Bash(git show:*)",
+    "Bash(git status:*)",
+    "Bash(git blame:*)",
+    "Bash(git ls-files:*)",
+)
+"""The only shell commands a reading agent may run: git, to look at history and the change, never to alter anything."""
+READ_ONLY: Final = ("Read", "Glob", "Grep", *READ_GIT)
 WRITING: Final = (*READ_ONLY, "Write", "Edit")
 CODING: Final = (*WRITING, "Bash")
+"""Only the developer may run arbitrary commands, inside the sandbox."""
 
 
 @dataclass(frozen=True, slots=True)

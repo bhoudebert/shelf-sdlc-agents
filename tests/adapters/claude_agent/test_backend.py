@@ -17,7 +17,9 @@ def task(phase: Phase) -> AgentTask:
 
 def test_a_role_gets_only_its_own_tools_and_the_sandbox() -> None:
     options = options_for(task(Phase.CODE_REVIEW))
-    assert options.allowed_tools == ["Read", "Glob", "Grep"]
+    assert options.allowed_tools[:3] == ["Read", "Glob", "Grep"]
+    assert "Bash(git diff:*)" in options.allowed_tools
+    assert "Bash" not in options.allowed_tools
     assert options.sandbox is not None
     assert options.sandbox.get("enabled") is True
     assert options.setting_sources == []
@@ -51,3 +53,8 @@ def test_a_login_failure_tells_the_operator_where_the_credential_goes() -> None:
 def test_the_nested_sandbox_is_opt_in_for_containers() -> None:
     assert options_for(task(Phase.IMPLEMENT)).sandbox.get("enableWeakerNestedSandbox") is False  # type: ignore[union-attr]
     assert options_for(task(Phase.IMPLEMENT), nested_sandbox=True).sandbox.get("enableWeakerNestedSandbox") is True  # type: ignore[union-attr]
+
+
+def test_the_sandbox_can_be_turned_off_where_it_cannot_start() -> None:
+    assert options_for(task(Phase.IMPLEMENT), sandbox=False).sandbox.get("enabled") is False  # type: ignore[union-attr]
+    assert options_for(task(Phase.IMPLEMENT)).sandbox.get("enabled") is True  # type: ignore[union-attr]

@@ -95,3 +95,8 @@ def test_any_model_credential_counts(key: str) -> None:
     assert not from_environ(BASE).model_credential
     assert from_environ({**BASE, key: "x"}).model_credential
     assert not from_environ({**BASE, key: "  "}).model_credential
+
+
+def test_the_sandbox_is_on_unless_the_operator_turns_it_off() -> None:
+    assert from_environ(BASE).sandbox
+    assert not from_environ({**BASE, "SHELF_SANDBOX_DISABLED": "1"}).sandbox

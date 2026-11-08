@@ -4,6 +4,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 from shelf.domain.config import RepoConfig
+from shelf.domain.context import CATEGORIES, EARLIER_WORK, context_brief
 from shelf.domain.model import RepoRef, WorkContext
 from shelf.domain.pipeline import Phase
 from shelf.domain.roles import PROVIDED_DOCUMENT, REVIEWERS, ROLES, documents_dir
@@ -34,7 +35,7 @@ def branch_of(work: WorkContext) -> str:
     return f"shelf/{work.id}"
 
 
-def task_prompt(work: WorkContext, step: RunStep) -> str:
+def task_prompt(work: WorkContext, step: RunStep, base: str = "main", picture: str = "") -> str:
     """What the agent is asked, built from the request, the documents so far and the feedback that sent work back."""
     folder = documents_dir(work.id)
     role = ROLES[step.phase]
@@ -42,10 +43,14 @@ def task_prompt(work: WorkContext, step: RunStep) -> str:
         f"Requested by: {work.request.requester}",
         f"Documents of this work live in `{folder}/` (spec.md, design.md, plan.md). Read the ones that exist.",
     ]
+    if picture:
+        lines += ["", picture]
     if work.request.text:
         lines += ["", "The request:", work.request.text]
     if step.feedback:
         lines += ["", f"This is round {step.attempt}. Address this feedback first:", step.feedback]
+    if step.phase in REVIEWERS or role.name == "architect":
+        lines += ["", f"The base branch is `{base}`: `git diff {base}...HEAD` shows what this work changed."]
     if role.document:
         lines += ["", f"Write your result to `{folder}/{role.document}`."]
     if step.phase in REVIEWERS:
@@ -92,7 +97,7 @@ class Steps:
         if step.phase is Phase.VERIFY:
             checked, ran = await self._verify(workspace, config)
             return checked, "checks", ran
-        answer = await self._ask_agent(work, step, workspace, token)
+        answer = await self._ask_agent(work, step, workspace, token, config.base_branch)
         role = ROLES[step.phase]
         if step.phase in REVIEWERS:
             reviewed = parse_verdict(answer)
@@ -100,13 +105,13 @@ class Steps:
         await workspace.commit_and_push(f"chore(shelf): {role.name} for {work.id}")
         return Produced(), role.name, await self._story(work, step, workspace, config, answer)
 
-    async def _ask_agent(self, work: WorkContext, step: RunStep, workspace: Workspace, token: str) -> str:
+    async def _ask_agent(self, work: WorkContext, step: RunStep, workspace: Workspace, token: str, base: str) -> str:
         role = ROLES[step.phase]
         return await self.agents.run(
             AgentTask(
                 role=role,
                 system_prompt=self.prompt_for(role.name),
-                prompt=task_prompt(work, step),
+                prompt=task_prompt(work, step, base, self._picture(work, workspace)),
                 workdir=workspace.path,
                 env={"GH_TOKEN": token},
                 max_turns=self.max_turns,
@@ -114,6 +119,18 @@ class Steps:
                 model=self.model,
             )
         )
+
+    def _picture(self, work: WorkContext, workspace: Workspace) -> str:
+        """Everything that already binds the repository (conventions, specs, decisions, earlier work), as a brief."""
+        root = workspace.path
+        found = {
+            title: sorted({str(p.relative_to(root)) for pattern in patterns for p in root.glob(pattern) if p.is_file()})
+            for title, patterns in CATEGORIES.items()
+        }
+        earlier = sorted(
+            str(p.relative_to(root)) for p in root.glob(EARLIER_WORK) if p.is_file() and work.id not in p.parts
+        )
+        return context_brief(found, earlier)
 
     async def _record_request(self, work: WorkContext, workspace: Workspace) -> bool:
         """Write the text the person submitted into the repository, once, so everyone reads the same document."""
