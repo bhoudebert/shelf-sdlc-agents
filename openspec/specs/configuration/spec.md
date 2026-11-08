@@ -65,3 +65,12 @@ The system SHALL read a repository's `.shelf/config.toml` from GitHub with the A
 
 - **WHEN** the file has an unknown key
 - **THEN** starting work on that repository is refused with the reason
+
+### Requirement: Invalid configuration is one named error
+
+The system SHALL raise a single, named error for any invalid configuration file, so callers can show the reason.
+
+#### Scenario: Callers
+
+- **WHEN** any configuration file is invalid
+- **THEN** the same error type carries the reason

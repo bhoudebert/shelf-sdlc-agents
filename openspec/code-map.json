@@ -67,12 +67,12 @@
         "src/shelf/adapters/config/*.py",
         "src/shelf/domain/operator.py",
         "src/shelf/domain/polling.py",
-        "src/shelf/adapters/github_app/configs.py"
+        "src/shelf/adapters/config/github.py"
       ],
       "tests": [
         "tests/adapters/config/*.py",
         "tests/domain/test_polling.py",
-        "tests/adapters/github_app/test_configs.py"
+        "tests/adapters/config/test_github.py"
       ]
     },
     "pull-requests": {
@@ -117,7 +117,7 @@
     "deployment": {
       "code": [
         "src/shelf/entrypoints/*.py",
-        "src/shelf/adapters/web/setup.py",
+        "src/shelf/entrypoints/setup.py",
         "src/shelf/adapters/web/templates/setup.html",
         "src/shelf/adapters/web/templates/registered.html",
         "Dockerfile",
@@ -125,7 +125,7 @@
       ],
       "tests": [
         "tests/entrypoints/*.py",
-        "tests/adapters/web/test_setup.py"
+        "tests/entrypoints/test_setup.py"
       ]
     }
   }

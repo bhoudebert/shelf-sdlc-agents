@@ -78,3 +78,17 @@ The system SHALL NOT include the installation token in an error raised by a fail
 
 - **WHEN** a clone fails
 - **THEN** the error text does not contain the token
+
+### Requirement: The agents' sandbox works inside a container when asked
+
+The system SHALL run the agents' sandbox in its weaker nested mode only when the operator turns it on, which a container deployment does for the worker, and SHALL keep the sandbox on in both cases.
+
+#### Scenario: Default
+
+- **WHEN** the nested sandbox is not turned on
+- **THEN** the sandbox is on in its normal mode
+
+#### Scenario: In Docker
+
+- **WHEN** the operator turns the nested sandbox on
+- **THEN** the sandbox is on in its nested mode
