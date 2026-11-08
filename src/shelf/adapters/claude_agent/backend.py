@@ -23,10 +23,11 @@ class AgentFailedError(RuntimeError):
         super().__init__(f"{role} failed: {reason}{hint}")
 
 
-def options_for(task: AgentTask, *, nested_sandbox: bool = False) -> ClaudeAgentOptions:
+def options_for(task: AgentTask, *, nested_sandbox: bool = False, sandbox: bool = True) -> ClaudeAgentOptions:
     """The SDK options for ``task``: its own tools only, the sandbox on, bounded in turns and money.
 
-    ``nested_sandbox`` selects the weaker sandbox mode that works inside a container (Docker).
+    ``nested_sandbox`` selects the weaker sandbox mode that works inside a container (Docker). ``sandbox=False`` turns
+    the sandbox off, for hosts where it cannot start: the container is then the only boundary around the agent.
     """
     return ClaudeAgentOptions(
         cwd=task.workdir,
@@ -38,7 +39,9 @@ def options_for(task: AgentTask, *, nested_sandbox: bool = False) -> ClaudeAgent
         model=task.model,
         env=dict(task.env),
         setting_sources=[],
-        sandbox=SandboxSettings(enabled=True, autoAllowBashIfSandboxed=True, enableWeakerNestedSandbox=nested_sandbox),
+        sandbox=SandboxSettings(
+            enabled=sandbox, autoAllowBashIfSandboxed=True, enableWeakerNestedSandbox=nested_sandbox
+        ),
     )
 
 
@@ -47,11 +50,14 @@ class ClaudeBackend:
     """Runs roles on the Claude Agent SDK. Credentials come from the environment of the worker."""
 
     nested_sandbox: bool = False
+    sandbox: bool = True
 
     async def run(self, task: AgentTask) -> str:
         """Run ``task`` and return the final answer."""
         answer = ""
-        async for message in query(prompt=task.prompt, options=options_for(task, nested_sandbox=self.nested_sandbox)):
+        async for message in query(
+            prompt=task.prompt, options=options_for(task, nested_sandbox=self.nested_sandbox, sandbox=self.sandbox)
+        ):
             if isinstance(message, ResultMessage):
                 if message.is_error:
                     raise AgentFailedError(task.role.name, message.result or message.subtype)

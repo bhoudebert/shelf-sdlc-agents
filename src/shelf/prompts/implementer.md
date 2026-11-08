@@ -7,3 +7,7 @@ feedback is given (a review, failing checks, a person's note), address every poi
 
 Do not change files outside the scope of the plan. Do not commit or push: the system does that. Do not weaken or delete a
 test to make it pass.
+
+The whole picture matters. The task lists the conventions, specifications and decisions that already bind this repository:
+read the ones your work touches before you write. Never contradict an existing specification or decision silently; if the
+work truly requires it, say so explicitly with the file, the requirement and the reason.

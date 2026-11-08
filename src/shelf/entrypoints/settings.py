@@ -37,6 +37,7 @@ class Settings:
     max_turns: int
     max_budget_usd: float | None
     nested_sandbox: bool
+    sandbox: bool
     port: int
     revision: str
     temporal_ui_upstream: str
@@ -119,6 +120,7 @@ def from_environ(environ: Mapping[str, str]) -> Settings:
         max_turns=int(environ.get("SHELF_MAX_TURNS", "40")),
         max_budget_usd=float(budget) if budget else None,
         nested_sandbox=environ.get("SHELF_NESTED_SANDBOX", "").strip().lower() in {"1", "true", "yes"},
+        sandbox=environ.get("SHELF_SANDBOX_DISABLED", "").strip().lower() not in {"1", "true", "yes"},
         port=int(environ.get("PORT", "8080")),
         revision=environ.get("SHELF_REVISION", "unknown"),
         model_credential=any(environ.get(key, "").strip() for key in MODEL_CREDENTIALS),
