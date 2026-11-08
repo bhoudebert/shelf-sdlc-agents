@@ -138,3 +138,17 @@ The system SHALL, when a configuration file or a required setting is invalid, st
 
 - **WHEN** the operator runs the install script with an invalid access file
 - **THEN** it stops before building and says so
+
+### Requirement: The private key is a mounted file
+
+The system SHALL read the GitHub App's private key from a file in a secrets directory that is mounted read-only into the web and worker containers, SHALL keep that directory out of version control, SHALL accept the key inline in the environment as an alternative, and SHALL say where to put the file when it is missing.
+
+#### Scenario: The key file is present
+
+- **WHEN** the file exists in the secrets directory and the App id is set
+- **THEN** the services read the key from it
+
+#### Scenario: The key file is missing
+
+- **WHEN** the App id is set but no key is available
+- **THEN** the service stops saying to put the file at `deploy/secrets/github-app.pem`
