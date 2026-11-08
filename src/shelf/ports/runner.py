@@ -7,6 +7,10 @@ from shelf.domain.model import RepoRef, WorkId, WorkRequest, WorkView
 from shelf.domain.work import PersonDecided
 
 
+class UnreachableWorkError(Exception):
+    """The engine refused to take a message for this work: it is finished, or its history can no longer be run."""
+
+
 class WorkRunner(Protocol):
     """Start work, tell it what a person decided, and look at it."""
 
@@ -16,6 +20,10 @@ class WorkRunner(Protocol):
 
     async def decide(self, work_id: WorkId, decision: PersonDecided) -> None:
         """Deliver a person's decision to the work waiting for it."""
+        ...
+
+    async def terminate(self, work_id: WorkId, reason: str) -> None:
+        """End the work at once, whatever it is doing, because it can no longer be steered (an administrator's tool)."""
         ...
 
     async def pull_request_closed(self, work_id: WorkId, *, merged: bool) -> None:

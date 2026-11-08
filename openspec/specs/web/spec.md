@@ -117,6 +117,25 @@ The system SHALL accept a GitHub webhook only with a valid HMAC signature, signa
 - **WHEN** the pull request of a piece of work is merged
 - **THEN** the work is told it was merged
 
+### Requirement: An administrator can close work that can no longer be steered
+
+The system SHALL let an administrator close a piece of work from its page without running its history, and SHALL answer a decision the engine cannot take with an explanation, never a server error.
+
+#### Scenario: Work started by an older release
+
+- **WHEN** an administrator closes work whose history can no longer be run
+- **THEN** it ends at once and the board shows it as aborted, not as unreadable
+
+#### Scenario: A decision on such work
+
+- **WHEN** a person rejects or aborts work the engine cannot take a message for
+- **THEN** the page says why and that an administrator can close it
+
+#### Scenario: Not an administrator
+
+- **WHEN** anyone else asks to close work
+- **THEN** the request is refused and the button is not shown
+
 ### Requirement: A repository whose configuration is invalid is reported on the page
 
 The system SHALL answer a start or a decision on a repository with an invalid configuration file with the reason on the form or panel, not with a server error.

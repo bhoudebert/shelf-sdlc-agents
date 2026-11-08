@@ -7,6 +7,11 @@
     <h1>{{ item.repo }}</h1>
     <p class="meta">{{ item.entry }} · requested by {{ item.requester }}{% if temporal_link %} · <a href="{{ temporal_link }}" target="_blank" rel="noopener noreferrer">Inspect in Temporal<span class="vh"> (opens in a new tab)</span></a>{% endif %}</p>
   </div>
+  {% if can_close %}
+  <form class="close-work" method="post" action="/work/{{ item.id }}/close">
+    <button class="btn-danger" data-confirm="Close this work without asking it? Use this when it is stuck or cannot be read. This cannot be undone.">Close this work (administrators)</button>
+  </form>
+  {% endif %}
   {% include "_work_panel.html" %}
   <section id="documents" class="docs" hx-get="/work/{{ item.id }}/documents" hx-trigger="load, every 20s" hx-swap="outerHTML" aria-label="Documents of this work">
     <h2>Documents</h2>

@@ -18,6 +18,7 @@ from shelf.domain.model import Identity, RepoRef, WorkId, WorkView
 from shelf.domain.pipeline import EntryPoint, Phase
 from shelf.domain.work import DecisionKind, PersonDecided, Reason
 from shelf.ports.documents import Documents
+from shelf.ports.runner import UnreachableWorkError
 from tests.fakes import FakeConfigs, FakeForge, FakeRunner
 
 REPO = RepoRef("acme", "shop")
@@ -175,6 +176,34 @@ def test_a_decision_by_someone_without_the_role_is_refused() -> None:
     response = app.client.post("/work/work-1/decide", data={"kind": "approve"})
     assert response.status_code == 403
     assert app.runner.decisions == []
+
+
+def test_a_decision_on_work_the_engine_cannot_take_is_explained_not_a_server_error(app: Fixture) -> None:
+    waiting(app)
+
+    async def refuse(work_id: WorkId, decision: PersonDecided) -> None:
+        raise UnreachableWorkError(work_id)
+
+    app.runner.decide = refuse  # type: ignore[method-assign]
+    response = app.client.post("/work/work-1/decide", data={"kind": "abort", "note": ""})
+    assert response.status_code == 409
+    assert "An administrator can close it" in response.text
+
+
+def test_an_administrator_closes_work_that_cannot_be_steered() -> None:
+    app = Fixture(AccessRules(admins=frozenset({"alice"})))
+    waiting(app)
+    assert "Close this work" in app.client.get("/work/work-1").text
+    response = app.client.post("/work/work-1/close", follow_redirects=False)
+    assert (response.status_code, response.headers["location"]) == (303, "/work/work-1")
+    assert [work_id for work_id, _ in app.runner.terminated] == [WorkId("work-1")]
+
+
+def test_someone_who_is_not_an_administrator_cannot_close_work(app: Fixture) -> None:
+    waiting(app)
+    assert "Close this work" not in app.client.get("/work/work-1").text
+    assert app.client.post("/work/work-1/close").status_code == 403
+    assert app.runner.terminated == []
 
 
 def test_an_unknown_decision_is_refused(app: Fixture) -> None:

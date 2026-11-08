@@ -138,6 +138,16 @@ The system SHALL show a piece of work that exists but whose state cannot be read
 - **WHEN** reading the state of a piece of work fails
 - **THEN** the board shows it as failed and says it may have been started by an older release
 
+#### Scenario: Closing it
+
+- **WHEN** an administrator closes such a piece of work
+- **THEN** the workflow is terminated without running its code, and a terminated workflow that cannot be read is shown as aborted
+
+#### Scenario: A message the engine refuses
+
+- **WHEN** a decision is sent to work that is finished or cannot be run
+- **THEN** the runner reports it as unreachable instead of failing with an engine error
+
 ### Requirement: Publishing names the pull request and may take as long as an agent
 
 The system SHALL have the publish activity ask for the pull request's title from the step runner and give it to the pull request, allowing it the time a short agent run takes, without changing what a recorded history does.

@@ -3,7 +3,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from shelf.adapters.web import views
 from shelf.adapters.web.context import Web
@@ -13,11 +13,17 @@ from shelf.domain.config import InvalidConfigError
 from shelf.domain.model import WorkId
 from shelf.domain.result import Ok
 from shelf.domain.work import DecisionKind
+from shelf.ports.runner import UnreachableWorkError
 
 type Panel = tuple[views.ItemView, list[views.TimelineStep], list[views.DecisionOption]]
 
+UNREACHABLE = (
+    "This work cannot take a decision: it is finished or was started by an older release. "
+    "An administrator can close it."
+)
 
-def router(web: Web) -> APIRouter:
+
+def router(web: Web) -> APIRouter:  # noqa: C901 - one small closure per route
     """The work page and decision routes."""
     routes = APIRouter()
     guarded = [Depends(web.same_origin)]
@@ -40,6 +46,7 @@ def router(web: Web) -> APIRouter:
             flash="",
             version=views.version_of(item, timeline, decisions),
             temporal_link=web.temporal_link(work_id) if web.is_admin(session) else "",
+            can_close=web.is_admin(session) and item.outcome == "",
         )
 
     @routes.get("/work/{work_id}/panel", response_class=HTMLResponse)
@@ -75,9 +82,23 @@ def router(web: Web) -> APIRouter:
             )
         except InvalidConfigError as error:
             return f"The repository's configuration is invalid: {error}", 422
+        except UnreachableWorkError:
+            return UNREACHABLE, 409
         if isinstance(result, Ok):
             return "Decision sent.", 200
         return "You may not decide this here.", 403
+
+    @routes.post("/work/{work_id}/close", dependencies=guarded)
+    async def close(session: Annotated[Session, Depends(web.signed_in)], work_id: str) -> Response:
+        """End a piece of work that can no longer be steered. Administrators only."""
+        if not web.is_admin(session):
+            raise HTTPException(status_code=403, detail="administrators only")
+        await web.visible_work(session, work_id)
+        try:
+            await deps.runner.terminate(WorkId(work_id), f"closed by {session.identity.login} from the work page")
+        except UnreachableWorkError:
+            raise HTTPException(status_code=409, detail="this work is already finished") from None
+        return RedirectResponse(f"/work/{work_id}", status_code=303)
 
     @routes.post("/work/{work_id}/decide", dependencies=guarded)
     async def decide(
