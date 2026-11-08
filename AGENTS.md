@@ -92,10 +92,22 @@ then the edit is already done. The check above comes first.
 
 ## Code conventions
 
-<!-- Fill in the conventions that are not obvious from the code: layering, error handling,
-     naming, where things live, what must never be done. Keep it to what a newcomer would get wrong. -->
-
-- Language and tools: Python. Code under `src/shelf/`, tests under `tests/`.
+- Python 3.13, `uv`, `ruff` (every rule on), `pyright` strict. Code under `src/shelf/`, tests under `tests/`.
+- **Layers point inwards**, enforced by `import-linter` (`uv run lint-imports`): `domain` (imports the standard library
+  only) <- `ports` (protocols) <- `application` (use cases) <- `adapters` <- `entrypoints`. Adapters never import each other;
+  only `entrypoints` wires them. A new dependency on a framework goes in an adapter, never in `domain` or `application`.
+- **The core is functional.** `shelf.domain.work.decide(course, state, event) -> Transition(state, commands)` is pure:
+  immutable `frozen`/`slots` dataclasses, `match` over tagged unions, no I/O, no clock, no randomness. The Temporal
+  workflow only feeds it events and runs its commands. Change behaviour there first, with a property test.
+- **Failures the caller must handle are values** (`shelf.domain.result`), programmer errors are exceptions. Adapters raise
+  their own errors; entry points translate them for the person.
+- **Dependencies are arguments** (small dataclasses or closures holding ports). No DI framework, no globals, no singletons.
+- Pydantic and FastAPI types stay at the edges (HTTP). Wire types for Temporal live in `adapters/temporal/wire.py`.
+- **A workflow change must replay.** Anything that alters what `WorkItemWorkflow` does to existing histories needs
+  `workflow.patched` and keeps `test_a_finished_history_replays_deterministically` green.
+- **Specs and ADRs.** Behaviour lives in `openspec/specs/<capability>/spec.md`, mapped to files in `openspec/code-map.json`;
+  a change under `src/` changes the matching spec in the same pull request. A lasting decision gets an ADR.
+- Never log or put a token in an error message; installation tokens are minted per use and never stored.
 
 ## Useful commands
 

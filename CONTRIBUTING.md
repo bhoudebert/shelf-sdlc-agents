@@ -9,12 +9,10 @@ Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md).
 
 ## What helps most
 
-<!-- List, in order, the contributions that help most: bug reports with a reproduction,
-     docs, tests, a good first issue, data, translations... -->
-
 1. A bug report with the steps to reproduce it (use the issue template).
-2. A fix or a feature that follows the path below.
-3. Documentation and examples.
+2. A run on a real repository with a real model, and what went wrong: the agents are the least verified part.
+3. A fix or a feature that follows the path below, with its spec and tests.
+4. A new agent backend (the `AgentBackend` port), role prompts that review better, documentation.
 
 ## Setup
 
@@ -162,4 +160,4 @@ version bump. Merging it tags the release and publishes the release notes.
 
 ## Code conventions
 
-<!-- Keep in step with AGENTS.md: the conventions a newcomer would get wrong. -->
+The conventions a newcomer would get wrong (layering, the pure core, replay-safe workflow changes) are in [AGENTS.md](AGENTS.md#code-conventions).

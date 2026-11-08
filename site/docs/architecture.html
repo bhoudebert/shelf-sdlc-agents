@@ -17,7 +17,7 @@
 <tr><td><code>domain</code></td><td>The work-item state machine and access rules. Pure, with no I/O.</td></tr>
 <tr><td><code>ports</code></td><td>The interfaces the application needs from the outside world.</td></tr>
 <tr><td><code>application</code></td><td>Use cases that orchestrate the domain through ports.</td></tr>
-<tr><td><code>adapters</code></td><td>Implementations of the ports, such as the GitHub App adapter (being built).</td></tr>
+<tr><td><code>adapters</code></td><td>Implementations of the ports: Temporal, the GitHub App, git, the Claude Agent SDK, configuration files and the web interface.</td></tr>
 <tr><td><code>entrypoints</code></td><td>The web app, the worker and webhook handlers that start everything.</td></tr></tbody></table></div>
 <div class="diagram"><svg viewBox="0 0 640 330" role="img" aria-labelledby="ad-t"><title id="ad-t">Dependencies point inward: entrypoints and adapters depend on application, application on ports and domain.</title>
 <rect class="box" x="10" y="10" width="620" height="310"/><text x="22" y="34">adapters and entrypoints</text>

@@ -54,4 +54,14 @@ that matches nothing. Specs name behaviour, never source files.
 
 | Capability | Covers |
 | ---------- | ------ |
-| <!-- name --> | <!-- what it covers --> |
+| pipeline | the phases, entry points and policy |
+| work-item | the pure state machine: loops, gates, escalation, abort |
+| access | who signs in, roles per repository |
+| work-requests | start, decide and the board as use cases |
+| durable-workflow | the Temporal workflow, the runner, polling, replay |
+| github-app | sign-in, repositories, installation tokens, registration |
+| pull-requests | publishing, announcing, `/shelf` commands, merge detection |
+| steps | a fresh clone, agent roles, verdicts, checks |
+| configuration | `shelf.toml` and `.shelf/config.toml` |
+| web | the interface: sign-in, board, timeline, decisions, webhooks |
+| deployment | compose, settings, first-run registration |

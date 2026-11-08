@@ -11,36 +11,39 @@
 <nav aria-label="Main"><a href="getting-started.html" aria-current="page">Docs</a><a href="https://github.com/bhoudebert/shelf-sdlc-agents" class="hide-sm">GitHub</a>
 <button class="icon-btn" id="theme" type="button" aria-label="Toggle dark theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button></nav></header>
 <div class="docs"><aside class="side"><nav aria-label="Documentation"><p>Documentation</p><ul><li><a href="getting-started.html" aria-current="page">Getting started</a></li><li><a href="github-app.html">The GitHub App</a></li><li><a href="concepts.html">Concepts</a></li><li><a href="configuration.html">Configuration</a></li><li><a href="architecture.html">Architecture</a></li><li><a href="security.html">Security model</a></li><li><a href="contributing.html">Contributing</a></li></ul></nav></aside>
-<main id="main" class="doc"><h1>Getting started</h1><p class="lead">Self-host shelf-sdlc with one Docker Compose file.</p><div class="callout planned"><p><strong>Planned interface.</strong> This describes where the project is heading. The deployment and several components below are still being built, and names may change before release.</p></div>
+<main id="main" class="doc"><h1>Getting started</h1><p class="lead">Self-host shelf-sdlc with one Docker Compose file.</p>
+<div class="callout planned"><p><strong>Early development.</strong> The stack below boots and is tested on real Docker. A full run with a real model on a real repository is the next checkpoint, so expect rough edges and tell us about them.</p></div>
 <h2 id="overview">What you will run</h2>
-<p>The compose file starts three services: <strong>Temporal</strong> (durable workflows), <strong>web</strong> (sign-in, UI, webhooks) and <strong>worker</strong> (runs the workflows and the agents). There is no bundled reverse proxy. Terminate TLS with a proxy you already have, or a Kubernetes ingress, and point it at the web service.</p>
+<p>The compose file starts three services: <strong>Temporal</strong> (durable workflows, with its data on a volume), <strong>web</strong> (sign-in, the interface, webhooks; port 8080) and <strong>worker</strong> (runs the workflows and the agents; scale it with <code>--scale worker=3</code>). There is no bundled reverse proxy. Terminate TLS with a proxy you already have, a tunnel, or a Kubernetes ingress, and point it at the web service. Kubernetes manifests are not provided: <code>deploy/compose.yml</code> lists every service, variable and volume, which is all you need to translate it.</p>
+<h2 id="need">You need</h2>
+<ul><li>A server with Docker and Docker Compose v2.</li><li>A public HTTPS address for the instance (GitHub redirects people and sends webhooks to it).</li><li>A model credential: an Anthropic API key, a Claude subscription token (<code>claude setup-token</code>), or an Anthropic-compatible gateway.</li></ul>
 <h2 id="steps">Steps</h2>
-<ol><li><a href="github-app.html">Register the GitHub App</a> from the manifest and keep its private key.</li>
-<li>Write <code>shelf.toml</code> to say which organisations and users may sign in and who administers the instance (see <a href="configuration.html">Configuration</a>).</li>
-<li>Create an <code>.env</code> file with the variables below.</li>
-<li>Start the stack.</li></ol>
+<ol>
+<li><strong>Install.</strong> <pre><code>git clone https://github.com/bhoudebert/shelf-sdlc-agents
+cd shelf-sdlc-agents
+sh deploy/install.sh https://shelf.example.org</code></pre> This writes <code>deploy/.env</code> with a generated session secret and starts the stack. Add your model credential to the file.</li>
+<li><strong>Say who may sign in.</strong> Edit <code>deploy/shelf.toml</code> (see <a href="configuration.html">Configuration</a>). Leave both lists empty and anyone with a GitHub account can use, and spend, your instance.</li>
+<li><strong>Register the GitHub App.</strong> Open your address. While no App is configured, the first page offers one click to register it with the right permissions and events, then shows the credentials once. Paste them into <code>deploy/.env</code>. See <a href="github-app.html">The GitHub App</a>.</li>
+<li><strong>Run the script again</strong> so the stack restarts with the App: <code>sh deploy/install.sh</code>.</li>
+<li><strong>Install the App</strong> on the repositories you want to use (the board links to it), and sign in.</li>
+</ol>
 <h2 id="env">Environment variables</h2>
+<p><code>deploy/.env.example</code> documents every variable. The ones you set:</p>
 <div class="table-wrap"><table><thead><tr><th>Variable</th><th>Purpose</th></tr></thead><tbody>
-<tr><td><code>GITHUB_APP_ID</code></td><td>Numeric id of your GitHub App.</td></tr>
-<tr><td><code>GITHUB_APP_PRIVATE_KEY_PATH</code></td><td>Path to the app's private key (PEM), mounted into the containers.</td></tr>
-<tr><td><code>GITHUB_APP_CLIENT_ID</code></td><td>OAuth client id of the app, used for sign-in.</td></tr>
-<tr><td><code>GITHUB_APP_CLIENT_SECRET</code></td><td>OAuth client secret of the app.</td></tr>
-<tr><td><code>GITHUB_WEBHOOK_SECRET</code></td><td>Secret used to verify webhook deliveries (server mode).</td></tr>
-<tr><td><code>SESSION_SECRET</code></td><td>Random secret that signs web sessions.</td></tr>
-<tr><td><code>PUBLIC_URL</code></td><td>The public address of the instance, used for callbacks and webhooks.</td></tr>
-<tr><td><code>MODE</code></td><td><code>local</code> or <code>server</code>. See below.</td></tr>
-<tr><td><code>ANTHROPIC_API_KEY</code></td><td>Model credentials: an API key...</td></tr>
-<tr><td><code>CLAUDE_CODE_OAUTH_TOKEN</code></td><td>...or a Claude Code OAuth token.</td></tr>
-<tr><td><code>ANTHROPIC_BASE_URL</code></td><td>Optional: send model calls through another endpoint.</td></tr></tbody></table></div>
-<p>Provide one of <code>ANTHROPIC_API_KEY</code> or <code>CLAUDE_CODE_OAUTH_TOKEN</code>.</p>
-<h2 id="modes">Local and server mode</h2>
-<ul><li><strong>local</strong>: for a machine that GitHub cannot reach. The workflow polls GitHub on a durable timer whose interval slows down while nothing changes.</li>
-<li><strong>server</strong>: webhooks wake the work as soon as something happens. Polling remains as a safety net in case a delivery is lost.</li></ul>
-<h2 id="run">Start it</h2>
-<pre><code>cp .env.example .env      # fill in the variables above
-docker compose up -d</code></pre>
-<p>Then open <code>PUBLIC_URL</code>, sign in with GitHub, and choose a repository the app can access.</p>
-<nav class="pager" aria-label="Pages"><span></span><a href="github-app.html">The GitHub App &rarr;</a></nav></main></div>
+<tr><td><code>PUBLIC_URL</code></td><td>The public address of the instance, with no trailing slash. Used for sign-in callbacks and webhooks.</td></tr>
+<tr><td><code>SESSION_SECRET</code></td><td>Random secret that signs the session cookies. <code>install.sh</code> generates one.</td></tr>
+<tr><td><code>WEB_PORT</code></td><td>The host port the web service is published on (default 8080).</td></tr>
+<tr><td><code>GITHUB_APP_ID</code>, <code>GITHUB_APP_SLUG</code>, <code>GITHUB_APP_CLIENT_ID</code>, <code>GITHUB_APP_CLIENT_SECRET</code>, <code>GITHUB_WEBHOOK_SECRET</code></td><td>The App's credentials, shown once after the one-click registration. Empty on the first start.</td></tr>
+<tr><td><code>GITHUB_APP_PRIVATE_KEY</code> or <code>GITHUB_APP_PRIVATE_KEY_PATH</code></td><td>The App's private key: inline with <code>\n</code> for line breaks, or a PEM path inside the container.</td></tr>
+<tr><td><code>ANTHROPIC_API_KEY</code>, <code>CLAUDE_CODE_OAUTH_TOKEN</code>, or <code>ANTHROPIC_BASE_URL</code></td><td>How the agents get a model. Set one.</td></tr>
+<tr><td><code>SHELF_MODEL</code>, <code>SHELF_MAX_TURNS</code>, <code>SHELF_MAX_BUDGET_USD</code></td><td>Optional: force a model, and bound what one step may use.</td></tr>
+<tr><td><code>TEMPORAL_ADDRESS</code>, <code>TEMPORAL_NAMESPACE</code></td><td>Use your own Temporal instead of the bundled one (and delete that service).</td></tr>
+</tbody></table></div>
+<h2 id="mode">Local or server mode</h2>
+<p>Set <code>mode</code> in <code>deploy/shelf.toml</code>. In <strong>server</strong> mode GitHub's webhooks wake waiting work, and a slow poll is a safety net. In <strong>local</strong> mode there is no public address, so waiting work looks at GitHub on a durable timer that slows down while nothing happens.</p>
+<h2 id="after">After it is running</h2>
+<ul><li>Logs: <code>docker compose -f deploy/compose.yml logs -f</code>.</li><li>Temporal's own interface listens on port 8233 inside its container; publish it on the loopback of the server if you want to inspect workflows.</li><li>Update: <code>git pull</code> and run the install script again.</li></ul>
+<nav class="pager" aria-label="Pages"><a href="../index.html">&larr; Home</a><a href="github-app.html">The GitHub App &rarr;</a></nav></main></div>
 <footer class="foot"><p class="big" aria-hidden="true">shelf-sdlc</p>
 <ul><li><a href="getting-started.html">Documentation</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents">Repository</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents/blob/main/CONTRIBUTING.md">Contributing</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents/issues">Issues</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents/blob/main/LICENSE">Apache-2.0</a></li></ul>
 <small>shelf-sdlc is open source under the Apache-2.0 licence and in early development.</small></footer>
