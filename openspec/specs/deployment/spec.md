@@ -202,3 +202,12 @@ The system SHALL log a warning when the worker starts without a model credential
 
 - **WHEN** the worker starts with none of them set
 - **THEN** it logs how to get a token and where to put it
+
+### Requirement: The web service wraps GitHub lookups in a short cache
+
+The system SHALL wire the web service's GitHub access through a cache of about a minute, so that a long-open interface does not spend GitHub's rate limit.
+
+#### Scenario: A long-open interface
+
+- **WHEN** the interface stays open for an hour
+- **THEN** GitHub receives about one lookup per person per minute at most
