@@ -2,6 +2,7 @@ import asyncio
 import itertools
 from collections.abc import Callable
 
+import pytest
 from temporalio.testing import WorkflowEnvironment
 
 from shelf.adapters.temporal.runner import TemporalRunner
@@ -11,6 +12,7 @@ from shelf.domain.pipeline import EntryPoint, Phase
 from shelf.domain.policy import Policy
 from shelf.domain.polling import Mode
 from shelf.domain.work import DecisionKind, Outcome, PersonDecided, Reason
+from shelf.ports.runner import UnreachableWorkError
 from tests.adapters.temporal.test_workflow import QUEUE, FakePulls, FakeSteps, worker
 from tests.fakes import FakeConfigs
 
@@ -102,3 +104,25 @@ async def test_a_piece_of_work_that_cannot_be_read_is_shown_as_failed_not_hidden
     assert view.waiting_for is Reason.FAILURE
     assert "cannot be read" in view.detail
     assert (view.repo, view.requester) == (REPO, "alice")
+
+
+async def test_an_administrator_can_close_work_even_when_it_cannot_be_read(env: WorkflowEnvironment) -> None:
+    from unittest.mock import patch  # noqa: PLC0415
+
+    from temporalio.client import WorkflowHandle  # noqa: PLC0415
+
+    runner = runner_for(env)
+    async with worker(env, FakeSteps(), FakePulls()):
+        work_id = await runner.start(WorkRequest(REPO, "alice", EntryPoint.NEED, "x"))
+        await _until_waiting(runner, work_id, Reason.GATE)
+        await runner.terminate(work_id, "stuck")
+        with patch.object(WorkflowHandle, "query", side_effect=RuntimeError("cannot replay")):
+            view = await runner.view(work_id)
+    assert view is not None
+    assert view.outcome is Outcome.ABORTED
+    assert view.waiting_for is None
+
+
+async def test_closing_work_that_does_not_exist_is_reported_as_unreachable(env: WorkflowEnvironment) -> None:
+    with pytest.raises(UnreachableWorkError):
+        await runner_for(env).terminate(WorkId("work-nope"), "x")

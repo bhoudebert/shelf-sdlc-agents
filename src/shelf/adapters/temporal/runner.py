@@ -6,7 +6,8 @@ import uuid
 from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass, field
 
-from temporalio.client import Client, WorkflowHandle
+from temporalio.client import Client, WorkflowExecutionStatus, WorkflowHandle
+from temporalio.service import RPCError
 
 from shelf.adapters.temporal import wire
 from shelf.adapters.temporal.workflow import WorkItemWorkflow
@@ -16,6 +17,7 @@ from shelf.domain.policy import CURRENT_PROTOCOL
 from shelf.domain.polling import Mode, poll_bounds
 from shelf.domain.work import Outcome, PersonDecided, Reason
 from shelf.ports.configs import RepoConfigs
+from shelf.ports.runner import UnreachableWorkError
 
 WORKFLOW_TYPE = "WorkItem"
 MAX_CONCURRENT_LOOKS = 8
@@ -24,6 +26,9 @@ MAX_CONCURRENT_LOOKS = 8
 def new_work_id() -> WorkId:
     """A fresh id for a piece of work."""
     return WorkId(f"work-{uuid.uuid4().hex[:12]}")
+
+
+TERMINATED = "This work was closed by an administrator because it could not be steered any more."
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,7 +78,18 @@ class TemporalRunner:
     async def decide(self, work_id: WorkId, decision: PersonDecided) -> None:
         """Signal the workflow with a person's decision."""
         handle = self.client.get_workflow_handle_for(WorkItemWorkflow.run, work_id)
-        await handle.signal(WorkItemWorkflow.decided, wire.DecisionDto(decision.by, decision.kind, decision.note))
+        try:
+            await handle.signal(WorkItemWorkflow.decided, wire.DecisionDto(decision.by, decision.kind, decision.note))
+        except RPCError as error:
+            raise UnreachableWorkError(work_id) from error
+
+    async def terminate(self, work_id: WorkId, reason: str) -> None:
+        """End the workflow without running its code: the way to close one an older release left behind."""
+        handle = self.client.get_workflow_handle_for(WorkItemWorkflow.run, work_id)
+        try:
+            await handle.terminate(reason)
+        except RPCError as error:
+            raise UnreachableWorkError(work_id) from error
 
     async def pull_request_closed(self, work_id: WorkId, *, merged: bool) -> None:
         """Signal the workflow that its pull request was merged or closed."""
@@ -113,7 +129,8 @@ class TemporalRunner:
     async def _view(self, handle: WorkflowHandle[WorkItemWorkflow, str]) -> WorkView | None:
         """The picture of one piece of work. One that exists but cannot be read is shown as failed, never hidden."""
         try:
-            memo = await (await handle.describe()).memo()
+            description = await handle.describe()
+            memo = await description.memo()
             repo, requester, entry = (
                 RepoRef.parse(str(memo["repo"])),
                 str(memo["requester"]),
@@ -123,7 +140,11 @@ class TemporalRunner:
             return None
         try:
             snapshot = await handle.query(WorkItemWorkflow.snapshot)
-        except Exception as error:  # noqa: BLE001 - it exists, but its workflow task fails (for example an older release)
+        except Exception as error:  # noqa: BLE001 - it exists, but its workflow task fails (an older release, or closed)
+            if description.status == WorkflowExecutionStatus.TERMINATED:  # closed by an administrator
+                return WorkView(
+                    WorkId(handle.id), repo, requester, entry, Phase.INTAKE, detail=TERMINATED, outcome=Outcome.ABORTED
+                )
             kind = type(error).__name__
             message = f"This work cannot be read right now ({kind}). It may have been started by an older release."
             return WorkView(
