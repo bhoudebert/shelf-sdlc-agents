@@ -1,0 +1,67 @@
+"""The nouns of the factory: who, which repository, what was asked, what can be shown."""
+
+from dataclasses import dataclass
+from typing import NewType
+
+from shelf.domain.pipeline import EntryPoint, Phase
+from shelf.domain.work import Outcome, Reason
+
+WorkId = NewType("WorkId", str)
+
+
+@dataclass(frozen=True, slots=True)
+class RepoRef:
+    """A GitHub repository."""
+
+    owner: str
+    name: str
+
+    @property
+    def full_name(self) -> str:
+        """The ``owner/name`` form."""
+        return f"{self.owner}/{self.name}"
+
+    @classmethod
+    def parse(cls, full_name: str) -> "RepoRef":
+        """Read ``owner/name``; raise ``ValueError`` on anything else."""
+        owner, separator, name = full_name.partition("/")
+        if not (owner and separator and name) or "/" in name:
+            message = f"not a repository name: {full_name!r}"
+            raise ValueError(message)
+        return cls(owner, name)
+
+
+@dataclass(frozen=True, slots=True)
+class Identity:
+    """A signed-in person, as GitHub knows them."""
+
+    login: str
+    organisations: frozenset[str] = frozenset()
+
+
+@dataclass(frozen=True, slots=True)
+class WorkRequest:
+    """What a person asks for when they start work from the UI."""
+
+    repo: RepoRef
+    requester: str
+    entry: EntryPoint
+    text: str = ""
+    """The need, or the provided document, depending on the entry point."""
+    pull_request: int | None = None
+    """The pull request to review, for that entry point."""
+
+
+@dataclass(frozen=True, slots=True)
+class WorkView:
+    """What the board shows about a piece of work."""
+
+    id: WorkId
+    repo: RepoRef
+    requester: str
+    entry: EntryPoint
+    phase: Phase
+    waiting_for: Reason | None = None
+    detail: str = ""
+    outcome: Outcome | None = None
+    pull_request_url: str = ""
