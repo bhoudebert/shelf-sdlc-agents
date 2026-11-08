@@ -138,20 +138,56 @@ The system SHALL have a producer show, in its comment, its closing message and t
 - **WHEN** one of two checks fails
 - **THEN** both commands are listed with their result and the failing output is shown
 
-### Requirement: Reading agents can look at the change with read-only git
+### Requirement: Every agent works with the normal Claude Code toolset
 
-The system SHALL let the reviewers and the other reading agents run only read-only git commands (diff, log, show, status, blame, ls-files) besides reading and searching files, never arbitrary commands, and SHALL tell a reviewer the base branch so that the diff it is asked to read can be run.
+The system SHALL give every agent the normal toolset, including a shell, so that reviewers can run git, the tests and linters like anyone, because they work in a throwaway clone without credentials and only producers' work is committed; and SHALL tell a reviewer the base branch so that the diff it is asked to read can be run.
 
 #### Scenario: A code review
 
 - **WHEN** the code reviewer is told to read the diff against the base branch
-- **THEN** it can run `git diff` for it and cannot run anything that changes the repository
+- **THEN** it can run `git diff` for it and anything else that helps it judge
 
-#### Scenario: Prompts promise only what agents can do
+### Requirement: Agents follow the repository's own agent files
 
-- **WHEN** a reviewer's prompt names commands
-- **THEN** every one of them is among the commands it is allowed
+The system SHALL start each agent with Claude Code's default prompt plus its role, SHALL load the repository's own agent files (CLAUDE.md, skills, commands), and SHALL NOT load its hooks or MCP servers, which would run code in the worker.
 
+#### Scenario: A repository with a CLAUDE.md
+
+- **WHEN** an agent starts in a repository that has a CLAUDE.md
+- **THEN** it follows the rules written there
+
+#### Scenario: A repository with hooks
+
+- **WHEN** the repository's settings define hooks
+- **THEN** none of them runs
+
+### Requirement: Credentials are not in the clone and only the developer gets the token
+
+The system SHALL clone with a remote address that carries no credential, SHALL authenticate each network command with a header that exists only for that command, so that nothing an agent can read contains the installation token, and SHALL put the token in the environment of the developer only.
+
+#### Scenario: The clone's configuration
+
+- **WHEN** a step's clone is made
+- **THEN** its git configuration contains no token
+
+#### Scenario: A reviewer
+
+- **WHEN** a reviewer runs
+- **THEN** its environment holds no installation token
+
+### Requirement: The pull request is named by the repository's own convention
+
+The system SHALL have an agent that reads the repository's conventions, its pull request title check and its history propose the title of the pull request, clean it, fall back to the first line of the request only when it proposes nothing usable, and never let naming stop the work.
+
+#### Scenario: A Conventional Commits repository
+
+- **WHEN** the pull request is published
+- **THEN** its title follows the repository's convention
+
+#### Scenario: The agent fails
+
+- **WHEN** naming fails
+- **THEN** the work continues with the fallback title
 ### Requirement: Every agent sees the whole picture
 
 The system SHALL point each agent, in its task, at the conventions, existing specifications, architecture decisions and the specs of earlier work that already bind the repository, SHALL tell the producers not to contradict them silently, and SHALL make a contradiction at least a major issue for every reviewer.

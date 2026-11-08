@@ -229,3 +229,21 @@ The system SHALL let the operator turn the agents' sandbox off, for hosts where 
 
 - **WHEN** the sandbox cannot start and the operator turns it off
 - **THEN** the agents can run commands with the container as the only boundary
+
+### Requirement: The operator can check that the agents work
+
+The system SHALL provide a command that runs tiny real agent checks against the instance's configuration in a throwaway repository (a shell, the repository's agent file, the title convention, commands in the sandbox, the credential) and reports each with what to do about a failure.
+
+#### Scenario: A sandbox that cannot start
+
+- **WHEN** the developer cannot run a command
+- **THEN** the report says so and names the setting that turns the sandbox off
+
+### Requirement: The operator can point the agents at a specific Claude executable
+
+The system SHALL let the operator name a Claude Code executable to use instead of the one bundled, and SHALL relax AppArmor for the worker along with its other profile, because the sandbox needs user namespaces that Ubuntu hosts restrict.
+
+#### Scenario: A host with its own Claude
+
+- **WHEN** the operator names an executable
+- **THEN** the agents use it
