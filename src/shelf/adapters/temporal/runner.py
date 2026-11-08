@@ -12,6 +12,7 @@ from shelf.adapters.temporal import wire
 from shelf.adapters.temporal.workflow import WorkItemWorkflow
 from shelf.domain.model import RepoRef, WorkId, WorkRequest, WorkView
 from shelf.domain.pipeline import EntryPoint, Phase
+from shelf.domain.policy import CURRENT_PROTOCOL
 from shelf.domain.polling import Mode, poll_bounds
 from shelf.domain.work import Outcome, PersonDecided, Reason
 from shelf.ports.configs import RepoConfigs
@@ -58,6 +59,7 @@ class TemporalRunner:
             design_review=config.policy.design_review,
             poll_base_seconds=base.total_seconds(),
             poll_ceiling_seconds=ceiling.total_seconds(),
+            protocol=CURRENT_PROTOCOL,
         )
         await self.client.start_workflow(
             WorkItemWorkflow.run,
@@ -109,17 +111,29 @@ class TemporalRunner:
         return views
 
     async def _view(self, handle: WorkflowHandle[WorkItemWorkflow, str]) -> WorkView | None:
+        """The picture of one piece of work. One that exists but cannot be read is shown as failed, never hidden."""
         try:
-            description = await handle.describe()
-            memo = await description.memo()
-            snapshot = await handle.query(WorkItemWorkflow.snapshot)
-        except Exception:  # noqa: BLE001 - an unknown or unreadable workflow is simply not on the board
+            memo = await (await handle.describe()).memo()
+            repo, requester, entry = (
+                RepoRef.parse(str(memo["repo"])),
+                str(memo["requester"]),
+                EntryPoint(str(memo["entry"])),
+            )
+        except Exception:  # noqa: BLE001 - not a piece of work of ours, or not there at all
             return None
+        try:
+            snapshot = await handle.query(WorkItemWorkflow.snapshot)
+        except Exception as error:  # noqa: BLE001 - it exists, but its workflow task fails (for example an older release)
+            kind = type(error).__name__
+            message = f"This work cannot be read right now ({kind}). It may have been started by an older release."
+            return WorkView(
+                WorkId(handle.id), repo, requester, entry, Phase.INTAKE, waiting_for=Reason.FAILURE, detail=message
+            )
         return WorkView(
             id=WorkId(handle.id),
-            repo=RepoRef.parse(str(memo["repo"])),
-            requester=str(memo["requester"]),
-            entry=EntryPoint(str(memo["entry"])),
+            repo=repo,
+            requester=requester,
+            entry=entry,
             phase=Phase(snapshot.phase),
             waiting_for=Reason(snapshot.waiting_for) if snapshot.waiting_for else None,
             detail=snapshot.detail,

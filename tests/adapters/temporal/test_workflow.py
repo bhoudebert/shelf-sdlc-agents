@@ -13,6 +13,7 @@ from shelf.adapters.temporal.activities import build_activities
 from shelf.adapters.temporal.workflow import WorkItemWorkflow
 from shelf.domain.model import WorkContext
 from shelf.domain.pipeline import KIND, Kind, Phase
+from shelf.domain.policy import CURRENT_PROTOCOL
 from shelf.domain.stage import Stage
 from shelf.domain.work import (
     AskPerson,
@@ -98,6 +99,7 @@ def work_input(entry: str, **overrides: object) -> wire.WorkInput:
         "entry": entry,
         "text": "loyalty points",
         "pull_request": 7 if entry == "pull_request_review" else None,
+        "protocol": CURRENT_PROTOCOL,
         **FAST,
     }
     return wire.WorkInput(**{**base, **overrides})  # type: ignore[arg-type]
@@ -240,3 +242,18 @@ async def test_a_finished_history_replays_deterministically(env: WorkflowEnviron
         await handle.result()
         history = await handle.fetch_history()
     await Replayer(workflows=[WorkItemWorkflow]).replay_workflow(history)
+
+
+async def test_work_started_by_an_older_release_does_none_of_the_newer_extras(env: WorkflowEnvironment) -> None:
+    pulls = FakePulls()
+    async with worker(env, FakeSteps(), pulls):
+        handle = await start(env, work_input("need", protocol=1))
+        await until(handle, lambda s: s.waiting_for == "gate")
+        await handle.signal(WorkItemWorkflow.decided, wire.DecisionDto("carol", DecisionKind.APPROVE, ""))
+        await until(handle, lambda s: s.waiting_for == "merge")
+        await handle.signal(WorkItemWorkflow.pull_request_closed, True)
+        assert await handle.result() == "merged"
+    assert pulls.stages == []
+    assert pulls.ready == []
+    assert pulls.progressed == []
+    assert pulls.published == 1  # opened at the merge, as it always was

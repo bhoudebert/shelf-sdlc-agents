@@ -41,6 +41,8 @@ class WorkInput:
     design_review: bool = True
     poll_base_seconds: float = 30.0
     poll_ceiling_seconds: float = 900.0
+    protocol: int = 1
+    """How the work behaves, fixed at start. Work started before the field existed has 1, the original behaviour."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -144,7 +146,7 @@ class Snapshot:
 def course_of(work: WorkInput) -> Course:
     """The course of the work, from its policy and entry point."""
     policy = Policy(work.max_rounds, work.spec_approval, work.design_review)
-    return course_for(EntryPoint(work.entry), policy)
+    return course_for(EntryPoint(work.entry), policy, work.protocol)
 
 
 def context_of(work: WorkInput) -> WorkContext:

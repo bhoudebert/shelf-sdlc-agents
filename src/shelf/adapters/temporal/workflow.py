@@ -142,7 +142,7 @@ class WorkItemWorkflow:
     async def _progress(self, work: wire.WorkInput) -> None:
         """Update the progress comment. Cosmetic: a failure never stops the work."""
         state = self._state
-        if state is None:
+        if state is None or not wire.course_of(work).opens_early:
             return
         waiting = state.reason if isinstance(state, AwaitingPerson) else None
         outcome = state.outcome if isinstance(state, Finished) else None
@@ -158,6 +158,8 @@ class WorkItemWorkflow:
 
     async def _stage(self, work: wire.WorkInput, phase: Phase, reason: str) -> None:
         """Show on the pull request what is happening. Cosmetic: a failure never stops the work."""
+        if not wire.course_of(work).opens_early:  # work started before this existed keeps its original behaviour
+            return
         try:
             await workflow.execute_activity(
                 STAGE,
@@ -170,6 +172,8 @@ class WorkItemWorkflow:
 
     async def _set_ready(self, work: wire.WorkInput, *, ready: bool) -> None:
         """Mark the pull request ready for review, or back to draft."""
+        if not wire.course_of(work).opens_early:
+            return
         try:
             await workflow.execute_activity(
                 READY,

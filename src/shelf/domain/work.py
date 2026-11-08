@@ -243,7 +243,7 @@ def _with_publication(course: Course, state: Running, transition: Transition) ->
 
     Asking again is harmless: the adapter returns the pull request that already exists.
     """
-    if not course.publishes_pull_request or state.phase is not course.phases[0]:
+    if not course.opens_early or not course.publishes_pull_request or state.phase is not course.phases[0]:
         return transition
     if isinstance(transition.state, Finished) or PublishPullRequest() in transition.commands:
         return transition
@@ -283,7 +283,7 @@ def _when_waiting(course: Course, state: AwaitingPerson, event: Event) -> Transi
             return _advance(course, state.phase, 0)
         case PersonDecided(kind=DecisionKind.CHANGES, note=note):
             back = _enter(course, LOOP_BACK.get(state.phase, state.phase), feedback=note)
-            if state.reason is Reason.MERGE and course.publishes_pull_request:  # back to draft while agents rework it
+            if state.reason is Reason.MERGE and course.opens_early and course.publishes_pull_request:  # back to draft
                 return Transition(back.state, (SetPullRequestReady(ready=False), *back.commands))
             return back
         case PersonDecided(kind=DecisionKind.RESUME, note=note) if state.reason in (
@@ -306,9 +306,9 @@ def _enter(course: Course, phase: Phase, attempt: int = 0, feedback: str = "") -
         case Kind.GATE:
             return _ask(phase, Reason.GATE, "")
         case Kind.MERGE:
-            publish: tuple[Command, ...] = (
-                (PublishPullRequest(), SetPullRequestReady(ready=True)) if course.publishes_pull_request else ()
-            )
+            publish: tuple[Command, ...] = ()
+            if course.publishes_pull_request:
+                publish = (PublishPullRequest(), *((SetPullRequestReady(ready=True),) if course.opens_early else ()))
             return Transition(AwaitingPerson(phase, Reason.MERGE), (*publish, AskPerson(phase, Reason.MERGE, "")))
         case Kind.PRODUCE | Kind.REVIEW | Kind.VERIFY:
             return Transition(Running(phase, attempt, feedback), (RunStep(phase, attempt, feedback),))
