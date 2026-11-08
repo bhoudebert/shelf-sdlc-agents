@@ -124,3 +124,26 @@ The system SHALL show on the setup page the value for each field of GitHub's App
 
 - **WHEN** the guide is shown for an instance
 - **THEN** the webhook and callback addresses are derived from its public address
+
+### Requirement: The install script catches the usual mistakes before building
+
+The system SHALL, before building, refuse to continue when the public address or the session secret is empty or the web port is already used by something else, and SHALL warn about an environment file at the repository root and about a GitHub App credential left empty when the App ID is set.
+
+#### Scenario: A busy port
+
+- **WHEN** the configured web port is already in use by another program
+- **THEN** the script stops and tells the operator to set another port
+
+#### Scenario: The wrong file
+
+- **WHEN** a `.env` exists at the repository root
+- **THEN** the script warns that only `deploy/.env` is read
+
+### Requirement: The web port is published on the loopback by default
+
+The system SHALL publish the web port on the loopback address unless the operator sets another address, so that the reverse proxy is the only way in.
+
+#### Scenario: Default
+
+- **WHEN** no bind address is set
+- **THEN** the web service is reachable from the host itself and not from the network
