@@ -100,12 +100,17 @@ The system SHALL show where the work stands in the pipeline and offer only the d
 
 ### Requirement: Webhooks are verified and wake the right work
 
-The system SHALL accept a GitHub webhook only with a valid HMAC signature, signal a closed pull request to its work, and turn a trusted person's `/shelf` comment into a decision.
+The system SHALL accept a GitHub webhook only with a valid HMAC signature, signal a closed pull request to its work, and turn a `/shelf` comment into a decision only when its author is on the operator's access list (a listed user or administrator, or a member of a listed organisation that owns the repository).
 
 #### Scenario: A bad signature
 
 - **WHEN** a webhook arrives with a wrong signature
 - **THEN** it is refused
+
+#### Scenario: A comment from someone not on the access list
+
+- **WHEN** a `/shelf approve` comment is written by a person the access list does not name
+- **THEN** it is acknowledged but no decision reaches the work, and the webhook log records it as refused
 
 #### Scenario: A merge
 

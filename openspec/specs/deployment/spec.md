@@ -167,14 +167,14 @@ The system SHALL ship the environment file and the access file as examples, crea
 - **WHEN** the operator pulls new code
 - **THEN** their access file and environment file are untouched and there is no merge conflict
 
-### Requirement: An open instance is flagged on every run
+### Requirement: A closed instance is flagged on every run
 
-The system SHALL warn on every run of the install script when the access file restricts nobody.
+The system SHALL warn on every run of the install script when the access file lists nobody, because nobody could then sign in.
 
 #### Scenario: No names listed
 
 - **WHEN** the access file lists no organisation, user or admin
-- **THEN** the script warns that anyone with a GitHub account may sign in
+- **THEN** the script warns that nobody can sign in until someone is listed
 
 ### Requirement: Temporal's interface is never published, only proxied to administrators
 

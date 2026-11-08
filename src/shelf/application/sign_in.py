@@ -21,6 +21,9 @@ async def sign_in(forge: Forge, rules: AccessRules, code: str) -> Result[SignedI
     """Complete the OAuth round trip for ``code`` and check the person against ``rules``."""
     user_token = await forge.exchange_code(code)
     identity = await forge.identity(user_token)
+    if not rules.is_configured:
+        reason = "this instance has no access list yet, so nobody can sign in. The operator must name users, admins or "
+        return Err(NotAllowed(reason + "organisations in shelf.toml"))
     if not may_sign_in(rules, identity):
         return Err(NotAllowed(f"{identity.login} is not on this instance's access list"))
     return Ok(SignedIn(identity, user_token))

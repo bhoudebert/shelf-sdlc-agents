@@ -18,10 +18,8 @@ PERMISSIONS = {
 EVENTS = [
     "pull_request",
     "issue_comment",
-    "check_suite",
-    "push",
 ]
-"""The events to subscribe to.
+"""The events to subscribe to: only the two the web service reads (a pull request closed, a comment created).
 
 GitHub always sends ``installation``, ``installation_repositories`` and ``ping``; a manifest that lists them is refused.
 """

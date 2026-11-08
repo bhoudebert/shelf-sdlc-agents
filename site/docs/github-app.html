@@ -19,7 +19,8 @@
 <tr><td>Contents</td><td>Read and write</td></tr><tr><td>Pull requests</td><td>Read and write</td></tr>
 <tr><td>Issues</td><td>Read and write</td></tr><tr><td>Checks</td><td>Read</td></tr><tr><td>Metadata</td><td>Read</td></tr></tbody></table></div>
 <h2 id="events">Webhook events</h2>
-<ul><li><code>pull_request</code></li><li><code>issue_comment</code></li><li><code>check_suite</code></li><li><code>push</code></li></ul>
+<ul><li><code>pull_request</code></li><li><code>issue_comment</code></li></ul>
+<p>Tick exactly these two in <em>Permissions &amp; events → Subscribe to events</em>. A box is greyed until its permission is granted (Pull requests for the first, Issues for the second). <code>pull_request</code> tells Shelf a pull request was closed or merged; <code>issue_comment</code> carries <code>/shelf</code> commands and replies. Nothing else is read, so subscribing to more only adds noise.</p>
 <p>GitHub also always sends <code>installation</code>, <code>installation_repositories</code> and <code>ping</code> events: they cannot be selected and need nothing from you. Webhooks are used in server mode. In local mode the app is polled instead.</p>
 <h2 id="install">Granting repositories</h2>
 <p>Install the app on your account or organisation and choose which repositories it may touch. Only repositories you grant appear in the picker, and the app can never reach the others.</p>

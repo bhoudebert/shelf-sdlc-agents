@@ -29,7 +29,7 @@
         <dt>Webhook URL</dt><dd><code>{{ public_url }}/api/github/webhook</code></dd>
         <dt>Webhook secret</dt><dd>a long random string that you make up, for example the output of <code>openssl rand -hex 32</code>. <strong>Write it down</strong>: it becomes <code>GITHUB_WEBHOOK_SECRET</code>.</dd>
         <dt>Repository permissions</dt><dd>Contents: Read and write. Pull requests: Read and write. Issues: Read and write. Checks: Read-only. Metadata: Read-only. Everything else: No access.</dd>
-        <dt>Subscribe to events</dt><dd>Pull request, Issue comment, Check suite, Push. <small>These boxes appear once the permissions above are set.</small></dd>
+        <dt>Subscribe to events</dt><dd>Pull request and Issue comment, nothing else. <small>Boxes stay greyed until the permissions above are set; tick only these two.</small></dd>
         <dt>Where can this App be installed?</dt><dd>Only on this account</dd>
       </dl>
       <p>Click <strong>Create GitHub App</strong>. GitHub says "You must generate a private key in order to install your GitHub App": that is the next step, not an error.</p>
