@@ -75,3 +75,17 @@ The system SHALL ignore every event once the work is finished, and SHALL cancel 
 
 - **WHEN** a person aborts while a step runs
 - **THEN** the step is cancelled and the work ends as aborted
+
+### Requirement: The pull request is published after the first step and readied at the merge
+
+The system SHALL order the pull request to be published once the first step of work that carries its own pull request is done, SHALL order it marked ready when the work reaches the merge, and SHALL order it back to draft when changes are asked there.
+
+#### Scenario: The first step
+
+- **WHEN** the first step finishes
+- **THEN** publishing is ordered before the next step runs
+
+#### Scenario: A pull request of someone else's
+
+- **WHEN** work reviews an existing pull request
+- **THEN** the system never orders it published or readied
