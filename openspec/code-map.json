@@ -22,7 +22,6 @@
     "access": {
       "code": [
         "src/shelf/domain/access.py",
-        "src/shelf/domain/config.py",
         "src/shelf/application/sign_in.py"
       ],
       "tests": [
@@ -67,7 +66,8 @@
         "src/shelf/adapters/config/*.py",
         "src/shelf/domain/operator.py",
         "src/shelf/domain/polling.py",
-        "src/shelf/adapters/config/github.py"
+        "src/shelf/adapters/config/github.py",
+        "src/shelf/domain/config.py"
       ],
       "tests": [
         "tests/adapters/config/*.py",

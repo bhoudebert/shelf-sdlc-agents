@@ -1,3 +1,6 @@
+import html
+import json
+import re
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -30,7 +33,8 @@ def test_the_first_page_offers_one_click_registration() -> None:
 def test_the_registration_page_posts_the_manifest_to_github() -> None:
     page = client().get("/setup/register")
     assert 'action="https://github.com/settings/apps/new"' in page.text
-    assert "shelf.example.org/api/github/webhook" in page.text
+    manifest = json.loads(html.unescape(re.search(r'name="manifest" value="([^"]*)"', page.text).group(1)))  # type: ignore[union-attr]
+    assert manifest["hook_attributes"]["url"] == "https://shelf.example.org/api/github/webhook"
 
 
 def test_the_returned_code_is_traded_for_credentials_shown_once_and_never_cached() -> None:
