@@ -124,3 +124,17 @@ The system SHALL show on the setup page the value for each field of GitHub's App
 
 - **WHEN** the guide is shown for an instance
 - **THEN** the webhook and callback addresses are derived from its public address
+
+### Requirement: A configuration mistake stops the service with one readable line
+
+The system SHALL, when a configuration file or a required setting is invalid, stop with a single line that names the file or the setting and the fix, not a stack trace, and the install script SHALL check the access file's syntax before building.
+
+#### Scenario: Names without quotes
+
+- **WHEN** the access file lists a name without quotes
+- **THEN** the service stops saying which file is invalid and that names go in quotes
+
+#### Scenario: Before building
+
+- **WHEN** the operator runs the install script with an invalid access file
+- **THEN** it stops before building and says so
