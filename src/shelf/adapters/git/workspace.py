@@ -49,6 +49,21 @@ async def _exec(args: list[str], cwd: Path | None, *, shell: bool = False) -> Ch
     return CheckResult(command, process.returncode or 0, output.decode(errors="replace"))
 
 
+WORKFLOWS_HINT = (
+    "GitHub refuses a push that changes .github/workflows unless the App has the Workflows permission, which is not "
+    "granted by default because a changed workflow runs with the repository's secrets. To allow it: the App's "
+    "settings, Permissions & events, Repository permissions, Workflows: Read and write, then accept the change on "
+    "each installation. Otherwise make that change by hand, or ask the agents not to touch the workflow files."
+)
+
+
+def explain_push_failure(message: str) -> str:
+    """The push error, with what to do about it when it is the missing Workflows permission."""
+    if "workflows" in message and "permission" in message:
+        return f"{message}\n\n{WORKFLOWS_HINT}"
+    return message
+
+
 async def _git(
     directory: Path, *args: str, check: bool = True, auth: tuple[str, ...] = (), secrets: tuple[str, ...] = ()
 ) -> CheckResult:
@@ -84,7 +99,12 @@ class GitWorkspace:
         if (await _git(self.path, "status", "--porcelain")).output.strip() == "":
             return False
         await _git(self.path, "-c", "commit.gpgsign=false", "commit", "-m", message)
-        await _git(self.path, "push", "origin", f"HEAD:refs/heads/{self.branch}", auth=self.auth, secrets=self.secrets)
+        try:
+            await _git(
+                self.path, "push", "origin", f"HEAD:refs/heads/{self.branch}", auth=self.auth, secrets=self.secrets
+            )
+        except RuntimeError as error:
+            raise RuntimeError(explain_push_failure(str(error))) from error
         return True
 
 

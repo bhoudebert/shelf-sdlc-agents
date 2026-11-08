@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from shelf.adapters.git.workspace import GitWorkspaces
+from shelf.adapters.git.workspace import WORKFLOWS_HINT, GitWorkspaces, explain_push_failure
 from shelf.domain.model import RepoRef
 from shelf.ports.workspace import Checkout
 
@@ -108,3 +108,21 @@ async def test_a_clone_made_by_the_workspace_has_no_token_anywhere_in_its_git_co
     async with workspaces(origin, tmp_path).open(checkout(token="s3cret")) as workspace:
         config = (workspace.path / ".git" / "config").read_text()
     assert "s3cret" not in config
+
+
+def test_a_push_refused_for_the_workflows_permission_says_how_to_allow_it() -> None:
+    refused = (
+        "git push failed (exit 1): ! [remote rejected] HEAD -> shelf/work-1 (refusing to allow a GitHub App to create "
+        "or update workflow `.github/workflows/nix.yml` without `workflows` permission)"
+    )
+    explained = explain_push_failure(refused)
+    assert explained.startswith(refused)
+    assert explained.endswith(WORKFLOWS_HINT)
+    assert "Workflows: Read and write" in explained
+
+
+def test_any_other_push_failure_is_left_as_it_is() -> None:
+    assert (
+        explain_push_failure("git push failed (exit 1): non-fast-forward")
+        == "git push failed (exit 1): non-fast-forward"
+    )

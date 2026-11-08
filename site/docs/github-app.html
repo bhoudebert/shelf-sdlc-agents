@@ -18,6 +18,7 @@
 <div class="table-wrap"><table><thead><tr><th>Permission</th><th>Access</th></tr></thead><tbody>
 <tr><td>Contents</td><td>Read and write</td></tr><tr><td>Pull requests</td><td>Read and write</td></tr>
 <tr><td>Issues</td><td>Read and write</td></tr><tr><td>Checks</td><td>Read</td></tr><tr><td>Metadata</td><td>Read</td></tr></tbody></table></div>
+<p><strong>Workflows is optional, and off by default.</strong> GitHub refuses any push that changes <code>.github/workflows</code> unless the App has it. Granting it lets agents edit CI files, and a changed workflow runs with the repository&rsquo;s secrets, so turn it on only if you want that and review those pull requests carefully. Under Permissions &amp; events set Workflows to Read and write, then accept the change on each installation. The admin page shows whether it is granted. Without it, a step that must change a workflow fails with this explanation.</p>
 <h2 id="events">Webhook events</h2>
 <ul><li><code>pull_request</code></li><li><code>issue_comment</code></li></ul>
 <p>Tick exactly these two in <em>Permissions &amp; events → Subscribe to events</em>. A box is greyed until its permission is granted (Pull requests for the first, Issues for the second). <code>pull_request</code> tells Shelf a pull request was closed or merged; <code>issue_comment</code> carries <code>/shelf</code> commands and replies. Nothing else is read, so subscribing to more only adds noise.</p>

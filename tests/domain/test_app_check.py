@@ -106,3 +106,18 @@ def test_the_latest_delivery_decides_and_earlier_failures_only_warn() -> None:
 def test_the_most_serious_finding_comes_first() -> None:
     found = check_app(facts(webhook_secret_set=False, deliveries=()), URL)
     assert levels(found) == sorted(levels(found), key=[Level.ERROR, Level.WARNING, Level.OK].index)
+
+
+def test_the_workflows_permission_is_off_by_default_and_that_is_fine() -> None:
+    found = check_app(facts(), URL)
+    note = next(finding for finding in found if "CI workflow files" in finding.title)
+    assert note.level is Level.OK
+    assert "cannot change" in note.title
+
+
+def test_a_granted_workflows_permission_is_flagged_for_attention() -> None:
+    permissions = {**REQUIRED_PERMISSIONS, "workflows": "write"}
+    found = check_app(facts(permissions=permissions), URL)
+    note = next(finding for finding in found if "CI workflow files" in finding.title)
+    assert note.level is Level.WARNING
+    assert "repository's secrets" in note.advice

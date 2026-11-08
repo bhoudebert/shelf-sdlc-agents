@@ -98,6 +98,15 @@ The system SHALL post the code review as a comment on a pull request that was su
 - **WHEN** the code review of a submitted pull request ends
 - **THEN** its verdict and issues are posted on that pull request
 
+### Requirement: A push refused for the Workflows permission is explained
+
+The system SHALL, when GitHub refuses a push because it changes `.github/workflows` and the App lacks the Workflows permission, keep the refusal and add what to do: grant the permission and accept it on the installation, or make the change by hand.
+
+#### Scenario: A step must change a workflow
+
+- **WHEN** a step's push is refused for the Workflows permission
+- **THEN** the failure the person reads names the permission and how to grant it
+
 ### Requirement: Secrets never appear in errors
 
 The system SHALL NOT include the installation token in an error raised by a failed git command.
