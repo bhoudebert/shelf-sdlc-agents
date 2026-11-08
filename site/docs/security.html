@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Security model - shelf-sdlc docs</title><meta name="description" content="What the system is designed to guarantee, and where the limits are.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Crect width='28' height='28' fill='%230f2e25'/%3E%3Crect x='4' y='8' width='20' height='3' fill='%23e8f0ea'/%3E%3Crect x='4' y='17' width='20' height='3' fill='%23ff8a6b'/%3E%3C/svg%3E">
+<script>try{var t=localStorage.getItem('shelf-theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;display=swap"><link rel="stylesheet" href="../assets/site.css"></head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="bar"><a class="brand" href="../index.html"><svg viewBox="0 0 28 28" aria-hidden="true"><rect x="2" y="3" width="24" height="3" fill="currentColor"/><rect x="2" y="12" width="24" height="3" fill="currentColor"/><rect x="2" y="21" width="24" height="3" fill="currentColor"/><rect x="6" y="6" width="5" height="6" fill="#c1301a"/><rect x="14" y="15" width="7" height="6" fill="#c1301a"/></svg>shelf-sdlc</a>
+<nav aria-label="Main"><a href="getting-started.html" aria-current="page">Docs</a><a href="https://github.com/bhoudebert/shelf-sdlc-agents" class="hide-sm">GitHub</a>
+<button class="icon-btn" id="theme" type="button" aria-label="Toggle dark theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button></nav></header>
+<div class="docs"><aside class="side"><nav aria-label="Documentation"><p>Documentation</p><ul><li><a href="getting-started.html">Getting started</a></li><li><a href="github-app.html">The GitHub App</a></li><li><a href="concepts.html">Concepts</a></li><li><a href="configuration.html">Configuration</a></li><li><a href="architecture.html">Architecture</a></li><li><a href="security.html" aria-current="page">Security model</a></li><li><a href="contributing.html">Contributing</a></li></ul></nav></aside>
+<main id="main" class="doc"><h1>Security model</h1><p class="lead">What the system is designed to guarantee, and where the limits are.</p>
+<h2 id="tokens">Installation tokens</h2>
+<p>Access to a repository uses short-lived GitHub App installation tokens. A token is minted for each step and never stored.</p>
+<h2 id="clones">Agents touch only their clone</h2>
+<p>Each step runs in a fresh clone of the repository. An agent works inside that clone and has no access to other repositories or to the host.</p>
+<h2 id="access">Access list</h2>
+<p>There is no user database. Who may sign in comes from the operator's <code>shelf.toml</code>, and per-repository roles from <code>.shelf/config.toml</code>. Someone not on the list cannot start or decide work.</p>
+<h2 id="commands">A closed list of decisions</h2>
+<p>Decisions at gates (approve, request changes, resume, reject, abort) are a closed list of commands taken from the UI or the pull request. A model never interprets them, so text written by or into a model cannot approve its own work.</p>
+<h2 id="bounded">Bounded loops</h2>
+<p>Every retry loop has a maximum number of rounds and then hands over to a person.</p>
+<h2 id="report">Reporting a vulnerability</h2>
+<p>Follow the <a href="https://github.com/bhoudebert/shelf-sdlc-agents/blob/main/SECURITY.md">security policy</a> in the repository. The project is in early development and has not had an external audit.</p>
+<nav class="pager" aria-label="Pages"><a href="architecture.html">&larr; Architecture</a><a href="contributing.html">Contributing &rarr;</a></nav></main></div>
+<footer class="foot"><p class="big" aria-hidden="true">shelf-sdlc</p>
+<ul><li><a href="getting-started.html">Documentation</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents">Repository</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents/blob/main/CONTRIBUTING.md">Contributing</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents/issues">Issues</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents/blob/main/LICENSE">Apache-2.0</a></li></ul>
+<small>shelf-sdlc is open source under the Apache-2.0 licence and in early development.</small></footer>
+<script src="../assets/site.js"></script>
+</body></html>

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Configuration - shelf-sdlc docs</title><meta name="description" content="Two files: one for the operator, one for each repository.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Crect width='28' height='28' fill='%230f2e25'/%3E%3Crect x='4' y='8' width='20' height='3' fill='%23e8f0ea'/%3E%3Crect x='4' y='17' width='20' height='3' fill='%23ff8a6b'/%3E%3C/svg%3E">
+<script>try{var t=localStorage.getItem('shelf-theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;display=swap"><link rel="stylesheet" href="../assets/site.css"></head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="bar"><a class="brand" href="../index.html"><svg viewBox="0 0 28 28" aria-hidden="true"><rect x="2" y="3" width="24" height="3" fill="currentColor"/><rect x="2" y="12" width="24" height="3" fill="currentColor"/><rect x="2" y="21" width="24" height="3" fill="currentColor"/><rect x="6" y="6" width="5" height="6" fill="#c1301a"/><rect x="14" y="15" width="7" height="6" fill="#c1301a"/></svg>shelf-sdlc</a>
+<nav aria-label="Main"><a href="getting-started.html" aria-current="page">Docs</a><a href="https://github.com/bhoudebert/shelf-sdlc-agents" class="hide-sm">GitHub</a>
+<button class="icon-btn" id="theme" type="button" aria-label="Toggle dark theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button></nav></header>
+<div class="docs"><aside class="side"><nav aria-label="Documentation"><p>Documentation</p><ul><li><a href="getting-started.html">Getting started</a></li><li><a href="github-app.html">The GitHub App</a></li><li><a href="concepts.html">Concepts</a></li><li><a href="configuration.html" aria-current="page">Configuration</a></li><li><a href="architecture.html">Architecture</a></li><li><a href="security.html">Security model</a></li><li><a href="contributing.html">Contributing</a></li></ul></nav></aside>
+<main id="main" class="doc"><h1>Configuration</h1><p class="lead">Two files: one for the operator, one for each repository.</p><div class="callout planned"><p><strong>Early development.</strong> The two files below are parsed and validated by the code today. The web interface and deployment that read them are still being built.</p></div>
+<h2 id="shelf">shelf.toml (operator)</h2>
+<p>Kept by whoever runs the instance and mounted into the container. It decides who may sign in, and how waiting work learns what happened on GitHub. An empty file is an open instance in local mode. Unknown keys are refused, so a typo is an error, not silence.</p>
+<pre><code># shelf.toml
+mode = &quot;server&quot;            # &quot;local&quot;: no public address, poll GitHub often
+                           # &quot;server&quot;: webhooks wake the work, the poll is a slow safety net
+
+[access]
+orgs   = [&quot;acme&quot;]          # members of these organisations may sign in
+users  = [&quot;alice&quot;, &quot;bob&quot;]  # these users may sign in
+admins = [&quot;alice&quot;]         # may sign in, and may decide at any gate</code></pre>
+<p>With neither <code>orgs</code> nor <code>users</code> set, anyone with a GitHub account may sign in. Set at least one whenever the model account is personal: an open instance spends the operator&rsquo;s quota.</p>
+<h2 id="repo">.shelf/config.toml (per repository)</h2>
+<p>Lives in the repository, so changes to who may do what are reviewed like any other change. Every key is optional.</p>
+<pre><code># .shelf/config.toml
+entries = [&quot;need&quot;, &quot;spec&quot;, &quot;design&quot;, &quot;plan&quot;, &quot;implement&quot;, &quot;pull_request_review&quot;]
+base_branch = &quot;main&quot;
+checks = [&quot;make test&quot;]      # what the verify step runs
+
+[policy]
+max_rounds = 3             # how many times a loop may send work back before a person is asked
+spec_approval = true       # a person approves the spec before the design starts
+design_review = true       # a reviewer checks the design before the plan
+
+[roles]                    # without roles, any signed-in person may decide
+product_owner = [&quot;alice&quot;]  # decides at the spec gate
+architect     = [&quot;bob&quot;]
+tech_lead     = [&quot;bob&quot;, &quot;carol&quot;]
+developer     = [&quot;dan&quot;]</code></pre>
+<p>Roles limit who may decide only once you set them. The spec gate belongs to <code>product_owner</code>, the design review to <code>architect</code> and <code>tech_lead</code>, and the pull request to <code>tech_lead</code> and <code>developer</code>. Administrators may always decide.</p>
+<nav class="pager" aria-label="Pages"><a href="concepts.html">&larr; Concepts</a><a href="architecture.html">Architecture &rarr;</a></nav></main></div>
+<footer class="foot"><p class="big" aria-hidden="true">shelf-sdlc</p>
+<ul><li><a href="getting-started.html">Documentation</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents">Repository</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents/blob/main/CONTRIBUTING.md">Contributing</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents/issues">Issues</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents/blob/main/LICENSE">Apache-2.0</a></li></ul>
+<small>shelf-sdlc is open source under the Apache-2.0 licence and in early development.</small></footer>
+<script src="../assets/site.js"></script>
+</body></html>
