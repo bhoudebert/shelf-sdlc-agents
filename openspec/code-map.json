@@ -41,6 +41,16 @@
         "tests/application/test_work.py",
         "tests/fakes.py"
       ]
+    },
+    "durable-workflow": {
+      "code": [
+        "src/shelf/adapters/temporal/*.py",
+        "src/shelf/domain/polling.py"
+      ],
+      "tests": [
+        "tests/adapters/temporal/*.py",
+        "tests/domain/test_polling.py"
+      ]
     }
   }
 }
