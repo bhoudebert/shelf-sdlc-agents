@@ -73,6 +73,16 @@
         "tests/adapters/config/*.py",
         "tests/domain/test_polling.py"
       ]
+    },
+    "pull-requests": {
+      "code": [
+        "src/shelf/adapters/github_app/pulls.py",
+        "src/shelf/domain/commands.py"
+      ],
+      "tests": [
+        "tests/adapters/github_app/test_pulls.py",
+        "tests/domain/test_commands.py"
+      ]
     }
   }
 }
