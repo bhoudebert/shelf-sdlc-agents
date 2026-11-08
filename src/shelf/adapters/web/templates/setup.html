@@ -1,9 +1,29 @@
 {% extends "base.html" %}
-{% block title %}Set up · shelf-sdlc{% endblock %}
+{% block title %}Connect to GitHub · shelf-sdlc{% endblock %}
 {% block content %}
-<h1>Register the GitHub App</h1>
-<p>This instance has no GitHub App yet. One click registers one under your account, with the permissions and
-events it needs, pointing at <code>{{ public_url }}</code>.</p>
-<p><a href="/setup/register">Register on GitHub</a></p>
-<p>You will confirm on GitHub, come back here, and copy the credentials into your environment.</p>
+<div class="welcome setup">
+  <section class="welcome-copy" aria-labelledby="setup-title">
+    <h1 id="setup-title">Connect this instance to GitHub</h1>
+    <p class="lead">One click registers a GitHub App that signs people in, lets them pick repositories and gives the agents their own identity.</p>
+    <p class="where">Registering for <code>{{ public_url }}</code></p>
+    <p><a class="btn big" href="/setup/register">Register on GitHub</a></p>
+    <p class="muted">GitHub shows you the name and permissions first. Nothing is created until you confirm there.</p>
+    <ol class="howto steps" aria-label="What happens next">
+      <li><strong>Confirm on GitHub.</strong> You come straight back to this page.</li>
+      <li><strong>Copy the credentials.</strong> They are shown once. Paste them into <code>deploy/.env</code> and run <code>sh deploy/install.sh</code> again.</li>
+      <li><strong>Install the App</strong> on the repositories you want to use, then sign in.</li>
+    </ol>
+  </section>
+  <section class="welcome-shelf" aria-labelledby="perms-title">
+    <h2 id="perms-title" class="field-title">What the App is allowed to do</h2>
+    <ul class="shelf perms">
+      <li class="entry"><strong>Contents</strong><span>read and write: push the agents' branches</span></li>
+      <li><strong>Pull requests</strong><span>read and write: open them, review, comment</span></li>
+      <li><strong>Issues</strong><span>read and write: comments on pull requests</span></li>
+      <li><strong>Checks</strong><span>read: see your project's results</span></li>
+      <li><strong>Metadata</strong><span>read: required by GitHub</span></li>
+    </ul>
+    <p class="muted">Private to your account. Access is limited to the repositories you install it on, and the agents only receive a token that lasts one hour.</p>
+  </section>
+</div>
 {% endblock %}

@@ -1,15 +1,33 @@
 {% extends "base.html" %}
-{% block title %}Registered · shelf-sdlc{% endblock %}
+{% block title %}App registered · shelf-sdlc{% endblock %}
 {% block content %}
-<h1>The GitHub App is registered</h1>
-<p><strong>Copy this now: it is shown once.</strong> Put it in <code>deploy/.env</code>, keep it secret, then
-restart the stack.</p>
-<pre><code>GITHUB_APP_ID={{ credentials.app_id }}
+<div class="registered">
+  <header class="reg-head">
+    <h1><svg class="reg-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M4 12.5l5 5L20 6.5"/></svg> The GitHub App is registered</h1>
+    <p class="lead">Now give its credentials to this instance.</p>
+  </header>
+
+  <p class="alert" role="alert">Shown once. Copy this now: it cannot be displayed again and it includes the private key.</p>
+
+  <section class="secret" aria-labelledby="secret-title">
+    <div class="secret-head">
+      <h2 id="secret-title">Add to <code>deploy/.env</code></h2>
+      <button class="btn" type="button" data-copy="#env-block" data-done="Copied">Copy all</button>
+    </div>
+<pre id="env-block" tabindex="0"><code>GITHUB_APP_ID={{ credentials.app_id }}
 GITHUB_APP_SLUG={{ credentials.slug }}
 GITHUB_APP_CLIENT_ID={{ credentials.client_id }}
 GITHUB_APP_CLIENT_SECRET={{ credentials.client_secret }}
 GITHUB_WEBHOOK_SECRET={{ credentials.webhook_secret }}
 GITHUB_APP_PRIVATE_KEY="{{ credentials.private_key | replace('\n', '\\n') }}"</code></pre>
-<p>Then <a href="https://github.com/apps/{{ credentials.slug }}/installations/new">install the App</a> on the repositories
-you want to use.</p>
+    <p class="muted">The private key is on one line, with <code>\n</code> for line breaks, which is the form the file expects. Keep the file private; do not commit it.</p>
+  </section>
+
+  <ol class="howto steps" aria-label="What to do next">
+    <li><strong>Paste it into <code>deploy/.env</code></strong>, and add your model credential (<code>ANTHROPIC_API_KEY</code> or <code>CLAUDE_CODE_OAUTH_TOKEN</code>).</li>
+    <li><strong>Restart the stack:</strong> <code>sh deploy/install.sh</code></li>
+    <li><strong>Install the App</strong> on the repositories you want to use, then sign in.<br>
+      <a class="btn quiet" href="https://github.com/apps/{{ credentials.slug }}/installations/new">Install on GitHub</a></li>
+  </ol>
+</div>
 {% endblock %}

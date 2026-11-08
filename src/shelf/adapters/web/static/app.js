@@ -76,4 +76,30 @@
     if (html === lastPanel) event.detail.shouldSwap = false;
     lastPanel = html;
   });
+
+  // "Copy" buttons: data-copy="#selector" copies that element's text, then says so for a moment.
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest && event.target.closest("[data-copy]");
+    if (!button) return;
+    var source = document.querySelector(button.getAttribute("data-copy"));
+    if (!source) return;
+    var label = button.textContent;
+    var done = function () {
+      button.textContent = button.getAttribute("data-done") || "Copied";
+      setTimeout(function () { button.textContent = label; }, 2000);
+    };
+    var text = source.innerText;
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(done, function () { selectText(source); });
+    } else {
+      selectText(source);
+    }
+  });
+  function selectText(node) {
+    var range = document.createRange();
+    range.selectNodeContents(node);
+    var selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
 })();
