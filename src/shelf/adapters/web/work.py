@@ -98,7 +98,7 @@ def router(web: Web) -> APIRouter:  # noqa: C901 - one small closure per route
             await deps.runner.terminate(WorkId(work_id), f"closed by {session.identity.login} from the work page")
         except UnreachableWorkError:
             raise HTTPException(status_code=409, detail="this work is already finished") from None
-        return RedirectResponse(f"/work/{work_id}", status_code=303)
+        return RedirectResponse("/board", status_code=303)  # a fixed target: never built from the request
 
     @routes.post("/work/{work_id}/decide", dependencies=guarded)
     async def decide(
