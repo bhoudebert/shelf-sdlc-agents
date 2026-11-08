@@ -239,6 +239,15 @@ The system SHALL build the links it shows to pull requests from the web address 
 - **WHEN** nothing names another GitHub
 - **THEN** a pull request is linked at `https://github.com/<owner>/<repo>/pull/<number>`
 
+### Requirement: The service can look at its own App on GitHub
+
+The system SHALL wire, when the App's credentials are present, the means to read the App's own configuration from GitHub, so that the admin page can check it, and SHALL NOT need any setting beyond the App's credentials for it.
+
+#### Scenario: A configured instance
+
+- **WHEN** the web service starts with the App's id and private key
+- **THEN** the admin page can ask GitHub about the App without further configuration
+
 ### Requirement: One script fixes the Ubuntu host for the agents' sandbox
 
 The system SHALL provide a script that finds what an Ubuntu 23.10+ host restricts for the sandbox (the user-namespace sysctl and the bubblewrap AppArmor profile), says what it will change and what that costs, asks before changing, makes the change survive a reboot, can undo it, and does nothing on a host that is already open; and the install script and the doctor SHALL point to it.
