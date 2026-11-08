@@ -17,6 +17,7 @@ from shelf.adapters.git.workspace import GitWorkspaces
 from shelf.adapters.github_app.app_auth import installation_id, installation_token
 from shelf.adapters.github_app.documents import GitHubDocuments
 from shelf.adapters.github_app.forge import GitHubForge
+from shelf.adapters.github_app.inspector import GitHubAppInspector
 from shelf.adapters.github_app.pulls import GitHubPullRequests
 from shelf.adapters.github_app.settings import GitHubAppSettings
 from shelf.adapters.temporal.runner import TemporalRunner
@@ -71,6 +72,7 @@ class Services:
     runner: TemporalRunner
     operator: OperatorConfig
     documents: CachedDocuments
+    inspector: GitHubAppInspector
 
 
 async def connect(settings: Settings) -> Client:
@@ -109,4 +111,6 @@ def build_services(settings: Settings, github: GitHubApp, client: httpx.AsyncCli
     )
     runner = TemporalRunner(temporal, settings.task_queue, configs, operator.mode, app.web_url)
     documents = CachedDocuments(GitHubDocuments(client, app, token_for))
-    return Services(GitHubForge(client, app), configs, pulls, steps, runner, operator, documents)
+    return Services(
+        GitHubForge(client, app), configs, pulls, steps, runner, operator, documents, GitHubAppInspector(client, app)
+    )

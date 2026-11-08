@@ -58,10 +58,13 @@
     },
     "github-app": {
       "code": [
-        "src/shelf/adapters/github_app/*.py"
+        "src/shelf/adapters/github_app/*.py",
+        "src/shelf/domain/app_check.py",
+        "src/shelf/ports/app_inspector.py"
       ],
       "tests": [
-        "tests/adapters/github_app/*.py"
+        "tests/adapters/github_app/*.py",
+        "tests/domain/test_app_check.py"
       ]
     },
     "configuration": {
