@@ -22,7 +22,7 @@ async def build(settings: settings_module.Settings) -> FastAPI:
     """The product when the App is registered, the registration helper when it is not."""
     if settings.github is None:
         log.warning("GITHUB_APP_ID is not set: serving the one-click registration at %s", settings.public_url)
-        return create_setup_app(settings.public_url)
+        return create_setup_app(settings.public_url, revision=settings.revision)
     client = httpx.AsyncClient(timeout=30)
     services = build_services(settings, settings.github, client, await connect(settings))
     github = settings.github
@@ -33,6 +33,7 @@ async def build(settings: settings_module.Settings) -> FastAPI:
         webhook_secret=github.webhook_secret,
         secret_key=settings.session_secret,
         mode=services.operator.mode,
+        revision=settings.revision,
     )
     return create_app(
         WebDeps(web, services.operator.access, services.forge, services.runner, services.configs, SessionStore())

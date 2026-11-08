@@ -1,14 +1,16 @@
 #!/bin/sh
-# One command to a running instance on a fresh server with Docker:
+# One command to a running instance on a server with Docker, and the same command to update it:
 #
-#   sh deploy/install.sh https://shelf.example.org
+#   sh deploy/install.sh https://shelf.example.org     # first time: writes deploy/.env
+#   git pull && sh deploy/install.sh                   # later: rebuilds and replaces the running containers
 #
-# It writes deploy/.env (with a generated session secret) if there is none, then starts the stack. Open the address:
-# the first visit registers the GitHub App in one click and shows what to paste into deploy/.env. Run it again after.
+# Open the address: if the GitHub App is not registered yet, the first visit registers it in one click and shows what
+# to paste into deploy/.env. Run the script again after that.
 set -eu
 
 here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 env_file="$here/.env"
+compose="docker compose -f $here/compose.yml --env-file $env_file"
 
 command -v docker >/dev/null 2>&1 || { echo "Docker is required: https://docs.docker.com/engine/install/" >&2; exit 1; }
 docker compose version >/dev/null 2>&1 || { echo "Docker Compose v2 is required (docker compose)." >&2; exit 1; }
@@ -23,7 +25,33 @@ if [ ! -f "$env_file" ]; then
   echo "Wrote $env_file. Add your model credentials (ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN) before the first run."
 fi
 
-docker compose -f "$here/compose.yml" --env-file "$env_file" up -d --build
+# The revision this checkout is at. It is built into the image and reported by /healthz, so you can see what really runs.
+SHELF_REVISION=$(git -C "$here" rev-parse --short HEAD 2>/dev/null || echo unknown)
+if [ -n "$(git -C "$here" status --porcelain 2>/dev/null)" ]; then SHELF_REVISION="$SHELF_REVISION-dirty"; fi
+export SHELF_REVISION
+echo "Building revision $SHELF_REVISION"
+
+# Always replace the web and worker containers, so a rebuilt image is the one that serves.
+$compose up -d --build --force-recreate
+
+port=$(sed -n 's/^WEB_PORT=//p' "$env_file")
+port=${port:-8080}
+echo "Waiting for the web service..."
+running=""
+for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+  running=$(curl -fsS "http://127.0.0.1:$port/healthz" 2>/dev/null | sed -n 's/.*"revision": *"\([^"]*\)".*/\1/p') || running=""
+  [ -n "$running" ] && break
+  sleep 2
+done
+
 echo
-echo "Started. Open $(sed -n 's/^PUBLIC_URL=//p' "$env_file") : if the GitHub App is not registered yet, you will be guided."
-echo "Logs: docker compose -f $here/compose.yml logs -f"
+if [ "$running" = "$SHELF_REVISION" ]; then
+  echo "Running revision $running."
+elif [ -n "$running" ]; then
+  echo "WARNING: the service reports revision $running, but this checkout is $SHELF_REVISION." >&2
+  echo "Something answers on port $port that is not the container just built. Check: $compose ps" >&2
+else
+  echo "The web service did not answer on port $port yet. Check: $compose logs web" >&2
+fi
+echo "Open $(sed -n 's/^PUBLIC_URL=//p' "$env_file"): if the GitHub App is not registered yet, you will be guided."
+echo "Logs: $compose logs -f"

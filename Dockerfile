@@ -16,6 +16,9 @@ RUN apt-get update \
  && useradd --create-home --uid 1000 shelf
 COPY --from=build --chown=shelf:shelf /app /app
 ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1
+# The git revision this image was built from, shown by /healthz. Declared last so it never invalidates the layers above.
+ARG SHELF_REVISION=unknown
+ENV SHELF_REVISION=$SHELF_REVISION
 USER shelf
 WORKDIR /app
 EXPOSE 8080

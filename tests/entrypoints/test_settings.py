@@ -67,3 +67,8 @@ def test_the_budget_and_the_model_are_read() -> None:
         {**BASE, "SHELF_MODEL": "claude-sonnet-5-5", "SHELF_MAX_BUDGET_USD": "2.5", "SHELF_MAX_TURNS": "12"}
     )
     assert (settings.model, settings.max_budget_usd, settings.max_turns) == ("claude-sonnet-5-5", 2.5, 12)
+
+
+def test_the_revision_of_the_build_is_read_and_defaults_to_unknown() -> None:
+    assert from_environ(BASE).revision == "unknown"
+    assert from_environ({**BASE, "SHELF_REVISION": "abc1234"}).revision == "abc1234"

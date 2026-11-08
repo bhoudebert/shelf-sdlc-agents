@@ -55,3 +55,8 @@ def test_the_setup_page_serves_the_styles_and_scripts_it_links_to() -> None:
     assert paths
     for path in paths:
         assert page.get(path).status_code == 200, path
+
+
+def test_the_setup_health_check_reports_the_revision_it_runs() -> None:
+    app = TestClient(create_setup_app("https://shelf.example.org", fake_github, revision="abc1234"))
+    assert app.get("/healthz").json() == {"status": "setup", "revision": "abc1234"}

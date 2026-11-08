@@ -33,6 +33,8 @@ class WebSettings:
     webhook_secret: str
     secret_key: str
     mode: Mode = Mode.LOCAL
+    revision: str = "unknown"
+    """The git revision this build came from, reported by the health check."""
 
     @property
     def secure(self) -> bool:
