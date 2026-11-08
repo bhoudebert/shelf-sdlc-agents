@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from shelf.adapters.web.app import create_app
 from shelf.adapters.web.context import WebDeps, WebSettings
 from shelf.adapters.web.sessions import SessionStore
+from shelf.domain.config import InvalidConfigError
 from shelf.entrypoints import settings as settings_module
 from shelf.entrypoints.setup import create_setup_app
 from shelf.entrypoints.wiring import build_services, connect
@@ -50,7 +51,10 @@ async def serve(settings: settings_module.Settings) -> None:
 def main() -> None:
     """Console entry point: ``shelf-web``."""
     logging.basicConfig(level=logging.INFO)
-    asyncio.run(serve(settings_module.from_environ(os.environ)))
+    try:
+        asyncio.run(serve(settings_module.from_environ(os.environ)))
+    except (settings_module.MissingSettingError, InvalidConfigError) as error:
+        settings_module.exit_with(error)
 
 
 if __name__ == "__main__":
