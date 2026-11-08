@@ -39,6 +39,8 @@ class Settings:
     nested_sandbox: bool
     port: int
     revision: str
+    temporal_ui_upstream: str
+    temporal_ui_writable: bool
 
 
 KEY_FILE = "github-app.pem"
@@ -115,4 +117,6 @@ def from_environ(environ: Mapping[str, str]) -> Settings:
         nested_sandbox=environ.get("SHELF_NESTED_SANDBOX", "").strip().lower() in {"1", "true", "yes"},
         port=int(environ.get("PORT", "8080")),
         revision=environ.get("SHELF_REVISION", "unknown"),
+        temporal_ui_upstream=environ.get("TEMPORAL_UI_UPSTREAM", "").strip().rstrip("/"),
+        temporal_ui_writable=environ.get("TEMPORAL_UI_WRITABLE", "").strip().lower() in {"1", "true", "yes"},
     )

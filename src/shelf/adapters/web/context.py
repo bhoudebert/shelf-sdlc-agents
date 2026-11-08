@@ -4,13 +4,14 @@ from dataclasses import dataclass, field
 from importlib import resources
 from pathlib import Path
 
+import httpx
 from fastapi import HTTPException, Request
 from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 
 from shelf.adapters.web.sessions import Session, SessionStore
-from shelf.domain.access import AccessRules
+from shelf.domain.access import AccessRules, is_admin
 from shelf.domain.polling import Mode
 from shelf.ports.configs import RepoConfigs
 from shelf.ports.forge import Forge
@@ -35,6 +36,11 @@ class WebSettings:
     mode: Mode = Mode.LOCAL
     revision: str = "unknown"
     """The git revision this build came from, reported by the health check."""
+    temporal_upstream: str = ""
+    """Where Temporal's own interface listens, for the administrators' proxy; empty turns the proxy off."""
+    temporal_writable: bool = False
+    """Whether the proxy lets administrators change workflows (signal, terminate). Reading and queries always pass."""
+    temporal_namespace: str = "default"
 
     @property
     def secure(self) -> bool:
@@ -57,6 +63,8 @@ class WebDeps:
     runner: WorkRunner
     configs: RepoConfigs
     sessions: SessionStore
+    temporal_transport: httpx.AsyncBaseTransport | None = None
+    """For tests: how the proxy reaches Temporal's interface."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,7 +80,11 @@ class Web:
 
     def render(self, request: Request, name: str, session: Session | None, **context: object) -> HTMLResponse:
         """Render a template with what every page needs (who is signed in, the mode)."""
-        base = {"user": session.identity.login if session else None, "mode": self.deps.settings.mode.value}
+        base = {
+            "user": session.identity.login if session else None,
+            "mode": self.deps.settings.mode.value,
+            "admin": self.is_admin(session),
+        }
         return self.templates.TemplateResponse(request, name, {**base, **context})
 
     def set_cookie(self, response: Response, name: str, value: str, max_age: int) -> None:
@@ -95,6 +107,17 @@ class Web:
             return str(self._signer.loads(raw, max_age=max_age))
         except BadSignature:
             return None
+
+    def is_admin(self, session: Session | None) -> bool:
+        """Whether the signed-in person administers this instance."""
+        return session is not None and is_admin(self.deps.rules, session.identity.login)
+
+    def temporal_link(self, work_id: str) -> str:
+        """The address of a piece of work in Temporal's interface, or an empty string when the proxy is off."""
+        settings = self.deps.settings
+        if not settings.temporal_upstream:
+            return ""
+        return f"/temporal/namespaces/{settings.temporal_namespace}/workflows/{work_id}"
 
     def current(self, request: Request) -> Session | None:
         """The signed-in person, if any."""

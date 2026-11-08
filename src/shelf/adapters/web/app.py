@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from shelf.adapters.web import auth, board, hooks, start, work
+from shelf.adapters.web import auth, board, hooks, start, temporal_proxy, work
 from shelf.adapters.web.context import ASSETS, Web, WebDeps
 
 
@@ -12,6 +12,6 @@ def create_app(deps: WebDeps) -> FastAPI:
     app = FastAPI(title="shelf-sdlc", docs_url=None, redoc_url=None, openapi_url=None)
     web = Web(deps)
     app.mount("/static", StaticFiles(directory=ASSETS / "static"), name="static")
-    for build in (auth.router, board.router, start.router, work.router, hooks.router):
+    for build in (auth.router, board.router, start.router, work.router, temporal_proxy.router, hooks.router):
         app.include_router(build(web))
     return app

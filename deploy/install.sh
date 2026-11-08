@@ -36,6 +36,11 @@ if grep -q '^GITHUB_APP_ID=.\+' "$env_file" && ! grep -q '^GITHUB_APP_PRIVATE_KE
   echo "WARNING: GITHUB_APP_ID is set but there is no private key. Put the .pem you downloaded at $here/secrets/github-app.pem" >&2
 fi
 
+# The agents need a model credential in the worker's environment: the host's own `claude` login is not visible there.
+if ! grep -Eq '^(ANTHROPIC_API_KEY|CLAUDE_CODE_OAUTH_TOKEN|ANTHROPIC_AUTH_TOKEN)=.+' "$env_file"; then
+  echo "WARNING: no model credential in $env_file. Agents will fail with 'Not logged in'. Run 'claude setup-token' and add CLAUDE_CODE_OAUTH_TOKEN=..., or set ANTHROPIC_API_KEY." >&2
+fi
+
 # The access file must be valid TOML: say so now, not after a build and a crash loop.
 if command -v python3 >/dev/null 2>&1 && python3 -c 'import tomllib' 2>/dev/null; then
   if ! python3 -c 'import sys, tomllib; tomllib.load(open(sys.argv[1], "rb"))' "$here/shelf.toml" 2>/tmp/shelf-toml-error; then

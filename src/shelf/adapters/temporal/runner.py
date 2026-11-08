@@ -74,14 +74,14 @@ class TemporalRunner:
         handle = self.client.get_workflow_handle_for(WorkItemWorkflow.run, work_id)
         return await self._view(handle)
 
-    async def list(self, repos: Collection[RepoRef]) -> Sequence[WorkView]:
-        """Every piece of work on ``repos``, most recent first."""
-        wanted = {repo.full_name for repo in repos}
+    async def list(self, repos: Collection[RepoRef] | None) -> Sequence[WorkView]:
+        """Every piece of work on ``repos`` (on every repository when ``None``), most recent first."""
+        wanted = None if repos is None else {repo.full_name for repo in repos}
         views: list[WorkView] = []
         async for execution in self.client.list_workflows(f'WorkflowType = "{WORKFLOW_TYPE}"'):
             handle = self.client.get_workflow_handle_for(WorkItemWorkflow.run, execution.id)
             view = await self._view(handle)
-            if view is not None and view.repo.full_name in wanted:
+            if view is not None and (wanted is None or view.repo.full_name in wanted):
                 views.append(view)
         return views
 

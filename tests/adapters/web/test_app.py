@@ -4,6 +4,7 @@ import json
 from collections.abc import Callable, Mapping
 from urllib.parse import parse_qs, urlparse
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
@@ -18,16 +19,36 @@ from shelf.domain.work import DecisionKind, PersonDecided, Reason
 from tests.fakes import FakeConfigs, FakeForge, FakeRunner
 
 REPO = RepoRef("acme", "shop")
-SETTINGS = WebSettings("https://shelf.example.org", "shelf", "Iv1.client", "hook-secret", "k" * 32, revision="abc1234")
+SETTINGS = WebSettings(
+    "https://shelf.example.org",
+    "shelf",
+    "Iv1.client",
+    "hook-secret",
+    "k" * 32,
+    revision="abc1234",
+    temporal_upstream="http://temporal:8233",
+)
 ALICE = Identity("alice", frozenset({"acme"}))
 
 
 class Fixture:
-    def __init__(self, rules: AccessRules | None = None, configs: FakeConfigs | None = None) -> None:
+    def __init__(
+        self,
+        rules: AccessRules | None = None,
+        configs: FakeConfigs | None = None,
+        settings: WebSettings = SETTINGS,
+        transport: httpx.MockTransport | None = None,
+    ) -> None:
         self.forge = FakeForge(identities={"token-code": ALICE}, repos={"token-code": (REPO,)})
         self.runner = FakeRunner()
         deps = WebDeps(
-            SETTINGS, rules or AccessRules(), self.forge, self.runner, configs or FakeConfigs(), SessionStore()
+            settings,
+            rules or AccessRules(),
+            self.forge,
+            self.runner,
+            configs or FakeConfigs(),
+            SessionStore(),
+            transport,
         )
         self.client = TestClient(create_app(deps), base_url="https://shelf.example.org", follow_redirects=False)
 
@@ -219,3 +240,24 @@ def test_after_installing_the_app_github_sends_people_to_the_board(app: Fixture)
 
 def test_the_health_check_answers(app: Fixture) -> None:
     assert app.client.get("/healthz").json() == {"status": "ok", "revision": "abc1234"}
+
+
+def test_an_administrator_sees_the_work_of_every_repository_and_a_link_into_temporal() -> None:
+    other = RepoRef("acme", "secret")
+    fixture = Fixture(AccessRules(admins=frozenset({"alice"})))
+    fixture.runner.views[WorkId("work-9")] = WorkView(WorkId("work-9"), other, "x", EntryPoint.NEED, Phase.INTAKE)
+    fixture.sign_in()
+    assert "acme/secret" in fixture.client.get("/board").text
+    page = fixture.client.get("/work/work-9")
+    assert page.status_code == 200
+    assert "/namespaces/default/workflows/work-9" in page.text
+
+
+def test_an_ordinary_person_sees_neither_other_repositories_nor_the_temporal_link(app: Fixture) -> None:
+    other = RepoRef("acme", "secret")
+    app.runner.views[WorkId("work-9")] = WorkView(WorkId("work-9"), other, "x", EntryPoint.NEED, Phase.INTAKE)
+    app.runner.views[WorkId("work-1")] = WorkView(WorkId("work-1"), REPO, "alice", EntryPoint.NEED, Phase.INTAKE)
+    app.sign_in()
+    assert "acme/secret" not in app.client.get("/board").text
+    assert app.client.get("/work/work-9").status_code == 404
+    assert "workflows/work-1" not in app.client.get("/work/work-1").text

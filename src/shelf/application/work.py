@@ -57,6 +57,8 @@ async def decide_work(  # noqa: PLR0913
     return Ok(None)
 
 
-async def board(runner: WorkRunner, forge: Forge, *, user_token: str) -> Sequence[WorkView]:
-    """The work of every repository the person can see."""
+async def board(runner: WorkRunner, forge: Forge, *, user_token: str, everything: bool = False) -> Sequence[WorkView]:
+    """The work of every repository the person can see, or of every repository when ``everything`` (administrators)."""
+    if everything:
+        return await runner.list(None)
     return await runner.list(await forge.repositories(user_token))

@@ -38,6 +38,7 @@ async def test_work_started_through_the_runner_shows_on_the_board_and_takes_deci
         assert finished.outcome is Outcome.ABORTED
         assert [v.id for v in await runner.list([REPO])] == [work_id]
         assert await runner.list([RepoRef("other", "repo")]) == []
+        assert [v.id for v in await runner.list(None)] == [work_id]
 
 
 async def test_the_runner_starts_work_with_the_policy_of_the_repository(env: WorkflowEnvironment) -> None:

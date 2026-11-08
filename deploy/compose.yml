@@ -18,6 +18,7 @@ x-shelf: &shelf
   env_file: [.env]
   environment:
     TEMPORAL_ADDRESS: temporal:7233
+    TEMPORAL_UI_UPSTREAM: http://temporal:8233
     SHELF_CONFIG: /etc/shelf/shelf.toml
     GITHUB_APP_PRIVATE_KEY_PATH: /run/secrets/github-app.pem
   volumes:
@@ -36,7 +37,7 @@ services:
   temporal:
     image: temporalio/temporal:latest # pin a version for production
     restart: unless-stopped
-    command: ["server", "start-dev", "--ip", "0.0.0.0", "--db-filename", "/home/temporal/temporal.db"]
+    command: ["server", "start-dev", "--ip", "0.0.0.0", "--db-filename", "/home/temporal/temporal.db", "--ui-public-path", "/temporal"]
     volumes:
       # Mounted over the image user's home, so the volume inherits its ownership (a fresh path would be root-owned).
       - temporal-data:/home/temporal
@@ -45,9 +46,9 @@ services:
       interval: 5s
       timeout: 5s
       retries: 30
-    # Not published. Its UI (port 8233) is reachable from the host with:
-    #   docker compose -f deploy/compose.yml exec temporal true  &&  docker compose port temporal 8233
-    # or add `ports: ["127.0.0.1:8233:8233"]` here to look at workflows from the server itself.
+    # Temporal's own web interface (port 8233) is NOT published: it has no login and can signal or end any workflow. The web
+    # service serves it to signed-in administrators at /temporal, read-only (see TEMPORAL_UI_WRITABLE). For the command line:
+    #   docker compose -f deploy/compose.yml exec temporal temporal workflow list
 
   # The product: sign-in, board, start, decisions, GitHub webhooks.
   web:
