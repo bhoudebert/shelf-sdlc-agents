@@ -101,3 +101,21 @@ The system SHALL, when an agent fails because it is not logged in, say that the 
 
 - **WHEN** an agent step fails with a login error
 - **THEN** the failure names the environment variables to set and where
+
+### Requirement: The submitted text is recorded in the repository
+
+The system SHALL write the text a person submitted into the work's document folder in the file its entry point implies (the request, the spec, the design or the plan), once, and never overwrite it, so that every agent and reviewer reads the same document from the repository.
+
+#### Scenario: A submitted spec
+
+- **WHEN** work starts from a spec
+- **THEN** the spec is recorded as the spec the reviewers read, and committed
+
+### Requirement: Every step says what it did on the pull request
+
+The system SHALL post on the pull request, after each step, the producer's summary with the file it wrote, the reviewer's verdict with its issues, or the checks' result.
+
+#### Scenario: A review
+
+- **WHEN** a reviewer finishes
+- **THEN** its verdict and issues appear as a comment on the pull request

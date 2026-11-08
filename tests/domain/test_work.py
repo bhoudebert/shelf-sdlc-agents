@@ -23,6 +23,7 @@ from shelf.domain.work import (
     Reviewed,
     Running,
     RunStep,
+    SetPullRequestReady,
     State,
     StepDone,
     StepFailed,
@@ -118,7 +119,7 @@ def test_a_reviewer_asking_for_changes_sends_work_back_with_the_issues() -> None
     course = course_for(EntryPoint.SPEC, Policy())
     state, commands = decide(course, Running(Phase.SPEC_REVIEW), StepDone(Reviewed(Verdict.CHANGES, "too vague")))
     assert state == Running(Phase.INTAKE, 1, "too vague")
-    assert commands == (RunStep(Phase.INTAKE, 1, "too vague"),)
+    assert commands == (PublishPullRequest(), RunStep(Phase.INTAKE, 1, "too vague"))
 
 
 def test_the_loop_gives_up_after_the_policy_limit_and_asks_a_person() -> None:
@@ -247,7 +248,8 @@ def test_the_state_always_matches_the_commands(entry: EntryPoint, policy: Policy
             state, commands = decide(course, state, event)
         match state:
             case Running(phase, attempt, feedback):
-                assert commands in ((), (RunStep(phase, attempt, feedback),))
+                assert commands[-1:] in ((), (RunStep(phase, attempt, feedback),))
+                assert set(commands[:-1]) <= {PublishPullRequest()}
                 assert attempt <= policy.max_rounds
             case AwaitingPerson():
                 assert commands == () or isinstance(commands[-1], AskPerson)
@@ -272,3 +274,41 @@ def test_changes_asked_where_a_phase_has_no_loop_back_redo_that_phase() -> None:
     waiting = AwaitingPerson(Phase.DESIGN, Reason.FAILURE, "boom")
     state, _ = decide(course, waiting, PersonDecided(PERSON, DecisionKind.CHANGES, "use the new API"))
     assert state == Running(Phase.DESIGN, 0, "use the new API")
+
+
+def test_the_pull_request_opens_as_soon_as_the_first_step_is_done() -> None:
+    course = course_for(EntryPoint.NEED, Policy())
+    state, commands = decide(course, Running(Phase.INTAKE), StepDone(Produced()))
+    assert commands[0] == PublishPullRequest()
+    assert state == Running(Phase.SPEC_REVIEW)
+
+
+def test_a_pull_request_that_already_exists_is_never_published() -> None:
+    course = course_for(EntryPoint.PULL_REQUEST_REVIEW, Policy())
+    _, commands = decide(course, Running(Phase.CODE_REVIEW), StepDone(Reviewed(Verdict.APPROVE)))
+    assert PublishPullRequest() not in commands
+    assert SetPullRequestReady(ready=True) not in commands
+
+
+def test_later_steps_do_not_ask_for_the_pull_request_again() -> None:
+    course = course_for(EntryPoint.NEED, Policy())
+    _, commands = decide(course, Running(Phase.SPEC_REVIEW), StepDone(Reviewed(Verdict.APPROVE)))
+    assert PublishPullRequest() not in commands
+
+
+def test_the_pull_request_is_marked_ready_when_the_reviewed_work_reaches_the_merge() -> None:
+    course = course_for(EntryPoint.IMPLEMENT, Policy())
+    state, commands = decide(course, Running(Phase.CODE_REVIEW), StepDone(Reviewed(Verdict.APPROVE)))
+    assert state == AwaitingPerson(Phase.PULL_REQUEST, Reason.MERGE)
+    assert SetPullRequestReady(ready=True) in commands
+    assert commands.index(SetPullRequestReady(ready=True)) < commands.index(
+        AskPerson(Phase.PULL_REQUEST, Reason.MERGE, "")
+    )
+
+
+def test_changes_asked_on_the_pull_request_put_it_back_to_draft() -> None:
+    course = course_for(EntryPoint.NEED, Policy())
+    waiting = AwaitingPerson(Phase.PULL_REQUEST, Reason.MERGE)
+    _, commands = decide(course, waiting, PersonDecided(PERSON, DecisionKind.CHANGES, "rename it"))
+    assert commands[0] == SetPullRequestReady(ready=False)
+    assert RunStep(Phase.IMPLEMENT, 0, "rename it") in commands

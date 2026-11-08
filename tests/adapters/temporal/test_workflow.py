@@ -13,6 +13,7 @@ from shelf.adapters.temporal.activities import build_activities
 from shelf.adapters.temporal.workflow import WorkItemWorkflow
 from shelf.domain.model import WorkContext
 from shelf.domain.pipeline import KIND, Kind, Phase
+from shelf.domain.stage import Stage
 from shelf.domain.work import (
     AskPerson,
     DecisionKind,
@@ -61,10 +62,18 @@ class FakePulls:
     announced: list[AskPerson] = field(default_factory=list[AskPerson])
     published: int = 0
     commented: list[str] = field(default_factory=list[str])
+    ready: list[bool] = field(default_factory=list[bool])
+    stages: list[str] = field(default_factory=list[str])
 
     async def publish(self, work: WorkContext) -> str:
         self.published += 1
         return "https://github.com/acme/shop/pull/1"
+
+    async def set_ready(self, work: WorkContext, *, ready: bool) -> None:
+        self.ready.append(ready)
+
+    async def set_stage(self, work: WorkContext, stage: Stage) -> None:
+        self.stages.append(stage.name)
 
     async def announce(self, work: WorkContext, ask: AskPerson) -> None:
         self.announced.append(ask)
@@ -148,7 +157,10 @@ async def test_work_from_a_need_publishes_a_pull_request_and_stops_at_the_spec_g
         Phase.VERIFY,
         Phase.CODE_REVIEW,
     ]
-    assert pulls.published == 1
+    assert pulls.published >= 1  # opened after the first step, asked for again at the merge
+    assert pulls.ready == [True]
+    assert "shelf: writing the spec" in pulls.stages
+    assert pulls.stages[-1] == "shelf: ready to merge"
 
 
 async def test_a_reviewer_asking_for_changes_sends_the_work_back_with_the_issues(env: WorkflowEnvironment) -> None:

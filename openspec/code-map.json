@@ -13,10 +13,12 @@
     },
     "work-item": {
       "code": [
-        "src/shelf/domain/work.py"
+        "src/shelf/domain/work.py",
+        "src/shelf/domain/stage.py"
       ],
       "tests": [
-        "tests/domain/test_work.py"
+        "tests/domain/test_work.py",
+        "tests/domain/test_stage.py"
       ]
     },
     "access": {

@@ -96,3 +96,12 @@ The system SHALL look at the workflows concurrently, bounded, and share one list
 
 - **WHEN** several callers list work within a moment
 - **THEN** the workflow engine is asked to list once and each caller gets its own filtered view
+
+### Requirement: The workflow keeps the pull request's stage and draft state in step
+
+The system SHALL set the pull request's stage label whenever a step starts or a person is awaited and apply the ordered ready or draft state, and SHALL treat a failure of either as cosmetic, never as a reason to stop the work.
+
+#### Scenario: A GitHub failure
+
+- **WHEN** setting the label fails
+- **THEN** the work continues

@@ -7,6 +7,7 @@ from shelf.adapters.github_app.pulls import GitHubPullRequests, announcement, ev
 from shelf.adapters.github_app.settings import GitHubAppSettings
 from shelf.domain.model import RepoRef, WorkContext, WorkId, WorkRequest
 from shelf.domain.pipeline import EntryPoint, Phase
+from shelf.domain.stage import stage_of
 from shelf.domain.work import AskPerson, DecisionKind, PersonDecided, PullRequestClosed, Reason
 
 REPO = RepoRef("acme", "shop")
@@ -61,6 +62,8 @@ async def test_publish_opens_a_draft_pull_request_with_the_requester(settings: G
     seen: dict[str, object] = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":  # no pull request exists for this branch yet
+            return httpx.Response(200, json=[])
         seen.update(json.loads(request.content), path=request.url.path, auth=request.headers["Authorization"])
         return httpx.Response(201, json={"html_url": "https://github.com/acme/shop/pull/12"})
 
@@ -70,6 +73,103 @@ async def test_publish_opens_a_draft_pull_request_with_the_requester(settings: G
     assert seen["auth"] == "Bearer ghs_token"
     assert (seen["head"], seen["base"], seen["draft"]) == ("shelf/work-1", "main", True)
     assert "Requested-by: alice" in str(seen["body"])
+
+
+async def test_publishing_twice_returns_the_pull_request_that_exists(settings: GitHubAppSettings) -> None:
+    posted: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            posted.append(request.url.path)
+        if request.url.path.endswith("/pulls/12"):
+            return httpx.Response(200, json={"html_url": "https://github.com/acme/shop/pull/12"})
+        return httpx.Response(200, json=[{"number": 12}])
+
+    assert await adapter(settings, httpx.MockTransport(handler)).publish(NEED) == "https://github.com/acme/shop/pull/12"
+    assert posted == []
+
+
+async def test_nothing_is_posted_while_there_is_no_pull_request_yet(settings: GitHubAppSettings) -> None:
+    posted: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method != "GET":
+            posted.append(request.url.path)
+        return httpx.Response(200, json=[])
+
+    pulls = adapter(settings, httpx.MockTransport(handler))
+    await pulls.comment(NEED, "hello")
+    await pulls.announce(NEED, AskPerson(Phase.SPEC_APPROVAL, Reason.GATE, ""))
+    await pulls.set_stage(NEED, stage_of(Phase.INTAKE, None))
+    await pulls.set_ready(NEED, ready=True)
+    assert posted == []
+    assert await pulls.poll(NEED) == []
+
+
+@pytest.mark.parametrize(
+    ("draft", "ready", "mutation"),
+    [(True, True, "markPullRequestReadyForReview"), (False, False, "convertPullRequestToDraft")],
+)
+async def test_the_draft_state_is_changed_through_graphql_when_it_differs(
+    settings: GitHubAppSettings, *, draft: bool, ready: bool, mutation: str
+) -> None:
+    sent: list[dict[str, object]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/graphql":
+            sent.append(json.loads(request.content))
+            return httpx.Response(200, json={"data": {}})
+        return httpx.Response(200, json={"draft": draft, "node_id": "PR_node"})
+
+    await adapter(settings, httpx.MockTransport(handler)).set_ready(REVIEW, ready=ready)
+    assert len(sent) == 1
+    assert mutation in str(sent[0]["query"])
+    assert sent[0]["variables"] == {"id": "PR_node"}
+
+
+@pytest.mark.parametrize(("draft", "ready"), [(False, True), (True, False)])
+async def test_the_draft_state_is_left_alone_when_it_is_already_right(
+    settings: GitHubAppSettings, *, draft: bool, ready: bool
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path != "/graphql"
+        return httpx.Response(200, json={"draft": draft, "node_id": "PR_node"})
+
+    await adapter(settings, httpx.MockTransport(handler)).set_ready(REVIEW, ready=ready)
+
+
+async def test_the_stage_label_replaces_the_previous_one_and_leaves_other_labels(settings: GitHubAppSettings) -> None:
+    calls: list[tuple[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append((request.method, request.url.path))
+        if request.method == "GET":
+            return httpx.Response(200, json=[{"name": "bug"}, {"name": "shelf: designing"}])
+        return httpx.Response(200, json={})
+
+    await adapter(settings, httpx.MockTransport(handler)).set_stage(REVIEW, stage_of(Phase.IMPLEMENT, None))
+    assert ("POST", "/repos/acme/shop/labels") in calls
+    assert ("DELETE", "/repos/acme/shop/issues/7/labels/shelf: designing") in calls
+    assert ("POST", "/repos/acme/shop/issues/7/labels") in calls
+    assert not any(method == "DELETE" and "bug" in path for method, path in calls)
+
+
+async def test_the_stage_label_that_already_exists_is_not_created_or_added_again(settings: GitHubAppSettings) -> None:
+    calls: list[tuple[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append((request.method, request.url.path))
+        if request.method == "GET":
+            return httpx.Response(200, json=[{"name": "shelf: implementing"}])
+        return (
+            httpx.Response(422, json={"message": "already exists"})
+            if request.url.path.endswith("/labels")
+            else httpx.Response(200, json={})
+        )
+
+    await adapter(settings, httpx.MockTransport(handler)).set_stage(REVIEW, stage_of(Phase.IMPLEMENT, None))
+    assert calls.count(("POST", "/repos/acme/shop/issues/7/labels")) == 0
+    assert not any(method == "DELETE" for method, _ in calls)
 
 
 async def test_announce_comments_on_the_reviewed_pull_request(settings: GitHubAppSettings) -> None:

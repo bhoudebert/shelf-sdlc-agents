@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Final
 
 from shelf.domain.model import WorkId
-from shelf.domain.pipeline import KIND, Kind, Phase
+from shelf.domain.pipeline import KIND, EntryPoint, Kind, Phase
 
 READ_ONLY: Final = ("Read", "Glob", "Grep")
 WRITING: Final = (*READ_ONLY, "Write", "Edit")
@@ -38,3 +38,13 @@ REVIEWERS: frozenset[Phase] = frozenset(phase for phase in ROLES if KIND[phase] 
 def documents_dir(work_id: WorkId) -> str:
     """Where the work keeps its spec, design and plan inside the repository."""
     return f"docs/shelf/{work_id}"
+
+
+PROVIDED_DOCUMENT: dict[EntryPoint, str] = {
+    EntryPoint.NEED: "request.md",
+    EntryPoint.SPEC: "spec.md",
+    EntryPoint.DESIGN: "spec.md",
+    EntryPoint.PLAN: "design.md",
+    EntryPoint.IMPLEMENT: "plan.md",
+}
+"""The file the text a person submits is recorded as, so every agent and reviewer reads it from the repository."""

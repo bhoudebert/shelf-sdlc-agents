@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from typing import Protocol
 
 from shelf.domain.model import WorkContext
+from shelf.domain.stage import Stage
 from shelf.domain.work import AskPerson, Event, RunStep, StepResult
 
 
@@ -24,6 +25,14 @@ class PullRequests(Protocol):
 
     async def announce(self, work: WorkContext, ask: AskPerson) -> None:
         """Tell the people on the pull request what the work waits for."""
+        ...
+
+    async def set_ready(self, work: WorkContext, *, ready: bool) -> None:
+        """Mark the pull request ready for review, or back to draft."""
+        ...
+
+    async def set_stage(self, work: WorkContext, stage: Stage) -> None:
+        """Make ``stage`` the pull request's one ``shelf:`` label, replacing the previous one."""
         ...
 
     async def comment(self, work: WorkContext, body: str) -> None:
