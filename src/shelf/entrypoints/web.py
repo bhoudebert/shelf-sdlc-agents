@@ -8,6 +8,7 @@ import httpx
 import uvicorn
 from fastapi import FastAPI
 
+from shelf.adapters.caching.forge import CachedForge
 from shelf.adapters.web.app import create_app
 from shelf.adapters.web.context import WebDeps, WebSettings
 from shelf.adapters.web.sessions import SessionStore
@@ -41,7 +42,14 @@ async def build(settings: settings_module.Settings) -> FastAPI:
         model_configured=settings.model_credential,
     )
     return create_app(
-        WebDeps(web, services.operator.access, services.forge, services.runner, services.configs, SessionStore())
+        WebDeps(
+            web,
+            services.operator.access,
+            CachedForge(services.forge),
+            services.runner,
+            services.configs,
+            SessionStore(),
+        )
     )
 
 

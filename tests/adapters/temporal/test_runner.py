@@ -69,3 +69,19 @@ async def _until_waiting(runner: TemporalRunner, work_id: WorkId, reason: Reason
 
 async def _until_finished(runner: TemporalRunner, work_id: WorkId) -> WorkView:
     return await _until(runner, work_id, lambda view: view.outcome is not None)
+
+
+async def test_many_callers_share_one_set_of_temporal_lookups_for_a_moment(env: WorkflowEnvironment) -> None:
+    from unittest.mock import patch  # noqa: PLC0415
+
+    runner = runner_for(env)
+    async with worker(env, FakeSteps(), FakePulls()):
+        work_id = await runner.start(WorkRequest(REPO, "alice", EntryPoint.NEED, "x"))
+        await _until_waiting(runner, work_id, Reason.GATE)
+        with patch.object(env.client, "list_workflows", wraps=env.client.list_workflows) as listing:
+            first = await runner.list(None)
+            second = await runner.list([REPO])
+            third = await runner.list([RepoRef("other", "repo")])
+        assert listing.call_count == 1
+        assert [v.id for v in first] == [v.id for v in second] == [work_id]
+        assert third == []

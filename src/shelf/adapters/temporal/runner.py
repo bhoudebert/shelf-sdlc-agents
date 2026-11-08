@@ -1,5 +1,7 @@
 """The ``WorkRunner`` port over a Temporal client: one workflow per piece of work."""
 
+import asyncio
+import time
 import uuid
 from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass, field
@@ -15,6 +17,7 @@ from shelf.domain.work import Outcome, PersonDecided, Reason
 from shelf.ports.configs import RepoConfigs
 
 WORKFLOW_TYPE = "WorkItem"
+MAX_CONCURRENT_LOOKS = 8
 
 
 def new_work_id() -> WorkId:
@@ -31,6 +34,12 @@ class TemporalRunner:
     configs: RepoConfigs
     mode: Mode = Mode.LOCAL
     next_id: Callable[[], WorkId] = field(default=new_work_id)
+    cache_seconds: float = 2.0
+    """How long a list of all work is shared between callers: many open boards cost one set of Temporal calls."""
+    clock: Callable[[], float] = time.monotonic
+    _listed: dict[str, tuple[float, Sequence[WorkView]]] = field(
+        default_factory=dict[str, tuple[float, Sequence[WorkView]]], repr=False
+    )
 
     async def start(self, request: WorkRequest) -> WorkId:
         """Start a workflow for ``request`` with the policy of its repository."""
@@ -76,13 +85,27 @@ class TemporalRunner:
 
     async def list(self, repos: Collection[RepoRef] | None) -> Sequence[WorkView]:
         """Every piece of work on ``repos`` (on every repository when ``None``), most recent first."""
-        wanted = None if repos is None else {repo.full_name for repo in repos}
-        views: list[WorkView] = []
-        async for execution in self.client.list_workflows(f'WorkflowType = "{WORKFLOW_TYPE}"'):
-            handle = self.client.get_workflow_handle_for(WorkItemWorkflow.run, execution.id)
-            view = await self._view(handle)
-            if view is not None and (wanted is None or view.repo.full_name in wanted):
-                views.append(view)
+        everything = await self._everything()
+        if repos is None:
+            return everything
+        wanted = {repo.full_name for repo in repos}
+        return [view for view in everything if view.repo.full_name in wanted]
+
+    async def _everything(self) -> Sequence[WorkView]:
+        """All work, looked at concurrently and shared for a moment between callers."""
+        cached = self._listed.get("all")
+        if cached is not None and self.clock() - cached[0] < self.cache_seconds:
+            return cached[1]
+        gate = asyncio.Semaphore(MAX_CONCURRENT_LOOKS)
+
+        async def look(workflow_id: str) -> WorkView | None:
+            async with gate:
+                return await self._view(self.client.get_workflow_handle_for(WorkItemWorkflow.run, workflow_id))
+
+        ids = [execution.id async for execution in self.client.list_workflows(f'WorkflowType = "{WORKFLOW_TYPE}"')]
+        looked = await asyncio.gather(*(look(workflow_id) for workflow_id in ids))
+        views: Sequence[WorkView] = tuple(view for view in looked if view is not None)
+        self._listed["all"] = (self.clock(), views)
         return views
 
     async def _view(self, handle: WorkflowHandle[WorkItemWorkflow, str]) -> WorkView | None:
