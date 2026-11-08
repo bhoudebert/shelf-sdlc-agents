@@ -1,15 +1,64 @@
-<div id="panel" hx-get="/work/{{ item.id }}/panel" hx-trigger="every 3s" hx-swap="outerHTML">
-  <h2>{{ item.waiting or item.outcome or "Running" }} · {{ item.phase }}</h2>
-  <ol class="timeline">
-    {% for step in timeline %}<li class="{{ step.state }}">{{ step.label }}</li>{% endfor %}
+{% from "_macros.html" import glyph %}
+{% set words = {"done": "Done", "current": "In progress", "waiting": "Waiting", "stopped": "Stopped", "todo": "Not yet"} %}
+<div id="panel" class="panel panel-{{ item.status.value }} reason-{{ item.reason or 'none' }}" hx-get="/work/{{ item.id }}/panel" hx-trigger="every 3s" hx-swap="outerHTML" aria-live="polite" aria-label="Progress of this work">
+  <section class="status" aria-labelledby="status-title">
+    <span class="status-glyph">{{ glyph("running" if item.status.value == "running" else ("waiting" if item.status.value == "waiting" and item.reason != "failure" else ("stopped" if item.reason == "failure" or item.outcome != "Merged" else "done"))) }}</span>
+    <div>
+      <h2 id="status-title">{{ item.waiting or item.outcome or "Running" }} · {{ item.phase }}</h2>
+      {% if item.pull_request_url %}<p class="pr-link"><a class="btn quiet" href="{{ item.pull_request_url }}" rel="noopener">Pull request</a></p>{% endif %}
+    </div>
+  </section>
+
+  <ol class="timeline" aria-label="Pipeline">
+    {% for step in timeline %}
+    <li class="{{ step.state }}"{% if step.state in ("current", "waiting") %} aria-current="step"{% endif %}>
+      {{ glyph(step.state) }}
+      <strong>{{ step.label }}</strong>
+      <span class="st">{{ words[step.state] }}</span>
+    </li>
+    {% endfor %}
   </ol>
-  {% if item.detail %}<pre>{{ item.detail }}</pre>{% endif %}
-  {% if item.pull_request_url %}<p><a href="{{ item.pull_request_url }}">Pull request</a></p>{% endif %}
-  {% if flash %}<p role="status">{{ flash }}</p>{% endif %}
-  {% if decisions %}
-  <form hx-post="/work/{{ item.id }}/decide" hx-target="#panel" hx-swap="outerHTML">
-    <label>Note <textarea name="note" rows="3"></textarea></label>
-    {% for decision in decisions %}<button name="kind" value="{{ decision.value }}">{{ decision.label }}</button>{% endfor %}
-  </form>
-  {% endif %}
+
+  <div class="below{% if decisions %} has-decisions{% endif %}">
+    {% if decisions %}
+    <form class="decide" hx-post="/work/{{ item.id }}/decide" hx-target="#panel" hx-swap="outerHTML" aria-labelledby="decide-title">
+      <h3 id="decide-title">Your decision</h3>
+      {% if flash %}<p class="flash {{ 'ok' if flash == 'Decision sent.' else 'bad' }}" role="status">{{ glyph("done" if flash == "Decision sent." else "stopped") }}<span>{{ flash }}</span></p>{% endif %}
+      {% set go = decisions|selectattr("value", "in", ["approve", "resume"])|list %}
+      {% if go %}
+      <div class="go">
+        {% for decision in go %}<button class="btn big" name="kind" value="{{ decision.value }}">{{ decision.label }}</button>{% endfor %}
+      </div>
+      {% endif %}
+      {% set asks = decisions|selectattr("needs_note")|list %}
+      {% if asks %}
+      <div class="ask">
+        <label for="note">What should change</label>
+        <textarea id="note" name="note" rows="3"></textarea>
+        <div class="ask-actions">
+          {% for decision in asks %}<button class="btn-secondary" name="kind" value="{{ decision.value }}">{{ decision.label }}</button>{% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      {% set stop = decisions|rejectattr("value", "in", ["approve", "resume"])|rejectattr("needs_note")|list %}
+      {% if stop %}
+      <div class="stop">
+        <p class="stop-title">Stop this work</p>
+        <div class="stop-actions">
+          {% for decision in stop %}<button class="btn-danger" name="kind" value="{{ decision.value }}" data-confirm="{{ decision.label }} this work? This cannot be undone.">{{ glyph("stopped") }}{{ decision.label }}</button>{% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </form>
+    {% elif flash %}
+    <p class="flash {{ 'ok' if flash == 'Decision sent.' else 'bad' }}" role="status">{{ glyph("done" if flash == "Decision sent." else "stopped") }}<span>{{ flash }}</span></p>
+    {% endif %}
+
+    {% if item.detail %}
+    <section class="detail" aria-labelledby="detail-title">
+      <h3 id="detail-title">What the agents said</h3>
+      <pre>{{ item.detail }}</pre>
+    </section>
+    {% endif %}
+  </div>
 </div>

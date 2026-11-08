@@ -1,0 +1,30 @@
+{# Shared pieces: the state glyphs and the small shelf that shows where a piece of work stands. #}
+{% set PHASES = ["Spec", "Spec review", "Spec approval", "Design", "Design review", "Plan", "Implementation", "Checks", "Code review", "Pull request"] %}
+
+{% macro glyph(state) -%}
+<svg class="glyph glyph-{{ state }}" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+  {%- if state == "done" %}<path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.6"/>
+  {%- elif state == "current" or state == "running" %}<circle cx="10" cy="10" r="4.5" fill="currentColor"/><circle class="ring" cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="2"/>
+  {%- elif state == "waiting" %}<rect x="4" y="3" width="4" height="14" fill="currentColor"/><rect x="12" y="3" width="4" height="14" fill="currentColor"/>
+  {%- elif state == "stopped" %}<path d="M5 5l10 10M15 5L5 15" fill="none" stroke="currentColor" stroke-width="2.6"/>
+  {%- else %}<circle cx="10" cy="10" r="6" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="3 3"/>
+  {%- endif %}
+</svg>
+{%- endmacro %}
+
+{# Ten cells, one per phase. The words next to it say the same thing, so it is never colour alone. #}
+{% macro mini(item) -%}
+{%- set merged = item.outcome == "Merged" -%}
+{%- set at = PHASES.index(item.phase) if item.phase in PHASES else 0 -%}
+<span class="mini" role="img" aria-label="{{ item.phase }}, step {{ at + 1 }} of 10">
+  {%- for name in PHASES -%}
+    {%- if merged or loop.index0 < at %}{% set s = "done" -%}
+    {%- elif loop.index0 > at %}{% set s = "todo" -%}
+    {%- elif item.status.value == "done" %}{% set s = "stopped" -%}
+    {%- elif item.status.value == "waiting" %}{% set s = "waiting" -%}
+    {%- else %}{% set s = "current" -%}
+    {%- endif -%}
+    <i class="{{ s }}"></i>
+  {%- endfor -%}
+</span>
+{%- endmacro %}

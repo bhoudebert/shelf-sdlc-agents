@@ -22,3 +22,8 @@ dist/
 
 # Agent worktrees
 .claude/worktrees/
+
+# Test coverage data
+.coverage
+.coverage.*
+htmlcov/
