@@ -129,7 +129,7 @@ def test_a_sandbox_that_cannot_start_says_what_bubblewrap_said_and_how_to_fix_it
     outcome = doctor.probe_sandbox()
     assert not outcome.passed
     assert "No permissions to create new namespace" in outcome.detail
-    assert "apparmor_restrict_unprivileged_userns=0" in outcome.hint
+    assert "sh deploy/fix-ubuntu.sh" in outcome.hint
     assert "can read the worker's environment" in outcome.hint
 
 

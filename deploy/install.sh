@@ -85,3 +85,13 @@ else
 fi
 echo "Open $(sed -n 's/^PUBLIC_URL=//p' "$env_file"): if the GitHub App is not registered yet, you will be guided."
 echo "Logs: $compose logs -f"
+
+# Ubuntu 23.10+ blocks the agents' sandbox unless the host is relaxed: say so now rather than after a failed run.
+if [ -r /etc/os-release ] && grep -qi '^ID=ubuntu' /etc/os-release; then
+  if [ "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null || echo 0)" = "1" ] \
+    || { [ -e /etc/apparmor.d/bwrap-userns-restrict ] && [ ! -e /etc/apparmor.d/disable/bwrap-userns-restrict ]; }; then
+    echo
+    echo "NOTE: this Ubuntu host blocks the agents' sandbox, so agents could read files but not run commands."
+    echo "      Fix it once: sh $here/fix-ubuntu.sh   (it explains what it changes and asks first)"
+  fi
+fi

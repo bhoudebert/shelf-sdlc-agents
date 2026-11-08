@@ -230,6 +230,25 @@ The system SHALL let the operator turn the agents' sandbox off, for hosts where 
 - **WHEN** the sandbox cannot start and the operator turns it off
 - **THEN** the agents can run commands with the container as the only boundary
 
+### Requirement: One script fixes the Ubuntu host for the agents' sandbox
+
+The system SHALL provide a script that finds what an Ubuntu 23.10+ host restricts for the sandbox (the user-namespace sysctl and the bubblewrap AppArmor profile), says what it will change and what that costs, asks before changing, makes the change survive a reboot, can undo it, and does nothing on a host that is already open; and the install script and the doctor SHALL point to it.
+
+#### Scenario: A restricted Ubuntu host
+
+- **WHEN** the operator runs the script on a host with either restriction active and agrees
+- **THEN** both are lifted and persisted, the worker is restarted and the doctor runs
+
+#### Scenario: Already open or not Ubuntu
+
+- **WHEN** nothing is restricted, or the host is not Ubuntu
+- **THEN** the script changes nothing and says so
+
+#### Scenario: Undo
+
+- **WHEN** the operator runs it with `--undo`
+- **THEN** Ubuntu's defaults are restored
+
 ### Requirement: The operator can check that the agents work
 
 The system SHALL provide a command that runs tiny real agent checks against the instance's configuration in a throwaway repository (a shell, the repository's agent file, the title convention, commands in the sandbox, the credential) and reports each with what to do about a failure.

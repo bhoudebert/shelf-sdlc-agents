@@ -50,9 +50,10 @@ class Check:
 
 
 SANDBOX_HINT = (
-    "Claude Code's sandbox cannot start here, so commands are refused. On an Ubuntu 23.10+ host run "
-    "`sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0` (keep it across reboots in /etc/sysctl.d/), "
-    "restart the worker and run this again. Only as a last resort, for repositories you fully trust, set "
+    "Claude Code's sandbox cannot start here, so commands are refused. On an Ubuntu 23.10+ host run, on the host "
+    "(not in the container), `sh deploy/fix-ubuntu.sh`: it explains and fixes the two Ubuntu restrictions "
+    "(kernel.apparmor_restrict_unprivileged_userns and the bwrap-userns-restrict profile), then run this again. "
+    "Only as a last resort, for repositories you fully trust, set "
     "SHELF_SANDBOX_DISABLED=1: without the sandbox an agent can read the worker's environment and mounted secrets."
 )
 
