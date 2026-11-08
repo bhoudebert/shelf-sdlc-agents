@@ -101,6 +101,16 @@
         "tests/adapters/git/*.py",
         "tests/adapters/claude_agent/*.py"
       ]
+    },
+    "web": {
+      "code": [
+        "src/shelf/adapters/web/*.py",
+        "src/shelf/adapters/web/templates/*.html",
+        "src/shelf/adapters/web/static/*"
+      ],
+      "tests": [
+        "tests/adapters/web/*.py"
+      ]
     }
   }
 }
