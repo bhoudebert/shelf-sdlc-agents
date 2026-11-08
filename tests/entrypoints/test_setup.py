@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 import httpx
 from fastapi.testclient import TestClient
 
-from shelf.adapters.web.setup import create_setup_app
+from shelf.entrypoints.setup import create_setup_app
 
 PAYLOAD = {"id": 9, "slug": "shelf", "client_id": "Iv1.x", "client_secret": "cs", "webhook_secret": "ws", "pem": "A\nB"}
 

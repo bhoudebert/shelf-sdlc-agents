@@ -11,8 +11,8 @@ from fastapi import FastAPI
 from shelf.adapters.web.app import create_app
 from shelf.adapters.web.context import WebDeps, WebSettings
 from shelf.adapters.web.sessions import SessionStore
-from shelf.adapters.web.setup import create_setup_app
 from shelf.entrypoints import settings as settings_module
+from shelf.entrypoints.setup import create_setup_app
 from shelf.entrypoints.wiring import build_services, connect
 
 log = logging.getLogger("shelf.web")

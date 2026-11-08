@@ -10,10 +10,10 @@ from temporalio.client import Client
 
 from shelf.adapters.claude_agent.backend import ClaudeBackend
 from shelf.adapters.claude_agent.prompts import load_prompt
+from shelf.adapters.config.github import GitHubRepoConfigs
 from shelf.adapters.config.toml_files import parse_operator
 from shelf.adapters.git.workspace import GitWorkspaces
 from shelf.adapters.github_app.app_auth import installation_id, installation_token
-from shelf.adapters.github_app.configs import GitHubRepoConfigs
 from shelf.adapters.github_app.forge import GitHubForge
 from shelf.adapters.github_app.pulls import GitHubPullRequests
 from shelf.adapters.github_app.settings import GitHubAppSettings
@@ -72,7 +72,7 @@ def build_services(settings: Settings, github: GitHubApp, client: httpx.AsyncCli
     app = app_settings(github)
     operator = load_operator(settings)
     token_for = token_source(client, app)
-    configs = GitHubRepoConfigs(client, app, token_for)
+    configs = GitHubRepoConfigs(client, app.api_url, token_for)
 
     async def base_branch(repo: RepoRef) -> str:
         return (await configs.load(repo)).base_branch
