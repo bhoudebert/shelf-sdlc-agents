@@ -18,6 +18,29 @@
       "tests": [
         "tests/domain/test_work.py"
       ]
+    },
+    "access": {
+      "code": [
+        "src/shelf/domain/access.py",
+        "src/shelf/domain/config.py",
+        "src/shelf/application/sign_in.py"
+      ],
+      "tests": [
+        "tests/domain/test_access_and_roles.py",
+        "tests/application/test_sign_in.py"
+      ]
+    },
+    "work-requests": {
+      "code": [
+        "src/shelf/application/work.py",
+        "src/shelf/application/errors.py",
+        "src/shelf/domain/model.py",
+        "src/shelf/ports/*.py"
+      ],
+      "tests": [
+        "tests/application/test_work.py",
+        "tests/fakes.py"
+      ]
     }
   }
 }
