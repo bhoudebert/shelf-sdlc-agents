@@ -55,3 +55,17 @@ The system SHALL keep the workflow deterministic: a recorded history of a finish
 
 - **WHEN** the history of a finished piece of work is replayed
 - **THEN** the replay completes without a non-determinism error
+
+### Requirement: Work is started and inspected through the workflow engine
+
+The system SHALL start one workflow per piece of work with the policy of its repository and the poll pace of the instance's mode, deliver decisions to it as signals, and show its repository, requester, phase and wait on the board, listing only the repositories asked for.
+
+#### Scenario: Starting and aborting
+
+- **WHEN** work is started, appears waiting at the spec gate, and a person aborts it
+- **THEN** the board shows it finished as aborted
+
+#### Scenario: An unknown id
+
+- **WHEN** the board is asked for work that does not exist
+- **THEN** it has no view of it
