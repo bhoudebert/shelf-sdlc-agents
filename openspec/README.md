@@ -7,7 +7,7 @@ contract: the code follows it, and a change to the behaviour changes the spec fi
 
 **Default: edit `specs/` directly**, in the same pull request as the code. The spec commit comes first
 (`docs(spec): ...`), then the code and the tests. One pull request, reviewed together, nothing left to fold in later. CI
-validates the specs and asks for a spec change with any change under `src/` (ADR 0004).
+validates the specs and asks for a spec change with any change under `src/shelf/` (ADR 0004).
 
 **A change proposal (`changes/<id>/`)** only when one of these holds:
 
@@ -43,7 +43,7 @@ that matches nothing. Specs name behaviour, never source files.
 
 ## What is checked, and how
 
-- **Pull request (CI):** the specs validate; a change under `src/` comes with a change to the spec of what it touches,
+- **Pull request (CI):** the specs validate; a change under `src/shelf/` comes with a change to the spec of what it touches,
   or the `no-spec` label (a person's claim that the behaviour did not change). Deterministic, no model, no secret.
 - **Push (local hook):** the same checks, and optionally a review by a local model (`SPEC_REVIEW_MODEL`, see
   `.env.example`) whose every finding must quote the spec and the code. It never edits anything and never blocks on its
