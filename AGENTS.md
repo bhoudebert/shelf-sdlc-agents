@@ -7,7 +7,7 @@ single source of the rules, and `CLAUDE.md`, `GEMINI.md` and
 
 ## What this is
 
-Shelf SDLC Agents: A shelf of agents covering the software development lifecycle.
+Shelf SDLC Agents: A self-hosted software factory: drive agent work on your GitHub repositories from a web UI, from a need to a pull request.
 
 `README.md` explains the product, `CONTRIBUTING.md` how to contribute,
 `docs/ENGINEERING.md` how it is built, `docs/EVOLVING.md` the path every change
@@ -35,7 +35,7 @@ Behaviour is specified in `openspec/specs/<capability>/spec.md`
    `no-spec`. When unsure, update the spec.
 4. **Tests with the code.** Deterministic logic gets unit tests; tests never call
    a paid or external service for real.
-5. **Quality gate before pushing:** `npm run quality` must pass.
+5. **Quality gate before pushing:** `uv run ruff check . && uv run ruff format --check . && uv run pyright && uv run lint-imports && uv run pytest` must pass.
 6. **Docs with the change.** The README when the overview changes,
    `docs/ENGINEERING.md` when the architecture changes, `ROADMAP.md` when an
    idea is done or added, a decision record in `docs/adr/` for a significant
@@ -95,16 +95,16 @@ then the edit is already done. The check above comes first.
 <!-- Fill in the conventions that are not obvious from the code: layering, error handling,
      naming, where things live, what must never be done. Keep it to what a newcomer would get wrong. -->
 
-- Language and tools: Node.js / TypeScript. Code under `src/`, tests under `test/`.
+- Language and tools: Python. Code under `src/shelf/`, tests under `tests/`.
 
 ## Useful commands
 
 ```
-npm install      # set up the project
-npm run quality    # the gate
-npm test       # tests only
-npm run lint       # lint
-npm run format     # format
+python -m pip install uv && uv sync --frozen      # set up the project
+uv run ruff check . && uv run ruff format --check . && uv run pyright && uv run lint-imports && uv run pytest    # the gate
+uv run pytest       # tests only
+uv run ruff check .       # lint
+uv run ruff format .     # format
 sh scripts/setup-hooks.sh   # install the git hooks (once per clone)
 nix develop              # the toolchains of every component (or direnv allow)
 ```

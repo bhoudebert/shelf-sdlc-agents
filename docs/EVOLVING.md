@@ -52,7 +52,7 @@ when it is not there. A model never edits anything and never blocks on its own f
   points over it.
 - **Rules in code.** Anything that must always hold is enforced in the code, never only in a prompt or a document.
 - **Tests with the code.** Deterministic logic gets unit tests. Tests never call a paid or external service for real.
-  `npm run quality` must pass.
+  `uv run ruff check . && uv run ruff format --check . && uv run pyright && uv run lint-imports && uv run pytest` must pass.
 - **Verify for real** where it matters, and say what was and was not verified.
 
 ## 5. Docs

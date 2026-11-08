@@ -11,12 +11,12 @@
 
 ## Verified
 
-<!-- What was run: npm run quality, a real run of the feature. State what was NOT verified. -->
+<!-- What was run: uv run ruff check . && uv run ruff format --check . && uv run pyright && uv run lint-imports && uv run pytest, a real run of the feature. State what was NOT verified. -->
 
 ## Checklist (docs/EVOLVING.md)
 
 - [ ] ADR when the shape of the system changes
 - [ ] Spec updated first when behaviour changes
-- [ ] Tests with the code; `npm run quality` passes
+- [ ] Tests with the code; `uv run ruff check . && uv run ruff format --check . && uv run pyright && uv run lint-imports && uv run pytest` passes
 - [ ] Docs updated (README, `docs/ENGINEERING.md`, roadmap) where the change makes them stale
 - [ ] Commits and PR title follow Conventional Commits

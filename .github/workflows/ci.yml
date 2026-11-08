@@ -20,7 +20,7 @@ concurrency:
 # pending (which a filter on the workflow itself would).
 jobs:
   quality-shelf-sdlc-agents:
-    name: shelf-sdlc-agents (Node.js / TypeScript)
+    name: shelf-sdlc-agents (Python)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -28,14 +28,12 @@ jobs:
         working-directory: .
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-python@v6
         with:
-          node-version-file: .nvmrc
-          cache: npm
-          cache-dependency-path: package-lock.json
-      - run: npm ci --ignore-scripts
+          python-version-file: ".python-version"
+      - run: python -m pip install uv && uv sync --frozen
       - name: Quality gate
-        run: npm run quality
+        run: uv run ruff check . && uv run ruff format --check . && uv run pyright && uv run lint-imports && uv run pytest
 
   commits:
     name: Conventional commits

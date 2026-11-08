@@ -18,8 +18,8 @@ if command -v node >/dev/null 2>&1; then
 else
   echo "spec review skipped: node is not installed" >&2
 fi
-echo "pre-push: npm run quality" >&2
-npm run quality
+echo "pre-push: uv run ruff check . && uv run ruff format --check . && uv run pyright && uv run lint-imports && uv run pytest" >&2
+uv run ruff check . && uv run ruff format --check . && uv run pyright && uv run lint-imports && uv run pytest
 status=$?
 if [ "$status" -ne 0 ]; then
   echo "pre-push: the quality gate failed. Fix it, or define it first if the project does not have one yet (AGENTS.md, 'Useful commands')." >&2

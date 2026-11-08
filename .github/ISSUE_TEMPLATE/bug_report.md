@@ -17,4 +17,4 @@ labels: bug
 ## Environment
 
 - OS:
-- Node.js / TypeScript version:
+- Python version:
