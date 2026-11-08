@@ -39,6 +39,25 @@ The system SHALL send work back to the phase that redoes it, with the issues fou
 - **WHEN** work goes from code review back through implementation and checks to code review
 - **THEN** the rounds already used are kept, so the loops together stay within the limit
 
+### Requirement: A review of someone else's pull request ends with a person, not with new code
+
+The system SHALL, when work started from an existing pull request has its review find problems, wait for a person with the findings instead of sending the work to the implementer, and SHALL send the work to the implementer only when a person asks for changes, handing over the reviewer's findings when the person wrote no note. Work that publishes its own pull request keeps the automatic loop, and work started before this rule keeps its original behaviour.
+
+#### Scenario: The review finds problems
+
+- **WHEN** the review of an existing pull request asks for changes
+- **THEN** the work waits for a person, who may approve, ask for changes, reject or abort
+
+#### Scenario: The person asks for changes
+
+- **WHEN** the person asks for changes without a note
+- **THEN** the implementer starts with the reviewer's findings as its instructions
+
+#### Scenario: Our own pull request
+
+- **WHEN** the review of a pull request the work published asks for changes
+- **THEN** the work goes back to the implementer without asking, within the round limit
+
 ### Requirement: People decide with a closed list of commands
 
 The system SHALL accept from people only approve, changes, resume, reject and abort, and SHALL ignore a decision that does not apply to the state the work is in.

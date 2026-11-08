@@ -257,6 +257,8 @@ def _after_step(course: Course, state: Running, result: StepResult) -> Transitio
             return _advance(course, state.phase, state.attempt)
         case Kind.REVIEW, Reviewed(Verdict.APPROVE):
             return _advance(course, state.phase, 0)
+        case Kind.REVIEW, Reviewed(Verdict.CHANGES, issues) if course.asks_a_person_after_review:
+            return _ask(state.phase, Reason.ESCALATION, issues)
         case Kind.REVIEW, Reviewed(Verdict.CHANGES, issues):
             return _send_back(course, state, issues)
         case Kind.REVIEW, Reviewed(Verdict.ESCALATE, issues):
@@ -282,6 +284,8 @@ def _when_waiting(course: Course, state: AwaitingPerson, event: Event) -> Transi
         case PersonDecided(kind=DecisionKind.APPROVE) if state.reason in (Reason.GATE, Reason.ESCALATION):
             return _advance(course, state.phase, 0)
         case PersonDecided(kind=DecisionKind.CHANGES, note=note):
+            if course.asks_a_person_after_review and not note.strip():  # hand over the reviewer's own findings
+                note = state.detail
             back = _enter(course, LOOP_BACK.get(state.phase, state.phase), feedback=note)
             if state.reason is Reason.MERGE and course.opens_early and course.publishes_pull_request:  # back to draft
                 return Transition(back.state, (SetPullRequestReady(ready=False), *back.commands))

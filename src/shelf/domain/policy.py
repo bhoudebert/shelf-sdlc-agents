@@ -40,14 +40,23 @@ class Course:
         """Whether the pull request opens after the first step and is readied at the merge (protocol 2 and later)."""
         return self.protocol >= EARLY_PULL_REQUEST
 
+    @property
+    def asks_a_person_after_review(self) -> bool:
+        """Whether a review of a pull request that is not ours hands its findings to a person, not the implementer."""
+        return not self.publishes_pull_request and self.protocol >= REVIEW_ASKS_A_PERSON
 
-CURRENT_PROTOCOL = 2
+
+CURRENT_PROTOCOL = 3
 """The behaviour new work starts with. Raise it, and gate the new behaviour on it, whenever a change would alter what
 the workflow does for a history recorded before: protocol 1 is the original behaviour, which old work keeps."""
 
 EARLY_PULL_REQUEST = 2
 """The protocol that opens the pull request after the first step, labels its stage, readies it at the merge and keeps
 a progress comment."""
+
+REVIEW_ASKS_A_PERSON = 3
+"""The protocol under which a review of someone else's pull request that finds problems waits for a person instead of
+sending the work back to the implementer."""
 
 
 def course_for(entry: EntryPoint, policy: Policy, protocol: int = CURRENT_PROTOCOL) -> Course:

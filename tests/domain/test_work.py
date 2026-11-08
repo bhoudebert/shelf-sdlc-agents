@@ -98,6 +98,33 @@ def test_a_pull_request_review_starts_at_code_review_and_publishes_nothing() -> 
     assert PublishPullRequest() not in log
 
 
+def test_a_review_of_someone_elses_pull_request_that_finds_problems_asks_a_person() -> None:
+    course = course_for(EntryPoint.PULL_REQUEST_REVIEW, Policy())
+    state, commands = decide(course, Running(Phase.CODE_REVIEW), StepDone(Reviewed(Verdict.CHANGES, "rename it")))
+    assert state == AwaitingPerson(Phase.CODE_REVIEW, Reason.ESCALATION, "rename it")
+    assert commands == (AskPerson(Phase.CODE_REVIEW, Reason.ESCALATION, "rename it"),)
+
+
+def test_asking_for_changes_after_such_a_review_hands_the_findings_to_the_implementer() -> None:
+    course = course_for(EntryPoint.PULL_REQUEST_REVIEW, Policy())
+    waiting = AwaitingPerson(Phase.CODE_REVIEW, Reason.ESCALATION, "rename it")
+    state, commands = decide(course, waiting, PersonDecided("bob", DecisionKind.CHANGES))
+    assert state == Running(Phase.IMPLEMENT, 0, "rename it")
+    assert commands == (RunStep(Phase.IMPLEMENT, 0, "rename it"),)
+
+
+def test_work_started_before_the_change_still_sends_the_review_back_to_the_implementer() -> None:
+    course = course_for(EntryPoint.PULL_REQUEST_REVIEW, Policy(), protocol=2)
+    state, _ = decide(course, Running(Phase.CODE_REVIEW), StepDone(Reviewed(Verdict.CHANGES, "rename it")))
+    assert state == Running(Phase.IMPLEMENT, 1, "rename it")
+
+
+def test_our_own_work_still_loops_back_automatically() -> None:
+    course = course_for(EntryPoint.IMPLEMENT, Policy())
+    state, _ = decide(course, Running(Phase.CODE_REVIEW), StepDone(Reviewed(Verdict.CHANGES, "rename it")))
+    assert state == Running(Phase.IMPLEMENT, 1, "rename it")
+
+
 def test_the_spec_gate_waits_for_a_person() -> None:
     course = course_for(EntryPoint.SPEC, Policy())
     state, _ = start(course)

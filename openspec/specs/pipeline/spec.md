@@ -83,3 +83,8 @@ The system SHALL build the course of a piece of work with the protocol version i
 
 - **WHEN** a course is built for new work
 - **THEN** it has the current protocol and opens the pull request early
+
+#### Scenario: Reviewing a pull request that is not ours
+
+- **WHEN** a course is built for a review of an existing pull request under the current protocol
+- **THEN** it hands the reviewer's findings to a person, while the same course under protocol 2 or earlier does not
