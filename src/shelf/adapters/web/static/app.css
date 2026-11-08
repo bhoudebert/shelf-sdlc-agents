@@ -377,3 +377,11 @@ input:not([type="radio"]):focus-visible, select:focus-visible, textarea:focus-vi
 .secret pre:focus-visible { outline: 3px solid var(--accent-on-field); outline-offset: 2px; }
 .secret .muted { color: var(--on-field-2); margin: 0; }
 @media (max-width: 860px) { .setup .steps { margin-top: 28px; } .perms span { max-width: none; } }
+.manual { margin-top: 28px; background: var(--raised); padding: 14px 18px; }
+.manual summary { cursor: pointer; font-weight: 700; min-height: 44px; display: flex; align-items: center; }
+.manual[open] summary { margin-bottom: 8px; }
+.values { margin: 12px 0; display: grid; gap: 0; }
+.values dt { font-weight: 700; margin-top: 14px; }
+.values dd { margin: 4px 0 0; }
+.values small { color: var(--ink-2); }
+.values code { font: .92em var(--mono); background: var(--surface); padding: 2px 7px; overflow-wrap: anywhere; }
