@@ -111,7 +111,7 @@ The system SHALL read from GitHub, as the App, which events the App subscribes t
 
 ### Requirement: The Workflows permission is off by default and its state is shown
 
-The system SHALL NOT request the Workflows permission, because a changed workflow runs with the repository's secrets, SHALL report on the admin page whether the App has it, as a confirmation when it does not and as something to watch when it does, and SHALL explain how to grant it.
+The system SHALL NOT request the Workflows permission, because a changed workflow runs with the repository's secrets, SHALL report on the admin page whether the App has it, as a confirmation either way, and SHALL explain how to grant it and, when granted, which GitHub safeguards keep changed workflows reviewed (code owners for `.github/`, environments with required reviewers, approval for fork workflows).
 
 #### Scenario: Not granted
 
@@ -121,5 +121,5 @@ The system SHALL NOT request the Workflows permission, because a changed workflo
 #### Scenario: Granted
 
 - **WHEN** the App has Workflows at write
-- **THEN** the check flags it and says pull requests touching `.github/workflows` need careful review
+- **THEN** the check accepts it and names the safeguards that keep changed workflows reviewed
 
