@@ -1,0 +1,70 @@
+from collections.abc import Sequence
+from dataclasses import dataclass, field
+
+from shelf.adapters.caching.forge import CachedForge
+from shelf.domain.model import Identity, RepoRef
+
+REPO = RepoRef("acme", "shop")
+
+
+@dataclass
+class CountingForge:
+    calls: dict[str, int] = field(default_factory=dict[str, int])
+
+    def _count(self, name: str) -> None:
+        self.calls[name] = self.calls.get(name, 0) + 1
+
+    async def exchange_code(self, code: str) -> str:
+        self._count("exchange")
+        return f"token-{code}"
+
+    async def identity(self, user_token: str) -> Identity:
+        self._count("identity")
+        return Identity(user_token)
+
+    async def repositories(self, user_token: str) -> Sequence[RepoRef]:
+        self._count("repositories")
+        return [REPO]
+
+
+class Clock:
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def __call__(self) -> float:
+        return self.now
+
+
+async def test_repositories_are_asked_once_while_the_answer_is_fresh() -> None:
+    inner, clock = CountingForge(), Clock()
+    forge = CachedForge(inner, ttl_seconds=60, clock=clock)
+    for _ in range(5):
+        assert await forge.repositories("tok") == [REPO]
+    assert inner.calls["repositories"] == 1
+
+
+async def test_repositories_are_asked_again_when_the_answer_is_old() -> None:
+    inner, clock = CountingForge(), Clock()
+    forge = CachedForge(inner, ttl_seconds=60, clock=clock)
+    await forge.repositories("tok")
+    clock.now = 61
+    await forge.repositories("tok")
+    assert inner.calls["repositories"] == 2
+
+
+async def test_two_people_never_share_an_answer() -> None:
+    inner = CountingForge()
+    forge = CachedForge(inner, clock=Clock())
+    await forge.repositories("alice-token")
+    await forge.repositories("bob-token")
+    assert inner.calls["repositories"] == 2
+
+
+async def test_identity_is_cached_and_sign_in_never_is() -> None:
+    inner = CountingForge()
+    forge = CachedForge(inner, clock=Clock())
+    await forge.identity("tok")
+    await forge.identity("tok")
+    await forge.exchange_code("a")
+    await forge.exchange_code("a")
+    assert (inner.calls["identity"], inner.calls["exchange"]) == (1, 2)

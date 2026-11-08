@@ -108,10 +108,12 @@
       "code": [
         "src/shelf/adapters/web/*.py",
         "src/shelf/adapters/web/templates/*.html",
-        "src/shelf/adapters/web/static/*"
+        "src/shelf/adapters/web/static/*",
+        "src/shelf/adapters/caching/*.py"
       ],
       "tests": [
-        "tests/adapters/web/*.py"
+        "tests/adapters/web/*.py",
+        "tests/adapters/caching/*.py"
       ]
     },
     "deployment": {
