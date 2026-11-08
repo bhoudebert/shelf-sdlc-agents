@@ -27,7 +27,7 @@ def client() -> TestClient:
 def test_the_first_page_offers_one_click_registration() -> None:
     page = client().get("/")
     assert "Register on GitHub" in page.text
-    assert "https://shelf.example.org" in page.text
+    assert "<code>https://shelf.example.org</code>" in page.text
 
 
 def test_the_registration_page_posts_the_manifest_to_github() -> None:
