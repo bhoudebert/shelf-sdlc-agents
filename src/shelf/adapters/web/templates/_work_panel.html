@@ -5,7 +5,7 @@
     <span class="status-glyph">{{ glyph("running" if item.status.value == "running" else ("waiting" if item.status.value == "waiting" and item.reason != "failure" else ("stopped" if item.reason == "failure" or item.outcome != "Merged" else "done"))) }}</span>
     <div>
       <h2 id="status-title">{{ item.waiting or item.outcome or "Running" }} · {{ item.phase }}</h2>
-      {% if item.pull_request_url %}<p class="pr-link"><a class="btn quiet" href="{{ item.pull_request_url }}" rel="noopener">Pull request</a></p>{% endif %}
+      {% if item.pull_request_url %}<p class="pr-link"><a class="btn quiet" href="{{ item.pull_request_url }}" target="_blank" rel="noopener noreferrer">Pull request<span class="vh"> (opens in a new tab)</span></a></p>{% endif %}
     </div>
   </section>
 

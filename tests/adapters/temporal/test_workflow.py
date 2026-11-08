@@ -64,10 +64,14 @@ class FakePulls:
     commented: list[str] = field(default_factory=list[str])
     ready: list[bool] = field(default_factory=list[bool])
     stages: list[str] = field(default_factory=list[str])
+    progressed: list[str] = field(default_factory=list[str])
 
     async def publish(self, work: WorkContext) -> str:
         self.published += 1
         return "https://github.com/acme/shop/pull/1"
+
+    async def progress(self, work: WorkContext, body: str) -> None:
+        self.progressed.append(body)
 
     async def set_ready(self, work: WorkContext, *, ready: bool) -> None:
         self.ready.append(ready)
@@ -161,6 +165,10 @@ async def test_work_from_a_need_publishes_a_pull_request_and_stops_at_the_spec_g
     assert pulls.ready == [True]
     assert "shelf: writing the spec" in pulls.stages
     assert pulls.stages[-1] == "shelf: ready to merge"
+    assert pulls.progressed, "the progress comment is updated as the work moves"
+    assert any("Now:** ✅ ready to review and merge" in body for body in pulls.progressed)
+    assert "Now:** ✅ merged" in pulls.progressed[-1]
+    assert "approved" in pulls.progressed[-1]
 
 
 async def test_a_reviewer_asking_for_changes_sends_the_work_back_with_the_issues(env: WorkflowEnvironment) -> None:

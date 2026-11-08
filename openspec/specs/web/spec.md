@@ -263,3 +263,12 @@ The system SHALL refresh the work panel and the documents without redrawing them
 
 - **WHEN** the pointer is over the decision buttons
 - **THEN** the panel does not refresh under it
+
+### Requirement: Links that leave the application open in a new tab
+
+The system SHALL open every link to GitHub or to another site in a new tab without giving it access to the page, so that the interface stays where it is; only the sign-in, which returns to the same tab, stays in it.
+
+#### Scenario: The pull request
+
+- **WHEN** a person follows the pull request link
+- **THEN** it opens in a new tab and the work page remains open

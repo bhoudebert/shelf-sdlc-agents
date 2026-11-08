@@ -81,12 +81,16 @@
       "code": [
         "src/shelf/adapters/github_app/pulls.py",
         "src/shelf/domain/commands.py",
-        "src/shelf/adapters/github_app/documents.py"
+        "src/shelf/adapters/github_app/documents.py",
+        "src/shelf/domain/story.py",
+        "src/shelf/domain/progress.py"
       ],
       "tests": [
         "tests/adapters/github_app/test_pulls.py",
         "tests/domain/test_commands.py",
-        "tests/adapters/github_app/test_documents.py"
+        "tests/adapters/github_app/test_documents.py",
+        "tests/domain/test_story.py",
+        "tests/domain/test_progress.py"
       ]
     },
     "steps": {
@@ -119,7 +123,8 @@
       ],
       "tests": [
         "tests/adapters/web/*.py",
-        "tests/adapters/caching/*.py"
+        "tests/adapters/caching/*.py",
+        "tests/adapters/web/test_templates.py"
       ]
     },
     "deployment": {

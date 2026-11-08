@@ -128,3 +128,12 @@ The system SHALL keep a work's request, spec, design and plan in fixed file name
 
 - **WHEN** a work's documents are listed
 - **THEN** they come as request, spec, design and plan, each with its title
+
+### Requirement: Each step says enough for a person to follow without opening the repository
+
+The system SHALL have a producer show, in its comment, its closing message and the document it wrote, and have the developer show what changed, and SHALL have the checks list every command with its result and the output of the failures.
+
+#### Scenario: The checks
+
+- **WHEN** one of two checks fails
+- **THEN** both commands are listed with their result and the failing output is shown

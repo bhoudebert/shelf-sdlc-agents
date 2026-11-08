@@ -16,6 +16,7 @@ with workflow.unsafe.imports_passed_through():
     from shelf.adapters.temporal import wire
     from shelf.domain.pipeline import Phase
     from shelf.domain.polling import next_interval
+    from shelf.domain.progress import describe
     from shelf.domain.work import (
         AskPerson,
         AwaitingPerson,
@@ -25,8 +26,10 @@ with workflow.unsafe.imports_passed_through():
         Event,
         Finished,
         Outcome,
+        PersonDecided,
         PublishPullRequest,
         PullRequestClosed,
+        Running,
         RunStep,
         SetPullRequestReady,
         State,
@@ -42,6 +45,7 @@ PUBLISH = "shelf_publish_pull_request"
 POLL = "shelf_poll_pull_request"
 STAGE = "shelf_set_stage"
 READY = "shelf_set_ready"
+PROGRESS = "shelf_progress"
 
 STEP_TIMEOUT = timedelta(minutes=45)
 STEP_HEARTBEAT = timedelta(seconds=60)
@@ -61,6 +65,7 @@ class WorkItemWorkflow:
         self._step: asyncio.Task[None] | None = None
         self._outcome = Outcome.CLOSED
         self._quiet_interval = timedelta(0)
+        self._log: list[wire.LogEntryDto] = []
 
     @workflow.signal
     def decided(self, decision: wire.DecisionDto) -> None:
@@ -88,11 +93,14 @@ class WorkItemWorkflow:
         try:
             self._state, commands = start(course)
             await self._execute(work, commands)
+            await self._progress(work)
             while not isinstance(self._state, Finished):
                 event = await self._events.get()
                 self._quiet_interval = timedelta(seconds=work.poll_base_seconds)
+                self._note(self._state, event)
                 self._state, commands = decide(course, self._state, event)
                 await self._execute(work, commands)
+                await self._progress(work)
         finally:
             poller.cancel()
         await workflow.wait_condition(workflow.all_handlers_finished)
@@ -118,6 +126,35 @@ class WorkItemWorkflow:
                 case Conclude(outcome):
                     self._outcome = outcome
                     self._cancel_step()
+
+    def _note(self, state: State, event: Event) -> None:
+        """Remember, for the progress comment, what the event meant at the phase the work was in."""
+        match state, event:
+            case Running(phase, attempt), StepDone(result):
+                self._log.append(wire.LogEntryDto(phase, describe(result, attempt)))
+            case Running(phase), StepFailed(reason):
+                self._log.append(wire.LogEntryDto(phase, f"failed: {reason[:80]}"))
+            case AwaitingPerson(phase), PersonDecided(_, kind):
+                self._log.append(wire.LogEntryDto(phase, f"you: {kind}"))
+            case _:
+                pass
+
+    async def _progress(self, work: wire.WorkInput) -> None:
+        """Update the progress comment. Cosmetic: a failure never stops the work."""
+        state = self._state
+        if state is None:
+            return
+        waiting = state.reason if isinstance(state, AwaitingPerson) else None
+        outcome = state.outcome if isinstance(state, Finished) else None
+        try:
+            await workflow.execute_activity(
+                PROGRESS,
+                wire.ProgressInput(work, list(self._log), self._phase, waiting or "", outcome or ""),
+                start_to_close_timeout=GITHUB_TIMEOUT,
+                retry_policy=RetryPolicy(maximum_attempts=2),
+            )
+        except ActivityError:
+            workflow.logger.warning("could not update the progress comment")
 
     async def _stage(self, work: wire.WorkInput, phase: Phase, reason: str) -> None:
         """Show on the pull request what is happening. Cosmetic: a failure never stops the work."""

@@ -6,10 +6,11 @@ from typing import Any
 from temporalio import activity
 
 from shelf.adapters.temporal import wire
-from shelf.adapters.temporal.workflow import ANNOUNCE, POLL, PUBLISH, READY, RUN_STEP, STAGE
+from shelf.adapters.temporal.workflow import ANNOUNCE, POLL, PROGRESS, PUBLISH, READY, RUN_STEP, STAGE
 from shelf.domain.pipeline import Phase
+from shelf.domain.progress import Entry, Position, render_progress
 from shelf.domain.stage import stage_of
-from shelf.domain.work import AskPerson, Reason, RunStep
+from shelf.domain.work import AskPerson, Outcome, Reason, RunStep
 from shelf.ports.steps import PullRequests, StepRunner
 
 
@@ -43,4 +44,15 @@ def build_activities(steps: StepRunner, pulls: PullRequests) -> Sequence[Callabl
     async def set_ready(ready: wire.ReadyInput) -> None:
         await pulls.set_ready(wire.context_of(ready.work), ready=ready.ready)
 
-    return [run_step, announce, publish, poll, set_stage, set_ready]
+    @activity.defn(name=PROGRESS)
+    async def progress(update: wire.ProgressInput) -> None:
+        position = Position(
+            Phase(update.phase),
+            Reason(update.reason) if update.reason else None,
+            Outcome(update.outcome) if update.outcome else None,
+        )
+        log = [Entry(Phase(entry.phase), entry.text) for entry in update.log]
+        phases = wire.course_of(update.work).phases
+        await pulls.progress(wire.context_of(update.work), render_progress(update.work.work_id, phases, log, position))
+
+    return [run_step, announce, publish, poll, set_stage, set_ready, progress]

@@ -129,3 +129,40 @@ The system SHALL read the request, spec, design and plan of a piece of work from
 
 - **WHEN** only the request and the spec exist
 - **THEN** those two are returned
+
+### Requirement: Agents speak on the pull request as the team members they stand in for
+
+The system SHALL post each agent's contribution as a comment headed with its role as a person's title (spec writer, spec reviewer, architect, design reviewer, planner, developer, code reviewer, checks), marked so that it can be read back as that speaker, and SHALL read any other comment back as a person's.
+
+#### Scenario: A reviewer
+
+- **WHEN** the spec reviewer finishes
+- **THEN** a comment headed "Spec reviewer" carries its verdict and issues
+
+#### Scenario: A person on GitHub
+
+- **WHEN** a person writes a comment on the pull request
+- **THEN** it is read back as that person speaking
+
+### Requirement: One progress comment tells the whole story at a glance
+
+The system SHALL keep exactly one progress comment, edited in place after every step, with a row per step of the course saying what happened there (written, approved, asked for changes, passed, failed, with rounds), where the work is now, and how it ended.
+
+#### Scenario: A loop
+
+- **WHEN** the spec reviewer asked for changes once and then approved
+- **THEN** its row shows both, in order
+
+#### Scenario: A person is needed
+
+- **WHEN** the work waits at the spec approval
+- **THEN** the progress comment says it waits for a person and for what
+
+### Requirement: A gate announcement links what to judge
+
+The system SHALL link, in the announcement of a wait, the document the person is asked to judge.
+
+#### Scenario: The spec approval
+
+- **WHEN** the work waits at the spec approval
+- **THEN** the announcement links the spec file on the work's branch

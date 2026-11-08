@@ -27,6 +27,10 @@ class PullRequests(Protocol):
         """Tell the people on the pull request what the work waits for."""
         ...
 
+    async def progress(self, work: WorkContext, body: str) -> None:
+        """Create or update, in place, the one progress comment of this work on the pull request."""
+        ...
+
     async def set_ready(self, work: WorkContext, *, ready: bool) -> None:
         """Mark the pull request ready for review, or back to draft."""
         ...

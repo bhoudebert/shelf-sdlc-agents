@@ -105,3 +105,12 @@ The system SHALL set the pull request's stage label whenever a step starts or a 
 
 - **WHEN** setting the label fails
 - **THEN** the work continues
+
+### Requirement: The workflow keeps the story for the progress comment
+
+The system SHALL remember what each step and each decision meant at the phase it happened in and update the progress comment after every event, treating a failure to do so as cosmetic.
+
+#### Scenario: A decision
+
+- **WHEN** a person approves a gate
+- **THEN** the progress comment shows their decision at that step
