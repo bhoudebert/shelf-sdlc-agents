@@ -13,11 +13,10 @@ when it would be used. An idea that cannot be described in those terms is not re
 
 ## Later
 
-- **An isolated environment created for each step.** Each step runs in its own short-lived container (an image with the toolchains,
-  the clone mounted, no host mounts, no credentials, a restricted network, resource limits), thrown away afterwards, so an agent
-  cannot harm anything outside the repository. It needs a way to start containers that does not hand the worker the host: a
-  rootless Docker or Podman, or a socket proxy that only allows creating and removing containers. Behind the `AgentBackend` port.
-  For operators who let agents work on repositories they do not fully trust.
+- **Isolate the agents from the keys, in stages** ([ADR 0011](docs/adr/0011-isolate-the-agents-from-the-keys.md)): split the
+  worker so the one that runs agents holds no App key and reaches only the model and GitHub, then an egress allow-list, then one
+  throwaway container or microVM per step behind the `AgentBackend` port (rootless runtime, no host mounts, resource limits), then a
+  capped or proxied model credential. For operators who let agents work on repositories they do not fully trust.
 - **Another agent backend** (OpenCode, or a harness made for local models) behind the `AgentBackend` port, for teams that
   must stay on local models.
 - **Budget per work item** and a spend view, for operators who share one model account.
