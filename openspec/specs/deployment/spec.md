@@ -60,3 +60,12 @@ The system SHALL relax the container security profile only for the worker, which
 
 - **WHEN** the stack runs
 - **THEN** only the worker has the relaxed seccomp profile
+
+### Requirement: The setup page is complete without any other service
+
+The system SHALL serve from the instance itself every style and script that the first-run setup page links to.
+
+#### Scenario: A fresh instance
+
+- **WHEN** the setup page is opened before any GitHub App exists
+- **THEN** every `/static/` asset it references answers successfully
