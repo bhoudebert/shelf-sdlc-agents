@@ -47,3 +47,11 @@ def test_the_returned_code_is_traded_for_credentials_shown_once_and_never_cached
 
 def test_a_visit_without_a_code_is_refused() -> None:
     assert client().get("/setup/registered").status_code == 400
+
+
+def test_the_setup_page_serves_the_styles_and_scripts_it_links_to() -> None:
+    page = client()
+    paths = re.findall(r'(?:href|src)="(/static/[^"]+)"', page.get("/").text)
+    assert paths
+    for path in paths:
+        assert page.get(path).status_code == 200, path
