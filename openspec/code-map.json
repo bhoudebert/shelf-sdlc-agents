@@ -109,7 +109,8 @@
         "src/shelf/prompts/*.md",
         "src/shelf/ports/steps.py",
         "src/shelf/domain/context.py",
-        "src/shelf/domain/titles.py"
+        "src/shelf/domain/titles.py",
+        "src/shelf/domain/toolchain.py"
       ],
       "tests": [
         "tests/application/test_steps.py",
@@ -117,7 +118,8 @@
         "tests/adapters/git/*.py",
         "tests/adapters/claude_agent/*.py",
         "tests/domain/test_context.py",
-        "tests/domain/test_titles.py"
+        "tests/domain/test_titles.py",
+        "tests/domain/test_toolchain.py"
       ]
     },
     "web": {

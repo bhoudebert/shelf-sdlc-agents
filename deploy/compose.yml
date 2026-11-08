@@ -72,6 +72,13 @@ services:
       GITHUB_APP_PRIVATE_KEY_PATH: /run/secrets/github-app.pem
       # Claude Code's sandbox inside a container needs its weaker nested mode.
       SHELF_NESTED_SANDBOX: "1"
+      # Each repository's tools and package caches (mise, Maven, npm...) live here, one home per repository.
+      SHELF_CACHE_DIR: /cache
+    # A `volumes` key replaces the shared one, so the shared mounts are repeated here.
+    volumes:
+      - ./shelf.toml:/etc/shelf/shelf.toml:ro
+      - ./secrets:/run/secrets:ro
+      - worker-cache:/cache
     # The agents' sandbox (bubblewrap) needs user namespaces, which the default seccomp profile blocks. This is the only
     # service that relaxes it, and the agents it runs only ever see a clone of the repository and a one-hour token.
     security_opt:
@@ -81,3 +88,4 @@ services:
 
 volumes:
   temporal-data:
+  worker-cache:

@@ -52,6 +52,34 @@ The system SHALL take the last `VERDICT:` line of a reviewer's answer as its ver
 - **WHEN** a reviewer gives no verdict line
 - **THEN** it is never treated as approval
 
+### Requirement: Agents get the tools the repository declares, and caches of its own
+
+The system SHALL, when a cache directory is configured, give each step the home directory of its repository under that directory, with the tool shims of `mise` first on its path, trust only that step's clone, and tell the agent to install the declared tools, run the repository's own build and tests, and fix what fails before finishing; and SHALL NOT share a home or a cache between repositories.
+
+#### Scenario: A repository with declared tools
+
+- **WHEN** a step runs for a repository that declares its tools in `mise.toml`
+- **THEN** the agent's home is that repository's own directory in the cache and its prompt tells it to run `mise install` and then the repository's tests
+
+#### Scenario: Two repositories
+
+- **WHEN** steps run for two repositories
+- **THEN** each has a different home, so nothing one downloads is seen by the other
+
+#### Scenario: No cache directory
+
+- **WHEN** no cache directory is configured
+- **THEN** the agent's environment and prompt are unchanged
+
+### Requirement: The sandbox reaches only the sites a build needs
+
+The system SHALL let sandboxed commands reach only the tool downloads, the common package registries and GitHub, plus the sites the operator adds.
+
+#### Scenario: An extra registry
+
+- **WHEN** the operator lists an extra domain
+- **THEN** it is reachable in addition to the defaults, and nothing else is
+
 ### Requirement: Checks run the repository's own commands
 
 The system SHALL run each command the repository lists as a check in the clone and report every failure, with the end of its output, to the implementer.

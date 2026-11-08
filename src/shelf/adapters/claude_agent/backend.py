@@ -39,7 +39,12 @@ def hidden_from_agents(environ: Mapping[str, str]) -> dict[str, str]:
 
 
 def options_for(
-    task: AgentTask, *, nested_sandbox: bool = False, sandbox: bool = True, cli_path: str | None = None
+    task: AgentTask,
+    *,
+    nested_sandbox: bool = False,
+    sandbox: bool = True,
+    cli_path: str | None = None,
+    allowed_domains: tuple[str, ...] = (),
 ) -> ClaudeAgentOptions:
     """The SDK options for ``task``: its own tools only, the sandbox on, bounded in turns and money.
 
@@ -62,7 +67,10 @@ def options_for(
         settings=json.dumps({"disableAllHooks": True}),
         strict_mcp_config=True,
         sandbox=SandboxSettings(
-            enabled=sandbox, autoAllowBashIfSandboxed=True, enableWeakerNestedSandbox=nested_sandbox
+            enabled=sandbox,
+            autoAllowBashIfSandboxed=True,
+            enableWeakerNestedSandbox=nested_sandbox,
+            network={"allowedDomains": list(allowed_domains)},
         ),
     )
 
@@ -75,9 +83,17 @@ class ClaudeBackend:
     sandbox: bool = True
     cli_path: str | None = None
     """A specific Claude Code executable to use instead of the one bundled with the SDK."""
+    allowed_domains: tuple[str, ...] = ()
+    """The sites a sandboxed command may reach: tool downloads and package registries."""
 
     def _options(self, task: AgentTask) -> ClaudeAgentOptions:
-        return options_for(task, nested_sandbox=self.nested_sandbox, sandbox=self.sandbox, cli_path=self.cli_path)
+        return options_for(
+            task,
+            nested_sandbox=self.nested_sandbox,
+            sandbox=self.sandbox,
+            cli_path=self.cli_path,
+            allowed_domains=self.allowed_domains,
+        )
 
     async def run(self, task: AgentTask) -> str:
         """Run ``task`` and return the final answer."""
