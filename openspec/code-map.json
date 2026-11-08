@@ -22,7 +22,6 @@
     "access": {
       "code": [
         "src/shelf/domain/access.py",
-        "src/shelf/domain/config.py",
         "src/shelf/application/sign_in.py"
       ],
       "tests": [
@@ -66,11 +65,14 @@
       "code": [
         "src/shelf/adapters/config/*.py",
         "src/shelf/domain/operator.py",
-        "src/shelf/domain/polling.py"
+        "src/shelf/domain/polling.py",
+        "src/shelf/adapters/config/github.py",
+        "src/shelf/domain/config.py"
       ],
       "tests": [
         "tests/adapters/config/*.py",
-        "tests/domain/test_polling.py"
+        "tests/domain/test_polling.py",
+        "tests/adapters/config/test_github.py"
       ]
     },
     "pull-requests": {
@@ -110,6 +112,20 @@
       ],
       "tests": [
         "tests/adapters/web/*.py"
+      ]
+    },
+    "deployment": {
+      "code": [
+        "src/shelf/entrypoints/*.py",
+        "src/shelf/entrypoints/setup.py",
+        "src/shelf/adapters/web/templates/setup.html",
+        "src/shelf/adapters/web/templates/registered.html",
+        "Dockerfile",
+        "deploy/*"
+      ],
+      "tests": [
+        "tests/entrypoints/*.py",
+        "tests/entrypoints/test_setup.py"
       ]
     }
   }

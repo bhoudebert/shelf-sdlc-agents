@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Set up · shelf-sdlc{% endblock %}
+{% block content %}
+<h1>Register the GitHub App</h1>
+<p>This instance has no GitHub App yet. One click registers one under your account, with the permissions and
+events it needs, pointing at <code>{{ public_url }}</code>.</p>
+<p><a href="/setup/register">Register on GitHub</a></p>
+<p>You will confirm on GitHub, come back here, and copy the credentials into your environment.</p>
+{% endblock %}

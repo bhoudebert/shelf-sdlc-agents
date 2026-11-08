@@ -5,15 +5,14 @@ from collections.abc import Mapping
 from typing import Any
 
 from shelf.domain.access import AccessRules
-from shelf.domain.config import RepoConfig, Role
+from shelf.domain.config import InvalidConfigError, RepoConfig, Role
 from shelf.domain.operator import OperatorConfig
 from shelf.domain.pipeline import EntryPoint
 from shelf.domain.policy import Policy
 from shelf.domain.polling import Mode
 
-
-class ConfigError(ValueError):
-    """A configuration file is not valid."""
+ConfigError = InvalidConfigError
+"""The name this module's callers know."""
 
 
 def _only(section: str, table: Mapping[str, Any], allowed: set[str]) -> None:

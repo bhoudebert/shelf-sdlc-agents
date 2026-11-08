@@ -1,0 +1,73 @@
+# shelf-sdlc on one server: Temporal, the web service and the worker. No reverse proxy is bundled: put your own TLS in front
+# of port 8080 (nginx, Traefik, a cloud load balancer, a Kubernetes ingress...), or use a tunnel. See docs/guide/self-hosting.
+#
+#   cp deploy/.env.example deploy/.env     # set PUBLIC_URL, SESSION_SECRET and your model credentials
+#   docker compose -f deploy/compose.yml --env-file deploy/.env up -d --build
+#   open $PUBLIC_URL                       # first run: one click registers the GitHub App and shows what to paste in .env
+#
+# To use the published image instead of building: replace each `build` block with
+# `image: ghcr.io/bhoudebert/shelf-sdlc-agents:latest`.
+name: shelf-sdlc
+
+x-shelf: &shelf
+  build:
+    context: ..
+  restart: unless-stopped
+  env_file: [.env]
+  environment:
+    TEMPORAL_ADDRESS: temporal:7233
+    SHELF_CONFIG: /etc/shelf/shelf.toml
+  volumes:
+    # The operator's access list and mode. Read-only.
+    - ./shelf.toml:/etc/shelf/shelf.toml:ro
+  depends_on:
+    temporal:
+      condition: service_healthy
+
+services:
+  # The durable workflow engine. The dev server with a SQLite file on a volume is enough for a small team; for more, point
+  # TEMPORAL_ADDRESS at a Temporal cluster or Temporal Cloud and delete this service.
+  temporal:
+    image: temporalio/temporal:latest # pin a version for production
+    restart: unless-stopped
+    command: ["server", "start-dev", "--ip", "0.0.0.0", "--db-filename", "/home/temporal/temporal.db"]
+    volumes:
+      # Mounted over the image user's home, so the volume inherits its ownership (a fresh path would be root-owned).
+      - temporal-data:/home/temporal
+    healthcheck:
+      test: ["CMD", "temporal", "operator", "cluster", "health"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    # Not published. Its UI (port 8233) is reachable from the host with:
+    #   docker compose -f deploy/compose.yml exec temporal true  &&  docker compose port temporal 8233
+    # or add `ports: ["127.0.0.1:8233:8233"]` here to look at workflows from the server itself.
+
+  # The product: sign-in, board, start, decisions, GitHub webhooks.
+  web:
+    <<: *shelf
+    command: ["shelf-web"]
+    ports:
+      - "${WEB_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; urllib.request.urlopen('http://127.0.0.1:8080/healthz')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Runs the workflows and the agents. Scale it: `docker compose up -d --scale worker=3`.
+  worker:
+    <<: *shelf
+    command: ["shelf-worker"]
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      SHELF_CONFIG: /etc/shelf/shelf.toml
+      # Claude Code's sandbox inside a container needs its weaker nested mode.
+      SHELF_NESTED_SANDBOX: "1"
+    # The agents' sandbox (bubblewrap) needs user namespaces, which the default seccomp profile blocks. This is the only
+    # service that relaxes it, and the agents it runs only ever see a clone of the repository and a one-hour token.
+    security_opt:
+      - seccomp=unconfined
+
+volumes:
+  temporal-data:

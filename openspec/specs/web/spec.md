@@ -93,3 +93,12 @@ The system SHALL accept a GitHub webhook only with a valid HMAC signature, signa
 
 - **WHEN** the pull request of a piece of work is merged
 - **THEN** the work is told it was merged
+
+### Requirement: A repository whose configuration is invalid is reported on the page
+
+The system SHALL answer a start or a decision on a repository with an invalid configuration file with the reason on the form or panel, not with a server error.
+
+#### Scenario: A bad file
+
+- **WHEN** a person starts work on a repository whose `.shelf/config.toml` has an unknown key
+- **THEN** the start form shows the reason and nothing starts

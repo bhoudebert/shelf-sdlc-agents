@@ -10,6 +10,7 @@ from shelf.adapters.web.context import Web
 from shelf.adapters.web.sessions import Session
 from shelf.application.errors import Invalid, NotAllowed, NotFound, Refusal
 from shelf.application.work import start_work
+from shelf.domain.config import InvalidConfigError
 from shelf.domain.model import RepoRef, WorkRequest
 from shelf.domain.pipeline import EntryPoint
 from shelf.domain.result import Err, Ok
@@ -69,7 +70,12 @@ def router(web: Web) -> APIRouter:
             )
         except ValueError:
             return await start_form(request, session, error="Choose a repository and a starting point.", status=422)
-        result = await start_work(deps.runner, deps.forge, deps.configs, user_token=session.user_token, request=asked)
+        try:
+            result = await start_work(
+                deps.runner, deps.forge, deps.configs, user_token=session.user_token, request=asked
+            )
+        except InvalidConfigError as error:
+            return await start_form(request, session, error=f"The repository's .shelf/config.toml: {error}", status=422)
         match result:
             case Ok(work_id):
                 return RedirectResponse(f"/work/{work_id}", status_code=303)

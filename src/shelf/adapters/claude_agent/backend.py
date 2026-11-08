@@ -1,5 +1,7 @@
 """``AgentBackend`` over the Claude Agent SDK: each role is a sandboxed Claude Code session in the step's clone."""
 
+from dataclasses import dataclass
+
 from claude_agent_sdk import ClaudeAgentOptions, ResultMessage, query
 from claude_agent_sdk.types import SandboxSettings
 
@@ -14,8 +16,11 @@ class AgentFailedError(RuntimeError):
         super().__init__(f"{role} failed: {reason}")
 
 
-def options_for(task: AgentTask) -> ClaudeAgentOptions:
-    """The SDK options for ``task``: its own tools only, the sandbox on, bounded in turns and money."""
+def options_for(task: AgentTask, *, nested_sandbox: bool = False) -> ClaudeAgentOptions:
+    """The SDK options for ``task``: its own tools only, the sandbox on, bounded in turns and money.
+
+    ``nested_sandbox`` selects the weaker sandbox mode that works inside a container (Docker).
+    """
     return ClaudeAgentOptions(
         cwd=task.workdir,
         system_prompt=task.system_prompt,
@@ -26,17 +31,20 @@ def options_for(task: AgentTask) -> ClaudeAgentOptions:
         model=task.model,
         env=dict(task.env),
         setting_sources=[],
-        sandbox=SandboxSettings(enabled=True, autoAllowBashIfSandboxed=True),
+        sandbox=SandboxSettings(enabled=True, autoAllowBashIfSandboxed=True, enableWeakerNestedSandbox=nested_sandbox),
     )
 
 
+@dataclass(frozen=True, slots=True)
 class ClaudeBackend:
     """Runs roles on the Claude Agent SDK. Credentials come from the environment of the worker."""
+
+    nested_sandbox: bool = False
 
     async def run(self, task: AgentTask) -> str:
         """Run ``task`` and return the final answer."""
         answer = ""
-        async for message in query(prompt=task.prompt, options=options_for(task)):
+        async for message in query(prompt=task.prompt, options=options_for(task, nested_sandbox=self.nested_sandbox)):
             if isinstance(message, ResultMessage):
                 if message.is_error:
                     raise AgentFailedError(task.role.name, message.result or message.subtype)
