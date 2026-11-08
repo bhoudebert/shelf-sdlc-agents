@@ -17,6 +17,10 @@ dependencies = [
     "uvicorn>=0.32",
 ]
 
+[project.scripts]
+shelf-web = "shelf.entrypoints.web:main"
+shelf-worker = "shelf.entrypoints.worker:main"
+
 [dependency-groups]
 dev = [
     "hypothesis>=6.120",

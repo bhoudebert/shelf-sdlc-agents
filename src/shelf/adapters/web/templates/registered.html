@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Registered · shelf-sdlc{% endblock %}
+{% block content %}
+<h1>The GitHub App is registered</h1>
+<p><strong>Copy this now: it is shown once.</strong> Put it in <code>deploy/.env</code>, keep it secret, then
+restart the stack.</p>
+<pre><code>GITHUB_APP_ID={{ credentials.app_id }}
+GITHUB_APP_SLUG={{ credentials.slug }}
+GITHUB_APP_CLIENT_ID={{ credentials.client_id }}
+GITHUB_APP_CLIENT_SECRET={{ credentials.client_secret }}
+GITHUB_WEBHOOK_SECRET={{ credentials.webhook_secret }}
+GITHUB_APP_PRIVATE_KEY="{{ credentials.private_key | replace('\n', '\\n') }}"</code></pre>
+<p>Then <a href="https://github.com/apps/{{ credentials.slug }}/installations/new">install the App</a> on the repositories
+you want to use.</p>
+{% endblock %}

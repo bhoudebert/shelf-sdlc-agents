@@ -9,6 +9,7 @@ from shelf.adapters.web import views
 from shelf.adapters.web.context import Web
 from shelf.adapters.web.sessions import Session
 from shelf.application.work import decide_work
+from shelf.domain.config import InvalidConfigError
 from shelf.domain.model import WorkId
 from shelf.domain.result import Ok
 from shelf.domain.work import DecisionKind
@@ -41,6 +42,24 @@ def router(web: Web) -> APIRouter:
             request, "_work_panel.html", session, item=item, timeline=timeline, decisions=decisions, flash=""
         )
 
+    async def outcome_of(session: Session, work_id: str, decision: DecisionKind, note: str) -> tuple[str, int]:
+        """Deliver the decision; say what happened and with which HTTP status."""
+        try:
+            result = await decide_work(
+                deps.runner,
+                deps.configs,
+                deps.rules,
+                work_id=WorkId(work_id),
+                login=session.identity.login,
+                kind=decision,
+                note=note,
+            )
+        except InvalidConfigError as error:
+            return f"The repository's configuration is invalid: {error}", 422
+        if isinstance(result, Ok):
+            return "Decision sent.", 200
+        return "You may not decide this here.", 403
+
     @routes.post("/work/{work_id}/decide", dependencies=guarded)
     async def decide(
         request: Request,
@@ -54,26 +73,11 @@ def router(web: Web) -> APIRouter:
             decision = DecisionKind(kind)
         except ValueError:
             raise HTTPException(status_code=422, detail="unknown decision") from None
-        result = await decide_work(
-            deps.runner,
-            deps.configs,
-            deps.rules,
-            work_id=WorkId(work_id),
-            login=session.identity.login,
-            kind=decision,
-            note=note,
-        )
-        accepted = isinstance(result, Ok)
+        flash, status = await outcome_of(session, work_id, decision, note)
         response = web.render(
-            request,
-            "_work_panel.html",
-            session,
-            item=item,
-            timeline=timeline,
-            decisions=decisions,
-            flash="Decision sent." if accepted else "You may not decide this here.",
+            request, "_work_panel.html", session, item=item, timeline=timeline, decisions=decisions, flash=flash
         )
-        response.status_code = 200 if accepted else 403
+        response.status_code = status
         return response
 
     return routes

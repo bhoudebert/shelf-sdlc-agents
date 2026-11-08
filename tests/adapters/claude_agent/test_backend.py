@@ -39,3 +39,8 @@ def test_every_role_has_a_system_prompt(phase: Phase) -> None:
 def test_every_reviewer_prompt_defines_the_verdict_line() -> None:
     for phase in (Phase.SPEC_REVIEW, Phase.DESIGN_REVIEW, Phase.CODE_REVIEW):
         assert "VERDICT: APPROVE" in load_prompt(ROLES[phase].name)
+
+
+def test_the_nested_sandbox_is_opt_in_for_containers() -> None:
+    assert options_for(task(Phase.IMPLEMENT)).sandbox.get("enableWeakerNestedSandbox") is False  # type: ignore[union-attr]
+    assert options_for(task(Phase.IMPLEMENT), nested_sandbox=True).sandbox.get("enableWeakerNestedSandbox") is True  # type: ignore[union-attr]

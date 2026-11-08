@@ -8,6 +8,10 @@ from shelf.domain.pipeline import EntryPoint, Phase
 from shelf.domain.policy import Policy
 
 
+class InvalidConfigError(ValueError):
+    """A configuration file is not valid, and says why."""
+
+
 class Role(StrEnum):
     """What a person is for in a repository."""
 
