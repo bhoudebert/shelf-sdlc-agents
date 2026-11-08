@@ -449,7 +449,7 @@ def test_the_admin_page_shows_the_instance_facts_and_never_a_secret() -> None:
     fixture.sign_in()
     page = fixture.client.get("/admin").text
     assert "abc1234" in page  # the revision
-    assert "shelf.example.org" in page  # the public address
+    assert "/api/github/webhook" in page  # where GitHub should deliver
     assert "bob" in page
     assert "hook-secret" not in page
     assert "k" * 32 not in page
