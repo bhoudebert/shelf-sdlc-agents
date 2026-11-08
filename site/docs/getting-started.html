@@ -22,7 +22,7 @@
 <li><strong>Install.</strong> <pre><code>git clone https://github.com/bhoudebert/shelf-sdlc-agents
 cd shelf-sdlc-agents
 sh deploy/install.sh https://shelf.example.org</code></pre> This writes <code>deploy/.env</code> with a generated session secret and starts the stack. Add your model credential to the file.</li>
-<li><strong>Say who may sign in.</strong> Edit <code>deploy/shelf.toml</code> (see <a href="configuration.html">Configuration</a>). Leave both lists empty and anyone with a GitHub account can use, and spend, your instance.</li>
+<li><strong>Say who may sign in.</strong> The script created <code>deploy/shelf.toml</code> from <code>shelf.toml.example</code>; it is yours and git ignores it, so updates never touch it. Edit it (see <a href="configuration.html">Configuration</a>). Leave both lists empty and anyone with a GitHub account can use, and spend, your instance.</li>
 <li><strong>Register the GitHub App.</strong> Open your address. While no App is configured, the first page offers one click to register it with the right permissions and events, then shows the credentials once. Paste them into <code>deploy/.env</code>. See <a href="github-app.html">The GitHub App</a>.</li>
 <li><strong>Run the script again</strong> so the stack restarts with the App: <code>sh deploy/install.sh</code>.</li>
 <li><strong>Install the App</strong> on the repositories you want to use (the board links to it), and sign in.</li>

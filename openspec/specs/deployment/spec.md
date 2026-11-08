@@ -152,3 +152,26 @@ The system SHALL read the GitHub App's private key from a file in a secrets dire
 
 - **WHEN** the App id is set but no key is available
 - **THEN** the service stops saying to put the file at `deploy/secrets/github-app.pem`
+
+### Requirement: Operator files are created from examples and never committed
+
+The system SHALL ship the environment file and the access file as examples, create the real ones on the first run of the install script, keep them out of version control, and never overwrite them, so that updating the code never conflicts with the operator's changes.
+
+#### Scenario: First run
+
+- **WHEN** the install script runs without an access file
+- **THEN** it creates one from the example and says to edit it
+
+#### Scenario: An update
+
+- **WHEN** the operator pulls new code
+- **THEN** their access file and environment file are untouched and there is no merge conflict
+
+### Requirement: An open instance is flagged on every run
+
+The system SHALL warn on every run of the install script when the access file restricts nobody.
+
+#### Scenario: No names listed
+
+- **WHEN** the access file lists no organisation, user or admin
+- **THEN** the script warns that anyone with a GitHub account may sign in
