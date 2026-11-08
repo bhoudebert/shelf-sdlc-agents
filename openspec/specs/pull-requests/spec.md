@@ -120,3 +120,12 @@ The system SHALL post, label and poll nothing for a pull request that is not ope
 
 - **WHEN** a comment or a label is asked for before the pull request exists
 - **THEN** nothing is posted and nothing fails
+
+### Requirement: The documents are read from the work's branch
+
+The system SHALL read the request, spec, design and plan of a piece of work from its branch with the App's token, skipping the ones not written yet.
+
+#### Scenario: Only a spec so far
+
+- **WHEN** only the request and the spec exist
+- **THEN** those two are returned
