@@ -207,3 +207,17 @@ The system SHALL serve Temporal's own interface under `/temporal`, only to signe
 
 - **WHEN** Temporal's interface does not answer
 - **THEN** the proxy answers with a gateway error, not a crash
+
+### Requirement: The interface warns when agents cannot reach a model
+
+The system SHALL show a prominent warning on the board and the start page while no model credential is set, telling an administrator what to set and where and telling anyone else to ask the administrator.
+
+#### Scenario: No credential
+
+- **WHEN** the instance has no model credential and a person opens the board
+- **THEN** the warning explains that agent steps will fail with "Not logged in"
+
+#### Scenario: A credential is set
+
+- **WHEN** a model credential is set
+- **THEN** no warning is shown

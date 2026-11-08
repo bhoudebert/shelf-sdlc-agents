@@ -193,3 +193,12 @@ The system SHALL warn when the install script finds no model credential in the e
 
 - **WHEN** the environment file has no model credential
 - **THEN** the script warns that agents will fail with "Not logged in" and says how to get one
+
+### Requirement: A missing model credential is flagged by the worker and the web service
+
+The system SHALL log a warning when the worker starts without a model credential, and SHALL treat a Claude token, an API key or a gateway address as a credential.
+
+#### Scenario: Worker start
+
+- **WHEN** the worker starts with none of them set
+- **THEN** it logs how to get a token and where to put it
