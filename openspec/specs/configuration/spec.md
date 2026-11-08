@@ -51,3 +51,17 @@ The system SHALL poll GitHub often in local mode and rarely in server mode, wher
 
 - **WHEN** the intervals of both modes are compared
 - **THEN** the server mode starts later and ends later than the local mode
+
+### Requirement: A repository's file is read from GitHub, and an invalid one is an error
+
+The system SHALL read a repository's `.shelf/config.toml` from GitHub with the App's token, use the defaults when the file does not exist, and refuse to start or decide on a repository whose file is invalid, saying why, rather than silently using defaults.
+
+#### Scenario: No file
+
+- **WHEN** the repository has no configuration file
+- **THEN** the defaults apply
+
+#### Scenario: An invalid file
+
+- **WHEN** the file has an unknown key
+- **THEN** starting work on that repository is refused with the reason
