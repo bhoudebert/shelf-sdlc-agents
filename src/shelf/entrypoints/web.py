@@ -49,6 +49,7 @@ async def build(settings: settings_module.Settings) -> FastAPI:
             services.runner,
             services.configs,
             SessionStore(),
+            documents=services.documents,
         )
     )
 

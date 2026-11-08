@@ -17,6 +17,7 @@ from shelf.domain.config import RepoConfig, Role
 from shelf.domain.model import Identity, RepoRef, WorkId, WorkView
 from shelf.domain.pipeline import EntryPoint, Phase
 from shelf.domain.work import DecisionKind, PersonDecided, Reason
+from shelf.ports.documents import Documents
 from tests.fakes import FakeConfigs, FakeForge, FakeRunner
 
 REPO = RepoRef("acme", "shop")
@@ -39,6 +40,7 @@ class Fixture:
         configs: FakeConfigs | None = None,
         settings: WebSettings = SETTINGS,
         transport: httpx.MockTransport | None = None,
+        documents: Documents | None = None,
     ) -> None:
         self.forge = FakeForge(identities={"token-code": ALICE}, repos={"token-code": (REPO,)})
         self.runner = FakeRunner()
@@ -50,6 +52,7 @@ class Fixture:
             configs or FakeConfigs(),
             SessionStore(),
             transport,
+            documents,
         )
         self.client = TestClient(create_app(deps), base_url="https://shelf.example.org", follow_redirects=False)
 
@@ -284,3 +287,92 @@ def test_an_ordinary_person_is_told_to_ask_the_administrator_when_no_credential_
 def test_no_warning_is_shown_when_a_model_credential_is_set(app: Fixture) -> None:
     app.sign_in()
     assert "No model credential" not in app.client.get("/board").text
+
+
+class FakeDocuments:
+    def __init__(self, found: dict[str, str], *, fail: bool = False) -> None:
+        self.found, self.fail = found, fail
+
+    async def read(self, repo: RepoRef, work_id: WorkId) -> dict[str, str]:
+        if self.fail:
+            message = "github down"
+            raise RuntimeError(message)
+        return self.found
+
+
+def with_work(documents: Documents, phase: Phase = Phase.SPEC_APPROVAL) -> Fixture:
+    fixture = Fixture(documents=documents)
+    fixture.sign_in()
+    fixture.runner.views[WorkId("work-1")] = WorkView(WorkId("work-1"), REPO, "alice", EntryPoint.NEED, phase)
+    return fixture
+
+
+def test_the_work_page_loads_its_documents_lazily() -> None:
+    page = with_work(FakeDocuments({})).client.get("/work/work-1").text
+    assert 'hx-get="/work/work-1/documents"' in page
+    assert 'hx-trigger="load, every 20s"' in page
+
+
+def test_the_documents_are_shown_rendered_with_the_current_one_open() -> None:
+    fixture = with_work(FakeDocuments({"request.md": "loyalty", "spec.md": "# Loyalty spec\n\n- earn points"}))
+    html = fixture.client.get("/work/work-1/documents").text
+    assert "<h1>Loyalty spec</h1>" in html
+    assert "<li>earn points</li>" in html
+    assert 'class="doc" open' in html
+    assert html.count("<details") == 2
+
+
+def test_hostile_document_content_is_shown_as_text_not_run() -> None:
+    fixture = with_work(FakeDocuments({"spec.md": "<script>alert(1)</script>"}))
+    html = fixture.client.get("/work/work-1/documents").text
+    assert "<script>alert(1)</script>" not in html
+    assert "&lt;script&gt;" in html
+
+
+def test_a_page_with_no_documents_yet_says_so() -> None:
+    assert "Nothing is written yet" in with_work(FakeDocuments({})).client.get("/work/work-1/documents").text
+
+
+def test_a_github_failure_is_reported_on_the_page_not_as_an_error() -> None:
+    response = with_work(FakeDocuments({}, fail=True)).client.get("/work/work-1/documents")
+    assert response.status_code == 200
+    assert "could not be loaded" in response.text
+
+
+def test_documents_of_work_on_a_repository_the_person_cannot_open_are_not_shown() -> None:
+    fixture = with_work(FakeDocuments({"spec.md": "secret"}))
+    fixture.runner.views[WorkId("work-9")] = WorkView(
+        WorkId("work-9"), RepoRef("acme", "secret"), "x", EntryPoint.NEED, Phase.INTAKE
+    )
+    assert fixture.client.get("/work/work-9/documents").status_code == 404
+
+
+def test_a_refresh_with_nothing_new_leaves_the_page_alone() -> None:
+    fixture = with_work(FakeDocuments({"spec.md": "# S"}))
+    panel = fixture.client.get("/work/work-1/panel")
+    assert panel.status_code == 200
+    version = panel.text.split("/panel?v=")[1].split('"')[0]
+    assert fixture.client.get(f"/work/work-1/panel?v={version}").status_code == 204
+    assert fixture.client.get("/work/work-1/panel?v=stale").status_code == 200
+
+
+def test_the_panel_changes_its_fingerprint_when_the_work_moves_on() -> None:
+    fixture = with_work(FakeDocuments({}))
+    first = fixture.client.get("/work/work-1/panel").text.split("/panel?v=")[1].split('"')[0]
+    fixture.runner.views[WorkId("work-1")] = WorkView(WorkId("work-1"), REPO, "alice", EntryPoint.NEED, Phase.DESIGN)
+    assert fixture.client.get(f"/work/work-1/panel?v={first}").status_code == 200
+
+
+def test_the_documents_refresh_the_same_way() -> None:
+    fixture = with_work(FakeDocuments({"spec.md": "# S"}))
+    html = fixture.client.get("/work/work-1/documents").text
+    version = html.split("/documents?v=")[1].split('"')[0]
+    assert fixture.client.get(f"/work/work-1/documents?v={version}").status_code == 204
+    fixture.runner.views[WorkId("work-1")] = WorkView(WorkId("work-1"), REPO, "alice", EntryPoint.NEED, Phase.DESIGN)
+    assert fixture.client.get(f"/work/work-1/documents?v={version}").status_code == 200
+
+
+def test_a_decision_answer_carries_the_fingerprint_so_the_next_refresh_can_stay_quiet() -> None:
+    fixture = with_work(FakeDocuments({}))
+    answer = fixture.client.post("/work/work-1/decide", data={"kind": "approve"}).text
+    assert "/panel?v=" in answer

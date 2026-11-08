@@ -2,8 +2,18 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import pytest
+
 from shelf.adapters.web.sessions import LIFETIME, SessionStore
-from shelf.adapters.web.views import Status, decision_options, entry_options, item_view, timeline
+from shelf.adapters.web.views import (
+    Status,
+    decision_options,
+    document_views,
+    entry_options,
+    item_view,
+    render_markdown,
+    timeline,
+)
 from shelf.domain.model import Identity, RepoRef, WorkId, WorkView
 from shelf.domain.pipeline import EntryPoint, Phase
 from shelf.domain.work import Outcome, Reason
@@ -78,3 +88,46 @@ def test_decision_buttons_follow_the_wait() -> None:
     assert [d.value for d in decision_options(Reason.MERGE)] == ["changes", "reject", "abort"]
     assert decision_options(None) == []
     assert next(d for d in decision_options(Reason.GATE) if d.value == "changes").needs_note
+
+
+def test_markdown_is_rendered_for_reading() -> None:
+    html = str(render_markdown("# Title\n\n- one\n- two\n\n`code`"))
+    assert "<h1>Title</h1>" in html
+    assert "<li>one</li>" in html
+    assert "<code>code</code>" in html
+
+
+@pytest.mark.parametrize(
+    "hostile",
+    [
+        "<script>alert(1)</script>",
+        "<img src=x onerror=alert(1)>",
+        "[click](javascript:alert(1))",
+        "<iframe src='https://evil.example'></iframe>",
+        "[x](data:text/html;base64,PHNjcmlwdD4=)",
+    ],
+)
+def test_nothing_an_agent_writes_can_become_active_content(hostile: str) -> None:
+    html = str(render_markdown(hostile)).lower()
+    assert "<script" not in html
+    assert "<iframe" not in html
+    assert "<img" not in html
+    assert 'href="javascript:' not in html
+    assert "<img" not in html  # the text may appear, escaped; a tag may not
+
+
+def test_tables_are_rendered_as_tables() -> None:
+    html = str(render_markdown("| a | b |\n| --- | --- |\n| 1 | 2 |"))
+    assert "<table>" in html
+    assert "<td>1</td>" in html
+
+
+def test_the_document_for_the_current_phase_is_open_and_the_others_folded() -> None:
+    docs = document_views({"spec.md": "# S", "design.md": "# D", "plan.md": "# P"}, Phase.DESIGN_REVIEW)
+    assert [(d.name, d.open) for d in docs] == [("spec.md", False), ("design.md", True), ("plan.md", False)]
+    assert [d.title for d in docs] == ["Spec", "Design", "Plan"]
+
+
+def test_a_document_not_written_yet_is_simply_absent() -> None:
+    assert [d.name for d in document_views({"spec.md": "x"}, Phase.INTAKE)] == ["spec.md"]
+    assert document_views({}, Phase.INTAKE) == []

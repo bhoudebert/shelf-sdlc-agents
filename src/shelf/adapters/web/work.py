@@ -24,10 +24,7 @@ def router(web: Web) -> APIRouter:
     deps = web.deps
 
     async def panel_of(session: Session, work_id: str) -> Panel:
-        work = await deps.runner.view(WorkId(work_id))
-        visible = {r.full_name for r in await deps.forge.repositories(session.user_token)}
-        if work is None or (work.repo.full_name not in visible and not web.is_admin(session)):
-            raise HTTPException(status_code=404, detail="no such work")
+        work = await web.visible_work(session, work_id)
         return views.item_view(work), views.timeline(work), views.decision_options(work.waiting_for)
 
     @routes.get("/work/{work_id}", response_class=HTMLResponse)
@@ -41,14 +38,27 @@ def router(web: Web) -> APIRouter:
             timeline=timeline,
             decisions=decisions,
             flash="",
+            version=views.version_of(item, timeline, decisions),
             temporal_link=web.temporal_link(work_id) if web.is_admin(session) else "",
         )
 
     @routes.get("/work/{work_id}/panel", response_class=HTMLResponse)
-    async def panel(request: Request, session: Annotated[Session, Depends(web.signed_in)], work_id: str) -> Response:
+    async def panel(
+        request: Request, session: Annotated[Session, Depends(web.signed_in)], work_id: str, v: str = ""
+    ) -> Response:
         item, timeline, decisions = await panel_of(session, work_id)
+        version = views.version_of(item, timeline, decisions)
+        if v == version:  # nothing new: answer with no content so the page is left exactly as it is
+            return Response(status_code=204)
         return web.render(
-            request, "_work_panel.html", session, item=item, timeline=timeline, decisions=decisions, flash=""
+            request,
+            "_work_panel.html",
+            session,
+            item=item,
+            timeline=timeline,
+            decisions=decisions,
+            flash="",
+            version=version,
         )
 
     async def outcome_of(session: Session, work_id: str, decision: DecisionKind, note: str) -> tuple[str, int]:

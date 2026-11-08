@@ -53,28 +53,54 @@
     if (button && !window.confirm(button.getAttribute("data-confirm"))) event.preventDefault();
   });
 
-  // The work panel refreshes itself every few seconds. Do not replace it while someone is typing
-  // a note, and do not replace it with an identical copy (that would reset focus and replay motion).
-  var lastPanel = "";
+  // Sections that refresh themselves (the work panel, the documents) must never fight the person using them:
+  // no refresh while the pointer is over the section, while focus is inside it, or while text is selected in it.
+  // The server also answers "nothing changed" with 204, so an idle refresh does not touch the page at all.
+  function inUse(section) {
+    if (section.matches(":hover")) return true;
+    if (section.contains(document.activeElement) && document.activeElement !== document.body) return true;
+    var selection = window.getSelection && window.getSelection();
+    return !!(selection && !selection.isCollapsed && section.contains(selection.anchorNode));
+  }
   document.body.addEventListener("htmx:beforeRequest", function (event) {
-    var panel = document.getElementById("panel");
-    if (!panel || event.detail.elt !== panel) return;
-    var note = panel.querySelector("textarea");
-    if ((note && note.value) || panel.contains(document.activeElement)) event.preventDefault();
+    var section = event.detail.elt;
+    if (!section || (section.id !== "panel" && section.id !== "documents")) return;
+    if (event.detail.requestConfig && event.detail.requestConfig.verb !== "get") return; // a decision is never held back
+    if (inUse(section)) event.preventDefault();
   });
+
+  // The board is pushed by the server: hold a push while the pointer is over the list, and catch up when it leaves.
+  var board = document.getElementById("board");
+  if (board) {
+    var behind = false;
+    document.body.addEventListener("htmx:sseBeforeMessage", function (event) {
+      if (board.matches(":hover") && board.querySelector(".item:hover, .item-link:hover, button:hover, a:hover")) {
+        event.preventDefault();
+        behind = true;
+      }
+    });
+    board.addEventListener("mouseleave", function () {
+      if (!behind) return;
+      behind = false;
+      if (window.htmx) window.htmx.ajax("GET", "/board/items", { target: "#board", swap: "innerHTML" });
+    });
+  }
+
+  var lastHtml = {};
   document.body.addEventListener("htmx:beforeSwap", function (event) {
     var target = event.detail.target;
-    if (!target || target.id !== "panel") return;
+    if (!target || (target.id !== "panel" && target.id !== "documents")) return;
     // A refused decision answers 403 with the panel and its explanation: show it.
-    if (event.detail.xhr.status === 403) {
+    if (target.id === "panel" && event.detail.xhr.status === 403) {
       event.detail.shouldSwap = true;
       event.detail.isError = false;
-      lastPanel = "";
+      lastHtml.panel = "";
       return;
     }
+    // Do not replace a section with an identical copy: that would reset focus, folded documents and motion.
     var html = event.detail.serverResponse;
-    if (html === lastPanel) event.detail.shouldSwap = false;
-    lastPanel = html;
+    if (html === lastHtml[target.id]) event.detail.shouldSwap = false;
+    lastHtml[target.id] = html;
   });
 
   // "Copy" buttons: data-copy="#selector" copies that element's text, then says so for a moment.

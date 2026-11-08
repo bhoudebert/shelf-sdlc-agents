@@ -68,3 +68,26 @@ async def test_identity_is_cached_and_sign_in_never_is() -> None:
     await forge.exchange_code("a")
     await forge.exchange_code("a")
     assert (inner.calls["identity"], inner.calls["exchange"]) == (1, 2)
+
+
+async def test_documents_are_read_once_while_fresh_and_again_when_old() -> None:
+    from collections.abc import Mapping  # noqa: PLC0415
+
+    from shelf.adapters.caching.documents import CachedDocuments  # noqa: PLC0415
+    from shelf.domain.model import WorkId  # noqa: PLC0415
+
+    class Counting:
+        reads = 0
+
+        async def read(self, repo: RepoRef, work_id: WorkId) -> Mapping[str, str]:
+            Counting.reads += 1
+            return {"spec.md": "x"}
+
+    clock = Clock()
+    cached = CachedDocuments(Counting(), ttl_seconds=10, clock=clock)
+    for _ in range(3):
+        await cached.read(REPO, WorkId("work-1"))
+    assert Counting.reads == 1
+    clock.now = 11
+    await cached.read(REPO, WorkId("work-1"))
+    assert Counting.reads == 2

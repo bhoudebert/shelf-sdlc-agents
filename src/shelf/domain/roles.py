@@ -48,3 +48,11 @@ PROVIDED_DOCUMENT: dict[EntryPoint, str] = {
     EntryPoint.IMPLEMENT: "plan.md",
 }
 """The file the text a person submits is recorded as, so every agent and reviewer reads it from the repository."""
+
+DOCUMENT_TITLES: dict[str, str] = {
+    "request.md": "The request",
+    "spec.md": "Spec",
+    "design.md": "Design",
+    "plan.md": "Plan",
+}
+"""The documents of a piece of work, in the order a person reads them, with their titles."""
