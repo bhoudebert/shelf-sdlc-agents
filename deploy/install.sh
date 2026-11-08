@@ -25,6 +25,15 @@ if [ ! -f "$env_file" ]; then
   echo "Wrote $env_file. Add your model credentials (ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN) before the first run."
 fi
 
+# The access file must be valid TOML: say so now, not after a build and a crash loop.
+if command -v python3 >/dev/null 2>&1 && python3 -c 'import tomllib' 2>/dev/null; then
+  if ! python3 -c 'import sys, tomllib; tomllib.load(open(sys.argv[1], "rb"))' "$here/shelf.toml" 2>/tmp/shelf-toml-error; then
+    echo "ERROR: $here/shelf.toml is not valid TOML: $(tail -n 1 /tmp/shelf-toml-error)" >&2
+    echo "       Names go in quotes, for example: users = [\"alice\", \"bob\"]" >&2
+    exit 1
+  fi
+fi
+
 # The revision this checkout is at. It is built into the image and reported by /healthz, so you can see what really runs.
 SHELF_REVISION=$(git -C "$here" rev-parse --short HEAD 2>/dev/null || echo unknown)
 if [ -n "$(git -C "$here" status --porcelain 2>/dev/null)" ]; then SHELF_REVISION="$SHELF_REVISION-dirty"; fi

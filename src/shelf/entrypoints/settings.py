@@ -3,6 +3,7 @@
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import NoReturn
 
 
 class MissingSettingError(ValueError):
@@ -86,6 +87,12 @@ def _github(environ: Mapping[str, str]) -> GitHubApp | None:
         slug=_required(environ, "GITHUB_APP_SLUG"),
         webhook_secret=_required(environ, "GITHUB_WEBHOOK_SECRET"),
     )
+
+
+def exit_with(error: Exception) -> NoReturn:
+    """Stop the program with one readable line, as a person who runs it needs, instead of a traceback."""
+    message = f"shelf: cannot start: {error}"
+    raise SystemExit(message)
 
 
 def from_environ(environ: Mapping[str, str]) -> Settings:

@@ -19,6 +19,7 @@ from shelf.adapters.github_app.pulls import GitHubPullRequests
 from shelf.adapters.github_app.settings import GitHubAppSettings
 from shelf.adapters.temporal.runner import TemporalRunner
 from shelf.application.steps import Steps
+from shelf.domain.config import InvalidConfigError
 from shelf.domain.model import RepoRef
 from shelf.domain.operator import OperatorConfig
 from shelf.entrypoints.settings import GitHubApp, Settings
@@ -36,7 +37,11 @@ def load_operator(settings: Settings) -> OperatorConfig:
     if not settings.config_path.exists():
         log.warning("%s not found: this instance is OPEN to anyone with a GitHub account", settings.config_path)
         return OperatorConfig()
-    return parse_operator(settings.config_path.read_text(encoding="utf-8"))
+    try:
+        return parse_operator(settings.config_path.read_text(encoding="utf-8"))
+    except InvalidConfigError as error:
+        message = f'{settings.config_path} is not valid: {error}. Names go in quotes, e.g. users = ["alice", "bob"]'
+        raise InvalidConfigError(message) from error
 
 
 def token_source(client: httpx.AsyncClient, github: GitHubAppSettings) -> Callable[[RepoRef], Awaitable[str]]:

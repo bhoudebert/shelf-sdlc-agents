@@ -9,6 +9,7 @@ from temporalio.worker import Worker
 
 from shelf.adapters.temporal.activities import build_activities
 from shelf.adapters.temporal.workflow import WorkItemWorkflow
+from shelf.domain.config import InvalidConfigError
 from shelf.entrypoints import settings as settings_module
 from shelf.entrypoints.wiring import build_services, connect
 
@@ -42,7 +43,10 @@ async def run() -> None:
 def main() -> None:
     """Console entry point: ``shelf-worker``."""
     logging.basicConfig(level=logging.INFO)
-    asyncio.run(run())
+    try:
+        asyncio.run(run())
+    except (settings_module.MissingSettingError, InvalidConfigError) as error:
+        settings_module.exit_with(error)
 
 
 if __name__ == "__main__":

@@ -6,6 +6,7 @@ mode = "server"
 
 [access]
 # Who may sign in. Leave BOTH lists empty and anyone with a GitHub account may use this instance, spending YOUR model quota.
+# Every name is in quotes, separated by commas: users = ["alice", "bob"]
 orgs   = []             # e.g. ["acme"]: members of these organisations
 users  = []             # e.g. ["alice", "bob"]
 admins = []             # may sign in and may decide at any gate
