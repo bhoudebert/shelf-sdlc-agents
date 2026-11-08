@@ -137,3 +137,12 @@ The system SHALL show a piece of work that exists but whose state cannot be read
 
 - **WHEN** reading the state of a piece of work fails
 - **THEN** the board shows it as failed and says it may have been started by an older release
+
+### Requirement: Publishing names the pull request and may take as long as an agent
+
+The system SHALL have the publish activity ask for the pull request's title from the step runner and give it to the pull request, allowing it the time a short agent run takes, without changing what a recorded history does.
+
+#### Scenario: Publishing
+
+- **WHEN** the workflow orders the pull request published
+- **THEN** the activity asks for a title, opens or retitles the pull request with it, and returns its address
