@@ -175,3 +175,30 @@ The system SHALL warn on every run of the install script when the access file re
 
 - **WHEN** the access file lists no organisation, user or admin
 - **THEN** the script warns that anyone with a GitHub account may sign in
+
+### Requirement: Temporal's interface is never published, only proxied to administrators
+
+The system SHALL NOT publish Temporal's web interface on any host port, because it has no login and can signal or end any workflow, and SHALL serve it under a path of the web service to signed-in administrators only.
+
+#### Scenario: Default
+
+- **WHEN** the stack runs
+- **THEN** no host port answers with Temporal's interface, and it is reachable only through the web service
+
+### Requirement: A missing model credential is flagged before the agents fail
+
+The system SHALL warn when the install script finds no model credential in the environment file, and SHALL tell an agent that failed to log in that the credential belongs in the worker's environment, not in the host's own login.
+
+#### Scenario: No credential
+
+- **WHEN** the environment file has no model credential
+- **THEN** the script warns that agents will fail with "Not logged in" and says how to get one
+
+### Requirement: A missing model credential is flagged by the worker and the web service
+
+The system SHALL log a warning when the worker starts without a model credential, and SHALL treat a Claude token, an API key or a gateway address as a credential.
+
+#### Scenario: Worker start
+
+- **WHEN** the worker starts with none of them set
+- **THEN** it logs how to get a token and where to put it

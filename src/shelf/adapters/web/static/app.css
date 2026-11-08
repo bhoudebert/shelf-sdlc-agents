@@ -398,3 +398,5 @@ input:not([type="radio"]):focus-visible, select:focus-visible, textarea:focus-vi
 .setup { align-items: start; }
 .setup .welcome-shelf { position: sticky; top: 24px; }
 @media (max-width: 860px) { .setup .welcome-shelf { position: static; } }
+.model-warning { max-width: none; margin: 0 0 20px; background: var(--accent); color: var(--on-accent); display: block; line-height: 1.5; }
+.model-warning code { font: .92em var(--mono); background: color-mix(in srgb, var(--on-accent) 18%, transparent); padding: 1px 6px; }

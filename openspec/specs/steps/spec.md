@@ -92,3 +92,12 @@ The system SHALL run the agents' sandbox in its weaker nested mode only when the
 
 - **WHEN** the operator turns the nested sandbox on
 - **THEN** the sandbox is on in its nested mode
+
+### Requirement: A failed login tells the operator where the credential goes
+
+The system SHALL, when an agent fails because it is not logged in, say that the credential belongs in the worker's environment (a Claude token or an API key in the environment file), not in the host's own login.
+
+#### Scenario: Not logged in
+
+- **WHEN** an agent step fails with a login error
+- **THEN** the failure names the environment variables to set and where

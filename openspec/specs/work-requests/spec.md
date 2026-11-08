@@ -46,3 +46,12 @@ The system SHALL list the work of the repositories the person can see, and no ot
 
 - **WHEN** work exists on a visible and on an invisible repository
 - **THEN** the board lists only the work on the visible one
+
+### Requirement: Administrators see the work of every repository
+
+The system SHALL list the work of every repository for an administrator, and only the work of repositories they can see for anyone else.
+
+#### Scenario: An administrator
+
+- **WHEN** an administrator asks for the board
+- **THEN** work on repositories they cannot open is listed too

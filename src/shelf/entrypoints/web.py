@@ -35,6 +35,10 @@ async def build(settings: settings_module.Settings) -> FastAPI:
         secret_key=settings.session_secret,
         mode=services.operator.mode,
         revision=settings.revision,
+        temporal_upstream=settings.temporal_ui_upstream,
+        temporal_writable=settings.temporal_ui_writable,
+        temporal_namespace=settings.temporal_namespace,
+        model_configured=settings.model_credential,
     )
     return create_app(
         WebDeps(web, services.operator.access, services.forge, services.runner, services.configs, SessionStore())

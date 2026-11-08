@@ -5,7 +5,7 @@
   <p class="crumb"><a href="/board">Board</a></p>
   <div class="page-head work-head">
     <h1>{{ item.repo }}</h1>
-    <p class="meta">{{ item.entry }} · requested by {{ item.requester }}</p>
+    <p class="meta">{{ item.entry }} · requested by {{ item.requester }}{% if temporal_link %} · <a href="{{ temporal_link }}" target="_blank" rel="noopener">Inspect in Temporal</a>{% endif %}</p>
   </div>
   {% include "_work_panel.html" %}
 </div>

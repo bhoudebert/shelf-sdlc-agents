@@ -78,3 +78,12 @@ The system SHALL let a webhook tell a piece of work that its pull request was me
 
 - **WHEN** the work is told its pull request was merged
 - **THEN** it ends as merged
+
+### Requirement: The runner can list the work of every repository
+
+The system SHALL list the work of every repository when no repository filter is given, for administrators.
+
+#### Scenario: No filter
+
+- **WHEN** the work is listed without a repository filter
+- **THEN** all work is returned

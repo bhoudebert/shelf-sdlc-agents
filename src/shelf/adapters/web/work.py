@@ -26,14 +26,23 @@ def router(web: Web) -> APIRouter:
     async def panel_of(session: Session, work_id: str) -> Panel:
         work = await deps.runner.view(WorkId(work_id))
         visible = {r.full_name for r in await deps.forge.repositories(session.user_token)}
-        if work is None or work.repo.full_name not in visible:
+        if work is None or (work.repo.full_name not in visible and not web.is_admin(session)):
             raise HTTPException(status_code=404, detail="no such work")
         return views.item_view(work), views.timeline(work), views.decision_options(work.waiting_for)
 
     @routes.get("/work/{work_id}", response_class=HTMLResponse)
     async def page(request: Request, session: Annotated[Session, Depends(web.signed_in)], work_id: str) -> Response:
         item, timeline, decisions = await panel_of(session, work_id)
-        return web.render(request, "work.html", session, item=item, timeline=timeline, decisions=decisions, flash="")
+        return web.render(
+            request,
+            "work.html",
+            session,
+            item=item,
+            timeline=timeline,
+            decisions=decisions,
+            flash="",
+            temporal_link=web.temporal_link(work_id) if web.is_admin(session) else "",
+        )
 
     @routes.get("/work/{work_id}/panel", response_class=HTMLResponse)
     async def panel(request: Request, session: Annotated[Session, Depends(web.signed_in)], work_id: str) -> Response:

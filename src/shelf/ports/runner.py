@@ -26,6 +26,6 @@ class WorkRunner(Protocol):
         """The current picture of one piece of work, or ``None`` when it does not exist."""
         ...
 
-    async def list(self, repos: Collection[RepoRef]) -> Sequence[WorkView]:
-        """Every piece of work of these repositories, most recent first."""
+    async def list(self, repos: Collection[RepoRef] | None) -> Sequence[WorkView]:
+        """Every piece of work of these repositories (of all repositories when ``None``), most recent first."""
         ...

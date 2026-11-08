@@ -21,7 +21,9 @@ def router(web: Web) -> APIRouter:
     routes = APIRouter()
 
     async def items_for(session: Session) -> list[views.ItemView]:
-        works = await board(web.deps.runner, web.deps.forge, user_token=session.user_token)
+        works = await board(
+            web.deps.runner, web.deps.forge, user_token=session.user_token, everything=web.is_admin(session)
+        )
         return [views.item_view(work) for work in works]
 
     @routes.get("/board", response_class=HTMLResponse)

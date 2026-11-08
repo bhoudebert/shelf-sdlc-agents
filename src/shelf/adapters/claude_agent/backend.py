@@ -13,7 +13,14 @@ class AgentFailedError(RuntimeError):
 
     def __init__(self, role: str, reason: str) -> None:
         """Say which role failed and why."""
-        super().__init__(f"{role} failed: {reason}")
+        hint = (
+            ". The agents run inside the worker container and need their own credential there, not the host's login: "
+            "set CLAUDE_CODE_OAUTH_TOKEN (from `claude setup-token`) or ANTHROPIC_API_KEY in deploy/.env, then run "
+            "sh deploy/install.sh"
+            if "not logged in" in reason.lower()
+            else ""
+        )
+        super().__init__(f"{role} failed: {reason}{hint}")
 
 
 def options_for(task: AgentTask, *, nested_sandbox: bool = False) -> ClaudeAgentOptions:

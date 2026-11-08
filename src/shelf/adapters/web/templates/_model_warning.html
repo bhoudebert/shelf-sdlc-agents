@@ -1,0 +1,7 @@
+{% if not model_ready %}
+<p class="alert model-warning" role="alert">
+  <strong>No model credential is set on this instance.</strong>
+  Agent steps will fail with &ldquo;Not logged in&rdquo;.
+  {% if admin %}Run <code>claude setup-token</code> on your server and add <code>CLAUDE_CODE_OAUTH_TOKEN=&hellip;</code> (or <code>ANTHROPIC_API_KEY</code>) to <code>deploy/.env</code>, then run <code>sh deploy/install.sh</code>.{% else %}Ask the administrator to set it up.{% endif %}
+</p>
+{% endif %}

@@ -44,8 +44,8 @@ class FakeRunner:
     async def view(self, work_id: WorkId) -> WorkView | None:
         return self.views.get(work_id)
 
-    async def list(self, repos: Collection[RepoRef]) -> Sequence[WorkView]:
-        return [v for v in self.views.values() if v.repo in repos]
+    async def list(self, repos: Collection[RepoRef] | None) -> Sequence[WorkView]:
+        return [v for v in self.views.values() if repos is None or v.repo in repos]
 
 
 @dataclass

@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from shelf.adapters.claude_agent.backend import options_for
+from shelf.adapters.claude_agent.backend import AgentFailedError, options_for
 from shelf.adapters.claude_agent.prompts import load_prompt
 from shelf.domain.pipeline import Phase
 from shelf.domain.roles import ROLES
@@ -39,6 +39,13 @@ def test_every_role_has_a_system_prompt(phase: Phase) -> None:
 def test_every_reviewer_prompt_defines_the_verdict_line() -> None:
     for phase in (Phase.SPEC_REVIEW, Phase.DESIGN_REVIEW, Phase.CODE_REVIEW):
         assert "VERDICT: APPROVE" in load_prompt(ROLES[phase].name)
+
+
+def test_a_login_failure_tells_the_operator_where_the_credential_goes() -> None:
+    message = str(AgentFailedError("intake", "Not logged in · Please run /login"))
+    assert "CLAUDE_CODE_OAUTH_TOKEN" in message
+    assert "deploy/.env" in message
+    assert "CLAUDE_CODE_OAUTH_TOKEN" not in str(AgentFailedError("intake", "max turns reached"))
 
 
 def test_the_nested_sandbox_is_opt_in_for_containers() -> None:
