@@ -102,3 +102,39 @@ The system SHALL answer a start or a decision on a repository with an invalid co
 
 - **WHEN** a person starts work on a repository whose `.shelf/config.toml` has an unknown key
 - **THEN** the start form shows the reason and nothing starts
+
+### Requirement: The board puts what needs a person first
+
+The system SHALL group the board by what is asked of the person (needs you, running, finished), show each piece of work's status with a word and a glyph and not by colour alone, and keep a chosen filter when the board updates live.
+
+#### Scenario: Work waiting for a person
+
+- **WHEN** one piece of work waits for a decision and another runs
+- **THEN** the waiting one is listed first, under its own heading
+
+### Requirement: The pipeline timeline is readable without colour
+
+The system SHALL show every phase of the pipeline on the work page with a distinct glyph and word for done, in progress, waiting, stopped and not yet reached, and SHALL mark the current phase for assistive technology.
+
+#### Scenario: A stopped piece of work
+
+- **WHEN** work was aborted at the design phase
+- **THEN** earlier phases show as done, the design phase as stopped and later phases as not reached
+
+### Requirement: Destructive decisions are set apart and confirmed
+
+The system SHALL show the primary decision alone and prominent, ask for a note only next to the request for changes, and set reject and abort apart behind a confirmation.
+
+#### Scenario: Aborting
+
+- **WHEN** a person chooses abort
+- **THEN** they are asked to confirm before the decision is sent
+
+### Requirement: The interface works without third-party requests or scripts
+
+The system SHALL serve every script, style and font from the instance itself, make no request to another origin, and remain usable for reading when scripts do not run.
+
+#### Scenario: Offline from the internet
+
+- **WHEN** the instance has no outbound access
+- **THEN** every page renders completely
