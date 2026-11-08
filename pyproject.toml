@@ -7,9 +7,14 @@ license = "Apache-2.0"
 requires-python = ">=3.13"
 dependencies = [
     "claude-agent-sdk>=0.1",
+    "fastapi>=0.115",
     "httpx>=0.28",
+    "itsdangerous>=2.2",
+    "jinja2>=3.1",
+    "python-multipart>=0.0.20",
     "pyjwt[crypto]>=2.10",
     "temporalio>=1.8",
+    "uvicorn>=0.32",
 ]
 
 [dependency-groups]
@@ -47,9 +52,11 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "S105", "S106", "PLR2004", "D", "ANN", "ARG001", "ARG002", "ARG005", "FBT003", "E501"]
+"tests/**" = ["S101", "S105", "S106", "PLR2004", "D", "ANN", "ARG001", "ARG002", "ARG005", "FBT003", "E501", "S107"]
 # A state machine is a table of transitions: one return per case is the clearest form.
 "src/shelf/domain/work.py" = ["PLR0911"]
+# Route handlers take what FastAPI injects: request, session and every form field.
+"src/shelf/adapters/web/*.py" = ["PLR0913", "PLR0917"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

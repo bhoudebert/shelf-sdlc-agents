@@ -69,3 +69,12 @@ The system SHALL start one workflow per piece of work with the policy of its rep
 
 - **WHEN** the board is asked for work that does not exist
 - **THEN** it has no view of it
+
+### Requirement: A closed pull request can be signalled from outside
+
+The system SHALL let a webhook tell a piece of work that its pull request was merged or closed, ending the work accordingly without waiting for the next look.
+
+#### Scenario: A merge signalled by a webhook
+
+- **WHEN** the work is told its pull request was merged
+- **THEN** it ends as merged

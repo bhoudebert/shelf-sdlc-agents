@@ -18,6 +18,10 @@ class WorkRunner(Protocol):
         """Deliver a person's decision to the work waiting for it."""
         ...
 
+    async def pull_request_closed(self, work_id: WorkId, *, merged: bool) -> None:
+        """Tell the work its pull request was merged or closed (what a webhook learns)."""
+        ...
+
     async def view(self, work_id: WorkId) -> WorkView | None:
         """The current picture of one piece of work, or ``None`` when it does not exist."""
         ...

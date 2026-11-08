@@ -1,0 +1,15 @@
+<div id="panel" hx-get="/work/{{ item.id }}/panel" hx-trigger="every 3s" hx-swap="outerHTML">
+  <h2>{{ item.waiting or item.outcome or "Running" }} · {{ item.phase }}</h2>
+  <ol class="timeline">
+    {% for step in timeline %}<li class="{{ step.state }}">{{ step.label }}</li>{% endfor %}
+  </ol>
+  {% if item.detail %}<pre>{{ item.detail }}</pre>{% endif %}
+  {% if item.pull_request_url %}<p><a href="{{ item.pull_request_url }}">Pull request</a></p>{% endif %}
+  {% if flash %}<p role="status">{{ flash }}</p>{% endif %}
+  {% if decisions %}
+  <form hx-post="/work/{{ item.id }}/decide" hx-target="#panel" hx-swap="outerHTML">
+    <label>Note <textarea name="note" rows="3"></textarea></label>
+    {% for decision in decisions %}<button name="kind" value="{{ decision.value }}">{{ decision.label }}</button>{% endfor %}
+  </form>
+  {% endif %}
+</div>

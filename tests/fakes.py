@@ -28,6 +28,7 @@ class FakeForge:
 class FakeRunner:
     views: dict[WorkId, WorkView] = field(default_factory=dict[WorkId, WorkView])
     decisions: list[tuple[WorkId, PersonDecided]] = field(default_factory=list[tuple[WorkId, PersonDecided]])
+    closed: list[tuple[WorkId, bool]] = field(default_factory=list[tuple[WorkId, bool]])
 
     async def start(self, request: WorkRequest) -> WorkId:
         work_id = WorkId(f"work-{len(self.views) + 1}")
@@ -36,6 +37,9 @@ class FakeRunner:
 
     async def decide(self, work_id: WorkId, decision: PersonDecided) -> None:
         self.decisions.append((work_id, decision))
+
+    async def pull_request_closed(self, work_id: WorkId, *, merged: bool) -> None:
+        self.closed.append((work_id, merged))
 
     async def view(self, work_id: WorkId) -> WorkView | None:
         return self.views.get(work_id)

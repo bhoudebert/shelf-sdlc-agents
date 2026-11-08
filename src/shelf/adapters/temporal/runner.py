@@ -64,6 +64,11 @@ class TemporalRunner:
         handle = self.client.get_workflow_handle_for(WorkItemWorkflow.run, work_id)
         await handle.signal(WorkItemWorkflow.decided, wire.DecisionDto(decision.by, decision.kind, decision.note))
 
+    async def pull_request_closed(self, work_id: WorkId, *, merged: bool) -> None:
+        """Signal the workflow that its pull request was merged or closed."""
+        handle = self.client.get_workflow_handle_for(WorkItemWorkflow.run, work_id)
+        await handle.signal(WorkItemWorkflow.pull_request_closed, merged)
+
     async def view(self, work_id: WorkId) -> WorkView | None:
         """The current picture of one piece of work."""
         handle = self.client.get_workflow_handle_for(WorkItemWorkflow.run, work_id)

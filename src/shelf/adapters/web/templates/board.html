@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Board · shelf-sdlc{% endblock %}
+{% block content %}
+<h1>Board</h1>
+{% if not has_repos %}
+<section class="empty">
+  <h2>No repositories yet</h2>
+  <p>Install the GitHub App on the repositories you want to work on. They appear here once you do.</p>
+  <p><a href="{{ install_url }}">Install or configure on GitHub</a></p>
+</section>
+{% else %}
+<p><a href="/start">Start work</a></p>
+{% endif %}
+<div id="board" hx-ext="sse" sse-connect="/board/stream" sse-swap="board">
+  {% include "_board_items.html" %}
+</div>
+{% endblock %}

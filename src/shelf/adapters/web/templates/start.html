@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Start · shelf-sdlc{% endblock %}
+{% block content %}
+<h1>Start work</h1>
+{% if error %}<p role="alert">{{ error }}</p>{% endif %}
+{% if not repos %}
+<p>No repositories are available to you yet. <a href="{{ install_url }}">Install the GitHub App</a> on one.</p>
+{% else %}
+<form method="post" action="/start">
+  <label>Repository
+    <select name="repo" required>
+      {% for repo in repos %}<option>{{ repo }}</option>{% endfor %}
+    </select>
+  </label>
+  <fieldset>
+    <legend>Start at</legend>
+    {% for entry in entries %}
+    <label><input type="radio" name="entry" value="{{ entry.value }}" required> {{ entry.label }} <small>{{ entry.help }}</small></label>
+    {% endfor %}
+  </fieldset>
+  <label>What you want (or your document)
+    <textarea name="text" rows="8"></textarea>
+  </label>
+  <label>Pull request number (to review)
+    <input name="pull_request" inputmode="numeric" pattern="[0-9]*">
+  </label>
+  <button>Start</button>
+</form>
+{% endif %}
+{% endblock %}

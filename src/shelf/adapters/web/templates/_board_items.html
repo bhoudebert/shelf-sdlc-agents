@@ -1,0 +1,15 @@
+{% if items %}
+<ul class="items">
+{% for item in items %}
+  <li class="item {{ item.status.value }}">
+    <a href="/work/{{ item.id }}">{{ item.repo }}</a>
+    <span>{{ item.entry }}</span>
+    <span>{{ item.phase }}</span>
+    <span>{{ item.waiting or item.outcome or "Running" }}</span>
+    <span>{{ item.requester }}</span>
+  </li>
+{% endfor %}
+</ul>
+{% else %}
+<p>Nothing running yet.</p>
+{% endif %}
