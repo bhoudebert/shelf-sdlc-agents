@@ -23,6 +23,19 @@
 <p>Webhooks are used in server mode. In local mode the app is polled instead.</p>
 <h2 id="install">Granting repositories</h2>
 <p>Install the app on your account or organisation and choose which repositories it may touch. Only repositories you grant appear in the picker, and the app can never reach the others.</p>
+<h2 id="manual">Creating it by hand</h2>
+<p>The one-click registration fills all of this in for you. If you prefer the form on GitHub (Settings, Developer settings, GitHub Apps, New GitHub App), use these values, with your own address in place of <code>https://shelf.example.org</code>:</p>
+<div class="table-wrap"><table><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody>
+<tr><td>Homepage URL</td><td><code>https://shelf.example.org</code></td></tr>
+<tr><td>Callback URL</td><td><code>https://shelf.example.org/auth/callback</code>: where GitHub sends people back after they sign in.</td></tr>
+<tr><td>Request user authorization during installation</td><td>Leave unchecked.</td></tr>
+<tr><td>Setup URL (optional)</td><td><code>https://shelf.example.org/setup/installed</code>: where people land after installing the App. Tick "Redirect on update".</td></tr>
+<tr><td>Webhook: Active</td><td>Checked.</td></tr>
+<tr><td>Webhook URL</td><td><code>https://shelf.example.org/api/github/webhook</code></td></tr>
+<tr><td>Webhook secret</td><td>A long random string that you make up, for example <code>openssl rand -hex 32</code>. Put the same value in <code>GITHUB_WEBHOOK_SECRET</code>. GitHub uses it to sign every delivery and the instance refuses any delivery that is not signed with it.</td></tr>
+<tr><td>Where can this App be installed?</td><td>Only on this account.</td></tr>
+</tbody></table></div>
+<p>Then set the repository permissions and events listed above. After creating the App, generate a <strong>client secret</strong> and a <strong>private key</strong> on its page and fill <code>GITHUB_APP_ID</code>, <code>GITHUB_APP_SLUG</code> (the name in the App's URL), <code>GITHUB_APP_CLIENT_ID</code>, <code>GITHUB_APP_CLIENT_SECRET</code>, <code>GITHUB_WEBHOOK_SECRET</code> and <code>GITHUB_APP_PRIVATE_KEY</code> in <code>deploy/.env</code>.</p>
 <nav class="pager" aria-label="Pages"><a href="getting-started.html">&larr; Getting started</a><a href="concepts.html">Concepts &rarr;</a></nav></main></div>
 <footer class="foot"><p class="big" aria-hidden="true">shelf-sdlc</p>
 <ul><li><a href="getting-started.html">Documentation</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents">Repository</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents/blob/main/CONTRIBUTING.md">Contributing</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents/issues">Issues</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents/blob/main/LICENSE">Apache-2.0</a></li></ul>

@@ -12,6 +12,8 @@ name: shelf-sdlc
 x-shelf: &shelf
   build:
     context: ..
+    args:
+      SHELF_REVISION: ${SHELF_REVISION:-unknown}
   restart: unless-stopped
   env_file: [.env]
   environment:

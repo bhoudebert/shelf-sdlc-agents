@@ -13,6 +13,24 @@
       <li><strong>Copy the credentials.</strong> They are shown once. Paste them into <code>deploy/.env</code> and run <code>sh deploy/install.sh</code> again.</li>
       <li><strong>Install the App</strong> on the repositories you want to use, then sign in.</li>
     </ol>
+    <details class="manual">
+      <summary>Prefer to create the App by hand on GitHub?</summary>
+      <p>Settings, Developer settings, GitHub Apps, New GitHub App. Fill in exactly these:</p>
+      <dl class="values">
+        <dt>Homepage URL</dt><dd><code>{{ public_url }}</code></dd>
+        <dt>Callback URL</dt><dd><code>{{ public_url }}/auth/callback</code> <small>(where GitHub returns people after sign-in)</small></dd>
+        <dt>Request user authorization during installation</dt><dd>leave unchecked</dd>
+        <dt>Setup URL</dt><dd><code>{{ public_url }}/setup/installed</code> <small>(optional: where people land after installing)</small></dd>
+        <dt>Redirect on update</dt><dd>checked</dd>
+        <dt>Webhook: Active</dt><dd>checked</dd>
+        <dt>Webhook URL</dt><dd><code>{{ public_url }}/api/github/webhook</code></dd>
+        <dt>Webhook secret</dt><dd>a long random string you make up, for example the output of <code>openssl rand -hex 32</code>. Put the same value in <code>GITHUB_WEBHOOK_SECRET</code>.</dd>
+        <dt>Repository permissions</dt><dd>Contents: read and write. Pull requests: read and write. Issues: read and write. Checks: read-only. Metadata: read-only.</dd>
+        <dt>Subscribe to events</dt><dd>Pull request, Issue comment, Check suite, Push.</dd>
+        <dt>Where can this App be installed?</dt><dd>Only on this account</dd>
+      </dl>
+      <p>After creating it, generate a client secret and a private key on the App's page, then fill <code>GITHUB_APP_ID</code>, <code>GITHUB_APP_SLUG</code> (the name in its URL), <code>GITHUB_APP_CLIENT_ID</code>, <code>GITHUB_APP_CLIENT_SECRET</code>, <code>GITHUB_WEBHOOK_SECRET</code> and <code>GITHUB_APP_PRIVATE_KEY</code> in <code>deploy/.env</code>.</p>
+    </details>
   </section>
   <section class="welcome-shelf" aria-labelledby="perms-title">
     <h2 id="perms-title" class="field-title">What the App is allowed to do</h2>

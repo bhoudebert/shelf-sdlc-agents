@@ -37,6 +37,7 @@ class Settings:
     max_budget_usd: float | None
     nested_sandbox: bool
     port: int
+    revision: str
 
 
 def _required(environ: Mapping[str, str], key: str) -> str:
@@ -89,4 +90,5 @@ def from_environ(environ: Mapping[str, str]) -> Settings:
         max_budget_usd=float(budget) if budget else None,
         nested_sandbox=environ.get("SHELF_NESTED_SANDBOX", "").strip().lower() in {"1", "true", "yes"},
         port=int(environ.get("PORT", "8080")),
+        revision=environ.get("SHELF_REVISION", "unknown"),
     )

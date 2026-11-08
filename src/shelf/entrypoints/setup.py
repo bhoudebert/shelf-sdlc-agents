@@ -19,7 +19,7 @@ from shelf.adapters.web.context import ASSETS
 HttpClient = Callable[[], AbstractAsyncContextManager[httpx.AsyncClient]]
 
 
-def create_setup_app(public_url: str, http_client: HttpClient | None = None) -> FastAPI:
+def create_setup_app(public_url: str, http_client: HttpClient | None = None, revision: str = "unknown") -> FastAPI:
     """The registration helper for the instance served at ``public_url``."""
     app = FastAPI(title="shelf-sdlc setup", docs_url=None, redoc_url=None, openapi_url=None)
     app.mount("/static", StaticFiles(directory=ASSETS / "static"), name="static")
@@ -50,6 +50,6 @@ def create_setup_app(public_url: str, http_client: HttpClient | None = None) -> 
 
     @app.get("/healthz")
     async def health() -> dict[str, str]:
-        return {"status": "setup"}
+        return {"status": "setup", "revision": revision}
 
     return app

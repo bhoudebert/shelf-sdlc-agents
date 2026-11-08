@@ -20,6 +20,24 @@ The system SHALL send a visitor through GitHub's OAuth flow with a state value t
 - **WHEN** the callback carries a state that does not match the cookie
 - **THEN** it is refused
 
+### Requirement: Installing the App lands on the board
+
+The system SHALL answer the address GitHub redirects to after the App is installed by sending the person to the board, which asks them to sign in first if they are not.
+
+#### Scenario: Right after installing
+
+- **WHEN** GitHub redirects a person to the setup address after installation
+- **THEN** they arrive on the board, not on an error
+
+### Requirement: The health check reports the build
+
+The system SHALL answer the health check with its status and the git revision of the build.
+
+#### Scenario: Health
+
+- **WHEN** the health check is requested
+- **THEN** it answers with the status and the revision
+
 ### Requirement: Sessions are signed cookies without a user table
 
 The system SHALL identify a session by a random id in a signed, HttpOnly, SameSite=Lax cookie, keep the person's GitHub token only on the server, and expire the session when the token would.

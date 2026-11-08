@@ -18,7 +18,7 @@ from shelf.domain.work import DecisionKind, PersonDecided, Reason
 from tests.fakes import FakeConfigs, FakeForge, FakeRunner
 
 REPO = RepoRef("acme", "shop")
-SETTINGS = WebSettings("https://shelf.example.org", "shelf", "Iv1.client", "hook-secret", "k" * 32)
+SETTINGS = WebSettings("https://shelf.example.org", "shelf", "Iv1.client", "hook-secret", "k" * 32, revision="abc1234")
 ALICE = Identity("alice", frozenset({"acme"}))
 
 
@@ -212,5 +212,10 @@ def test_an_event_we_do_not_act_on_is_acknowledged(app: Fixture) -> None:
     assert post_hook(app, "star", {"action": "created"}) == 202
 
 
+def test_after_installing_the_app_github_sends_people_to_the_board(app: Fixture) -> None:
+    response = app.client.get("/setup/installed", params={"installation_id": "1", "setup_action": "install"})
+    assert (response.status_code, response.headers["location"]) == (303, "/board")
+
+
 def test_the_health_check_answers(app: Fixture) -> None:
-    assert app.client.get("/healthz").json() == {"status": "ok"}
+    assert app.client.get("/healthz").json() == {"status": "ok", "revision": "abc1234"}

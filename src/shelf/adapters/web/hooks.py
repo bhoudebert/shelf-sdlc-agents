@@ -34,6 +34,6 @@ def router(web: Web) -> APIRouter:
 
     @routes.get("/healthz")
     async def health() -> dict[str, str]:
-        return {"status": "ok"}
+        return {"status": "ok", "revision": web.deps.settings.revision}
 
     return routes

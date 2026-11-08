@@ -23,6 +23,11 @@ def router(web: Web) -> APIRouter:
             return RedirectResponse("/board", status_code=303)
         return web.render(request, "login.html", None, login_url="/auth/login")
 
+    @routes.get("/setup/installed")
+    async def installed() -> Response:
+        """Where GitHub sends a person after they install the App: on to their board (or to sign in first)."""
+        return RedirectResponse("/board", status_code=303)
+
     @routes.get("/auth/login")
     async def login() -> Response:
         state = secrets.token_urlsafe(16)
