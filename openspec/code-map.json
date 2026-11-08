@@ -54,6 +54,14 @@
         "tests/adapters/temporal/*.py",
         "tests/domain/test_polling.py"
       ]
+    },
+    "github-app": {
+      "code": [
+        "src/shelf/adapters/github_app/*.py"
+      ],
+      "tests": [
+        "tests/adapters/github_app/*.py"
+      ]
     }
   }
 }
