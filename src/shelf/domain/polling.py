@@ -24,5 +24,5 @@ class Mode(StrEnum):
 def poll_bounds(mode: Mode) -> tuple[timedelta, timedelta]:
     """The first and the longest interval between looks at GitHub for ``mode``."""
     if mode is Mode.LOCAL:
-        return timedelta(seconds=30), timedelta(minutes=15)
-    return timedelta(minutes=5), timedelta(hours=1)
+        return timedelta(seconds=30), timedelta(minutes=5)
+    return timedelta(minutes=1), timedelta(minutes=10)

@@ -49,6 +49,35 @@ class Check:
     system: str = "You are a careful assistant. Be brief."
 
 
+SANDBOX_HINT = (
+    "Claude Code's sandbox cannot start here, so commands are refused. On an Ubuntu 23.10+ host run "
+    "`sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0` (keep it across reboots in /etc/sysctl.d/), "
+    "restart the worker and run this again. Only as a last resort, for repositories you fully trust, set "
+    "SHELF_SANDBOX_DISABLED=1: without the sandbox an agent can read the worker's environment and mounted secrets."
+)
+
+
+def probe_sandbox() -> Outcome:
+    """Try to start the sandbox's own tool the way Claude Code does, and report what it says if it cannot."""
+    try:
+        done = subprocess.run(
+            ["bwrap", "--ro-bind", "/", "/", "--unshare-user", "true"],  # noqa: S607
+            capture_output=True,
+            text=True,
+            timeout=20,
+            check=False,
+        )
+    except FileNotFoundError:
+        return Outcome(
+            "The sandbox tool (bubblewrap) is installed", passed=False, detail="bwrap not found", hint=SANDBOX_HINT
+        )
+    except subprocess.TimeoutExpired:
+        return Outcome("The sandbox can start", passed=False, detail="bwrap did not return", hint=SANDBOX_HINT)
+    if done.returncode == 0:
+        return Outcome("The sandbox can start", passed=True, detail="")
+    return Outcome("The sandbox can start", passed=False, detail=done.stderr.strip()[-300:], hint=SANDBOX_HINT)
+
+
 def make_repository(root: Path) -> None:
     """A throwaway repository: two commits in Conventional Commits style and a CLAUDE.md with a rule to follow."""
     run = ["git", "-c", "user.email=doctor@shelf", "-c", "user.name=doctor"]
@@ -91,15 +120,16 @@ def checks() -> list[Check]:
             ROLES[Phase.IMPLEMENT],
             "Run `echo shelf-ok > ran.txt` and confirm it worked.",
             lambda _answer, root: (root / "ran.txt").exists(),
-            "The sandbox cannot start on this host. Test it with `bwrap --ro-bind / / true`; if that fails set "
-            "SHELF_SANDBOX_DISABLED=1 in deploy/.env (the container is then the only boundary around the agents).",
+            SANDBOX_HINT,
         ),
     ]
 
 
-async def diagnose(agents: AgentBackend, model: str | None = None) -> list[Outcome]:
-    """Run every check with ``agents`` in a fresh throwaway repository each."""
-    outcomes: list[Outcome] = []
+async def diagnose(
+    agents: AgentBackend, model: str | None = None, *, sandbox: Callable[[], Outcome] | None = None
+) -> list[Outcome]:
+    """Run every check with ``agents`` in a fresh throwaway repository each, after probing the sandbox if asked to."""
+    outcomes: list[Outcome] = [sandbox()] if sandbox is not None else []
     for check in checks():
         with tempfile.TemporaryDirectory(prefix="shelf-doctor-") as directory:
             root = Path(directory)
@@ -141,7 +171,7 @@ def main() -> None:
     backend = ClaudeBackend(
         nested_sandbox=settings.nested_sandbox, sandbox=settings.sandbox, cli_path=settings.claude_cli
     )
-    outcomes = asyncio.run(diagnose(backend, settings.model))
+    outcomes = asyncio.run(diagnose(backend, settings.model, sandbox=probe_sandbox if settings.sandbox else None))
     print(report(outcomes, credential=settings.model_credential))  # noqa: T201
     sys.exit(0 if settings.model_credential and all(outcome.passed for outcome in outcomes) else 1)
 

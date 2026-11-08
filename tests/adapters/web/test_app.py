@@ -430,3 +430,50 @@ def test_a_command_from_someone_not_on_the_access_list_is_ignored() -> None:
 def test_ordinary_people_are_not_shown_the_webhook_status(app: Fixture) -> None:
     app.sign_in()
     assert "GitHub webhook." not in app.client.get("/board").text
+
+
+def test_the_admin_page_lists_every_webhook_delivery_newest_first_with_what_became_of_it() -> None:
+    fixture = Fixture(AccessRules(admins=frozenset({"alice"})))
+    fixture.sign_in()
+    post_hook(fixture, "star", {"action": "created", "repository": {"full_name": "acme/shop"}})
+    post_hook(fixture, "issue_comment", {}, lambda body: signed(body, "another"))
+    page = fixture.client.get("/admin").text
+    assert page.index("<code>issue_comment</code>") < page.index("<code>star</code>")  # newest first
+    assert "REFUSED: wrong signature" in page
+    assert "acme/shop" in page
+    assert "not for us" in page
+
+
+def test_the_admin_page_shows_the_instance_facts_and_never_a_secret() -> None:
+    fixture = Fixture(AccessRules(admins=frozenset({"alice"}), users=frozenset({"bob"})))
+    fixture.sign_in()
+    page = fixture.client.get("/admin").text
+    assert "abc1234" in page  # the revision
+    assert "https://shelf.example.org" in page
+    assert "bob" in page
+    assert "hook-secret" not in page
+    assert "k" * 32 not in page
+
+
+def test_an_empty_admin_page_says_what_to_check() -> None:
+    fixture = Fixture(AccessRules(admins=frozenset({"alice"})))
+    fixture.sign_in()
+    page = fixture.client.get("/admin").text
+    assert "Nothing yet" in page
+    assert "Recent deliveries" in page
+
+
+def test_only_administrators_open_the_admin_page_and_see_its_link(app: Fixture) -> None:
+    app.sign_in()
+    assert app.client.get("/admin").status_code == 403
+    assert 'href="/admin"' not in app.client.get("/board").text
+
+
+def test_an_administrator_sees_the_admin_link_in_the_navigation() -> None:
+    fixture = Fixture(AccessRules(admins=frozenset({"alice"})))
+    fixture.sign_in()
+    assert 'href="/admin"' in fixture.client.get("/board").text
+
+
+def test_a_visitor_who_is_not_signed_in_is_sent_to_sign_in_from_the_admin_page(app: Fixture) -> None:
+    assert app.client.get("/admin").status_code == 303

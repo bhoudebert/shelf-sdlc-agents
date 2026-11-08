@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Admin · shelf-sdlc{% endblock %}
+{% block content %}
+<div class="page">
+  <div class="page-head"><h1>Admin</h1></div>
+  {% include "_webhook_status.html" %}
+
+  <section class="admin-block" aria-labelledby="deliveries-title">
+    <h2 id="deliveries-title">What GitHub has sent</h2>
+    <p class="muted">The latest webhook deliveries since this instance started, newest first. Compare with the App's page on
+      GitHub: <a href="{{ app_url }}" target="_blank" rel="noopener noreferrer">the App<span class="vh"> (opens in a new tab)</span></a>,
+      then Settings, Advanced, Recent deliveries, where each delivery has the same id.</p>
+    {% if deliveries %}
+    <div class="table-wrap">
+      <table class="admin-table">
+        <thead><tr><th>When</th><th>Event</th><th>Repository</th><th>Result</th><th>Detail</th><th>Delivery id</th></tr></thead>
+        <tbody>
+        {% for d in deliveries %}
+          <tr class="row-{{ d.result }}">
+            <td>{{ d.when }}<br><small>{{ d.ago }}</small></td>
+            <td><code>{{ d.event }}</code></td>
+            <td>{{ d.repo }}</td>
+            <td><strong>{{ d.outcome }}</strong></td>
+            <td>{{ d.detail }}</td>
+            <td><code>{{ d.delivery }}</code></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p>Nothing yet. Write a comment on a pull request of a repository the App is installed on, then reload this page: if no
+      delivery shows up, GitHub is not reaching <code>/api/github/webhook</code> (check the App's webhook URL, that it is
+      Active, and its Recent deliveries), or it is reaching it with a wrong secret.</p>
+    {% endif %}
+  </section>
+
+  <section class="admin-block" aria-labelledby="facts-title">
+    <h2 id="facts-title">This instance</h2>
+    <dl class="facts">
+      {% for name, value in facts %}<dt>{{ name }}</dt><dd>{{ value }}</dd>{% endfor %}
+    </dl>
+  </section>
+</div>
+{% endblock %}

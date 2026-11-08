@@ -136,8 +136,14 @@ class Steps:
     def _title_prompt(self, work: WorkContext, base: str, workspace: Workspace) -> str:
         lines = [
             f"Requested by: {work.request.requester}",
-            f"The base branch is `{base}`: `git diff {base}...HEAD` shows what this work changed.",
-            f"The documents of this work are in `{documents_dir(work.id)}/`.",
+            (
+                f"The base branch is `{base}`. What this work changes, ignoring the factory's own bookkeeping: "
+                f"`git diff {base}...HEAD -- . ':(exclude)docs/shelf'`."
+            ),
+            (
+                f"The documents of this work are in `{documents_dir(work.id)}/`: they record the request and the spec, "
+                "and they are not what the pull request changes."
+            ),
         ]
         if work.request.text:
             lines += ["", "The request:", work.request.text.strip()[:2000]]

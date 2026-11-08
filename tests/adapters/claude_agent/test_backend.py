@@ -74,3 +74,34 @@ def test_a_specific_claude_executable_can_be_used() -> None:
         options_for(task(Phase.IMPLEMENT), cli_path="/home/ubuntu/.local/bin/claude").cli_path
         == "/home/ubuntu/.local/bin/claude"
     )
+
+
+def test_the_workers_secrets_are_blanked_for_the_agent_but_what_it_needs_is_left_alone() -> None:
+    from shelf.adapters.claude_agent.backend import hidden_from_agents  # noqa: PLC0415
+
+    environ = {
+        "PATH": "/usr/bin",
+        "HOME": "/home/shelf",
+        "CLAUDE_CODE_OAUTH_TOKEN": "needed",
+        "GITHUB_APP_CLIENT_SECRET": "s",
+        "GITHUB_APP_PRIVATE_KEY": "k",
+        "GITHUB_WEBHOOK_SECRET": "w",
+        "SESSION_SECRET": "x",
+    }
+    assert hidden_from_agents(environ) == {
+        "GITHUB_APP_CLIENT_SECRET": "",
+        "GITHUB_APP_PRIVATE_KEY": "",
+        "GITHUB_WEBHOOK_SECRET": "",
+        "SESSION_SECRET": "",
+    }
+
+
+def test_an_agents_options_override_the_inherited_secrets_and_keep_what_the_step_passes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SESSION_SECRET", "leak")
+    monkeypatch.setenv("GITHUB_APP_ID", "123")
+    options = options_for(task(Phase.IMPLEMENT))
+    assert options.env["SESSION_SECRET"] == ""
+    assert options.env["GITHUB_APP_ID"] == ""
+    assert options.env["GH_TOKEN"] == "t"  # what the step passes is kept

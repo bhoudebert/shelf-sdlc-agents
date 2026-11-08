@@ -1,9 +1,9 @@
 """What the templates show: plain view models built from domain values, with the words people read."""
 
 import hashlib
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
 
 from markdown_it import MarkdownIt
@@ -255,7 +255,7 @@ def webhook_status(last: Delivery | None, now: datetime) -> WebhookStatus:
         return WebhookStatus(
             "warning",
             "No GitHub webhook has reached this instance since it started. A command typed on a pull request is then "
-            "only noticed by the periodic check, every 5 to 60 minutes. On the App's settings page, Advanced, Recent "
+            "only noticed by the periodic check, every 1 to 10 minutes. On the App's settings page, Advanced, Recent "
             "deliveries, see whether GitHub sends them and what we answer: the webhook URL, the secret and the "
             "subscribed events (Pull request, Issue comment) must match.",
         )
@@ -273,3 +273,43 @@ def webhook_status(last: Delivery | None, now: datetime) -> WebhookStatus:
             return WebhookStatus("ok", f"GitHub webhooks arrive. Last one: {when}, applied: {last.detail}.")
         case Result.IGNORED:
             return WebhookStatus("ok", f"GitHub webhooks arrive. Last one: {when}.")
+
+
+@dataclass(frozen=True, slots=True)
+class DeliveryRow:
+    """One webhook delivery, ready to show."""
+
+    when: str
+    ago: str
+    event: str
+    repo: str
+    result: str
+    outcome: str
+    detail: str
+    delivery: str
+
+
+RESULT_WORDS: dict[Result, tuple[str, str]] = {
+    Result.APPLIED: ("applied", "ok"),
+    Result.IGNORED: ("not for us", "ok"),
+    Result.BAD_SIGNATURE: ("REFUSED: wrong signature", "error"),
+    Result.REFUSED: ("not applied", "warning"),
+}
+
+
+def delivery_rows(deliveries: Sequence[Delivery], now: datetime | None = None) -> list[DeliveryRow]:
+    """The deliveries in the order given, with times, words and a level for each result."""
+    moment = now or datetime.now(UTC)
+    return [
+        DeliveryRow(
+            when=d.at.strftime("%Y-%m-%d %H:%M:%S UTC"),
+            ago=ago(d.at, moment),
+            event=d.event or "?",
+            repo=d.repo or "-",
+            result=RESULT_WORDS[d.result][1],
+            outcome=RESULT_WORDS[d.result][0],
+            detail=d.detail,
+            delivery=d.delivery or "-",
+        )
+        for d in deliveries
+    ]
