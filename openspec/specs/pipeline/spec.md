@@ -69,3 +69,17 @@ The system SHALL publish a pull request for work that arrives without one, and S
 
 - **WHEN** work starts from a plan
 - **THEN** the course publishes a pull request
+
+### Requirement: A course carries the protocol its work started with
+
+The system SHALL build the course of a piece of work with the protocol version it starts under, defaulting to the original behaviour for work that has none recorded, and SHALL say whether that protocol opens the pull request early.
+
+#### Scenario: Original work
+
+- **WHEN** a course is built for work with no recorded protocol
+- **THEN** it has protocol 1 and does not open the pull request early
+
+#### Scenario: New work
+
+- **WHEN** a course is built for new work
+- **THEN** it has the current protocol and opens the pull request early
