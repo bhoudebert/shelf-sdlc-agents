@@ -83,3 +83,26 @@ The system SHALL show, before the registration click, the address being register
 
 - **WHEN** the credentials are shown
 - **THEN** a single action copies the whole `.env` block
+
+### Requirement: An install or update always replaces what runs, and says what runs
+
+The system SHALL, on every run of the install script, rebuild the image stamped with the checkout's git revision, replace the web and worker containers, and report the revision the web service answers with, warning when it differs from the checkout.
+
+#### Scenario: An update
+
+- **WHEN** the operator pulls new code and runs the script again
+- **THEN** the containers are recreated from a rebuilt image and the script prints the new revision as running
+
+#### Scenario: A stale service
+
+- **WHEN** the service reports another revision than the checkout
+- **THEN** the script warns instead of claiming success
+
+### Requirement: The health check reports the revision
+
+The system SHALL include the git revision of the build in the answer of the health check, in both the product and the setup mode.
+
+#### Scenario: Health
+
+- **WHEN** the health check is requested
+- **THEN** it answers with the status and the revision
