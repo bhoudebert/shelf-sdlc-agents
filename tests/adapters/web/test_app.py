@@ -195,7 +195,7 @@ def test_an_administrator_closes_work_that_cannot_be_steered() -> None:
     waiting(app)
     assert "Close this work" in app.client.get("/work/work-1").text
     response = app.client.post("/work/work-1/close", follow_redirects=False)
-    assert (response.status_code, response.headers["location"]) == (303, "/work/work-1")
+    assert (response.status_code, response.headers["location"]) == (303, "/board")
     assert [work_id for work_id, _ in app.runner.terminated] == [WorkId("work-1")]
 
 
