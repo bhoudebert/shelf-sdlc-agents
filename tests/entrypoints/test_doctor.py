@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from shelf.entrypoints.doctor import CONVENTIONAL, Outcome, checks, diagnose, report
+from shelf.entrypoints.doctor import CONVENTIONAL, Outcome, checks, diagnose, report, title_of
 from shelf.ports.agents import AgentTask
 
 
@@ -137,3 +137,9 @@ async def test_the_sandbox_probe_comes_first_and_is_skipped_when_the_sandbox_is_
     probed = await diagnose(Scripted(GOOD), sandbox=lambda: Outcome("The sandbox can start", passed=True, detail=""))
     assert probed[0].name == "The sandbox can start"
     assert (await diagnose(Scripted(GOOD)))[0].name != "The sandbox can start"
+
+
+def test_the_title_is_the_first_line_even_when_a_repository_rule_adds_a_closing_word() -> None:
+    assert title_of("docs(core): fix typo in README\n\nPINEAPPLE") == "docs(core): fix typo in README"
+    assert title_of("`fix(web): a`") == "fix(web): a"
+    assert title_of("") == ""

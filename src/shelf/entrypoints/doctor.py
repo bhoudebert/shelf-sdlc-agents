@@ -57,6 +57,12 @@ SANDBOX_HINT = (
 )
 
 
+def title_of(answer: str) -> str:
+    """The title an agent proposed: its first non-empty line, since a repository rule may add a closing word."""
+    lines = [line.strip("`\"' ") for line in answer.splitlines() if line.strip()]
+    return lines[0] if lines else ""
+
+
 def probe_sandbox() -> Outcome:
     """Try to start the sandbox's own tool the way Claude Code does, and report what it says if it cannot."""
     try:
@@ -111,7 +117,7 @@ def checks() -> list[Check]:
             "The agent that names pull requests follows the repository's convention",
             TITLER,
             "Write the pull request title for a change that fixes a typo in README.md. Answer with the title only.",
-            lambda answer, _root: bool(CONVENTIONAL.match(answer.strip().splitlines()[-1].strip("`\"' "))),
+            lambda answer, _root: bool(CONVENTIONAL.match(title_of(answer))),
             "The title did not follow the Conventional Commits style found in `git log`.",
             system=load_prompt("titler"),
         ),
