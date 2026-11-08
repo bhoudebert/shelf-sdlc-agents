@@ -103,13 +103,15 @@
         "src/shelf/ports/agents.py",
         "src/shelf/ports/workspace.py",
         "src/shelf/prompts/*.md",
-        "src/shelf/ports/steps.py"
+        "src/shelf/ports/steps.py",
+        "src/shelf/domain/context.py"
       ],
       "tests": [
         "tests/application/test_steps.py",
         "tests/domain/test_roles_and_verdict.py",
         "tests/adapters/git/*.py",
-        "tests/adapters/claude_agent/*.py"
+        "tests/adapters/claude_agent/*.py",
+        "tests/domain/test_context.py"
       ]
     },
     "web": {

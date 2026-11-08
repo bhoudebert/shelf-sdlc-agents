@@ -220,3 +220,12 @@ The system SHALL wire the web service to read a work's documents from GitHub thr
 
 - **WHEN** a work page stays open
 - **THEN** GitHub is asked for the documents at most once every few seconds
+
+### Requirement: The agents' sandbox can be turned off where it cannot start
+
+The system SHALL let the operator turn the agents' sandbox off, for hosts where it cannot start inside the container, and SHALL document how to test it and what the trade-off is.
+
+#### Scenario: A host without user namespaces
+
+- **WHEN** the sandbox cannot start and the operator turns it off
+- **THEN** the agents can run commands with the container as the only boundary

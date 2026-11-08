@@ -137,3 +137,31 @@ The system SHALL have a producer show, in its comment, its closing message and t
 
 - **WHEN** one of two checks fails
 - **THEN** both commands are listed with their result and the failing output is shown
+
+### Requirement: Reading agents can look at the change with read-only git
+
+The system SHALL let the reviewers and the other reading agents run only read-only git commands (diff, log, show, status, blame, ls-files) besides reading and searching files, never arbitrary commands, and SHALL tell a reviewer the base branch so that the diff it is asked to read can be run.
+
+#### Scenario: A code review
+
+- **WHEN** the code reviewer is told to read the diff against the base branch
+- **THEN** it can run `git diff` for it and cannot run anything that changes the repository
+
+#### Scenario: Prompts promise only what agents can do
+
+- **WHEN** a reviewer's prompt names commands
+- **THEN** every one of them is among the commands it is allowed
+
+### Requirement: Every agent sees the whole picture
+
+The system SHALL point each agent, in its task, at the conventions, existing specifications, architecture decisions and the specs of earlier work that already bind the repository, SHALL tell the producers not to contradict them silently, and SHALL make a contradiction at least a major issue for every reviewer.
+
+#### Scenario: A repository with specs and decisions
+
+- **WHEN** an agent starts on a repository that has specifications and decision records
+- **THEN** its task lists them and says not to contradict them
+
+#### Scenario: A conflict in the work
+
+- **WHEN** a reviewer sees the work contradict an existing specification
+- **THEN** it reports it as at least a major issue naming the file and the requirement
