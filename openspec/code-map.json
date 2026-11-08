@@ -80,11 +80,13 @@
     "pull-requests": {
       "code": [
         "src/shelf/adapters/github_app/pulls.py",
-        "src/shelf/domain/commands.py"
+        "src/shelf/domain/commands.py",
+        "src/shelf/adapters/github_app/documents.py"
       ],
       "tests": [
         "tests/adapters/github_app/test_pulls.py",
-        "tests/domain/test_commands.py"
+        "tests/domain/test_commands.py",
+        "tests/adapters/github_app/test_documents.py"
       ]
     },
     "steps": {
@@ -111,7 +113,9 @@
         "src/shelf/adapters/web/*.py",
         "src/shelf/adapters/web/templates/*.html",
         "src/shelf/adapters/web/static/*",
-        "src/shelf/adapters/caching/*.py"
+        "src/shelf/adapters/caching/*.py",
+        "src/shelf/ports/documents.py",
+        "src/shelf/adapters/caching/documents.py"
       ],
       "tests": [
         "tests/adapters/web/*.py",

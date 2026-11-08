@@ -1,6 +1,6 @@
 {% from "_macros.html" import glyph %}
 {% set words = {"done": "Done", "current": "In progress", "waiting": "Waiting", "stopped": "Stopped", "todo": "Not yet"} %}
-<div id="panel" class="panel panel-{{ item.status.value }} reason-{{ item.reason or 'none' }}" hx-get="/work/{{ item.id }}/panel" hx-trigger="every 3s" hx-swap="outerHTML" aria-live="polite" aria-label="Progress of this work">
+<div id="panel" class="panel panel-{{ item.status.value }} reason-{{ item.reason or 'none' }}" hx-get="/work/{{ item.id }}/panel?v={{ version }}" hx-trigger="every 3s" hx-swap="outerHTML" aria-live="polite" aria-label="Progress of this work">
   <section class="status" aria-labelledby="status-title">
     <span class="status-glyph">{{ glyph("running" if item.status.value == "running" else ("waiting" if item.status.value == "waiting" and item.reason != "failure" else ("stopped" if item.reason == "failure" or item.outcome != "Merged" else "done"))) }}</span>
     <div>

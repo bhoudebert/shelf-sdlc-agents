@@ -119,3 +119,12 @@ The system SHALL post on the pull request, after each step, the producer's summa
 
 - **WHEN** a reviewer finishes
 - **THEN** its verdict and issues appear as a comment on the pull request
+
+### Requirement: The documents of a work have fixed names and an order
+
+The system SHALL keep a work's request, spec, design and plan in fixed file names inside its document folder and give them titles and a reading order, so that the interface and the agents agree on where each is.
+
+#### Scenario: The folder
+
+- **WHEN** a work's documents are listed
+- **THEN** they come as request, spec, design and plan, each with its title

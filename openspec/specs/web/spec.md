@@ -235,3 +235,31 @@ The system SHALL reuse for a minute what GitHub said about a person's repositori
 
 - **WHEN** two people open the board
 - **THEN** each gets their own lookup
+
+### Requirement: The documents of a piece of work are shown on its page
+
+The system SHALL show on the work page the request, the spec, the design and the plan as the agents write them, rendered for reading, with the one the work is at open and the others folded, never turning anything the documents contain into active content, and answering a document it cannot load with a message and a retry.
+
+#### Scenario: At the spec approval
+
+- **WHEN** the work waits at the spec approval
+- **THEN** the spec is open on the page beside the decision buttons
+
+#### Scenario: Hostile content
+
+- **WHEN** a document contains a script tag or a javascript link
+- **THEN** it is shown as text and nothing runs
+
+### Requirement: Refreshing never gets in the way of using the page
+
+The system SHALL refresh the work panel and the documents without redrawing them when nothing changed, answering such a refresh with no content, SHALL not refresh them while the pointer is over them, focus or a text selection is in them, and SHALL hold a board update while the pointer is over the list and apply it when the pointer leaves, and SHALL never hold back a decision.
+
+#### Scenario: Nothing changed
+
+- **WHEN** the panel refreshes and the work is unchanged
+- **THEN** the answer has no content and the page is not redrawn
+
+#### Scenario: About to click
+
+- **WHEN** the pointer is over the decision buttons
+- **THEN** the panel does not refresh under it

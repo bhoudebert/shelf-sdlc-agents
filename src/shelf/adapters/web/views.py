@@ -1,10 +1,16 @@
 """What the templates show: plain view models built from domain values, with the words people read."""
 
+import hashlib
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 
+from markdown_it import MarkdownIt
+from markupsafe import Markup
+
 from shelf.domain.model import WorkView
 from shelf.domain.pipeline import PIPELINE, EntryPoint, Phase
+from shelf.domain.roles import DOCUMENT_TITLES
 from shelf.domain.work import DecisionKind, Outcome, Reason
 
 ENTRY_LABELS: dict[EntryPoint, tuple[str, str]] = {
@@ -169,3 +175,54 @@ def timeline(work: WorkView) -> list[TimelineStep]:
             state = "waiting" if work.waiting_for is not None else "current"
         steps.append(TimelineStep(PHASE_LABELS[phase], state))
     return steps
+
+
+_MARKDOWN = MarkdownIt("commonmark", {"html": False, "linkify": False}).enable("table")
+
+
+def render_markdown(text: str) -> Markup:
+    """Markdown to HTML for display. Raw HTML in the text is shown as text and dangerous links are dropped.
+
+    The documents are written by agents from untrusted repository content, so nothing in them may become markup.
+    """
+    return Markup(_MARKDOWN.render(text))  # noqa: S704 - markdown-it escapes raw HTML and refuses unsafe link schemes
+
+
+@dataclass(frozen=True, slots=True)
+class DocumentView:
+    """One document of a piece of work, ready to show."""
+
+    name: str
+    title: str
+    html: Markup
+    open: bool
+
+
+def document_views(documents: Mapping[str, str], current: Phase) -> list[DocumentView]:
+    """The documents that exist, in reading order. The one the work is at is open, the others folded."""
+    focus = FOCUS.get(current)
+    return [
+        DocumentView(name, DOCUMENT_TITLES[name], render_markdown(documents[name]), open=name == focus)
+        for name in DOCUMENT_TITLES
+        if name in documents
+    ]
+
+
+FOCUS: dict[Phase, str] = {
+    Phase.INTAKE: "request.md",
+    Phase.SPEC_REVIEW: "spec.md",
+    Phase.SPEC_APPROVAL: "spec.md",
+    Phase.DESIGN: "spec.md",
+    Phase.DESIGN_REVIEW: "design.md",
+    Phase.PLAN: "design.md",
+    Phase.IMPLEMENT: "plan.md",
+    Phase.VERIFY: "plan.md",
+    Phase.CODE_REVIEW: "plan.md",
+    Phase.PULL_REQUEST: "plan.md",
+}
+"""Which document is the one to read when the work is at a phase."""
+
+
+def version_of(*parts: object) -> str:
+    """A short fingerprint of what a refreshing section shows. Equal fingerprints mean there is nothing new to draw."""
+    return hashlib.sha1(repr(parts).encode(), usedforsecurity=False).hexdigest()[:12]

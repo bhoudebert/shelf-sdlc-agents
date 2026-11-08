@@ -211,3 +211,12 @@ The system SHALL wire the web service's GitHub access through a cache of about a
 
 - **WHEN** the interface stays open for an hour
 - **THEN** GitHub receives about one lookup per person per minute at most
+
+### Requirement: The web service reads the work's documents through a short cache
+
+The system SHALL wire the web service to read a work's documents from GitHub through a cache of a few seconds, so that a page refreshing every few seconds does not spend GitHub's rate limit.
+
+#### Scenario: A page left open
+
+- **WHEN** a work page stays open
+- **THEN** GitHub is asked for the documents at most once every few seconds

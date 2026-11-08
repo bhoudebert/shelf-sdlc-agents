@@ -1,0 +1,15 @@
+<section id="documents" class="docs" hx-get="/work/{{ work_id }}/documents?v={{ version }}" hx-trigger="every 20s" hx-swap="outerHTML" aria-label="Documents of this work">
+  <h2>Documents</h2>
+  {% if failed %}
+  <p class="muted">The documents could not be loaded from GitHub just now. They will appear on the next refresh.</p>
+  {% elif docs %}
+  {% for doc in docs %}
+  <details class="doc"{% if doc.open %} open{% endif %}>
+    <summary>{{ doc.title }}</summary>
+    <div class="prose">{{ doc.html }}</div>
+  </details>
+  {% endfor %}
+  {% else %}
+  <p class="muted">Nothing is written yet. The documents appear here as the agents write them: the spec first.</p>
+  {% endif %}
+</section>

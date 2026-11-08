@@ -12,8 +12,10 @@ from itsdangerous import BadSignature, URLSafeTimedSerializer
 
 from shelf.adapters.web.sessions import Session, SessionStore
 from shelf.domain.access import AccessRules, is_admin
+from shelf.domain.model import WorkId, WorkView
 from shelf.domain.polling import Mode
 from shelf.ports.configs import RepoConfigs
+from shelf.ports.documents import Documents
 from shelf.ports.forge import Forge
 from shelf.ports.runner import WorkRunner
 
@@ -67,6 +69,8 @@ class WebDeps:
     sessions: SessionStore
     temporal_transport: httpx.AsyncBaseTransport | None = None
     """For tests: how the proxy reaches Temporal's interface."""
+    documents: Documents | None = None
+    """Where the work's documents are read from; the interface shows none without it."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -114,6 +118,15 @@ class Web:
     def is_admin(self, session: Session | None) -> bool:
         """Whether the signed-in person administers this instance."""
         return session is not None and is_admin(self.deps.rules, session.identity.login)
+
+    async def visible_work(self, session: Session, work_id: str) -> WorkView:
+        """The work, if this person may see it (its repository is visible to them, or they administer the instance)."""
+        deps = self.deps
+        work = await deps.runner.view(WorkId(work_id))
+        repositories = {r.full_name for r in await deps.forge.repositories(session.user_token)}
+        if work is None or (work.repo.full_name not in repositories and not self.is_admin(session)):
+            raise HTTPException(status_code=404, detail="no such work")
+        return work
 
     def temporal_link(self, work_id: str) -> str:
         """The address of a piece of work in Temporal's interface, or an empty string when the proxy is off."""

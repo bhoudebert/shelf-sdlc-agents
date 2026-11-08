@@ -400,3 +400,23 @@ input:not([type="radio"]):focus-visible, select:focus-visible, textarea:focus-vi
 @media (max-width: 860px) { .setup .welcome-shelf { position: static; } }
 .model-warning { max-width: none; margin: 0 0 20px; background: var(--accent); color: var(--on-accent); display: block; line-height: 1.5; }
 .model-warning code { font: .92em var(--mono); background: color-mix(in srgb, var(--on-accent) 18%, transparent); padding: 1px 6px; }
+
+/* ---------- documents of a piece of work ---------- */
+.docs { margin-top: 40px; }
+.docs > h2 { font-size: 1.5rem; margin-bottom: 14px; }
+.doc { background: var(--raised); margin-bottom: 10px; }
+.doc summary { cursor: pointer; padding: 14px 18px; min-height: 48px; display: flex; align-items: center; font-weight: 800; font-size: 1.1rem; letter-spacing: -.01em; }
+.doc[open] summary { background: var(--surface); }
+.prose { padding: 8px clamp(16px, 3vw, 28px) 24px; max-width: 78ch; line-height: 1.6; overflow-wrap: anywhere; }
+.prose h1, .prose h2, .prose h3, .prose h4 { margin: 1.6em 0 .5em; letter-spacing: -.02em; line-height: 1.2; }
+.prose h1 { font-size: 1.5rem; } .prose h2 { font-size: 1.25rem; } .prose h3, .prose h4 { font-size: 1.05rem; }
+.prose p, .prose ul, .prose ol, .prose pre, .prose blockquote, .prose table { margin: 0 0 1em; }
+.prose ul, .prose ol { padding-left: 1.4em; }
+.prose code { font: .9em var(--mono); background: var(--surface); padding: 1px 6px; }
+.prose pre { background: #0f1d18; color: #dbe8e0; padding: 14px 16px; overflow: auto; }
+.prose pre code { background: none; padding: 0; color: inherit; }
+.prose blockquote { border-left: 4px solid var(--accent); padding: 2px 0 2px 14px; color: var(--ink-2); }
+.prose table { border-collapse: collapse; display: block; overflow-x: auto; }
+.prose th, .prose td { padding: 6px 12px; text-align: left; vertical-align: top; }
+.prose th { background: var(--surface); }
+.prose hr { border: 0; height: 4px; background: var(--surface); margin: 1.6em 0; }
