@@ -52,7 +52,8 @@
       "tests": [
         "tests/adapters/temporal/*.py",
         "tests/domain/test_polling.py",
-        "tests/adapters/temporal/test_runner.py"
+        "tests/adapters/temporal/test_runner.py",
+        "tests/adapters/temporal/test_replay.py"
       ]
     },
     "github-app": {

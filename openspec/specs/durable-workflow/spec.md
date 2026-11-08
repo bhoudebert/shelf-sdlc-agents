@@ -114,3 +114,26 @@ The system SHALL remember what each step and each decision meant at the phase it
 
 - **WHEN** a person approves a gate
 - **THEN** the progress comment shows their decision at that step
+
+### Requirement: Work already running keeps the behaviour it started with
+
+The system SHALL record, when a piece of work starts, the protocol version it behaves by, SHALL give work started before that record existed the original behaviour, and SHALL gate every change that would alter what a recorded history does on a newer protocol, so that an update never breaks work in progress.
+
+#### Scenario: Work started by an older release
+
+- **WHEN** a release is installed while older work is waiting for a person
+- **THEN** the older work replays and continues exactly as it would have
+
+#### Scenario: Recorded histories
+
+- **WHEN** histories recorded by earlier releases are replayed with the current code
+- **THEN** every one replays without a non-determinism error
+
+### Requirement: Work that cannot be read is shown, not hidden
+
+The system SHALL show a piece of work that exists but whose state cannot be read as failed, with the reason, instead of leaving it off the board.
+
+#### Scenario: A failing workflow
+
+- **WHEN** reading the state of a piece of work fails
+- **THEN** the board shows it as failed and says it may have been started by an older release
