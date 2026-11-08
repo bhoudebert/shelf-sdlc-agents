@@ -18,6 +18,8 @@
       # `nix develop` (or direnv, with `direnv allow`) gives every contributor the same toolchains, CI's included.
       devShells = forAllSystems (pkgs: {
         default = pkgs.mkShell {
+          # NixOS cannot run the dev server that temporalio downloads: tests use this one instead.
+          SHELF_TEMPORAL_DEV_SERVER = "${pkgs.temporal-cli}/bin/temporal";
           packages = with pkgs; [
             git
             gh
@@ -26,6 +28,7 @@
             ruff
             pyright
             uv
+            temporal-cli
           ];
         };
       });

@@ -35,11 +35,24 @@
         "src/shelf/application/work.py",
         "src/shelf/application/errors.py",
         "src/shelf/domain/model.py",
-        "src/shelf/ports/*.py"
+        "src/shelf/ports/forge.py",
+        "src/shelf/ports/runner.py",
+        "src/shelf/ports/configs.py"
       ],
       "tests": [
         "tests/application/test_work.py",
         "tests/fakes.py"
+      ]
+    },
+    "durable-workflow": {
+      "code": [
+        "src/shelf/adapters/temporal/*.py",
+        "src/shelf/domain/polling.py",
+        "src/shelf/ports/steps.py"
+      ],
+      "tests": [
+        "tests/adapters/temporal/*.py",
+        "tests/domain/test_polling.py"
       ]
     }
   }

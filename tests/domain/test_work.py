@@ -116,9 +116,7 @@ def test_changes_requested_at_a_gate_send_the_work_back_with_the_note() -> None:
 
 def test_a_reviewer_asking_for_changes_sends_work_back_with_the_issues() -> None:
     course = course_for(EntryPoint.SPEC, Policy())
-    state, commands = decide(
-        course, Running(Phase.SPEC_REVIEW), StepDone(Reviewed(Verdict.CHANGES, "too vague"))
-    )
+    state, commands = decide(course, Running(Phase.SPEC_REVIEW), StepDone(Reviewed(Verdict.CHANGES, "too vague")))
     assert state == Running(Phase.INTAKE, 1, "too vague")
     assert commands == (RunStep(Phase.INTAKE, 1, "too vague"),)
 
@@ -197,9 +195,7 @@ def test_changes_requested_on_the_pull_request_send_the_work_back_to_the_impleme
 
 def test_a_closed_pull_request_ends_the_work_without_a_merge() -> None:
     course = course_for(EntryPoint.NEED, Policy())
-    state, commands = decide(
-        course, AwaitingPerson(Phase.PULL_REQUEST, Reason.MERGE), PullRequestClosed(merged=False)
-    )
+    state, commands = decide(course, AwaitingPerson(Phase.PULL_REQUEST, Reason.MERGE), PullRequestClosed(merged=False))
     assert state == Finished(Outcome.CLOSED)
     assert commands == (Conclude(Outcome.CLOSED),)
 
@@ -231,9 +227,7 @@ policies = st.builds(
 
 
 @given(entries, policies, st.lists(events, max_size=60))
-def test_a_finished_piece_of_work_never_comes_back(
-    entry: EntryPoint, policy: Policy, sequence: list[Event]
-) -> None:
+def test_a_finished_piece_of_work_never_comes_back(entry: EntryPoint, policy: Policy, sequence: list[Event]) -> None:
     course = course_for(entry, policy)
     state, _ = start(course)
     for event in sequence:
@@ -245,9 +239,7 @@ def test_a_finished_piece_of_work_never_comes_back(
 
 
 @given(entries, policies, st.lists(events, max_size=60))
-def test_the_state_always_matches_the_commands(
-    entry: EntryPoint, policy: Policy, sequence: list[Event]
-) -> None:
+def test_the_state_always_matches_the_commands(entry: EntryPoint, policy: Policy, sequence: list[Event]) -> None:
     course = course_for(entry, policy)
     state, commands = start(course)
     for event in [None, *sequence]:

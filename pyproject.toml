@@ -5,7 +5,9 @@ description = "A self-hosted software factory: drive agent work on your GitHub r
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "temporalio>=1.8",
+]
 
 [dependency-groups]
 dev = [
@@ -26,7 +28,7 @@ build-backend = "hatchling.build"
 packages = ["src/shelf"]
 
 [tool.ruff]
-line-length = 110
+line-length = 120
 src = ["src", "tests"]
 target-version = "py313"
 
@@ -41,7 +43,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "S105", "S106", "PLR2004", "D", "ANN"]
+"tests/**" = ["S101", "S105", "S106", "PLR2004", "D", "ANN", "ARG002", "FBT003"]
 # A state machine is a table of transitions: one return per case is the clearest form.
 "src/shelf/domain/work.py" = ["PLR0911"]
 
