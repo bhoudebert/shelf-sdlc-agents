@@ -100,3 +100,13 @@ def test_any_model_credential_counts(key: str) -> None:
 def test_the_sandbox_is_on_unless_the_operator_turns_it_off() -> None:
     assert from_environ(BASE).sandbox
     assert not from_environ({**BASE, "SHELF_SANDBOX_DISABLED": "1"}).sandbox
+
+
+def test_the_cache_directory_and_extra_domains_are_read_from_the_environment() -> None:
+    settings = from_environ(
+        {**BASE, "SHELF_CACHE_DIR": "/cache", "SHELF_ALLOWED_DOMAINS": " nexus.example.org , ,b.org"}
+    )
+    assert settings.cache_dir == "/cache"
+    assert settings.allowed_domains == ("nexus.example.org", "b.org")
+    assert from_environ(BASE).cache_dir == ""
+    assert from_environ(BASE).allowed_domains == ()

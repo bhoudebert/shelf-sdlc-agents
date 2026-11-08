@@ -10,6 +10,7 @@ from shelf.domain.pipeline import Phase
 from shelf.domain.roles import PROVIDED_DOCUMENT, REVIEWERS, ROLES, TITLER, documents_dir
 from shelf.domain.story import agent_comment
 from shelf.domain.titles import clean_title, fallback_title
+from shelf.domain.toolchain import TOOLCHAIN_NOTE, toolchain_env
 from shelf.domain.verdict import parse_verdict
 from shelf.domain.work import Produced, RunStep, StepResult, Verified
 from shelf.ports.agents import AgentBackend, AgentTask
@@ -39,7 +40,9 @@ def branch_of(work: WorkContext) -> str:
     return f"shelf/{work.id}"
 
 
-def task_prompt(work: WorkContext, step: RunStep, base: str = "main", picture: str = "") -> str:
+def task_prompt(
+    work: WorkContext, step: RunStep, base: str = "main", picture: str = "", *, toolchain: bool = False
+) -> str:
     """What the agent is asked, built from the request, the documents so far and the feedback that sent work back."""
     folder = documents_dir(work.id)
     role = ROLES[step.phase]
@@ -55,6 +58,8 @@ def task_prompt(work: WorkContext, step: RunStep, base: str = "main", picture: s
         lines += ["", f"This is round {step.attempt}. Address this feedback first:", step.feedback]
     if step.phase in REVIEWERS or role.name == "architect":
         lines += ["", f"The base branch is `{base}`: `git diff {base}...HEAD` shows what this work changed."]
+    if toolchain:
+        lines += ["", TOOLCHAIN_NOTE]
     if role.document:
         lines += ["", f"Write your result to `{folder}/{role.document}`."]
     if step.phase in REVIEWERS:
@@ -78,6 +83,10 @@ class Steps:
     model: str | None = None
     max_turns: int = 40
     max_budget_usd: float | None = None
+    base_path: str = ""
+    """The ``PATH`` the agents start from; the tool shims are put in front of it."""
+    cache_dir: str = ""
+    """Where each repository's tools and package caches live; empty gives agents the worker's own home and no tools."""
 
     async def run(self, work: WorkContext, step: RunStep) -> StepResult:
         """Run ``step`` for ``work``, speak about it on the pull request as the agent it is, and read what came out."""
@@ -156,14 +165,21 @@ class Steps:
             AgentTask(
                 role=role,
                 system_prompt=self.prompt_for(role.name),
-                prompt=task_prompt(work, step, base, self._picture(work, workspace)),
+                prompt=task_prompt(work, step, base, self._picture(work, workspace), toolchain=bool(self.cache_dir)),
                 workdir=workspace.path,
-                env={"GH_TOKEN": token} if step.phase is Phase.IMPLEMENT else {},
+                env={
+                    **(self._toolchain_env(work, workspace)),
+                    **({"GH_TOKEN": token} if step.phase is Phase.IMPLEMENT else {}),
+                },
                 max_turns=self.max_turns,
                 max_budget_usd=self.max_budget_usd,
                 model=self.model,
             )
         )
+
+    def _toolchain_env(self, work: WorkContext, workspace: Workspace) -> dict[str, str]:
+        """The repository's own home, caches and tool shims for this step (nothing when no cache directory is set)."""
+        return toolchain_env(self.cache_dir, work.request.repo, str(workspace.path), self.base_path)
 
     def _picture(self, work: WorkContext, workspace: Workspace) -> str:
         """Everything that already binds the repository (conventions, specs, decisions, earlier work), as a brief."""

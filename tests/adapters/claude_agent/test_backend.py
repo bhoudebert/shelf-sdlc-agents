@@ -105,3 +105,9 @@ def test_an_agents_options_override_the_inherited_secrets_and_keep_what_the_step
     assert options.env["SESSION_SECRET"] == ""
     assert options.env["GITHUB_APP_ID"] == ""
     assert options.env["GH_TOKEN"] == "t"  # what the step passes is kept
+
+
+def test_the_sandbox_may_reach_only_the_sites_it_is_given() -> None:
+    options = options_for(task(Phase.IMPLEMENT), allowed_domains=("github.com", "repo.maven.apache.org"))
+    assert options.sandbox is not None
+    assert options.sandbox.get("network") == {"allowedDomains": ["github.com", "repo.maven.apache.org"]}

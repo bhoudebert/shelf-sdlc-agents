@@ -248,6 +248,20 @@ The system SHALL wire, when the App's credentials are present, the means to read
 - **WHEN** the web service starts with the App's id and private key
 - **THEN** the admin page can ask GitHub about the App without further configuration
 
+### Requirement: The worker keeps a cache for each repository's tools
+
+The system SHALL ship the worker image with a pinned, checksum-verified `mise` and no toolchain, and give the worker a persistent volume, owned by the image's user, where the tools and package caches of each repository are kept.
+
+#### Scenario: The image
+
+- **WHEN** the image is built
+- **THEN** `mise` is present at a pinned version whose download matched its published checksum, and no JDK, Node or Maven is installed in it
+
+#### Scenario: The volume
+
+- **WHEN** the stack starts
+- **THEN** the worker has a writable cache volume that survives a recreate, and keeps its other mounts
+
 ### Requirement: One script fixes the Ubuntu host for the agents' sandbox
 
 The system SHALL provide a script that finds what an Ubuntu 23.10+ host restricts for the sandbox (the user-namespace sysctl and the bubblewrap AppArmor profile), says what it will change and what that costs, asks before changing, makes the change survive a reboot, can undo it, and does nothing on a host that is already open; and the install script and the doctor SHALL point to it.

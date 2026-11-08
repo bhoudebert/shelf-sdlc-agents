@@ -67,6 +67,7 @@ def steps(
     workspaces: FakeWorkspaces | None = None,
     pulls: FakePulls | None = None,
     config: RepoConfig | None = None,
+    cache_dir: str = "",
 ) -> Steps:
     return Steps(
         workspaces=workspaces or FakeWorkspaces(),
@@ -77,6 +78,8 @@ def steps(
         prompt_for=lambda role: f"prompt of {role}",
         model="a-model",
         max_budget_usd=2.0,
+        base_path="/usr/bin",
+        cache_dir=cache_dir,
     )
 
 
@@ -91,6 +94,24 @@ async def test_a_producer_runs_its_role_in_a_clone_and_pushes_what_it_wrote() ->
     assert (task.model, task.max_budget_usd) == ("a-model", 2.0)
     assert workspaces.opened == [Checkout(REPO, "ghs_token", "shelf/work-1", "main", None)]
     assert workspaces.workspace.pushed == ["chore(shelf): intake for work-1"]
+
+
+async def test_with_a_cache_directory_each_step_gets_the_repositorys_own_home_and_tool_shims() -> None:
+    agents = FakeAgents()
+    await steps(agents, cache_dir="/cache").run(NEED, RunStep(Phase.IMPLEMENT, 0, ""))
+    [task] = agents.tasks
+    assert task.env["HOME"] == "/cache/home/acme__shop"
+    assert task.env["PATH"] == "/cache/home/acme__shop/.local/share/mise/shims:/usr/bin"
+    assert task.env["GH_TOKEN"] == "ghs_token"
+    assert "mise install" in task.prompt
+
+
+async def test_without_a_cache_directory_the_agents_environment_is_left_alone() -> None:
+    agents = FakeAgents()
+    await steps(agents).run(NEED, RunStep(Phase.IMPLEMENT, 0, ""))
+    [task] = agents.tasks
+    assert "HOME" not in task.env
+    assert "mise" not in task.prompt
 
 
 async def test_a_reviewer_reads_the_verdict_and_pushes_nothing() -> None:

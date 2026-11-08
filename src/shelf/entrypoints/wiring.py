@@ -1,6 +1,7 @@
 """The composition root: the one place that knows every adapter and joins them to the ports."""
 
 import logging
+import os
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -26,6 +27,7 @@ from shelf.domain.access import may_act_from_github
 from shelf.domain.config import InvalidConfigError
 from shelf.domain.model import RepoRef
 from shelf.domain.operator import OperatorConfig
+from shelf.domain.toolchain import allowed_domains
 from shelf.entrypoints.settings import GitHubApp, Settings
 
 log = logging.getLogger(__name__)
@@ -99,7 +101,10 @@ def build_services(settings: Settings, github: GitHubApp, client: httpx.AsyncCli
     steps = Steps(
         workspaces=GitWorkspaces(),
         agents=ClaudeBackend(
-            nested_sandbox=settings.nested_sandbox, sandbox=settings.sandbox, cli_path=settings.claude_cli
+            nested_sandbox=settings.nested_sandbox,
+            sandbox=settings.sandbox,
+            cli_path=settings.claude_cli,
+            allowed_domains=allowed_domains(settings.allowed_domains),
         ),
         configs=configs,
         pulls=pulls,
@@ -108,6 +113,8 @@ def build_services(settings: Settings, github: GitHubApp, client: httpx.AsyncCli
         model=settings.model,
         max_turns=settings.max_turns,
         max_budget_usd=settings.max_budget_usd,
+        cache_dir=settings.cache_dir,
+        base_path=os.environ.get("PATH", ""),
     )
     runner = TemporalRunner(temporal, settings.task_queue, configs, operator.mode, app.web_url)
     documents = CachedDocuments(GitHubDocuments(client, app, token_for))
