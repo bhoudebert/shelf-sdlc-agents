@@ -174,3 +174,36 @@ The system SHALL show the credentials after registration with the private key ke
 
 - **WHEN** the credentials are shown
 - **THEN** the environment block lists the five values without the key, and a download offers the key as `github-app.pem`
+
+### Requirement: Administrators see every run
+
+The system SHALL show administrators the work of every repository on the board and let them open any piece of work; other people see only what is on repositories they can open.
+
+#### Scenario: An ordinary person
+
+- **WHEN** an ordinary person asks for work on a repository they cannot open
+- **THEN** it is not found
+
+### Requirement: Temporal's interface is served to administrators behind the sign-in
+
+The system SHALL serve Temporal's own interface under `/temporal`, only to signed-in administrators, read-only unless the operator allows writes, always allowing workflow queries, refusing a change from another origin, never forwarding the session cookie or any credential upstream, and linking each work page to its workflow for administrators.
+
+#### Scenario: An administrator reads
+
+- **WHEN** an administrator opens a path under `/temporal`
+- **THEN** Temporal's answer is returned, not cached, and nothing of the session is sent upstream
+
+#### Scenario: Anyone else
+
+- **WHEN** an ordinary person or a visitor asks for `/temporal`
+- **THEN** the person is refused and the visitor is sent to sign in
+
+#### Scenario: Changing a workflow
+
+- **WHEN** an administrator tries to terminate or signal a workflow from there
+- **THEN** it is refused unless the operator turned writing on, while a query always passes
+
+#### Scenario: Temporal is down
+
+- **WHEN** Temporal's interface does not answer
+- **THEN** the proxy answers with a gateway error, not a crash
