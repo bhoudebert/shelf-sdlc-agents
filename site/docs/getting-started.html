@@ -32,7 +32,7 @@ sh deploy/install.sh https://shelf.example.org</code></pre> This writes <code>de
 <div class="table-wrap"><table><thead><tr><th>Variable</th><th>Purpose</th></tr></thead><tbody>
 <tr><td><code>PUBLIC_URL</code></td><td>The public address of the instance, with no trailing slash. Used for sign-in callbacks and webhooks.</td></tr>
 <tr><td><code>SESSION_SECRET</code></td><td>Random secret that signs the session cookies. <code>install.sh</code> generates one.</td></tr>
-<tr><td><code>WEB_PORT</code></td><td>The host port the web service is published on (default 8080).</td></tr>
+<tr><td><code>WEB_PORT</code></td><td>The <strong>private</strong> port the app listens on, on the server (default 8080), published on the loopback only. It is not your site's public port: visitors use your domain on 443/80, and your proxy forwards to <code>http://127.0.0.1:8080</code>. Never set it to 80 or 443 behind a proxy.</td></tr>
 <tr><td><code>GITHUB_APP_ID</code>, <code>GITHUB_APP_SLUG</code>, <code>GITHUB_APP_CLIENT_ID</code>, <code>GITHUB_APP_CLIENT_SECRET</code>, <code>GITHUB_WEBHOOK_SECRET</code></td><td>The App's credentials, shown once after the one-click registration. Empty on the first start.</td></tr>
 <tr><td><code>GITHUB_APP_PRIVATE_KEY</code> or <code>GITHUB_APP_PRIVATE_KEY_PATH</code></td><td>The App's private key: inline with <code>\n</code> for line breaks, or a PEM path inside the container.</td></tr>
 <tr><td><code>ANTHROPIC_API_KEY</code>, <code>CLAUDE_CODE_OAUTH_TOKEN</code>, or <code>ANTHROPIC_BASE_URL</code></td><td>How the agents get a model. Set one.</td></tr>
