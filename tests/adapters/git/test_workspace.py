@@ -87,3 +87,24 @@ async def test_a_failed_clone_never_leaks_the_token(origin: Path, tmp_path: Path
         async with broken.open(checkout(token="s3cret")):
             pass
     assert "s3cret" not in str(error.value)
+
+
+def test_the_remote_url_carries_no_credential_so_nothing_in_the_clone_can_leak_it() -> None:
+    from shelf.adapters.git.workspace import github_auth, github_remote, secrets_of  # noqa: PLC0415
+
+    target = checkout(token="s3cret")
+    assert github_remote(target) == "https://github.com/acme/shop.git"
+    assert "s3cret" not in github_remote(target)
+    header = " ".join(github_auth(target))
+    assert "extraheader" in header
+    assert "s3cret" not in header  # it travels base64-encoded, for that one command only
+    assert "s3cret" in secrets_of(target)
+    assert any(secret != "s3cret" for secret in secrets_of(target))
+
+
+async def test_a_clone_made_by_the_workspace_has_no_token_anywhere_in_its_git_config(
+    origin: Path, tmp_path: Path
+) -> None:
+    async with workspaces(origin, tmp_path).open(checkout(token="s3cret")) as workspace:
+        config = (workspace.path / ".git" / "config").read_text()
+    assert "s3cret" not in config

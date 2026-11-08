@@ -50,6 +50,9 @@ class FakeSteps:
     ran: list[RunStep] = field(default_factory=list[RunStep])
     behaviour: Callable[[RunStep], Awaitable[StepResult]] | None = None
 
+    async def title(self, work: WorkContext) -> str:
+        return "feat: loyalty points"
+
     async def run(self, work: WorkContext, step: RunStep) -> StepResult:
         self.ran.append(step)
         if self.behaviour is not None:
@@ -65,10 +68,12 @@ class FakePulls:
     commented: list[str] = field(default_factory=list[str])
     ready: list[bool] = field(default_factory=list[bool])
     stages: list[str] = field(default_factory=list[str])
+    titles: list[str] = field(default_factory=list[str])
     progressed: list[str] = field(default_factory=list[str])
 
-    async def publish(self, work: WorkContext) -> str:
+    async def publish(self, work: WorkContext, title: str) -> str:
         self.published += 1
+        self.titles.append(title)
         return "https://github.com/acme/shop/pull/1"
 
     async def progress(self, work: WorkContext, body: str) -> None:

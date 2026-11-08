@@ -88,7 +88,9 @@ def build_services(settings: Settings, github: GitHubApp, client: httpx.AsyncCli
     pulls = GitHubPullRequests(client, app, token_for, base_branch)
     steps = Steps(
         workspaces=GitWorkspaces(),
-        agents=ClaudeBackend(nested_sandbox=settings.nested_sandbox, sandbox=settings.sandbox),
+        agents=ClaudeBackend(
+            nested_sandbox=settings.nested_sandbox, sandbox=settings.sandbox, cli_path=settings.claude_cli
+        ),
         configs=configs,
         pulls=pulls,
         token_for=token_for,

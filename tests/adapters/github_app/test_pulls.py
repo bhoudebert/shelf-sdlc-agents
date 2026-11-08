@@ -3,7 +3,7 @@ import json
 import httpx
 import pytest
 
-from shelf.adapters.github_app.pulls import GitHubPullRequests, announcement, events_from, title_of
+from shelf.adapters.github_app.pulls import GitHubPullRequests, announcement, events_from
 from shelf.adapters.github_app.settings import GitHubAppSettings
 from shelf.domain.model import RepoRef, WorkContext, WorkId, WorkRequest
 from shelf.domain.pipeline import EntryPoint, Phase
@@ -27,12 +27,6 @@ def adapter(settings: GitHubAppSettings, handler: httpx.MockTransport) -> GitHub
 
 def comment(identifier: int, body: str, login: str = "bob", association: str = "MEMBER") -> dict[str, object]:
     return {"id": identifier, "body": body, "user": {"login": login}, "author_association": association}
-
-
-def test_the_title_is_the_first_non_empty_line_cut_to_fit() -> None:
-    assert title_of("\n\n  Loyalty points  \nmore") == "Loyalty points"
-    assert len(title_of("x" * 200)) == 70
-    assert title_of("  ") == "shelf work"
 
 
 def test_an_announcement_says_what_is_awaited_and_how_to_answer() -> None:
@@ -67,7 +61,7 @@ async def test_publish_opens_a_draft_pull_request_with_the_requester(settings: G
         seen.update(json.loads(request.content), path=request.url.path, auth=request.headers["Authorization"])
         return httpx.Response(201, json={"html_url": "https://github.com/acme/shop/pull/12"})
 
-    url = await adapter(settings, httpx.MockTransport(handler)).publish(NEED)
+    url = await adapter(settings, httpx.MockTransport(handler)).publish(NEED, "feat: loyalty points")
     assert url == "https://github.com/acme/shop/pull/12"
     assert seen["path"] == "/repos/acme/shop/pulls"
     assert seen["auth"] == "Bearer ghs_token"
@@ -85,7 +79,10 @@ async def test_publishing_twice_returns_the_pull_request_that_exists(settings: G
             return httpx.Response(200, json={"html_url": "https://github.com/acme/shop/pull/12"})
         return httpx.Response(200, json=[{"number": 12}])
 
-    assert await adapter(settings, httpx.MockTransport(handler)).publish(NEED) == "https://github.com/acme/shop/pull/12"
+    assert (
+        await adapter(settings, httpx.MockTransport(handler)).publish(NEED, "feat: loyalty points")
+        == "https://github.com/acme/shop/pull/12"
+    )
     assert posted == []
 
 

@@ -38,6 +38,7 @@ class Settings:
     max_budget_usd: float | None
     nested_sandbox: bool
     sandbox: bool
+    claude_cli: str | None
     port: int
     revision: str
     temporal_ui_upstream: str
@@ -120,6 +121,7 @@ def from_environ(environ: Mapping[str, str]) -> Settings:
         max_turns=int(environ.get("SHELF_MAX_TURNS", "40")),
         max_budget_usd=float(budget) if budget else None,
         nested_sandbox=environ.get("SHELF_NESTED_SANDBOX", "").strip().lower() in {"1", "true", "yes"},
+        claude_cli=environ.get("SHELF_CLAUDE_CLI", "").strip() or None,
         sandbox=environ.get("SHELF_SANDBOX_DISABLED", "").strip().lower() not in {"1", "true", "yes"},
         port=int(environ.get("PORT", "8080")),
         revision=environ.get("SHELF_REVISION", "unknown"),

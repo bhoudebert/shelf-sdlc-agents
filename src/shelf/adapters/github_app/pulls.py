@@ -33,12 +33,6 @@ def branch_name(work: WorkContext) -> str:
     return f"shelf/{work.id}"
 
 
-def title_of(text: str) -> str:
-    """A pull request title from the first line of the need."""
-    first = next((line.strip() for line in text.splitlines() if line.strip()), "shelf work")
-    return first[:70]
-
-
 def announcement(work: WorkContext, ask: AskPerson) -> str:
     """The comment that says what the work waits for and how to answer."""
     heading = {
@@ -91,19 +85,19 @@ class GitHubPullRequests:
     token_for: TokenFor
     base_branch: Callable[[RepoRef], Awaitable[str]]
 
-    async def publish(self, work: WorkContext) -> str:
-        """Open a draft pull request from the work's branch and return its URL."""
+    async def publish(self, work: WorkContext, title: str) -> str:
+        """Open a draft pull request titled ``title`` from the work's branch, or retitle the one that exists."""
         repo = work.request.repo
         existing = await self._number(work)
         if existing is not None:
-            return await self._url(work, existing)
+            return await self._retitle(work, existing, title)
         body = f"{MARKER}{work.id} -->\n{work.request.text}\n\nRequested-by: {work.request.requester}"
         response = await self._call(
             "POST",
             repo,
             f"/repos/{repo.full_name}/pulls",
             json={
-                "title": title_of(work.request.text),
+                "title": title,
                 "head": branch_name(work),
                 "base": await self.base_branch(repo),
                 "body": body,
@@ -193,9 +187,14 @@ class GitHubPullRequests:
         ).json()
         return events_from(comments)
 
-    async def _url(self, work: WorkContext, number: int) -> str:
+    async def _retitle(self, work: WorkContext, number: int, title: str) -> str:
+        """The URL of the pull request, after giving it ``title`` if it carries another."""
         repo = work.request.repo
-        return str((await self._call("GET", repo, f"/repos/{repo.full_name}/pulls/{number}")).json()["html_url"])
+        path = f"/repos/{repo.full_name}/pulls/{number}"
+        pull = (await self._call("GET", repo, path)).json()
+        if pull.get("title") != title:
+            await self._call("PATCH", repo, path, json={"title": title})
+        return str(pull["html_url"])
 
     async def _number(self, work: WorkContext) -> int | None:
         """The pull request of this work, or ``None`` while there is none."""

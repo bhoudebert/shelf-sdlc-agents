@@ -50,6 +50,8 @@ PROGRESS = "shelf_progress"
 STEP_TIMEOUT = timedelta(minutes=45)
 STEP_HEARTBEAT = timedelta(seconds=60)
 GITHUB_TIMEOUT = timedelta(minutes=2)
+PUBLISH_TIMEOUT = timedelta(minutes=6)
+"""Publishing also names the pull request, which runs a short agent."""
 
 
 @workflow.defn(name="WorkItem")
@@ -191,7 +193,7 @@ class WorkItemWorkflow:
                 PUBLISH,
                 work,
                 result_type=str,
-                start_to_close_timeout=GITHUB_TIMEOUT,
+                start_to_close_timeout=PUBLISH_TIMEOUT,
                 retry_policy=RetryPolicy(maximum_attempts=5),
             )
         except ActivityError:
