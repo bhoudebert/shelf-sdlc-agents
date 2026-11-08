@@ -450,7 +450,7 @@ def test_the_admin_page_shows_the_instance_facts_and_never_a_secret() -> None:
     fixture.sign_in()
     page = fixture.client.get("/admin").text
     assert "abc1234" in page  # the revision
-    assert "https://shelf.example.org" in re.findall(r"https://[\w.]+", page)
+    assert "shelf.example.org" in {urlparse(url).hostname for url in re.findall(r"https://[\w.]+", page)}
     assert "bob" in page
     assert "hook-secret" not in page
     assert "k" * 32 not in page
