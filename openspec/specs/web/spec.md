@@ -150,6 +150,15 @@ The system SHALL show administrators, on the admin page, the findings about the 
 - **WHEN** GitHub cannot be asked about the App
 - **THEN** one finding says the App could not be checked and why
 
+### Requirement: The setup page says what the App may do and what it may not
+
+The system SHALL list on the setup page the permissions the App is given and say that Workflows is left off on purpose, and why.
+
+#### Scenario: The setup page
+
+- **WHEN** a person opens the setup page
+- **THEN** the permissions are listed and a note says Workflows is off because changed workflows run with the repository's secrets
+
 ### Requirement: A repository whose configuration is invalid is reported on the page
 
 The system SHALL answer a start or a decision on a repository with an invalid configuration file with the reason on the form or panel, not with a server error.

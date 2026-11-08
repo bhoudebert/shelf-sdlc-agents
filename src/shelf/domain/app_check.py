@@ -70,6 +70,7 @@ def check_app(facts: AppFacts, expected_webhook_url: str) -> tuple[Finding, ...]
     found = [
         _events(facts),
         _permissions(facts),
+        _workflows(facts),
         _webhook_url(facts, expected_webhook_url),
         _secret(facts),
         *_deliveries(facts),
@@ -106,6 +107,23 @@ def _permissions(facts: AppFacts) -> Finding:
         "The App lacks permissions: " + ", ".join(short) + ".",
         "On the App's settings page, Permissions & events, set them, save, then accept the new permissions on each "
         "installation (GitHub emails the owner and shows a banner on the installation page).",
+    )
+
+
+def _workflows(facts: AppFacts) -> Finding:
+    if _LEVELS.get(facts.permissions.get("workflows", "none"), 0) >= _LEVELS["write"]:
+        return Finding(
+            Level.WARNING,
+            "Agents may change CI workflow files (the Workflows permission is granted).",
+            "A changed workflow runs with the repository's secrets, so review pull requests that touch "
+            ".github/workflows as carefully as the agents' own code. Remove the permission to forbid it.",
+        )
+    return Finding(
+        Level.OK,
+        "Agents cannot change CI workflow files (the Workflows permission is not granted), which is the safe default.",
+        "If a pull request needs to change .github/workflows, GitHub refuses the push. To allow it, set Workflows to "
+        "Read and write under the App's Permissions & events, then accept it on each installation; or make that "
+        "change by hand.",
     )
 
 

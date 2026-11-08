@@ -109,3 +109,17 @@ The system SHALL read from GitHub, as the App, which events the App subscribes t
 - **WHEN** GitHub refuses the App's identity or cannot be reached
 - **THEN** the result is a sentence saying why, not an error
 
+### Requirement: The Workflows permission is off by default and its state is shown
+
+The system SHALL NOT request the Workflows permission, because a changed workflow runs with the repository's secrets, SHALL report on the admin page whether the App has it, as a confirmation when it does not and as something to watch when it does, and SHALL explain how to grant it.
+
+#### Scenario: Not granted
+
+- **WHEN** the App lacks the Workflows permission
+- **THEN** the check says agents cannot change CI workflow files and how to allow it
+
+#### Scenario: Granted
+
+- **WHEN** the App has Workflows at write
+- **THEN** the check flags it and says pull requests touching `.github/workflows` need careful review
+
