@@ -22,6 +22,46 @@ PIPELINE: tuple[Phase, ...] = tuple(Phase)
 """Every phase, in flow order."""
 
 
+class Kind(StrEnum):
+    """What a phase does, which decides how a piece of work moves through it."""
+
+    PRODUCE = auto()
+    """An agent writes a document or the code."""
+    REVIEW = auto()
+    """An agent on another model judges what the previous phase produced."""
+    VERIFY = auto()
+    """The project's own checks run."""
+    GATE = auto()
+    """A person approves before the work goes on."""
+    MERGE = auto()
+    """The pull request is open and a person has the last word."""
+
+
+KIND: dict[Phase, Kind] = {
+    Phase.INTAKE: Kind.PRODUCE,
+    Phase.SPEC_REVIEW: Kind.REVIEW,
+    Phase.SPEC_APPROVAL: Kind.GATE,
+    Phase.DESIGN: Kind.PRODUCE,
+    Phase.DESIGN_REVIEW: Kind.REVIEW,
+    Phase.PLAN: Kind.PRODUCE,
+    Phase.IMPLEMENT: Kind.PRODUCE,
+    Phase.VERIFY: Kind.VERIFY,
+    Phase.CODE_REVIEW: Kind.REVIEW,
+    Phase.PULL_REQUEST: Kind.MERGE,
+}
+"""The kind of every phase."""
+
+LOOP_BACK: dict[Phase, Phase] = {
+    Phase.SPEC_REVIEW: Phase.INTAKE,
+    Phase.SPEC_APPROVAL: Phase.INTAKE,
+    Phase.DESIGN_REVIEW: Phase.DESIGN,
+    Phase.VERIFY: Phase.IMPLEMENT,
+    Phase.CODE_REVIEW: Phase.IMPLEMENT,
+    Phase.PULL_REQUEST: Phase.IMPLEMENT,
+}
+"""The phase that redoes the work when a reviewer, a check or a person asks for changes."""
+
+
 class EntryPoint(StrEnum):
     """Where a person can start: each entry skips the phases already done elsewhere."""
 

@@ -2,8 +2,22 @@
   "$comment": "Which code and tests belong to which capability. Read by scripts/spec-review.ts to find the requirements a change concerns. A file missing here is a warning, not a failure. Globs: * stays in a folder, ** crosses folders.",
   "capabilities": {
     "pipeline": {
-      "code": ["src/shelf/domain/pipeline.py"],
-      "tests": ["tests/domain/test_pipeline.py"]
+      "code": [
+        "src/shelf/domain/pipeline.py",
+        "src/shelf/domain/policy.py"
+      ],
+      "tests": [
+        "tests/domain/test_pipeline.py",
+        "tests/domain/test_policy.py"
+      ]
+    },
+    "work-item": {
+      "code": [
+        "src/shelf/domain/work.py"
+      ],
+      "tests": [
+        "tests/domain/test_work.py"
+      ]
     }
   }
 }

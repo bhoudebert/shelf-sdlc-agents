@@ -37,3 +37,35 @@ The system SHALL run, for work started at any entry point, exactly the phases fr
 
 - **WHEN** work starts from a plan
 - **THEN** it runs the plan, implementation, verification, code review and pull-request phases, in that order
+
+### Requirement: Every phase has a kind and a place to go back to
+
+The system SHALL give each phase a kind (produce, review, verify, gate or merge) and SHALL name, for each phase that can ask for changes, the phase that redoes the work.
+
+#### Scenario: Code review asks for changes
+
+- **WHEN** code review asks for changes
+- **THEN** the work goes back to implementation
+
+### Requirement: A policy shapes the course
+
+The system SHALL let a policy turn off the spec approval and the design review, and SHALL set how many rounds a loop may take, which SHALL be at least one.
+
+#### Scenario: Optional phases off
+
+- **WHEN** the policy turns off the spec approval and the design review
+- **THEN** the course of a need contains neither phase
+
+#### Scenario: No rounds allowed
+
+- **WHEN** a policy allows fewer than one round
+- **THEN** it is refused
+
+### Requirement: Only work without a pull request publishes one
+
+The system SHALL publish a pull request for work that arrives without one, and SHALL NOT for work that starts from an existing pull request.
+
+#### Scenario: Starting from a plan
+
+- **WHEN** work starts from a plan
+- **THEN** the course publishes a pull request
