@@ -7,12 +7,14 @@ import pytest
 from shelf.adapters.web.sessions import LIFETIME, SessionStore
 from shelf.adapters.web.views import (
     Status,
+    ago,
     decision_options,
     document_views,
     entry_options,
     item_view,
     render_markdown,
     timeline,
+    webhook_status,
 )
 from shelf.domain.model import Identity, RepoRef, WorkId, WorkView
 from shelf.domain.pipeline import EntryPoint, Phase
@@ -131,3 +133,27 @@ def test_the_document_for_the_current_phase_is_open_and_the_others_folded() -> N
 def test_a_document_not_written_yet_is_simply_absent() -> None:
     assert [d.name for d in document_views({"spec.md": "x"}, Phase.INTAKE)] == ["spec.md"]
     assert document_views({}, Phase.INTAKE) == []
+
+
+def test_the_webhook_status_says_what_to_check_when_nothing_has_arrived() -> None:
+    status = webhook_status(None, NOW)
+    assert status.level == "warning"
+    assert "Recent deliveries" in status.text
+
+
+def test_the_webhook_status_for_each_kind_of_last_delivery() -> None:
+    from shelf.adapters.web.webhook_log import Delivery, Result  # noqa: PLC0415
+
+    def delivery(result: Result, detail: str = "") -> Delivery:
+        return Delivery(NOW - timedelta(minutes=3), "issue_comment", result, detail)
+
+    assert webhook_status(delivery(Result.BAD_SIGNATURE), NOW).level == "error"
+    assert webhook_status(delivery(Result.REFUSED, "nope"), NOW).text.endswith("nope")
+    applied = webhook_status(delivery(Result.APPLIED, "alice decided approve"), NOW)
+    assert (applied.level, "3 min ago" in applied.text) == ("ok", True)
+    assert webhook_status(delivery(Result.IGNORED), NOW).level == "ok"
+
+
+@pytest.mark.parametrize(("seconds", "expected"), [(10, "moments ago"), (300, "5 min ago"), (7300, "2 h ago")])
+def test_how_long_ago_is_said_in_a_few_words(seconds: int, expected: str) -> None:
+    assert ago(NOW - timedelta(seconds=seconds), NOW) == expected

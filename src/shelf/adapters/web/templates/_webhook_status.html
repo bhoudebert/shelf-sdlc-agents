@@ -1,0 +1,5 @@
+{% if webhook %}
+<p class="webhook webhook-{{ webhook.level }}" role="{{ 'alert' if webhook.level != 'ok' else 'status' }}">
+  <strong>GitHub webhook.</strong> {{ webhook.text }}
+</p>
+{% endif %}
