@@ -13,6 +13,11 @@ when it would be used. An idea that cannot be described in those terms is not re
 
 ## Later
 
+- **An isolated environment created for each step.** Each step runs in its own short-lived container (an image with the toolchains,
+  the clone mounted, no host mounts, no credentials, a restricted network, resource limits), thrown away afterwards, so an agent
+  cannot harm anything outside the repository. It needs a way to start containers that does not hand the worker the host: a
+  rootless Docker or Podman, or a socket proxy that only allows creating and removing containers. Behind the `AgentBackend` port.
+  For operators who let agents work on repositories they do not fully trust.
 - **Another agent backend** (OpenCode, or a harness made for local models) behind the `AgentBackend` port, for teams that
   must stay on local models.
 - **Budget per work item** and a spend view, for operators who share one model account.
