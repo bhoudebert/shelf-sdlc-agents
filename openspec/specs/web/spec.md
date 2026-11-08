@@ -136,6 +136,20 @@ The system SHALL let an administrator close a piece of work from its page withou
 - **WHEN** anyone else asks to close work
 - **THEN** the request is refused and the button is not shown
 
+### Requirement: The administrator's page checks the App on GitHub
+
+The system SHALL show administrators, on the admin page, the findings about the GitHub App's own setup, each with what to change, or one finding saying why the App could not be checked, and SHALL show nothing when no inspector is configured.
+
+#### Scenario: Something is wrong
+
+- **WHEN** an administrator opens the page and the App is not subscribed to the events the system needs
+- **THEN** a finding marked as to fix names the boxes to tick
+
+#### Scenario: GitHub refuses
+
+- **WHEN** GitHub cannot be asked about the App
+- **THEN** one finding says the App could not be checked and why
+
 ### Requirement: A repository whose configuration is invalid is reported on the page
 
 The system SHALL answer a start or a decision on a repository with an invalid configuration file with the reason on the form or panel, not with a server error.

@@ -17,6 +17,7 @@ from shelf.adapters.web.webhook_log import WebhookLog
 from shelf.domain.access import AccessRules, is_admin
 from shelf.domain.model import WorkId, WorkView
 from shelf.domain.polling import Mode
+from shelf.ports.app_inspector import AppInspector
 from shelf.ports.configs import RepoConfigs
 from shelf.ports.documents import Documents
 from shelf.ports.forge import Forge
@@ -74,6 +75,8 @@ class WebDeps:
     """For tests: how the proxy reaches Temporal's interface."""
     documents: Documents | None = None
     """Where the work's documents are read from; the interface shows none without it."""
+    inspector: AppInspector | None = None
+    """How the GitHub App is looked at, for the administrator's check; the page shows none without it."""
 
 
 @dataclass(frozen=True, slots=True)

@@ -13,10 +13,13 @@ from shelf.adapters.web.app import create_app
 from shelf.adapters.web.context import WebDeps, WebSettings
 from shelf.adapters.web.sessions import SessionStore
 from shelf.domain.access import AccessRules
+from shelf.domain.app_check import REQUIRED_EVENTS, REQUIRED_PERMISSIONS, AppFacts
 from shelf.domain.config import RepoConfig, Role
 from shelf.domain.model import Identity, RepoRef, WorkId, WorkView
 from shelf.domain.pipeline import EntryPoint, Phase
+from shelf.domain.result import Err, Ok, Result
 from shelf.domain.work import DecisionKind, PersonDecided, Reason
+from shelf.ports.app_inspector import AppInspector
 from shelf.ports.documents import Documents
 from shelf.ports.runner import UnreachableWorkError
 from tests.fakes import FakeConfigs, FakeForge, FakeRunner
@@ -35,13 +38,14 @@ ALICE = Identity("alice", frozenset({"acme"}))
 
 
 class Fixture:
-    def __init__(
+    def __init__(  # noqa: PLR0913, PLR0917 - a test fixture with one knob per dependency
         self,
         rules: AccessRules | None = None,
         configs: FakeConfigs | None = None,
         settings: WebSettings = SETTINGS,
         transport: httpx.MockTransport | None = None,
         documents: Documents | None = None,
+        inspector: AppInspector | None = None,
     ) -> None:
         self.forge = FakeForge(identities={"token-code": ALICE}, repos={"token-code": (REPO,)})
         self.runner = FakeRunner()
@@ -54,6 +58,7 @@ class Fixture:
             SessionStore(),
             transport,
             documents,
+            inspector,
         )
         self.client = TestClient(create_app(deps), base_url="https://shelf.example.org", follow_redirects=False)
 
@@ -454,6 +459,48 @@ def test_a_command_from_someone_not_on_the_access_list_is_ignored() -> None:
     }
     assert post_hook(app, "issue_comment", payload) == 202
     assert app.runner.decisions == []
+
+
+class FakeInspector:
+    def __init__(self, result: Result[AppFacts, str]) -> None:
+        self.result = result
+
+    async def facts(self) -> Result[AppFacts, str]:
+        return self.result
+
+
+def test_the_admin_page_tells_what_is_wrong_with_the_app_on_github() -> None:
+    nothing = AppFacts(
+        frozenset(), dict(REQUIRED_PERMISSIONS), "https://elsewhere.example/hook", webhook_secret_set=True
+    )
+    fixture = Fixture(AccessRules(admins=frozenset({"alice"})), inspector=FakeInspector(Ok(nothing)))
+    fixture.sign_in()
+    page = fixture.client.get("/admin").text
+    assert "GitHub App check" in page
+    assert "not subscribed to: pull_request, issue_comment" in page
+    assert "Subscribe to events" in page
+
+
+def test_the_admin_page_says_when_the_app_could_not_be_checked() -> None:
+    fixture = Fixture(AccessRules(admins=frozenset({"alice"})), inspector=FakeInspector(Err("GitHub refused it")))
+    fixture.sign_in()
+    page = fixture.client.get("/admin").text
+    assert "could not be checked" in page
+    assert "GitHub refused it" in page
+
+
+def test_a_healthy_app_shows_only_green_findings() -> None:
+    good = AppFacts(
+        frozenset(REQUIRED_EVENTS),
+        dict(REQUIRED_PERMISSIONS),
+        "https://shelf.example.org/api/github/webhook",
+        webhook_secret_set=True,
+    )
+    fixture = Fixture(AccessRules(admins=frozenset({"alice"})), inspector=FakeInspector(Ok(good)))
+    fixture.sign_in()
+    page = fixture.client.get("/admin").text
+    assert "finding-error" not in page
+    assert "subscribed to the events it needs" in page
 
 
 def test_ordinary_people_are_not_shown_the_webhook_status(app: Fixture) -> None:

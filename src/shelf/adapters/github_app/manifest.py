@@ -7,18 +7,10 @@ from typing import Any
 import httpx
 
 from shelf.adapters.github_app.settings import GitHubAppSettings
+from shelf.domain.app_check import REQUIRED_EVENTS, REQUIRED_PERMISSIONS
 
-PERMISSIONS = {
-    "contents": "write",
-    "pull_requests": "write",
-    "issues": "write",
-    "checks": "read",
-    "metadata": "read",
-}
-EVENTS = [
-    "pull_request",
-    "issue_comment",
-]
+PERMISSIONS = dict(REQUIRED_PERMISSIONS)
+EVENTS = list(REQUIRED_EVENTS)
 """The events to subscribe to: only the two the web service reads (a pull request closed, a comment created).
 
 GitHub always sends ``installation``, ``installation_repositories`` and ``ping``; a manifest that lists them is refused.

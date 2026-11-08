@@ -425,6 +425,12 @@ input:not([type="radio"]):focus-visible, select:focus-visible, textarea:focus-vi
 .webhook-ok { color: var(--ink-2); font-size: .95rem; }
 .webhook-warning { background: var(--ink); color: var(--ground); }
 .webhook-error { background: var(--accent); color: var(--on-accent); }
+.findings { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.finding { padding: 10px 14px; background: var(--surface); line-height: 1.5; }
+.finding p { margin: 6px 0 0; color: var(--ink-2); }
+.finding strong { margin-right: 6px; }
+.finding-warning { border-left: 4px solid var(--ink); }
+.finding-error { border-left: 4px solid var(--accent); }
 
 /* ---------- admin ---------- */
 .admin-block { margin-top: 32px; }

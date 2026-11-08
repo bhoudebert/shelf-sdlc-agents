@@ -84,3 +84,28 @@ The system SHALL explain, on the setup page, every field of GitHub's form with t
 
 - **WHEN** a required credential is missing at startup
 - **THEN** the error names it and says where to find it
+
+### Requirement: The App's own setup is checked against what GitHub reports
+
+The system SHALL read from GitHub, as the App, which events the App subscribes to, which permissions it has, its webhook URL and secret, and its recent webhook deliveries, and SHALL judge them with a pure function that names each problem and what to change, most serious first: missing events, too low a permission, a webhook URL that is not this instance's, no webhook secret, and a latest delivery that failed (a refused signature, an unreachable address, another error).
+
+#### Scenario: No events subscribed
+
+- **WHEN** the App is subscribed to neither pull request nor issue comment events
+- **THEN** the finding says so, names the page and the boxes to tick, and that a box stays greyed until its permission is granted
+
+#### Scenario: A refused signature
+
+- **WHEN** the latest delivery was answered 401 or 403
+- **THEN** the finding says the webhook secret on GitHub and in the instance's environment must be the same
+
+#### Scenario: A healthy App
+
+- **WHEN** events, permissions, URL, secret and the latest delivery are all right
+- **THEN** every finding is a confirmation
+
+#### Scenario: GitHub cannot be asked
+
+- **WHEN** GitHub refuses the App's identity or cannot be reached
+- **THEN** the result is a sentence saying why, not an error
+
