@@ -3,11 +3,13 @@
 import hashlib
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import datetime
 from enum import StrEnum
 
 from markdown_it import MarkdownIt
 from markupsafe import Markup
 
+from shelf.adapters.web.webhook_log import Delivery, Result
 from shelf.domain.model import WorkView
 from shelf.domain.pipeline import PIPELINE, EntryPoint, Phase
 from shelf.domain.roles import DOCUMENT_TITLES
@@ -226,3 +228,48 @@ FOCUS: dict[Phase, str] = {
 def version_of(*parts: object) -> str:
     """A short fingerprint of what a refreshing section shows. Equal fingerprints mean there is nothing new to draw."""
     return hashlib.sha1(repr(parts).encode(), usedforsecurity=False).hexdigest()[:12]
+
+
+@dataclass(frozen=True, slots=True)
+class WebhookStatus:
+    """What the interface tells an administrator about the GitHub webhook."""
+
+    level: str
+    """``ok``, ``warning`` or ``error``."""
+    text: str
+
+
+def ago(then: datetime, now: datetime) -> str:
+    """How long ago, in a few words."""
+    seconds = int((now - then).total_seconds())
+    if seconds < 60:  # noqa: PLR2004
+        return "moments ago"
+    if seconds < 3600:  # noqa: PLR2004
+        return f"{seconds // 60} min ago"
+    return f"{seconds // 3600} h ago"
+
+
+def webhook_status(last: Delivery | None, now: datetime) -> WebhookStatus:
+    """Say, for an administrator, whether GitHub's webhooks reach this instance and what became of the last one."""
+    if last is None:
+        return WebhookStatus(
+            "warning",
+            "No GitHub webhook has reached this instance since it started. A command typed on a pull request is then "
+            "only noticed by the periodic check, every 5 to 60 minutes. On the App's settings page, Advanced, Recent "
+            "deliveries, see whether GitHub sends them and what we answer: the webhook URL, the secret and the "
+            "subscribed events (Pull request, Issue comment) must match.",
+        )
+    when = f"{last.event}, {ago(last.at, now)}"
+    match last.result:
+        case Result.BAD_SIGNATURE:
+            return WebhookStatus(
+                "error",
+                f"The last webhook ({when}) was refused: its signature does not match GITHUB_WEBHOOK_SECRET. "
+                "Use the same secret in the App's webhook settings and in deploy/.env, then redeliver it.",
+            )
+        case Result.REFUSED:
+            return WebhookStatus("warning", f"The last command from GitHub ({when}) was not applied: {last.detail}")
+        case Result.APPLIED:
+            return WebhookStatus("ok", f"GitHub webhooks arrive. Last one: {when}, applied: {last.detail}.")
+        case Result.IGNORED:
+            return WebhookStatus("ok", f"GitHub webhooks arrive. Last one: {when}.")

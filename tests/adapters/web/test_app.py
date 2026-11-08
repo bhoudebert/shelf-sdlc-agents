@@ -243,7 +243,7 @@ def test_after_installing_the_app_github_sends_people_to_the_board(app: Fixture)
 
 
 def test_the_health_check_answers(app: Fixture) -> None:
-    assert app.client.get("/healthz").json() == {"status": "ok", "revision": "abc1234"}
+    assert app.client.get("/healthz").json() == {"status": "ok", "revision": "abc1234", "webhook": "none yet"}
 
 
 def test_an_administrator_sees_the_work_of_every_repository_and_a_link_into_temporal() -> None:
@@ -376,3 +376,42 @@ def test_a_decision_answer_carries_the_fingerprint_so_the_next_refresh_can_stay_
     fixture = with_work(FakeDocuments({}))
     answer = fixture.client.post("/work/work-1/decide", data={"kind": "approve"}).text
     assert "/panel?v=" in answer
+
+
+def test_a_webhook_that_arrives_is_remembered_and_shown_to_administrators() -> None:
+    fixture = Fixture(AccessRules(admins=frozenset({"alice"})))
+    fixture.sign_in()
+    assert "No GitHub webhook has reached this instance" in fixture.client.get("/board").text
+    assert post_hook(fixture, "star", {"action": "created"}) == 202
+    board = fixture.client.get("/board").text
+    assert "GitHub webhooks arrive" in board
+    assert "No GitHub webhook has reached" not in board
+    assert fixture.client.get("/healthz").json()["webhook"] == "star:ignored"
+
+
+def test_a_webhook_with_the_wrong_secret_is_reported_with_what_to_do() -> None:
+    fixture = Fixture(AccessRules(admins=frozenset({"alice"})))
+    fixture.sign_in()
+    assert post_hook(fixture, "issue_comment", {}, lambda body: signed(body, "another")) == 401
+    board = fixture.client.get("/board").text
+    assert "does not match GITHUB_WEBHOOK_SECRET" in board
+    assert fixture.client.get("/healthz").json()["webhook"] == "issue_comment:bad_signature"
+
+
+def test_a_command_that_could_not_be_applied_is_reported_not_swallowed() -> None:
+    fixture = Fixture(AccessRules(admins=frozenset({"alice"})))
+    fixture.sign_in()
+    payload: dict[str, object] = {
+        "action": "created",
+        "issue": {"pull_request": {}, "body": "<!-- shelf:work-abc123 -->\nneed"},
+        "comment": {"body": "/shelf approve", "user": {"login": "carol"}, "author_association": "MEMBER"},
+    }
+    assert post_hook(fixture, "issue_comment", payload) == 202  # the work is unknown to this instance
+    board = fixture.client.get("/board").text
+    assert "was not applied" in board
+    assert "work-abc123" in board
+
+
+def test_ordinary_people_are_not_shown_the_webhook_status(app: Fixture) -> None:
+    app.sign_in()
+    assert "GitHub webhook." not in app.client.get("/board").text

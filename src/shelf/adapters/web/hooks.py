@@ -1,13 +1,18 @@
 """GitHub webhooks and the health check."""
 
 import json
+import logging
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response
 
 from shelf.adapters.web.context import Web
 from shelf.adapters.web.webhook import Closed, Commented, interpret, valid_signature
+from shelf.adapters.web.webhook_log import Result
 from shelf.application.work import decide_work
+from shelf.domain.result import Err, Ok
+
+log = logging.getLogger("shelf.webhook")
 
 
 def router(web: Web) -> APIRouter:
@@ -17,23 +22,40 @@ def router(web: Web) -> APIRouter:
 
     @routes.post("/api/github/webhook")
     async def webhook(request: Request) -> Response:
+        event = request.headers.get("x-github-event", "")
         body = await request.body()
         if not valid_signature(deps.settings.webhook_secret, body, request.headers.get("x-hub-signature-256")):
+            web.webhooks.record(event, Result.BAD_SIGNATURE)
+            log.warning("webhook %s refused: the signature does not match GITHUB_WEBHOOK_SECRET", event)
             raise HTTPException(status_code=401, detail="bad signature")
-        meaning = interpret(request.headers.get("x-github-event", ""), json.loads(body))
+        meaning = interpret(event, json.loads(body))
         match meaning:
             case Closed(work_id, merged):
                 await deps.runner.pull_request_closed(work_id, merged=merged)
+                web.webhooks.record(event, Result.APPLIED, f"{work_id} {'merged' if merged else 'closed'}")
+                log.info("webhook %s: %s %s", event, work_id, "merged" if merged else "closed")
             case Commented(work_id, login, kind, note):
-                await decide_work(
+                result = await decide_work(
                     deps.runner, deps.configs, deps.rules, work_id=work_id, login=login, kind=kind, note=note
                 )
+                match result:
+                    case Ok():
+                        web.webhooks.record(event, Result.APPLIED, f"{login} decided {kind} on {work_id}")
+                        log.info("webhook %s: %s decided %s on %s", event, login, kind, work_id)
+                    case Err(refusal):
+                        web.webhooks.record(event, Result.REFUSED, f"{login} on {work_id}: {refusal}")
+                        log.warning("webhook %s: %s on %s not applied: %s", event, login, work_id, refusal)
             case None:
-                pass
+                web.webhooks.record(event, Result.IGNORED)
         return Response(status_code=202)
 
     @routes.get("/healthz")
     async def health() -> dict[str, str]:
-        return {"status": "ok", "revision": web.deps.settings.revision}
+        last = web.webhooks.last()
+        return {
+            "status": "ok",
+            "revision": web.deps.settings.revision,
+            "webhook": f"{last.event}:{last.result}" if last else "none yet",
+        }
 
     return routes

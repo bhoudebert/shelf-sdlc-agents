@@ -1,6 +1,7 @@
 """What every router shares: the instance's wiring, templates, and the signed cookies that carry a session."""
 
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from importlib import resources
 from pathlib import Path
 
@@ -10,7 +11,9 @@ from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 
+from shelf.adapters.web import views
 from shelf.adapters.web.sessions import Session, SessionStore
+from shelf.adapters.web.webhook_log import WebhookLog
 from shelf.domain.access import AccessRules, is_admin
 from shelf.domain.model import WorkId, WorkView
 from shelf.domain.polling import Mode
@@ -78,6 +81,7 @@ class Web:
     """The shared toolbox of the routers."""
 
     deps: WebDeps
+    webhooks: WebhookLog = field(default_factory=WebhookLog)
     templates: Jinja2Templates = field(default_factory=lambda: Jinja2Templates(directory=ASSETS / "templates"))
 
     @property
@@ -90,6 +94,7 @@ class Web:
             "user": session.identity.login if session else None,
             "mode": self.deps.settings.mode.value,
             "admin": self.is_admin(session),
+            "webhook": self.webhook_status() if self.is_admin(session) else None,
             "model_ready": self.deps.settings.model_configured,
         }
         return self.templates.TemplateResponse(request, name, {**base, **context})
@@ -114,6 +119,10 @@ class Web:
             return str(self._signer.loads(raw, max_age=max_age))
         except BadSignature:
             return None
+
+    def webhook_status(self) -> views.WebhookStatus:
+        """What an administrator is told about the GitHub webhook."""
+        return views.webhook_status(self.webhooks.last(), datetime.now(UTC))
 
     def is_admin(self, session: Session | None) -> bool:
         """Whether the signed-in person administers this instance."""
