@@ -76,6 +76,8 @@ services:
     # service that relaxes it, and the agents it runs only ever see a clone of the repository and a one-hour token.
     security_opt:
       - seccomp=unconfined
+      # Ubuntu 23.10+ hosts restrict unprivileged user namespaces with AppArmor, which the sandbox needs too.
+      - apparmor=unconfined
 
 volumes:
   temporal-data:

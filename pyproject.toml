@@ -21,6 +21,7 @@ dependencies = [
 [project.scripts]
 shelf-web = "shelf.entrypoints.web:main"
 shelf-worker = "shelf.entrypoints.worker:main"
+shelf-doctor = "shelf.entrypoints.doctor:main"
 
 [dependency-groups]
 dev = [

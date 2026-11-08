@@ -87,7 +87,7 @@ async def test_a_producer_runs_its_role_in_a_clone_and_pushes_what_it_wrote() ->
     [task] = agents.tasks
     assert task.role.name == "intake"
     assert task.system_prompt == "prompt of intake"
-    assert task.env == {"GH_TOKEN": "ghs_token"}
+    assert task.env == {}  # only the developer is given the installation token
     assert (task.model, task.max_budget_usd) == ("a-model", 2.0)
     assert workspaces.opened == [Checkout(REPO, "ghs_token", "shelf/work-1", "main", None)]
     assert workspaces.workspace.pushed == ["chore(shelf): intake for work-1"]
@@ -232,11 +232,20 @@ def test_a_reviewer_is_told_the_base_branch_so_it_can_run_the_diff_it_is_asked_f
     assert "git diff" not in task_prompt(NEED, RunStep(Phase.IMPLEMENT, 0, ""), "develop")
 
 
-def test_the_prompts_of_the_reviewers_only_promise_what_they_can_do() -> None:
+def test_reviewers_are_told_they_work_in_a_throwaway_clone_and_may_run_anything_that_helps() -> None:
     from shelf.adapters.claude_agent.prompts import load_prompt  # noqa: PLC0415
 
-    assert "read-only git" in load_prompt("code_reviewer")
-    assert "cannot build or run tests" in load_prompt("code_reviewer")
+    for role in ("spec_critic", "design_reviewer", "code_reviewer"):
+        assert "throwaway clone" in load_prompt(role)
+        assert "read-only" not in load_prompt(role)
+
+
+async def test_only_the_developer_is_given_the_installation_token() -> None:
+    agents = FakeAgents()
+    runner = steps(agents)
+    for phase in (Phase.INTAKE, Phase.SPEC_REVIEW, Phase.IMPLEMENT, Phase.CODE_REVIEW):
+        await runner.run(NEED, RunStep(phase, 0, ""))
+    assert [bool(task.env) for task in agents.tasks] == [False, False, True, False]
 
 
 async def test_every_agent_is_pointed_at_the_specs_decisions_and_conventions_of_the_repository() -> None:
@@ -270,3 +279,29 @@ def test_every_reviewer_is_told_that_a_contradiction_is_a_major_issue() -> None:
         assert "whole picture" in load_prompt(role)
     for role in ("intake", "architect", "planner", "implementer"):
         assert "whole picture" in load_prompt(role)
+
+
+async def test_the_pull_request_is_named_by_the_agent_that_reads_the_conventions() -> None:
+    agents = FakeAgents("Looking at git log...\nfeat(readme): add GitHub badges")
+    assert await steps(agents).title(NEED) == "feat(readme): add GitHub badges"
+    [task] = agents.tasks
+    assert task.role.name == "titler"
+    assert task.system_prompt == "prompt of titler"
+    assert "git diff main...HEAD" in task.prompt
+
+
+async def test_a_title_that_cannot_be_made_falls_back_to_the_request_and_never_fails() -> None:
+    class Broken:
+        async def run(self, task: AgentTask) -> str:
+            message = "model unavailable"
+            raise RuntimeError(message)
+
+    broken = Steps(
+        workspaces=FakeWorkspaces(),
+        agents=Broken(),
+        configs=FakeConfigs(),
+        pulls=FakePulls(),
+        token_for=token_for,
+        prompt_for=lambda role: role,
+    )
+    assert await broken.title(NEED) == "loyalty points"

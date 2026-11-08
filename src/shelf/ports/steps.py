@@ -15,12 +15,16 @@ class StepRunner(Protocol):
         """Run ``step`` for ``work``. A failure that retrying will not fix raises."""
         ...
 
+    async def title(self, work: WorkContext) -> str:
+        """The title of the work's pull request by the repository's own convention; never fails, falls back."""
+        ...
+
 
 class PullRequests(Protocol):
     """The pull request that carries the work: where it is published, announced on and watched."""
 
-    async def publish(self, work: WorkContext) -> str:
-        """Open the pull request and return its URL."""
+    async def publish(self, work: WorkContext, title: str) -> str:
+        """Open the pull request with ``title`` (or retitle the one that exists) and return its URL."""
         ...
 
     async def announce(self, work: WorkContext, ask: AskPerson) -> None:

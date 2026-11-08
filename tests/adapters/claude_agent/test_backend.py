@@ -15,14 +15,11 @@ def task(phase: Phase) -> AgentTask:
     )
 
 
-def test_a_role_gets_only_its_own_tools_and_the_sandbox() -> None:
+def test_every_role_gets_the_normal_toolset_and_the_sandbox() -> None:
     options = options_for(task(Phase.CODE_REVIEW))
-    assert options.allowed_tools[:3] == ["Read", "Glob", "Grep"]
-    assert "Bash(git diff:*)" in options.allowed_tools
-    assert "Bash" not in options.allowed_tools
+    assert set(options.allowed_tools) == {"Read", "Glob", "Grep", "Write", "Edit", "Bash"}
     assert options.sandbox is not None
     assert options.sandbox.get("enabled") is True
-    assert options.setting_sources == []
 
 
 def test_the_budget_the_model_and_the_environment_are_passed_through() -> None:
@@ -58,3 +55,22 @@ def test_the_nested_sandbox_is_opt_in_for_containers() -> None:
 def test_the_sandbox_can_be_turned_off_where_it_cannot_start() -> None:
     assert options_for(task(Phase.IMPLEMENT), sandbox=False).sandbox.get("enabled") is False  # type: ignore[union-attr]
     assert options_for(task(Phase.IMPLEMENT)).sandbox.get("enabled") is True  # type: ignore[union-attr]
+
+
+def test_the_agents_use_claude_codes_defaults_with_our_role_prompt_appended() -> None:
+    options = options_for(task(Phase.CODE_REVIEW))
+    assert options.system_prompt == {"type": "preset", "preset": "claude_code", "append": "system"}
+
+
+def test_the_repositorys_own_agent_files_are_loaded_but_never_its_hooks_or_mcp_servers() -> None:
+    options = options_for(task(Phase.CODE_REVIEW))
+    assert options.setting_sources == ["project"]
+    assert options.settings == '{"disableAllHooks": true}'
+    assert options.strict_mcp_config
+
+
+def test_a_specific_claude_executable_can_be_used() -> None:
+    assert (
+        options_for(task(Phase.IMPLEMENT), cli_path="/home/ubuntu/.local/bin/claude").cli_path
+        == "/home/ubuntu/.local/bin/claude"
+    )

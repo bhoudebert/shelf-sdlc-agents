@@ -7,8 +7,9 @@ from shelf.domain.config import RepoConfig
 from shelf.domain.context import CATEGORIES, EARLIER_WORK, context_brief
 from shelf.domain.model import RepoRef, WorkContext
 from shelf.domain.pipeline import Phase
-from shelf.domain.roles import PROVIDED_DOCUMENT, REVIEWERS, ROLES, documents_dir
+from shelf.domain.roles import PROVIDED_DOCUMENT, REVIEWERS, ROLES, TITLER, documents_dir
 from shelf.domain.story import agent_comment
+from shelf.domain.titles import clean_title, fallback_title
 from shelf.domain.verdict import parse_verdict
 from shelf.domain.work import Produced, RunStep, StepResult, Verified
 from shelf.ports.agents import AgentBackend, AgentTask
@@ -19,6 +20,9 @@ from shelf.ports.workspace import Checkout, Workspace, Workspaces
 TokenFor = Callable[[RepoRef], Awaitable[str]]
 PromptFor = Callable[[str], str]
 """Gives the system prompt of a role, by name."""
+
+TITLE_TURNS = 12
+"""How many turns the agent that names the pull request may take."""
 
 DOCUMENT_LIMIT = 20000
 """How much of a document is shown in its comment (the whole file is in the branch)."""
@@ -105,6 +109,41 @@ class Steps:
         await workspace.commit_and_push(f"chore(shelf): {role.name} for {work.id}")
         return Produced(), role.name, await self._story(work, step, workspace, config, answer)
 
+    async def title(self, work: WorkContext) -> str:
+        """The pull request's title by the repository's own convention; any failure falls back to the request."""
+        fallback = fallback_title(work.request.text)
+        repo = work.request.repo
+        try:
+            config = await self.configs.load(repo)
+            token = await self.token_for(repo)
+            async with self.workspaces.open(Checkout(repo, token, branch_of(work), config.base_branch)) as workspace:
+                answer = await self.agents.run(
+                    AgentTask(
+                        role=TITLER,
+                        system_prompt=self.prompt_for(TITLER.name),
+                        prompt=self._title_prompt(work, config.base_branch, workspace),
+                        workdir=workspace.path,
+                        env={},
+                        max_turns=TITLE_TURNS,
+                        max_budget_usd=self.max_budget_usd,
+                        model=self.model,
+                    )
+                )
+        except Exception:  # noqa: BLE001 - a title is never worth stopping the work for
+            return fallback
+        return clean_title(answer, fallback)
+
+    def _title_prompt(self, work: WorkContext, base: str, workspace: Workspace) -> str:
+        lines = [
+            f"Requested by: {work.request.requester}",
+            f"The base branch is `{base}`: `git diff {base}...HEAD` shows what this work changed.",
+            f"The documents of this work are in `{documents_dir(work.id)}/`.",
+        ]
+        if work.request.text:
+            lines += ["", "The request:", work.request.text.strip()[:2000]]
+        picture = self._picture(work, workspace)
+        return "\n".join([*lines, "", picture] if picture else lines)
+
     async def _ask_agent(self, work: WorkContext, step: RunStep, workspace: Workspace, token: str, base: str) -> str:
         role = ROLES[step.phase]
         return await self.agents.run(
@@ -113,7 +152,7 @@ class Steps:
                 system_prompt=self.prompt_for(role.name),
                 prompt=task_prompt(work, step, base, self._picture(work, workspace)),
                 workdir=workspace.path,
-                env={"GH_TOKEN": token},
+                env={"GH_TOKEN": token} if step.phase is Phase.IMPLEMENT else {},
                 max_turns=self.max_turns,
                 max_budget_usd=self.max_budget_usd,
                 model=self.model,

@@ -6,19 +6,9 @@ from typing import Final
 from shelf.domain.model import WorkId
 from shelf.domain.pipeline import KIND, EntryPoint, Kind, Phase
 
-READ_GIT: Final = (
-    "Bash(git diff:*)",
-    "Bash(git log:*)",
-    "Bash(git show:*)",
-    "Bash(git status:*)",
-    "Bash(git blame:*)",
-    "Bash(git ls-files:*)",
-)
-"""The only shell commands a reading agent may run: git, to look at history and the change, never to alter anything."""
-READ_ONLY: Final = ("Read", "Glob", "Grep", *READ_GIT)
-WRITING: Final = (*READ_ONLY, "Write", "Edit")
-CODING: Final = (*WRITING, "Bash")
-"""Only the developer may run arbitrary commands, inside the sandbox."""
+WORKING: Final = ("Read", "Glob", "Grep", "Write", "Edit", "Bash")
+"""The normal Claude Code toolset. Agents work in a throwaway clone with no credentials: a reviewer may run git, tests
+and linters like anyone, and what it changes is discarded because only producers' work is committed."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,14 +21,17 @@ class AgentRole:
     """File name under the work's document folder, for roles that write one."""
 
 
+TITLER = AgentRole("titler", WORKING)
+"""Not a phase of the pipeline: names the pull request by the repository's own convention."""
+
 ROLES: dict[Phase, AgentRole] = {
-    Phase.INTAKE: AgentRole("intake", WRITING, "spec.md"),
-    Phase.SPEC_REVIEW: AgentRole("spec_critic", READ_ONLY),
-    Phase.DESIGN: AgentRole("architect", WRITING, "design.md"),
-    Phase.DESIGN_REVIEW: AgentRole("design_reviewer", READ_ONLY),
-    Phase.PLAN: AgentRole("planner", WRITING, "plan.md"),
-    Phase.IMPLEMENT: AgentRole("implementer", CODING),
-    Phase.CODE_REVIEW: AgentRole("code_reviewer", READ_ONLY),
+    Phase.INTAKE: AgentRole("intake", WORKING, "spec.md"),
+    Phase.SPEC_REVIEW: AgentRole("spec_critic", WORKING),
+    Phase.DESIGN: AgentRole("architect", WORKING, "design.md"),
+    Phase.DESIGN_REVIEW: AgentRole("design_reviewer", WORKING),
+    Phase.PLAN: AgentRole("planner", WORKING, "plan.md"),
+    Phase.IMPLEMENT: AgentRole("implementer", WORKING),
+    Phase.CODE_REVIEW: AgentRole("code_reviewer", WORKING),
 }
 """Phases that an agent carries out. The checks, the gate and the pull request have no agent."""
 

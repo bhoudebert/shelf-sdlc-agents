@@ -2,7 +2,7 @@ import pytest
 
 from shelf.domain.model import WorkId
 from shelf.domain.pipeline import KIND, Kind, Phase
-from shelf.domain.roles import READ_GIT, REVIEWERS, ROLES, documents_dir
+from shelf.domain.roles import ROLES, TITLER, documents_dir
 from shelf.domain.verdict import parse_verdict
 from shelf.domain.work import Reviewed, Verdict
 
@@ -12,32 +12,9 @@ def test_every_phase_an_agent_carries_out_has_a_role_and_the_others_do_not() -> 
     assert {p for p in Phase if KIND[p] in agent_kinds} == set(ROLES)
 
 
-def test_reviewers_may_only_read_and_look_at_history_with_git() -> None:
-    for phase in REVIEWERS:
-        assert set(ROLES[phase].tools) <= {"Read", "Glob", "Grep", *READ_GIT}
-        assert "Bash" not in ROLES[phase].tools
-
-
-def test_a_reviewer_told_to_run_git_diff_can_run_it() -> None:
-    reviewer = ROLES[Phase.CODE_REVIEW]
-    assert "Bash(git diff:*)" in reviewer.tools
-    assert "Bash(git log:*)" in reviewer.tools
-
-
-def test_a_read_only_git_command_can_never_change_anything() -> None:
-    for pattern in READ_GIT:
-        assert pattern.split("(")[1].split(":")[0] in {
-            "git diff",
-            "git log",
-            "git show",
-            "git status",
-            "git blame",
-            "git ls-files",
-        }
-
-
-def test_only_the_implementer_may_run_arbitrary_commands() -> None:
-    assert [p for p, r in ROLES.items() if "Bash" in r.tools] == [Phase.IMPLEMENT]
+def test_every_agent_has_the_normal_toolset_including_a_shell() -> None:
+    for role in (*ROLES.values(), TITLER):
+        assert {"Read", "Glob", "Grep", "Write", "Edit", "Bash"} == set(role.tools)
 
 
 def test_each_document_is_written_by_exactly_one_role() -> None:

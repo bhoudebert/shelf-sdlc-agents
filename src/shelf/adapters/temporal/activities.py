@@ -28,7 +28,8 @@ def build_activities(steps: StepRunner, pulls: PullRequests) -> Sequence[Callabl
 
     @activity.defn(name=PUBLISH)
     async def publish(work: wire.WorkInput) -> str:
-        return await pulls.publish(wire.context_of(work))
+        context = wire.context_of(work)
+        return await pulls.publish(context, await steps.title(context))
 
     @activity.defn(name=POLL)
     async def poll(work: wire.WorkInput) -> list[wire.EventDto]:
