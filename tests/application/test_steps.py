@@ -8,6 +8,7 @@ from shelf.application.steps import Steps, branch_of, task_prompt
 from shelf.domain.config import RepoConfig
 from shelf.domain.model import RepoRef, WorkContext, WorkId, WorkRequest
 from shelf.domain.pipeline import EntryPoint, Phase
+from shelf.domain.story import agent_comment
 from shelf.domain.work import Produced, Reviewed, RunStep, Verdict, Verified
 from shelf.ports.agents import AgentTask
 from shelf.ports.workspace import Checkout, CheckResult
@@ -107,7 +108,7 @@ async def test_the_code_review_of_a_pull_request_is_posted_on_it_and_reads_its_h
         REVIEW, RunStep(Phase.CODE_REVIEW, 0, "")
     )
     assert result == Reviewed(Verdict.CHANGES, "Rename it.")
-    assert pulls.commented == ["**code_reviewer: changes**\n\nRename it."]
+    assert pulls.commented == [agent_comment("work-2", "code_reviewer", "**Verdict: changes**\n\nRename it.")]
     assert workspaces.opened[0].pull_request == 7
 
 
@@ -176,18 +177,50 @@ async def test_the_recorded_request_is_never_overwritten_by_a_later_step() -> No
     assert target.read_text() == "edited by a person\n"
 
 
-async def test_a_producer_says_what_it_did_and_where_on_the_pull_request() -> None:
-    pulls = FakePulls()
-    await steps(FakeAgents("Wrote 3 requirements."), pulls=pulls).run(NEED, RunStep(Phase.INTAKE, 0, ""))
+async def test_a_producer_speaks_as_itself_and_shows_the_document_it_wrote() -> None:
+    pulls, workspaces = FakePulls(), FakeWorkspaces()
+    written = workspaces.workspace.path / "docs/shelf/work-1/spec.md"
+    written.parent.mkdir(parents=True)
+    written.write_text("# Spec\n\nThe system SHALL earn points.\n")
+    await steps(FakeAgents("Wrote 3 requirements."), workspaces, pulls).run(NEED, RunStep(Phase.INTAKE, 0, ""))
     [comment] = pulls.commented
-    assert comment.startswith("**intake** finished (round 0).")
-    assert "`docs/shelf/work-1/spec.md`" in comment
+    assert comment.startswith("<!-- shelf-agent:intake:work-1 -->\n**Spec writer** · agent")
     assert "Wrote 3 requirements." in comment
+    assert "<details><summary><code>docs/shelf/work-1/spec.md</code></summary>" in comment
+    assert "The system SHALL earn points." in comment
 
 
-async def test_every_review_and_check_is_reported_on_the_pull_request() -> None:
+async def test_the_developer_says_what_changed() -> None:
+    pulls = FakePulls()
+    workspaces = FakeWorkspaces(FakeWorkspace(commands={"git diff --stat main...HEAD": 0}))
+    await steps(FakeAgents("Implemented the points."), workspaces, pulls).run(NEED, RunStep(Phase.IMPLEMENT, 1, "fix"))
+    [comment] = pulls.commented
+    assert "**Developer** · agent" in comment
+    assert "Round 1." in comment
+    assert "Changes:" in comment
+    assert "output of git diff --stat main...HEAD" in comment
+
+
+async def test_every_review_and_check_is_reported_as_the_agent_that_made_it() -> None:
     pulls = FakePulls()
     runner = steps(FakeAgents("Too vague.\nVERDICT: CHANGES"), pulls=pulls, config=RepoConfig(checks=("make test",)))
     await runner.run(NEED, RunStep(Phase.SPEC_REVIEW, 0, ""))
     await runner.run(NEED, RunStep(Phase.VERIFY, 0, ""))
-    assert pulls.commented == ["**spec_critic: changes**\n\nToo vague.", "**Checks: passed**"]
+    first, second = pulls.commented
+    assert first == agent_comment("work-1", "spec_critic", "**Verdict: changes**\n\nToo vague.")
+    assert second.startswith("<!-- shelf-agent:checks:work-1 -->\n**Checks** · agent")
+    assert "✅ `make test`" in second
+    assert "**Passed**" in second
+
+
+async def test_failing_checks_are_listed_with_their_output_for_everyone_to_read() -> None:
+    pulls = FakePulls()
+    workspaces = FakeWorkspaces(FakeWorkspace(commands={"make test": 2}))
+    await steps(workspaces=workspaces, pulls=pulls, config=RepoConfig(checks=("make lint", "make test"))).run(
+        NEED, RunStep(Phase.VERIFY, 0, "")
+    )
+    [comment] = pulls.commented
+    assert "**Failed**" in comment
+    assert "✅ `make lint`" in comment
+    assert "❌ `make test` (exit 2)" in comment
+    assert "output of make test" in comment

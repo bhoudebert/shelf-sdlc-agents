@@ -219,3 +219,31 @@ async def test_poll_reads_decisions_from_the_comments_of_an_open_pull_request(se
 
     events = await adapter(settings, httpx.MockTransport(handler)).poll(REVIEW)
     assert events == [PersonDecided("carol", DecisionKind.APPROVE)]
+
+
+async def test_the_progress_comment_is_created_once_then_edited_in_place(settings: GitHubAppSettings) -> None:
+    calls: list[tuple[str, str]] = []
+    existing: list[dict[str, object]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append((request.method, request.url.path))
+        if request.method == "GET":
+            return httpx.Response(200, json=existing)
+        if request.method == "POST":
+            existing.append({"id": 55, "body": json.loads(request.content)["body"]})
+        return httpx.Response(200, json={})
+
+    pulls = adapter(settings, httpx.MockTransport(handler))
+    body = "<!-- shelf-progress:work-2 -->\n### shelf-sdlc: progress"
+    await pulls.progress(REVIEW, body)
+    await pulls.progress(REVIEW, body + "\nmore")
+    assert calls.count(("POST", "/repos/acme/shop/issues/7/comments")) == 1
+    assert ("PATCH", "/repos/acme/shop/issues/comments/55") in calls
+
+
+def test_a_gate_announcement_links_the_document_to_judge() -> None:
+    text = announcement(NEED, AskPerson(Phase.SPEC_APPROVAL, Reason.GATE, ""))
+    assert (
+        "[docs/shelf/work-1/spec.md](https://github.com/acme/shop/blob/shelf/work-1/docs/shelf/work-1/spec.md)" in text
+    )
+    assert "Read it" not in announcement(NEED, AskPerson(Phase.IMPLEMENT, Reason.FAILURE, "boom"))

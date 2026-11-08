@@ -10,9 +10,14 @@ import httpx
 from shelf.adapters.github_app.settings import GitHubAppSettings
 from shelf.domain.commands import HELP, MARKER, is_ours, parse_command
 from shelf.domain.model import RepoRef, WorkContext
-from shelf.domain.pipeline import EntryPoint
+from shelf.domain.pipeline import EntryPoint, Phase
+from shelf.domain.progress import marker
+from shelf.domain.roles import documents_dir
 from shelf.domain.stage import PREFIX, Stage
 from shelf.domain.work import AskPerson, Event, PersonDecided, PullRequestClosed, Reason
+
+COMMENTS_PER_PAGE = 100
+MAX_COMMENT_PAGES = 5
 
 TRUSTED = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
 """Only people with write access count: an outsider's comment is never a decision."""
@@ -43,7 +48,24 @@ def announcement(work: WorkContext, ask: AskPerson) -> str:
         Reason.MERGE: "Ready for review and merge",
     }[ask.reason]
     detail = f"\n\n{ask.detail}" if ask.detail else ""
-    return f"{MARKER}{work.id} -->\n**{heading}** ({ask.phase}){detail}\n\n{HELP}"
+    read = _where_to_read(work, ask.phase)
+    return f"{MARKER}{work.id} -->\n**{heading}** ({ask.phase}){detail}{read}\n\n{HELP}"
+
+
+READ_AT: dict[Phase, str] = {
+    Phase.SPEC_APPROVAL: "spec.md",
+    Phase.DESIGN_REVIEW: "design.md",
+    Phase.PULL_REQUEST: "plan.md",
+}
+
+
+def _where_to_read(work: WorkContext, phase: Phase) -> str:
+    """A link to the document the person is asked to judge, when there is one."""
+    name = READ_AT.get(phase)
+    if name is None:
+        return ""
+    path = f"{documents_dir(work.id)}/{name}"
+    return f"\n\nRead it: [{path}](https://github.com/{work.request.repo.full_name}/blob/{branch_name(work)}/{path})"
 
 
 def events_from(comments: Sequence[Mapping[str, Any]]) -> list[Event]:
@@ -93,6 +115,31 @@ class GitHubPullRequests:
     async def announce(self, work: WorkContext, ask: AskPerson) -> None:
         """Comment on the pull request with what the work waits for."""
         await self.comment(work, announcement(work, ask))
+
+    async def progress(self, work: WorkContext, body: str) -> None:
+        """Keep one progress comment, found by its hidden marker and edited in place after every step."""
+        repo = work.request.repo
+        number = await self._number(work)
+        if number is None:
+            return
+        base = f"/repos/{repo.full_name}/issues"
+        found = await self._find_comment(repo, number, marker(work.id))
+        if found is None:
+            await self._call("POST", repo, f"{base}/{number}/comments", json={"body": body})
+        else:
+            await self._call("PATCH", repo, f"{base}/comments/{found}", json={"body": body})
+
+    async def _find_comment(self, repo: RepoRef, number: int, needle: str) -> int | None:
+        """The id of our comment holding ``needle``, looking through up to five pages of the conversation."""
+        for page in range(1, MAX_COMMENT_PAGES + 1):
+            path = f"/repos/{repo.full_name}/issues/{number}/comments?per_page=100&page={page}"
+            comments = (await self._call("GET", repo, path)).json()
+            for comment in comments:
+                if needle in str(comment.get("body", "")):
+                    return int(comment["id"])
+            if len(comments) < COMMENTS_PER_PAGE:
+                return None
+        return None
 
     async def set_ready(self, work: WorkContext, *, ready: bool) -> None:
         """Mark the pull request ready for review, or back to draft. GitHub offers this only through GraphQL."""

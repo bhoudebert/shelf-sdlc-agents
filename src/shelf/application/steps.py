@@ -7,6 +7,7 @@ from shelf.domain.config import RepoConfig
 from shelf.domain.model import RepoRef, WorkContext
 from shelf.domain.pipeline import Phase
 from shelf.domain.roles import PROVIDED_DOCUMENT, REVIEWERS, ROLES, documents_dir
+from shelf.domain.story import agent_comment
 from shelf.domain.verdict import parse_verdict
 from shelf.domain.work import Produced, RunStep, StepResult, Verified
 from shelf.ports.agents import AgentBackend, AgentTask
@@ -17,6 +18,9 @@ from shelf.ports.workspace import Checkout, Workspace, Workspaces
 TokenFor = Callable[[RepoRef], Awaitable[str]]
 PromptFor = Callable[[str], str]
 """Gives the system prompt of a role, by name."""
+
+DOCUMENT_LIMIT = 20000
+"""How much of a document is shown in its comment (the whole file is in the branch)."""
 
 SUMMARY_LIMIT = 3000
 """How much of an agent's closing message is posted on the pull request."""
@@ -67,7 +71,7 @@ class Steps:
     max_budget_usd: float | None = None
 
     async def run(self, work: WorkContext, step: RunStep) -> StepResult:
-        """Run ``step`` for ``work``, say what happened on the pull request, and read what came out."""
+        """Run ``step`` for ``work``, speak about it on the pull request as the agent it is, and read what came out."""
         repo = work.request.repo
         config = await self.configs.load(repo)
         token = await self.token_for(repo)
@@ -75,25 +79,26 @@ class Steps:
         checkout = Checkout(repo, token, branch_of(work), config.base_branch, reviewing)
         async with self.workspaces.open(checkout) as workspace:
             recorded = await self._record_request(work, workspace)
-            result, report = await self._do(work, step, workspace, config, token)
+            result, speaker, words = await self._do(work, step, workspace, config, token)
             if recorded and not isinstance(result, Produced):
                 await workspace.commit_and_push(f"chore(shelf): record the request for {work.id}")
-            await self._report(work, report)
+            await self.pulls.comment(work, agent_comment(work.id, speaker, words))
             return result
 
     async def _do(
         self, work: WorkContext, step: RunStep, workspace: Workspace, config: RepoConfig, token: str
-    ) -> tuple[StepResult, str]:
-        """Carry out the phase and return its result with the text to post about it."""
+    ) -> tuple[StepResult, str, str]:
+        """Carry out the phase; return its result, who speaks about it, and what they say."""
         if step.phase is Phase.VERIFY:
-            checked = await self._verify(workspace, config)
-            return checked, f"**Checks: {'passed' if checked.passed else 'failed'}**\n\n{checked.report}".strip()
+            checked, ran = await self._verify(workspace, config)
+            return checked, "checks", ran
         answer = await self._ask_agent(work, step, workspace, token)
+        role = ROLES[step.phase]
         if step.phase in REVIEWERS:
             reviewed = parse_verdict(answer)
-            return reviewed, f"**{ROLES[step.phase].name}: {reviewed.verdict}**\n\n{reviewed.issues}".strip()
-        await workspace.commit_and_push(f"chore(shelf): {ROLES[step.phase].name} for {work.id}")
-        return Produced(), self._summary(work, step, answer)
+            return reviewed, role.name, f"**Verdict: {reviewed.verdict}**\n\n{reviewed.issues}".strip()
+        await workspace.commit_and_push(f"chore(shelf): {role.name} for {work.id}")
+        return Produced(), role.name, await self._story(work, step, workspace, config, answer)
 
     async def _ask_agent(self, work: WorkContext, step: RunStep, workspace: Workspace, token: str) -> str:
         role = ROLES[step.phase]
@@ -122,22 +127,38 @@ class Steps:
         target.write_text(work.request.text.rstrip() + "\n", encoding="utf-8")
         return True
 
-    async def _report(self, work: WorkContext, body: str) -> None:
-        """Say what a step did on the pull request, if it is open yet."""
-        await self.pulls.comment(work, body)
-
-    def _summary(self, work: WorkContext, step: RunStep, answer: str) -> str:
+    async def _story(
+        self, work: WorkContext, step: RunStep, workspace: Workspace, config: RepoConfig, answer: str
+    ) -> str:
+        """What a producer says: its closing message, the document it wrote, and for the developer what changed."""
         role = ROLES[step.phase]
-        files = f"\n\nFile: `{documents_dir(work.id)}/{role.document}`" if role.document else ""
-        text = answer.strip()[:SUMMARY_LIMIT]
-        return f"**{role.name}** finished (round {step.attempt}).{files}\n\n{text}".strip()
+        parts = [f"Round {step.attempt}." if step.attempt else "", answer.strip()[:SUMMARY_LIMIT]]
+        if role.document:
+            path = f"{documents_dir(work.id)}/{role.document}"
+            written = workspace.path / path
+            if written.is_file():
+                shown = written.read_text(encoding="utf-8")[:DOCUMENT_LIMIT]
+                parts.append(f"<details><summary><code>{path}</code></summary>\n\n{shown}\n\n</details>")
+        else:
+            stat = await workspace.run(f"git diff --stat {config.base_branch}...HEAD")
+            if stat.exit_code == 0 and stat.output.strip():
+                parts.append(f"Changes:\n\n```\n{stat.output.strip()[:REPORT_TAIL]}\n```")
+        return "\n\n".join(part for part in parts if part)
 
-    async def _verify(self, workspace: Workspace, config: RepoConfig) -> Verified:
+    async def _verify(self, workspace: Workspace, config: RepoConfig) -> tuple[Verified, str]:
+        """Run the repository's checks; return the result for the machine and a report a person can read."""
         if not config.checks:
-            return Verified(passed=True, report="No checks configured for this repository.")
+            note = "No checks configured for this repository."
+            return Verified(passed=True, report=note), note
         failures: list[str] = []
+        lines: list[str] = []
         for command in config.checks:
             result = await workspace.run(command)
-            if result.exit_code != 0:
+            if result.exit_code == 0:
+                lines.append(f"✅ `{command}`")
+            else:
+                lines.append(f"❌ `{command}` (exit {result.exit_code})")
                 failures.append(f"$ {command} (exit {result.exit_code})\n{result.output[-REPORT_TAIL:]}")
-        return Verified(passed=not failures, report="\n\n".join(failures))
+        verified = Verified(passed=not failures, report="\n\n".join(failures))
+        details = f"\n\n```\n{verified.report}\n```" if failures else ""
+        return verified, f"**{'Passed' if verified.passed else 'Failed'}**\n\n" + "\n".join(lines) + details

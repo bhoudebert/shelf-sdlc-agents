@@ -84,6 +84,25 @@ class StageInput:
 
 
 @dataclass(frozen=True, slots=True)
+class LogEntryDto:
+    """One thing that happened at a phase, for the progress comment."""
+
+    phase: str
+    text: str
+
+
+@dataclass(frozen=True, slots=True)
+class ProgressInput:
+    """The input of the activity that updates the progress comment."""
+
+    work: WorkInput
+    log: list[LogEntryDto]
+    phase: str
+    reason: str = ""
+    outcome: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class ReadyInput:
     """The input of the activity that marks the pull request ready for review or back to draft."""
 
