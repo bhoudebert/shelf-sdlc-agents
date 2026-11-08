@@ -256,3 +256,12 @@ The system SHALL log each webhook it refuses, applies or cannot apply, with the 
 
 - **WHEN** a delivery is refused
 - **THEN** the log says why
+
+### Requirement: The doctor probes the sandbox itself and says how to fix it
+
+The system SHALL have the doctor start the sandbox's own tool first and, when it cannot start, report what the tool said with the host fix and a warning that disabling the sandbox exposes the worker's environment.
+
+#### Scenario: Ubuntu 24.04
+
+- **WHEN** the sandbox cannot start on an Ubuntu host
+- **THEN** the report names the AppArmor setting to change and the safer order of remedies

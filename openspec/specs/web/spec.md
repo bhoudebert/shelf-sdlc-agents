@@ -296,3 +296,22 @@ The system SHALL remember the most recent webhook deliveries and show administra
 
 - **WHEN** a command from a pull request names work this instance does not know
 - **THEN** the board says it was not applied and why, instead of nothing happening
+
+### Requirement: An admin page shows what GitHub has sent and the instance's facts
+
+The system SHALL give administrators, and only them, a page listing the recent webhook deliveries newest first (time, event, repository, what became of it, detail and GitHub's delivery id) beside the key facts of the instance (revision, address, mode, App, whether a model credential is set, access lists), never showing a secret, and SHALL say what to check when nothing has arrived.
+
+#### Scenario: Deliveries
+
+- **WHEN** an administrator opens the admin page after a refused and an ignored delivery
+- **THEN** both are listed, the refusal marked, newest first
+
+#### Scenario: Nothing has arrived
+
+- **WHEN** no webhook has arrived
+- **THEN** the page says to comment on a pull request and check the App's recent deliveries
+
+#### Scenario: Not an administrator
+
+- **WHEN** an ordinary person asks for the page
+- **THEN** it is refused and the navigation does not offer it
