@@ -60,6 +60,7 @@ class FakePulls:
     found: list[Event] = field(default_factory=list[Event])
     announced: list[AskPerson] = field(default_factory=list[AskPerson])
     published: int = 0
+    commented: list[str] = field(default_factory=list[str])
 
     async def publish(self, work: WorkContext) -> str:
         self.published += 1
@@ -67,6 +68,9 @@ class FakePulls:
 
     async def announce(self, work: WorkContext, ask: AskPerson) -> None:
         self.announced.append(ask)
+
+    async def comment(self, work: WorkContext, body: str) -> None:
+        self.commented.append(body)
 
     async def poll(self, work: WorkContext) -> Sequence[Event]:
         found, self.found = self.found, []

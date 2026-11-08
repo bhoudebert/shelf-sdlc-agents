@@ -26,6 +26,10 @@ class PullRequests(Protocol):
         """Tell the people on the pull request what the work waits for."""
         ...
 
+    async def comment(self, work: WorkContext, body: str) -> None:
+        """Post ``body`` on the pull request (a review, for work that reviews an existing pull request)."""
+        ...
+
     async def poll(self, work: WorkContext) -> Sequence[Event]:
         """The events (decisions in comments, a merge or a close) that happened since the last look."""
         ...

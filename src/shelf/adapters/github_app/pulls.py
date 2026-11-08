@@ -93,6 +93,12 @@ class GitHubPullRequests:
             "POST", repo, f"/repos/{repo.full_name}/issues/{number}/comments", json={"body": announcement(work, ask)}
         )
 
+    async def comment(self, work: WorkContext, body: str) -> None:
+        """Post ``body`` as a comment on the pull request."""
+        repo = work.request.repo
+        number = await self._number(work)
+        await self._call("POST", repo, f"/repos/{repo.full_name}/issues/{number}/comments", json={"body": body})
+
     async def poll(self, work: WorkContext) -> Sequence[Event]:
         """The merge or close of the pull request, and decisions typed in comments since the last announcement."""
         repo = work.request.repo

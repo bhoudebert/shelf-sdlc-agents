@@ -60,3 +60,12 @@ The system SHALL report a closed pull request as merged or closed so that the wo
 
 - **WHEN** the pull request is closed with a merge
 - **THEN** the work learns it was merged
+
+### Requirement: A review can be posted on the pull request
+
+The system SHALL post a given text as a comment on the pull request of a piece of work, so that a review is read where people already work.
+
+#### Scenario: Posting a review
+
+- **WHEN** a reviewer's verdict and issues are to be shown
+- **THEN** they appear as a comment on the pull request
