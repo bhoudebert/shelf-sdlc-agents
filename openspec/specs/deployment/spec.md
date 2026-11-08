@@ -247,3 +247,12 @@ The system SHALL let the operator name a Claude Code executable to use instead o
 
 - **WHEN** the operator names an executable
 - **THEN** the agents use it
+
+### Requirement: Webhook deliveries are logged
+
+The system SHALL log each webhook it refuses, applies or cannot apply, with the reason, so that an operator can follow a command typed on a pull request in the web service's log.
+
+#### Scenario: A refused delivery
+
+- **WHEN** a delivery is refused
+- **THEN** the log says why

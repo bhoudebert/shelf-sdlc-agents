@@ -272,3 +272,22 @@ The system SHALL open every link to GitHub or to another site in a new tab witho
 
 - **WHEN** a person follows the pull request link
 - **THEN** it opens in a new tab and the work page remains open
+
+### Requirement: Administrators are told whether GitHub's webhooks arrive and what became of them
+
+The system SHALL remember the most recent webhook deliveries and show administrators, on the board, whether any has arrived since it started, whether the last one was refused for a wrong signature, whether a command on a pull request could not be applied and why, or that the last one was applied, and SHALL include the last delivery in the health check; ordinary people see none of it.
+
+#### Scenario: Nothing has arrived
+
+- **WHEN** no webhook has reached the instance
+- **THEN** the board tells the administrator that commands are only noticed by the periodic check and what to look at on the App
+
+#### Scenario: A wrong secret
+
+- **WHEN** a webhook arrives signed with another secret
+- **THEN** the board says the signature does not match the configured secret and what to do
+
+#### Scenario: A command that could not be applied
+
+- **WHEN** a command from a pull request names work this instance does not know
+- **THEN** the board says it was not applied and why, instead of nothing happening
