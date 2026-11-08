@@ -107,6 +107,6 @@ def build_services(settings: Settings, github: GitHubApp, client: httpx.AsyncCli
         max_turns=settings.max_turns,
         max_budget_usd=settings.max_budget_usd,
     )
-    runner = TemporalRunner(temporal, settings.task_queue, configs, operator.mode)
+    runner = TemporalRunner(temporal, settings.task_queue, configs, operator.mode, app.web_url)
     documents = CachedDocuments(GitHubDocuments(client, app, token_for))
     return Services(GitHubForge(client, app), configs, pulls, steps, runner, operator, documents)

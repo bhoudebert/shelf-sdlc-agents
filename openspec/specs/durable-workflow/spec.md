@@ -129,6 +129,15 @@ The system SHALL record, when a piece of work starts, the protocol version it be
 - **WHEN** histories recorded by earlier releases are replayed with the current code
 - **THEN** every one replays without a non-determinism error
 
+### Requirement: A review shows the pull request it started from
+
+The system SHALL link, on the board and on the work page, the pull request a review of an existing pull request started from, even though that work publishes nothing of its own.
+
+#### Scenario: A review
+
+- **WHEN** work starts at the review of pull request 7
+- **THEN** its view links pull request 7 of that repository
+
 ### Requirement: Work that cannot be read is shown, not hidden
 
 The system SHALL show a piece of work that exists but whose state cannot be read as failed, with the reason, instead of leaving it off the board.

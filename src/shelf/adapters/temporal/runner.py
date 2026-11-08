@@ -39,6 +39,8 @@ class TemporalRunner:
     task_queue: str
     configs: RepoConfigs
     mode: Mode = Mode.LOCAL
+    web_url: str = "https://github.com"
+    """Where pull requests are shown, to link the one a review started from."""
     next_id: Callable[[], WorkId] = field(default=new_work_id)
     cache_seconds: float = 2.0
     """How long a list of all work is shared between callers: many open boards cost one set of Temporal calls."""
@@ -71,7 +73,12 @@ class TemporalRunner:
             work,
             id=work_id,
             task_queue=self.task_queue,
-            memo={"repo": work.repo, "requester": work.requester, "entry": work.entry},
+            memo={
+                "repo": work.repo,
+                "requester": work.requester,
+                "entry": work.entry,
+                **({"pull_request": work.pull_request} if work.pull_request is not None else {}),
+            },
         )
         return work_id
 
@@ -159,5 +166,9 @@ class TemporalRunner:
             waiting_for=Reason(snapshot.waiting_for) if snapshot.waiting_for else None,
             detail=snapshot.detail,
             outcome=Outcome(snapshot.outcome) if snapshot.outcome else None,
-            pull_request_url=snapshot.pull_request_url,
+            pull_request_url=snapshot.pull_request_url or self._link_of(repo, memo.get("pull_request")),
         )
+
+    def _link_of(self, repo: RepoRef, number: object) -> str:
+        """The link to the pull request a review started from; nothing for work that opens its own."""
+        return f"{self.web_url.rstrip('/')}/{repo.full_name}/pull/{number}" if isinstance(number, int) else ""

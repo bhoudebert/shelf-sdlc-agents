@@ -52,6 +52,15 @@ async def test_the_runner_starts_work_with_the_policy_of_the_repository(env: Wor
     assert board.pull_request_url.endswith("/pull/1")
 
 
+async def test_a_review_links_the_pull_request_it_started_from(env: WorkflowEnvironment) -> None:
+    runner = runner_for(env)
+    async with worker(env, FakeSteps(), FakePulls()):
+        request = WorkRequest(REPO, "alice", EntryPoint.PULL_REQUEST_REVIEW, pull_request=7)
+        work_id = await runner.start(request)
+        view = await _until(runner, work_id, lambda v: v.waiting_for is not None)
+    assert view.pull_request_url == f"https://github.com/{REPO.full_name}/pull/7"
+
+
 async def test_an_unknown_piece_of_work_has_no_view(env: WorkflowEnvironment) -> None:
     assert await runner_for(env).view(WorkId("nope")) is None
 

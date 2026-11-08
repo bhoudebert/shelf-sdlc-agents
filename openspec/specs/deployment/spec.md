@@ -230,6 +230,15 @@ The system SHALL let the operator turn the agents' sandbox off, for hosts where 
 - **WHEN** the sandbox cannot start and the operator turns it off
 - **THEN** the agents can run commands with the container as the only boundary
 
+### Requirement: Links to pull requests use the GitHub address the App is registered on
+
+The system SHALL build the links it shows to pull requests from the web address of the GitHub the App belongs to, github.com unless the operator names another.
+
+#### Scenario: The default
+
+- **WHEN** nothing names another GitHub
+- **THEN** a pull request is linked at `https://github.com/<owner>/<repo>/pull/<number>`
+
 ### Requirement: One script fixes the Ubuntu host for the agents' sandbox
 
 The system SHALL provide a script that finds what an Ubuntu 23.10+ host restricts for the sandbox (the user-namespace sysctl and the bubblewrap AppArmor profile), says what it will change and what that costs, asks before changing, makes the change survive a reboot, can undo it, and does nothing on a host that is already open; and the install script and the doctor SHALL point to it.
