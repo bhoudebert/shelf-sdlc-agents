@@ -138,3 +138,12 @@ The system SHALL serve every script, style and font from the instance itself, ma
 
 - **WHEN** the instance has no outbound access
 - **THEN** every page renders completely
+
+### Requirement: Anything meant to be copied can be copied in one action
+
+The system SHALL offer a button that copies a marked block of text to the clipboard and confirms it, and SHALL leave the text selectable when the clipboard is not available.
+
+#### Scenario: Copying the credentials
+
+- **WHEN** a person presses the copy button next to the credentials
+- **THEN** the whole block is copied and the button says so briefly

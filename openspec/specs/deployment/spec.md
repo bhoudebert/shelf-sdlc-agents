@@ -69,3 +69,17 @@ The system SHALL serve from the instance itself every style and script that the 
 
 - **WHEN** the setup page is opened before any GitHub App exists
 - **THEN** every `/static/` asset it references answers successfully
+
+### Requirement: The first-run screens say what will happen and make the handover easy
+
+The system SHALL show, before the registration click, the address being registered, the permissions the App will hold and the steps that follow, and SHALL show the credentials with a button that copies the whole block at once.
+
+#### Scenario: Before registering
+
+- **WHEN** a person opens the setup page
+- **THEN** they see the instance address, the five permissions with their purpose, and the three steps, in the same interface as the rest of the product
+
+#### Scenario: After registering
+
+- **WHEN** the credentials are shown
+- **THEN** a single action copies the whole `.env` block

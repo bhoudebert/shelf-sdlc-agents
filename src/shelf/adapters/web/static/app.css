@@ -353,3 +353,27 @@ input:not([type="radio"]):focus-visible, select:focus-visible, textarea:focus-vi
   @keyframes pulse { 0% { transform: scale(.6); opacity: 1; } 100% { transform: scale(1); opacity: 0; } }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
+
+/* ---------- first run: connect to GitHub, then hand over the credentials ---------- */
+.setup .welcome-copy { max-width: 640px; }
+.setup h1 { max-width: 22ch; font-size: clamp(2.2rem, 4.4vw, 3.5rem); }
+.where { margin: 0 0 20px; color: var(--ink-2); }
+.where code, .steps code, .secret-head code { font: .92em var(--mono); background: var(--surface); padding: 2px 7px; overflow-wrap: anywhere; }
+.setup .steps { margin-top: 40px; }
+.steps li { font-size: 1.02rem; line-height: 1.5; }
+.steps li .btn { margin-top: 12px; }
+.field-title { font-size: 1.25rem; margin: 0 0 14px; letter-spacing: -.02em; }
+.perms li { align-items: baseline; }
+.perms span { flex: 1; max-width: 22ch; }
+.registered { max-width: 880px; margin: 0 auto; padding: clamp(16px, 4vw, 48px) var(--gutter) 72px; }
+.reg-head h1 { display: flex; align-items: center; gap: 14px; font-size: clamp(1.9rem, 4.4vw, 3rem); letter-spacing: -.04em; line-height: 1; margin-bottom: 14px; }
+.reg-check { flex: none; width: 1.1em; height: 1.1em; padding: .2em; background: var(--field); color: var(--on-field); }
+.registered .alert { margin: 28px 0 20px; max-width: none; background: var(--accent); color: var(--on-accent); }
+.secret { background: var(--field); color: var(--on-field); padding: clamp(16px, 3vw, 28px); margin-bottom: 28px; }
+.secret-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+.secret-head h2 { font-size: 1.25rem; margin: 0; color: var(--on-field); }
+.secret-head code { background: color-mix(in srgb, var(--on-field) 14%, var(--field)); color: var(--on-field); }
+.secret pre { margin: 0 0 14px; padding: 18px 20px; background: #0a1713; color: #dbe8e0; font: .9rem/1.7 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 22rem; overflow: auto; }
+.secret pre:focus-visible { outline: 3px solid var(--accent-on-field); outline-offset: 2px; }
+.secret .muted { color: var(--on-field-2); margin: 0; }
+@media (max-width: 860px) { .setup .steps { margin-top: 28px; } .perms span { max-width: none; } }
