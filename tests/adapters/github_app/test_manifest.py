@@ -20,6 +20,18 @@ def test_the_manifest_derives_every_url_from_the_public_address() -> None:
     assert manifest["public"] is False
 
 
+def test_the_manifest_lists_only_events_github_lets_an_app_subscribe_to() -> None:
+    always_sent = {"installation", "installation_repositories", "ping"}
+    assert not always_sent & set(app_manifest("https://shelf.example.org")["default_events"])
+
+
+def test_every_subscribed_event_is_covered_by_a_requested_permission() -> None:
+    needs = {"pull_request": "pull_requests", "issue_comment": "issues", "check_suite": "checks", "push": "contents"}
+    manifest = app_manifest("https://shelf.example.org")
+    assert set(manifest["default_events"]) == set(needs)
+    assert all(permission in manifest["default_permissions"] for permission in needs.values())
+
+
 def test_the_registration_form_posts_the_escaped_manifest_to_github() -> None:
     page = registration_form("https://shelf.example.org")
     assert 'action="https://github.com/settings/apps/new"' in page

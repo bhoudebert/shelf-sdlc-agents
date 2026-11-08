@@ -41,13 +41,20 @@ def test_the_private_key_can_come_from_a_file(tmp_path: Path) -> None:
     assert settings.github.private_key == "PEM"
 
 
+def test_a_missing_setting_says_where_to_find_it() -> None:
+    environ = {**BASE, **APP}
+    del environ["GITHUB_APP_SLUG"]
+    with pytest.raises(MissingSettingError, match=r"github\.com/apps/<slug>"):
+        from_environ(environ)
+
+
 @pytest.mark.parametrize(
     ("remove", "message"),
     [
         ("PUBLIC_URL", "PUBLIC_URL is required"),
         ("SESSION_SECRET", "SESSION_SECRET is required"),
         ("GITHUB_APP_CLIENT_SECRET", "GITHUB_APP_CLIENT_SECRET is required"),
-        ("GITHUB_APP_PRIVATE_KEY", "GITHUB_APP_PRIVATE_KEY"),
+        ("GITHUB_APP_PRIVATE_KEY", "GITHUB_APP_PRIVATE_KEY is required with GITHUB_APP_ID"),
     ],
 )
 def test_a_missing_setting_is_named(remove: str, message: str) -> None:
