@@ -261,6 +261,11 @@ The system SHALL log each webhook it refuses, applies or cannot apply, with the 
 
 The system SHALL have the doctor start the sandbox's own tool first and, when it cannot start, report what the tool said with the host fix and a warning that disabling the sandbox exposes the worker's environment.
 
+#### Scenario: A repository rule adds a closing word
+
+- **WHEN** the agent that names pull requests answers with a correct title followed by the closing word a repository rule asks for
+- **THEN** the title check reads the first line and passes
+
 #### Scenario: Ubuntu 24.04
 
 - **WHEN** the sandbox cannot start on an Ubuntu host
