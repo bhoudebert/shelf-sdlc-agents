@@ -45,7 +45,7 @@ The system SHALL refuse a configuration file that is not valid TOML, has unknown
 
 ### Requirement: Waiting work looks at GitHub at a pace that suits the mode
 
-The system SHALL poll GitHub often in local mode and rarely in server mode, where webhooks wake the work.
+The system SHALL poll GitHub often in local mode (from 30 seconds, slowing to at most 5 minutes) and less often in server mode (from 1 minute, slowing to at most 10 minutes), where webhooks wake the work but a missed webhook must still be noticed within minutes.
 
 #### Scenario: Two modes
 

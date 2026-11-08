@@ -146,3 +146,12 @@ The system SHALL have the publish activity ask for the pull request's title from
 
 - **WHEN** the workflow orders the pull request published
 - **THEN** the activity asks for a title, opens or retitles the pull request with it, and returns its address
+
+### Requirement: The safety net looks often enough that a missed webhook costs about a minute
+
+The system SHALL look at a waiting work's pull request every minute at first in server mode, growing no further than ten minutes, and every thirty seconds growing to five minutes in local mode.
+
+#### Scenario: A webhook that never arrives
+
+- **WHEN** a command is typed on a pull request and no webhook is delivered
+- **THEN** the next look finds it within about a minute

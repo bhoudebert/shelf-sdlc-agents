@@ -125,7 +125,8 @@
         "src/shelf/adapters/caching/*.py",
         "src/shelf/ports/documents.py",
         "src/shelf/adapters/caching/documents.py",
-        "src/shelf/adapters/web/webhook_log.py"
+        "src/shelf/adapters/web/webhook_log.py",
+        "src/shelf/adapters/web/admin.py"
       ],
       "tests": [
         "tests/adapters/web/*.py",

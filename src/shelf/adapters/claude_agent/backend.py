@@ -1,6 +1,8 @@
 """``AgentBackend`` over the Claude Agent SDK: each role is a sandboxed Claude Code session in the step's clone."""
 
 import json
+import os
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 from claude_agent_sdk import ClaudeAgentOptions, ResultMessage, query
@@ -24,6 +26,18 @@ class AgentFailedError(RuntimeError):
         super().__init__(f"{role} failed: {reason}{hint}")
 
 
+WORKER_SECRETS = frozenset({"SESSION_SECRET", "GITHUB_WEBHOOK_SECRET"})
+"""Settings of the worker that an agent has no use for. Whatever else starts with ``GITHUB_APP_`` is blanked too."""
+
+
+def hidden_from_agents(environ: Mapping[str, str]) -> dict[str, str]:
+    """The worker's secrets, blanked: an agent inherits the worker's environment, and none of this is for it.
+
+    The model credential and ordinary variables (``PATH``, ``HOME``) are left alone, because the agent needs them.
+    """
+    return {name: "" for name in environ if name in WORKER_SECRETS or name.startswith("GITHUB_APP_")}
+
+
 def options_for(
     task: AgentTask, *, nested_sandbox: bool = False, sandbox: bool = True, cli_path: str | None = None
 ) -> ClaudeAgentOptions:
@@ -41,7 +55,7 @@ def options_for(
         max_budget_usd=task.max_budget_usd,
         model=task.model,
         cli_path=cli_path,
-        env=dict(task.env),
+        env={**hidden_from_agents(os.environ), **task.env},
         # The repository's own agent files (CLAUDE.md, skills, commands) are how it tells an agent its conventions.
         # Its hooks and MCP servers are code that would run in the worker: they are never loaded.
         setting_sources=["project"],

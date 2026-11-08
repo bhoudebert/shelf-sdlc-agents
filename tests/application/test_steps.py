@@ -287,7 +287,8 @@ async def test_the_pull_request_is_named_by_the_agent_that_reads_the_conventions
     [task] = agents.tasks
     assert task.role.name == "titler"
     assert task.system_prompt == "prompt of titler"
-    assert "git diff main...HEAD" in task.prompt
+    assert "git diff main...HEAD -- . ':(exclude)docs/shelf'" in task.prompt
+    assert "loyalty points" in task.prompt  # the request, which decides the type
 
 
 async def test_a_title_that_cannot_be_made_falls_back_to_the_request_and_never_fails() -> None:
@@ -305,3 +306,14 @@ async def test_a_title_that_cannot_be_made_falls_back_to_the_request_and_never_f
         prompt_for=lambda role: role,
     )
     assert await broken.title(NEED) == "loyalty points"
+
+
+def test_the_title_agent_is_told_to_judge_the_type_by_the_intent_not_by_the_bookkeeping_commits() -> None:
+    from shelf.adapters.claude_agent.prompts import load_prompt  # noqa: PLC0415
+
+    prompt = load_prompt("titler")
+    assert "INTENT of the whole request" in prompt
+    assert "docs/shelf/" in prompt
+    assert "chore(shelf):" in prompt
+    assert "`docs` only when the request itself is about documentation alone" in prompt
+    assert "only the types and scopes the repository allows" in prompt.replace("\n", " ")

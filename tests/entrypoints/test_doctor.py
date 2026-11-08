@@ -1,3 +1,5 @@
+import subprocess  # noqa: TC003 - used at run time by the tests below
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -97,3 +99,41 @@ def test_every_check_is_run_in_amake_repository_that_has_history_a_rule_file_and
     make_repository(tmp_path)
     assert (tmp_path / "CLAUDE.md").read_text().startswith("CLAUDE-MD-RULE")
     assert (tmp_path / ".git").is_dir()
+
+
+def fake_run(done: "subprocess.CompletedProcess[str]") -> Callable[..., "subprocess.CompletedProcess[str]"]:
+    def run(*_args: object, **_kwargs: object) -> "subprocess.CompletedProcess[str]":
+        return done
+
+    return run
+
+
+def test_a_sandbox_that_starts_is_reported_ok(monkeypatch: pytest.MonkeyPatch) -> None:
+    import subprocess  # noqa: PLC0415
+
+    from shelf.entrypoints import doctor  # noqa: PLC0415
+
+    monkeypatch.setattr(doctor.subprocess, "run", fake_run(subprocess.CompletedProcess([], 0, "", "")))
+    assert doctor.probe_sandbox().passed
+
+
+def test_a_sandbox_that_cannot_start_says_what_bubblewrap_said_and_how_to_fix_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import subprocess  # noqa: PLC0415
+
+    from shelf.entrypoints import doctor  # noqa: PLC0415
+
+    failed = subprocess.CompletedProcess([], 1, "", "bwrap: No permissions to create new namespace")
+    monkeypatch.setattr(doctor.subprocess, "run", fake_run(failed))
+    outcome = doctor.probe_sandbox()
+    assert not outcome.passed
+    assert "No permissions to create new namespace" in outcome.detail
+    assert "apparmor_restrict_unprivileged_userns=0" in outcome.hint
+    assert "can read the worker's environment" in outcome.hint
+
+
+async def test_the_sandbox_probe_comes_first_and_is_skipped_when_the_sandbox_is_off() -> None:
+    probed = await diagnose(Scripted(GOOD), sandbox=lambda: Outcome("The sandbox can start", passed=True, detail=""))
+    assert probed[0].name == "The sandbox can start"
+    assert (await diagnose(Scripted(GOOD)))[0].name != "The sandbox can start"

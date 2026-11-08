@@ -201,3 +201,21 @@ The system SHALL point each agent, in its task, at the conventions, existing spe
 
 - **WHEN** a reviewer sees the work contradict an existing specification
 - **THEN** it reports it as at least a major issue naming the file and the requirement
+
+### Requirement: The pull request type comes from the intent of the whole request
+
+The system SHALL have the agent that names the pull request choose its type from what the whole request asks for, ignoring the factory's own bookkeeping (its documents folder and its own commits), SHALL hand it the request and a diff that excludes that bookkeeping, and SHALL let it use `docs` only when the request is about documentation alone.
+
+#### Scenario: A feature whose first commit is a document
+
+- **WHEN** the only commit so far is the spec of a new capability
+- **THEN** the title is not `docs` for that reason
+
+### Requirement: The agents never see the worker's secrets
+
+The system SHALL blank, in each agent's environment, the worker's secrets the agent has no use for (the App's credentials, the webhook and session secrets), leave the model credential and ordinary variables alone, and tell the operator that turning the sandbox off lets an agent read the worker's environment.
+
+#### Scenario: An agent's environment
+
+- **WHEN** an agent starts in a worker that holds the App's client secret
+- **THEN** that variable is empty in the agent's environment

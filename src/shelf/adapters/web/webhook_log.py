@@ -25,6 +25,9 @@ class Delivery:
     event: str
     result: Result
     detail: str = ""
+    repo: str = ""
+    delivery: str = ""
+    """GitHub's delivery id, the one shown under Recent deliveries on the App's page, to find it there."""
 
 
 @dataclass(slots=True)
@@ -33,9 +36,13 @@ class WebhookLog:
 
     deliveries: deque[Delivery] = field(default_factory=lambda: deque(maxlen=KEPT))
 
-    def record(self, event: str, result: Result, detail: str = "") -> None:
+    def record(self, event: str, result: Result, detail: str = "", *, repo: str = "", delivery: str = "") -> None:
         """Remember a delivery."""
-        self.deliveries.append(Delivery(datetime.now(UTC), event, result, detail))
+        self.deliveries.append(Delivery(datetime.now(UTC), event, result, detail, repo, delivery))
+
+    def newest_first(self) -> list[Delivery]:
+        """Every kept delivery, the latest first."""
+        return list(reversed(self.deliveries))
 
     def last(self) -> Delivery | None:
         """The most recent delivery, if any."""

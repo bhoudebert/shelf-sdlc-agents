@@ -24,6 +24,7 @@
     <nav aria-label="Main">
       <a href="/board"{% if path.startswith("/board") or path.startswith("/work") %} aria-current="page"{% endif %}>Board</a>
       <a href="/start"{% if path.startswith("/start") %} aria-current="page"{% endif %}>Start</a>
+      {% if admin %}<a href="/admin"{% if path.startswith("/admin") %} aria-current="page"{% endif %}>Admin</a>{% endif %}
     </nav>
     {% endif %}
     <div class="bar-end">
