@@ -1,7 +1,7 @@
 import hashlib
 import hmac
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from urllib.parse import parse_qs, urlparse
 
 import pytest
