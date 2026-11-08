@@ -221,3 +221,17 @@ The system SHALL show a prominent warning on the board and the start page while 
 
 - **WHEN** a model credential is set
 - **THEN** no warning is shown
+
+### Requirement: A live board does not hammer GitHub
+
+The system SHALL reuse for a minute what GitHub said about a person's repositories and identity, so that open boards refreshing every few seconds cost one lookup a minute per person, never sharing an answer between two people.
+
+#### Scenario: A board left open
+
+- **WHEN** a board refreshes many times within a minute
+- **THEN** GitHub is asked once
+
+#### Scenario: Two people
+
+- **WHEN** two people open the board
+- **THEN** each gets their own lookup

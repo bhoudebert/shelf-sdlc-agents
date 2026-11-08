@@ -87,3 +87,12 @@ The system SHALL list the work of every repository when no repository filter is 
 
 - **WHEN** the work is listed without a repository filter
 - **THEN** all work is returned
+
+### Requirement: Listing work is cheap with many viewers
+
+The system SHALL look at the workflows concurrently, bounded, and share one listing between callers for a couple of seconds, so many open boards cost one set of workflow-engine calls.
+
+#### Scenario: Several callers at once
+
+- **WHEN** several callers list work within a moment
+- **THEN** the workflow engine is asked to list once and each caller gets its own filtered view
