@@ -1,0 +1,112 @@
+"""What every router shares: the instance's wiring, templates, and the signed cookies that carry a session."""
+
+from dataclasses import dataclass, field
+from importlib import resources
+from pathlib import Path
+
+from fastapi import HTTPException, Request
+from fastapi.responses import HTMLResponse, Response
+from fastapi.templating import Jinja2Templates
+from itsdangerous import BadSignature, URLSafeTimedSerializer
+
+from shelf.adapters.web.sessions import Session, SessionStore
+from shelf.domain.access import AccessRules
+from shelf.domain.polling import Mode
+from shelf.ports.configs import RepoConfigs
+from shelf.ports.forge import Forge
+from shelf.ports.runner import WorkRunner
+
+SESSION_COOKIE = "shelf_session"
+STATE_COOKIE = "shelf_oauth_state"
+SESSION_SECONDS = 8 * 3600
+STATE_SECONDS = 600
+ASSETS = Path(str(resources.files("shelf.adapters.web")))
+
+
+@dataclass(frozen=True, slots=True)
+class WebSettings:
+    """What the web application needs to know about the instance."""
+
+    public_url: str
+    app_slug: str
+    client_id: str
+    webhook_secret: str
+    secret_key: str
+    mode: Mode = Mode.LOCAL
+
+    @property
+    def secure(self) -> bool:
+        """Cookies are marked Secure when the instance is served over HTTPS."""
+        return self.public_url.startswith("https://")
+
+    @property
+    def install_url(self) -> str:
+        """Where a person installs the App on their repositories."""
+        return f"https://github.com/apps/{self.app_slug}/installations/new"
+
+
+@dataclass(frozen=True, slots=True)
+class WebDeps:
+    """Everything the application is built from. Wired once, in the composition root."""
+
+    settings: WebSettings
+    rules: AccessRules
+    forge: Forge
+    runner: WorkRunner
+    configs: RepoConfigs
+    sessions: SessionStore
+
+
+@dataclass(frozen=True, slots=True)
+class Web:
+    """The shared toolbox of the routers."""
+
+    deps: WebDeps
+    templates: Jinja2Templates = field(default_factory=lambda: Jinja2Templates(directory=ASSETS / "templates"))
+
+    @property
+    def _signer(self) -> URLSafeTimedSerializer:
+        return URLSafeTimedSerializer(self.deps.settings.secret_key, salt="shelf-cookie")
+
+    def render(self, request: Request, name: str, session: Session | None, **context: object) -> HTMLResponse:
+        """Render a template with what every page needs (who is signed in, the mode)."""
+        base = {"user": session.identity.login if session else None, "mode": self.deps.settings.mode.value}
+        return self.templates.TemplateResponse(request, name, {**base, **context})
+
+    def set_cookie(self, response: Response, name: str, value: str, max_age: int) -> None:
+        """Set a signed, HttpOnly, SameSite=Lax cookie."""
+        response.set_cookie(
+            name,
+            self._signer.dumps(value),
+            max_age=max_age,
+            httponly=True,
+            samesite="lax",
+            secure=self.deps.settings.secure,
+        )
+
+    def read_cookie(self, request: Request, name: str, max_age: int) -> str | None:
+        """The value of a signed cookie, or ``None`` if absent, forged or too old."""
+        raw = request.cookies.get(name)
+        if raw is None:
+            return None
+        try:
+            return str(self._signer.loads(raw, max_age=max_age))
+        except BadSignature:
+            return None
+
+    def current(self, request: Request) -> Session | None:
+        """The signed-in person, if any."""
+        return self.deps.sessions.get(self.read_cookie(request, SESSION_COOKIE, SESSION_SECONDS))
+
+    def signed_in(self, request: Request) -> Session:
+        """A dependency: the session, or a redirect to the sign-in page."""
+        session = self.current(request)
+        if session is None:
+            raise HTTPException(status_code=303, headers={"Location": "/"})
+        return session
+
+    def same_origin(self, request: Request) -> None:
+        """A dependency for state-changing routes: refuse a request that comes from another origin."""
+        origin = request.headers.get("origin")
+        if origin is not None and origin.rstrip("/") != self.deps.settings.public_url.rstrip("/"):
+            raise HTTPException(status_code=403, detail="cross-origin request refused")

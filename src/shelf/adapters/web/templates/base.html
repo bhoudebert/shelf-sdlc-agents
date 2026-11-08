@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}shelf-sdlc{% endblock %}</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/htmx.min.js" defer></script>
+  <script src="/static/htmx-sse.min.js" defer></script>
+</head>
+<body>
+  <header>
+    <a href="/">shelf-sdlc</a>
+    {% if user %}
+    <nav>
+      <a href="/board">Board</a>
+      <a href="/start">Start</a>
+      <span>{{ user }}</span>
+      <form method="post" action="/auth/logout"><button>Sign out</button></form>
+    </nav>
+    {% endif %}
+  </header>
+  <main>{% block content %}{% endblock %}</main>
+</body>
+</html>
