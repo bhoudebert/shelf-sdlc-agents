@@ -83,6 +83,24 @@
         "tests/adapters/github_app/test_pulls.py",
         "tests/domain/test_commands.py"
       ]
+    },
+    "steps": {
+      "code": [
+        "src/shelf/application/steps.py",
+        "src/shelf/domain/roles.py",
+        "src/shelf/domain/verdict.py",
+        "src/shelf/adapters/git/*.py",
+        "src/shelf/adapters/claude_agent/*.py",
+        "src/shelf/ports/agents.py",
+        "src/shelf/ports/workspace.py",
+        "src/shelf/prompts/*.md"
+      ],
+      "tests": [
+        "tests/application/test_steps.py",
+        "tests/domain/test_roles_and_verdict.py",
+        "tests/adapters/git/*.py",
+        "tests/adapters/claude_agent/*.py"
+      ]
     }
   }
 }
