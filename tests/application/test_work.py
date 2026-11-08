@@ -98,9 +98,7 @@ async def test_an_administrator_may_always_decide(forge: FakeForge) -> None:
     await start_work(runner, forge, FakeConfigs(), user_token="tok", request=need())
     configs = FakeConfigs({REPO: RepoConfig(roles={Role.PRODUCT_OWNER: frozenset({"carol"})})})
     rules = AccessRules(admins=frozenset({"bob"}))
-    result = await decide_work(
-        runner, configs, rules, work_id=WorkId("work-1"), login="bob", kind=DecisionKind.ABORT
-    )
+    result = await decide_work(runner, configs, rules, work_id=WorkId("work-1"), login="bob", kind=DecisionKind.ABORT)
     assert result == Ok(None)
 
 

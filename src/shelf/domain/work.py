@@ -285,9 +285,7 @@ def _enter(course: Course, phase: Phase, attempt: int = 0, feedback: str = "") -
             return _ask(phase, Reason.GATE, "")
         case Kind.MERGE:
             publish: tuple[Command, ...] = (PublishPullRequest(),) if course.publishes_pull_request else ()
-            return Transition(
-                AwaitingPerson(phase, Reason.MERGE), (*publish, AskPerson(phase, Reason.MERGE, ""))
-            )
+            return Transition(AwaitingPerson(phase, Reason.MERGE), (*publish, AskPerson(phase, Reason.MERGE, "")))
         case Kind.PRODUCE | Kind.REVIEW | Kind.VERIFY:
             return Transition(Running(phase, attempt, feedback), (RunStep(phase, attempt, feedback),))
         case _ as unreachable:
@@ -303,9 +301,7 @@ def _advance(course: Course, phase: Phase, attempt: int) -> Transition:
 
 def _send_back(course: Course, state: Running, feedback: str) -> Transition:
     if state.attempt >= course.max_rounds:
-        return _ask(
-            state.phase, Reason.ESCALATION, f"limit of {course.max_rounds} rounds reached:\n{feedback}"
-        )
+        return _ask(state.phase, Reason.ESCALATION, f"limit of {course.max_rounds} rounds reached:\n{feedback}")
     return _enter(course, LOOP_BACK[state.phase], state.attempt + 1, feedback)
 
 

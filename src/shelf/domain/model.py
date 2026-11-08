@@ -65,3 +65,11 @@ class WorkView:
     detail: str = ""
     outcome: Outcome | None = None
     pull_request_url: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class WorkContext:
+    """Everything a step needs to know about the piece of work it serves."""
+
+    id: WorkId
+    request: WorkRequest
