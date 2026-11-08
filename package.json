@@ -1,0 +1,13 @@
+{
+  "name": "shelf-sdlc-agents",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "echo no lint yet",
+    "format": "echo no format yet",
+    "format:check": "echo no format yet",
+    "test": "node --test",
+    "quality": "npm run lint && npm run format:check && npm test"
+  }
+}

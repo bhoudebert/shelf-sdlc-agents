@@ -1,0 +1,12 @@
+#!/bin/sh
+# No commit on main: work on a branch (git switch -c <type>/<topic>), then open a pull request.
+# The very first commit of a repository is allowed. One-off exception: ALLOW_DEFAULT_BRANCH=1 git commit ...
+# Skip every hook with: git commit --no-verify (CI checks again).
+cd "$(git rev-parse --show-toplevel)" || exit 1
+branch=$(git symbolic-ref --short -q HEAD)
+if [ "$branch" = "main" ] && [ -z "$ALLOW_DEFAULT_BRANCH" ] && git rev-parse -q --verify HEAD >/dev/null 2>&1; then
+  echo "pre-commit: you are on main. Create a branch first: git switch -c <type>/<topic>" >&2
+  echo "            (a one-off exception: ALLOW_DEFAULT_BRANCH=1 git commit ...)" >&2
+  exit 1
+fi
+exit 0

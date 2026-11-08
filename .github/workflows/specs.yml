@@ -1,0 +1,52 @@
+name: Specs
+
+# Specs are the contract (docs/EVOLVING.md, ADR 0004): every spec and open proposal must parse with a scenario per
+# requirement, and a pull request that changes code must also change the spec of what it touches (a change to the docs does
+# not count), unless it is justified as having no behaviour change: the `no-spec` label.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, edited, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: specs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Specs validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      # Pin a version once you have chosen one, so a new release of the tool cannot turn the check red by itself.
+      - run: npx --yes @fission-ai/openspec@latest validate --all --no-interactive
+
+  spec-with-code:
+    # The name is the one to make a required check on main (ADR 0004).
+    name: Spec or docs with code
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      # Deterministic checks only: no model, no secret, nothing to install (the script uses Node alone).
+      # `openspec validate` is the job above. Findings are annotations on the files, and the job summary.
+      - name: Review the change against the specs
+        env:
+          SPEC_REVIEW_NO_SPEC: ${{ contains(github.event.pull_request.labels.*.name, 'no-spec') && 'label no-spec' || '' }}
+        run: >
+          node scripts/spec-review.ts
+          --base "${{ github.event.pull_request.base.sha }}"
+          --head "${{ github.event.pull_request.head.sha }}"
+          --skip-openspec --ignore-commit-lines --format github

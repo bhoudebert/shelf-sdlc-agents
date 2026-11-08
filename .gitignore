@@ -1,0 +1,12 @@
+node_modules
+dist
+coverage
+.env
+.idea/
+.vscode/
+*.log
+.direnv/
+result
+result-*
+
+.spec-review/

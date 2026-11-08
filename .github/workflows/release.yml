@@ -1,0 +1,24 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    # Reads Conventional Commits since the last release and maintains a release pull request with the changelog and the
+    # version bump; merging that pull request tags the release.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v5
+        with:
+          # A pull request opened with the workflow's own token starts no other workflow, so the required checks would
+          # never run on the release pull request. Give a personal access token (or a GitHub App token) as the secret
+          # RELEASE_PLEASE_TOKEN to have them run; without it the release pull request needs an administrator to merge.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json

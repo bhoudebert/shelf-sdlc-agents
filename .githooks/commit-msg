@@ -1,0 +1,3 @@
+#!/bin/sh
+# Conventional Commits, checked on every commit. Skip with: git commit --no-verify (CI checks again).
+exec sh "$(git rev-parse --show-toplevel)/scripts/conventional-commit-check.sh" "$1"

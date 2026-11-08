@@ -1,0 +1,28 @@
+#!/bin/sh
+# The quality gate before a push, so a red pull request is a surprise less often.
+# Skip the checks once with SKIP_PRE_PUSH=1 git push, or everything with git push --no-verify: the pull request checks run anyway.
+cd "$(git rev-parse --show-toplevel)" || exit 1
+# No push to main: push a branch and open a pull request. One-off exception: ALLOW_DEFAULT_BRANCH=1 git push
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [ "$remote_ref" = "refs/heads/main" ] && [ -z "$ALLOW_DEFAULT_BRANCH" ]; then
+    echo "pre-push: refusing to push to main. Push a branch and open a pull request." >&2
+    echo "          (a one-off exception: ALLOW_DEFAULT_BRANCH=1 git push)" >&2
+    exit 1
+  fi
+done
+# SKIP_PRE_PUSH skips the checks below, not the rule above.
+[ -n "$SKIP_PRE_PUSH" ] && { echo "pre-push skipped (SKIP_PRE_PUSH is set)" >&2; exit 0; }
+# The spec review (deterministic checks; a local model too when SPEC_REVIEW_MODEL is set). It never blocks on its own failure.
+if command -v node >/dev/null 2>&1; then
+  node --env-file-if-exists=.env scripts/spec-review.ts --hook || exit 1
+else
+  echo "spec review skipped: node is not installed" >&2
+fi
+echo "pre-push: npm run quality" >&2
+npm run quality
+status=$?
+if [ "$status" -ne 0 ]; then
+  echo "pre-push: the quality gate failed. Fix it, or define it first if the project does not have one yet (AGENTS.md, 'Useful commands')." >&2
+  echo "          Skip once with SKIP_PRE_PUSH=1 git push; the pull request checks run anyway." >&2
+  exit "$status"
+fi
