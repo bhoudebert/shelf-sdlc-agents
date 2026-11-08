@@ -1,6 +1,6 @@
 import pytest
 
-from shelf.domain.access import AccessRules, is_admin, may_sign_in
+from shelf.domain.access import AccessRules, is_admin, may_act_from_github, may_sign_in
 from shelf.domain.config import RepoConfig, Role, may_decide
 from shelf.domain.model import Identity, RepoRef
 from shelf.domain.pipeline import Phase
@@ -9,8 +9,27 @@ from shelf.domain.result import Err, Ok, map_ok
 ALICE = Identity("alice", frozenset({"acme"}))
 
 
-def test_an_open_instance_lets_anyone_in() -> None:
-    assert may_sign_in(AccessRules(), ALICE)
+def test_an_instance_that_lists_nobody_lets_nobody_in() -> None:
+    assert not may_sign_in(AccessRules(), ALICE)
+
+
+@pytest.mark.parametrize(
+    ("login", "association", "owner", "expected"),
+    [
+        ("alice", "NONE", "x", True),
+        ("root", "NONE", "x", True),
+        ("bob", "MEMBER", "acme", True),
+        ("bob", "OWNER", "acme", True),
+        ("bob", "COLLABORATOR", "acme", False),
+        ("bob", "MEMBER", "other", False),
+        ("mallory", "NONE", "acme", False),
+    ],
+)
+def test_a_commenter_acts_only_when_the_access_list_names_them(
+    login: str, association: str, owner: str, *, expected: bool
+) -> None:
+    rules = AccessRules(organisations=frozenset({"acme"}), users=frozenset({"alice"}), admins=frozenset({"root"}))
+    assert may_act_from_github(rules, login, association, owner) is expected
 
 
 @pytest.mark.parametrize(

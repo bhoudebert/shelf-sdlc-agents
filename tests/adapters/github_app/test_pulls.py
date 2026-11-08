@@ -15,6 +15,10 @@ NEED = WorkContext(WorkId("work-1"), WorkRequest(REPO, "alice", EntryPoint.NEED,
 REVIEW = WorkContext(WorkId("work-2"), WorkRequest(REPO, "alice", EntryPoint.PULL_REQUEST_REVIEW, pull_request=7))
 
 
+def members_only(login: str, association: str, owner: str) -> bool:
+    return association in {"OWNER", "MEMBER"}
+
+
 def adapter(settings: GitHubAppSettings, handler: httpx.MockTransport) -> GitHubPullRequests:
     async def token_for(repo: RepoRef) -> str:
         return "ghs_token"
@@ -22,7 +26,7 @@ def adapter(settings: GitHubAppSettings, handler: httpx.MockTransport) -> GitHub
     async def base(repo: RepoRef) -> str:
         return "main"
 
-    return GitHubPullRequests(httpx.AsyncClient(transport=handler), settings, token_for, base)
+    return GitHubPullRequests(httpx.AsyncClient(transport=handler), settings, token_for, base, members_only)
 
 
 def comment(identifier: int, body: str, login: str = "bob", association: str = "MEMBER") -> dict[str, object]:
@@ -37,6 +41,10 @@ def test_an_announcement_says_what_is_awaited_and_how_to_answer() -> None:
     assert "/shelf approve" in text
 
 
+def not_mallory(login: str, association: str) -> bool:
+    return login != "mallory"
+
+
 def test_only_trusted_people_after_the_last_announcement_decide() -> None:
     comments = [
         comment(1, "/shelf approve"),
@@ -46,10 +54,14 @@ def test_only_trusted_people_after_the_last_announcement_decide() -> None:
         comment(5, "just chatting"),
         comment(6, "/shelf abort", login="dan", association="COLLABORATOR"),
     ]
-    assert events_from(comments) == [
+    assert events_from(comments, not_mallory) == [
         PersonDecided("carol", DecisionKind.CHANGES, "rename it"),
         PersonDecided("dan", DecisionKind.ABORT),
     ]
+
+
+def test_nobody_decides_from_a_comment_unless_the_access_list_says_so() -> None:
+    assert events_from([comment(1, "/shelf approve")]) == []
 
 
 async def test_publish_opens_a_draft_pull_request_with_the_requester(settings: GitHubAppSettings) -> None:

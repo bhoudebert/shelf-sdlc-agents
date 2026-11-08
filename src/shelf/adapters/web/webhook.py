@@ -40,6 +40,8 @@ class Commented:
     login: str
     kind: DecisionKind
     note: str
+    association: str = ""
+    owner: str = ""
 
 
 def work_id_of(body: str | None) -> WorkId | None:
@@ -60,5 +62,12 @@ def interpret(event: str, payload: Mapping[str, Any]) -> Closed | Commented | No
         work_id = work_id_of(issue.get("body")) if "pull_request" in issue else None
         command = parse_command(str(comment.get("body", "")))
         if work_id and command and comment.get("author_association") in TRUSTED:
-            return Commented(work_id, str(comment["user"]["login"]), *command)
+            owner = str(payload.get("repository", {}).get("owner", {}).get("login", ""))
+            return Commented(
+                work_id,
+                str(comment["user"]["login"]),
+                *command,
+                association=str(comment["author_association"]),
+                owner=owner,
+            )
     return None

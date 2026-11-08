@@ -21,6 +21,7 @@ from shelf.adapters.github_app.pulls import GitHubPullRequests
 from shelf.adapters.github_app.settings import GitHubAppSettings
 from shelf.adapters.temporal.runner import TemporalRunner
 from shelf.application.steps import Steps
+from shelf.domain.access import may_act_from_github
 from shelf.domain.config import InvalidConfigError
 from shelf.domain.model import RepoRef
 from shelf.domain.operator import OperatorConfig
@@ -35,9 +36,11 @@ def app_settings(app: GitHubApp) -> GitHubAppSettings:
 
 
 def load_operator(settings: Settings) -> OperatorConfig:
-    """Read ``shelf.toml``; without one the instance is open and in local mode, which is logged loudly."""
+    """Read ``shelf.toml``. Without one, or with an empty access list, nobody can sign in, which is logged loudly."""
     if not settings.config_path.exists():
-        log.warning("%s not found: this instance is OPEN to anyone with a GitHub account", settings.config_path)
+        log.warning(
+            "%s not found: NOBODY can sign in until it names users, admins or organisations", settings.config_path
+        )
         return OperatorConfig()
     try:
         return parse_operator(settings.config_path.read_text(encoding="utf-8"))
@@ -79,13 +82,18 @@ def build_services(settings: Settings, github: GitHubApp, client: httpx.AsyncCli
     """Join every adapter to its port."""
     app = app_settings(github)
     operator = load_operator(settings)
+    if not operator.access.is_configured:
+        log.warning("The access list is empty: NOBODY can sign in. Edit deploy/shelf.toml (users, admins or orgs).")
     token_for = token_source(client, app)
     configs = GitHubRepoConfigs(client, app.api_url, token_for)
 
     async def base_branch(repo: RepoRef) -> str:
         return (await configs.load(repo)).base_branch
 
-    pulls = GitHubPullRequests(client, app, token_for, base_branch)
+    def may_act(login: str, association: str, owner: str) -> bool:
+        return may_act_from_github(operator.access, login, association, owner)
+
+    pulls = GitHubPullRequests(client, app, token_for, base_branch, may_act)
     steps = Steps(
         workspaces=GitWorkspaces(),
         agents=ClaudeBackend(

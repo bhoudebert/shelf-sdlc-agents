@@ -46,7 +46,7 @@ class Fixture:
         self.runner = FakeRunner()
         deps = WebDeps(
             settings,
-            rules or AccessRules(),
+            rules or AccessRules(users=frozenset({"alice"})),
             self.forge,
             self.runner,
             configs or FakeConfigs(),
@@ -220,7 +220,7 @@ def test_a_merged_pull_request_is_signalled_to_its_work(app: Fixture) -> None:
 
 
 def test_a_command_in_a_comment_reaches_the_work_as_a_decision() -> None:
-    app = Fixture()
+    app = Fixture(AccessRules(users=frozenset({"carol"})))
     app.runner.views[WorkId("work-abc123")] = WorkView(
         WorkId("work-abc123"), REPO, "alice", EntryPoint.NEED, Phase.SPEC_APPROVAL, waiting_for=Reason.GATE
     )
@@ -399,7 +399,7 @@ def test_a_webhook_with_the_wrong_secret_is_reported_with_what_to_do() -> None:
 
 
 def test_a_command_that_could_not_be_applied_is_reported_not_swallowed() -> None:
-    fixture = Fixture(AccessRules(admins=frozenset({"alice"})))
+    fixture = Fixture(AccessRules(admins=frozenset({"alice"}), users=frozenset({"carol"})))
     fixture.sign_in()
     payload: dict[str, object] = {
         "action": "created",
@@ -410,6 +410,21 @@ def test_a_command_that_could_not_be_applied_is_reported_not_swallowed() -> None
     board = fixture.client.get("/board").text
     assert "was not applied" in board
     assert "work-abc123" in board
+
+
+def test_a_command_from_someone_not_on_the_access_list_is_ignored() -> None:
+    app = Fixture(AccessRules(users=frozenset({"alice"})))
+    app.runner.views[WorkId("work-abc123")] = WorkView(
+        WorkId("work-abc123"), REPO, "alice", EntryPoint.NEED, Phase.SPEC_APPROVAL, waiting_for=Reason.GATE
+    )
+    payload: dict[str, object] = {
+        "action": "created",
+        "issue": {"pull_request": {}, "body": "<!-- shelf:work-abc123 -->\nneed"},
+        "comment": {"body": "/shelf approve", "user": {"login": "mallory"}, "author_association": "MEMBER"},
+        "repository": {"owner": {"login": "stranger"}},
+    }
+    assert post_hook(app, "issue_comment", payload) == 202
+    assert app.runner.decisions == []
 
 
 def test_ordinary_people_are_not_shown_the_webhook_status(app: Fixture) -> None:

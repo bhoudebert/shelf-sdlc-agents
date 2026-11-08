@@ -62,17 +62,24 @@ def _where_to_read(work: WorkContext, phase: Phase) -> str:
     return f"\n\nRead it: [{path}](https://github.com/{work.request.repo.full_name}/blob/{branch_name(work)}/{path})"
 
 
-def events_from(comments: Sequence[Mapping[str, Any]]) -> list[Event]:
-    """Decisions found in comments newer than the factory's last announcement, from people who may decide."""
+def events_from(
+    comments: Sequence[Mapping[str, Any]], may_act: Callable[[str, str], bool] = lambda _login, _association: False
+) -> list[Event]:
+    """Decisions in comments newer than the factory's last announcement, from people who may act.
+
+    ``may_act(login, association)`` is the access list's word on a commenter; by default nobody may.
+    """
     last = max((int(c["id"]) for c in comments if is_ours(str(c.get("body", "")))), default=0)
     found: list[Event] = []
     for comment in comments:
-        if int(comment["id"]) <= last or comment.get("author_association") not in TRUSTED:
+        login = str(comment["user"]["login"])
+        association = str(comment.get("author_association"))
+        if int(comment["id"]) <= last or association not in TRUSTED or not may_act(login, association):
             continue
         command = parse_command(str(comment.get("body", "")))
         if command is not None:
             kind, note = command
-            found.append(PersonDecided(str(comment["user"]["login"]), kind, note))
+            found.append(PersonDecided(login, kind, note))
     return found
 
 
@@ -84,6 +91,8 @@ class GitHubPullRequests:
     settings: GitHubAppSettings
     token_for: TokenFor
     base_branch: Callable[[RepoRef], Awaitable[str]]
+    may_act: Callable[[str, str, str], bool]
+    """The access list's word on a commenter: (login, association, repository owner) -> may their command count."""
 
     async def publish(self, work: WorkContext, title: str) -> str:
         """Open a draft pull request titled ``title`` from the work's branch, or retitle the one that exists."""
@@ -185,7 +194,8 @@ class GitHubPullRequests:
         comments = (
             await self._call("GET", repo, f"/repos/{repo.full_name}/issues/{number}/comments?per_page=100")
         ).json()
-        return events_from(comments)
+        owner = repo.owner
+        return events_from(comments, lambda login, association: self.may_act(login, association, owner))
 
     async def _retitle(self, work: WorkContext, number: int, title: str) -> str:
         """The URL of the pull request, after giving it ``title`` if it carries another."""

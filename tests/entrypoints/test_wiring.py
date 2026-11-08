@@ -10,14 +10,12 @@ from shelf.entrypoints.wiring import load_operator
 BASE = {"PUBLIC_URL": "https://shelf.example.org", "SESSION_SECRET": "s" * 32}
 
 
-def test_a_missing_operator_file_opens_the_instance_and_says_so(
-    caplog: pytest.LogCaptureFixture, tmp_path: Path
-) -> None:
+def test_a_missing_operator_file_lets_nobody_in_and_says_so(caplog: pytest.LogCaptureFixture, tmp_path: Path) -> None:
     settings = from_environ({**BASE, "SHELF_CONFIG": str(tmp_path / "absent.toml")})
     with caplog.at_level(logging.WARNING):
         operator = load_operator(settings)
-    assert operator.access.is_open
-    assert "OPEN" in caplog.text
+    assert not operator.access.is_configured
+    assert "NOBODY" in caplog.text
 
 
 def test_the_operator_file_is_read_when_present(tmp_path: Path) -> None:

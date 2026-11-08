@@ -7,9 +7,9 @@ from shelf.domain.pipeline import EntryPoint
 from shelf.domain.polling import Mode
 
 
-def test_an_empty_operator_file_is_an_open_local_instance() -> None:
+def test_an_empty_operator_file_names_nobody_and_is_a_local_instance() -> None:
     config = parse_operator("")
-    assert config.access.is_open
+    assert not config.access.is_configured
     assert config.mode is Mode.LOCAL
 
 

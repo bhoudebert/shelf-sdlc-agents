@@ -13,7 +13,7 @@
 <div class="docs"><aside class="side"><nav aria-label="Documentation"><p>Documentation</p><ul><li><a href="getting-started.html">Getting started</a></li><li><a href="github-app.html">The GitHub App</a></li><li><a href="concepts.html">Concepts</a></li><li><a href="configuration.html" aria-current="page">Configuration</a></li><li><a href="architecture.html">Architecture</a></li><li><a href="security.html">Security model</a></li><li><a href="contributing.html">Contributing</a></li></ul></nav></aside>
 <main id="main" class="doc"><h1>Configuration</h1><p class="lead">Two files: one for the operator, one for each repository.</p><div class="callout planned"><p><strong>Early development.</strong> The two files below are parsed and validated by the code today. The web interface and deployment that read them are still being built.</p></div>
 <h2 id="shelf">shelf.toml (operator)</h2>
-<p>Kept by whoever runs the instance and mounted into the container. It decides who may sign in, and how waiting work learns what happened on GitHub. An empty file is an open instance in local mode. Unknown keys are refused, so a typo is an error, not silence.</p>
+<p>Kept by whoever runs the instance and mounted into the container. It decides who may sign in, and how waiting work learns what happened on GitHub. An empty file is a closed instance in local mode: nobody can sign in until it names someone. Unknown keys are refused, so a typo is an error, not silence.</p>
 <pre><code># shelf.toml
 mode = &quot;server&quot;            # &quot;local&quot;: no public address, poll GitHub often
                            # &quot;server&quot;: webhooks wake the work, the poll is a slow safety net
@@ -22,7 +22,7 @@ mode = &quot;server&quot;            # &quot;local&quot;: no public address, pol
 orgs   = [&quot;acme&quot;]          # members of these organisations may sign in
 users  = [&quot;alice&quot;, &quot;bob&quot;]  # these users may sign in
 admins = [&quot;alice&quot;]         # may sign in, and may decide at any gate</code></pre>
-<p>With neither <code>orgs</code> nor <code>users</code> set, anyone with a GitHub account may sign in. Set at least one whenever the model account is personal: an open instance spends the operator&rsquo;s quota.</p>
+<p>Access is closed by default. A person signs in only if they are in <code>users</code> or <code>admins</code>, or belong to an organisation in <code>orgs</code>; everyone else is refused. With all three empty nobody can sign in, you included, so name yourself first. The same list governs <code>/shelf</code> commands written on a pull request: someone outside it is ignored, whatever their rights on the repository.</p>
 <h2 id="repo">.shelf/config.toml (per repository)</h2>
 <p>Lives in the repository, so changes to who may do what are reviewed like any other change. Every key is optional.</p>
 <pre><code># .shelf/config.toml

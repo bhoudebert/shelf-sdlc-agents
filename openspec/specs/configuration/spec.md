@@ -8,12 +8,12 @@ Let the operator configure an instance and each repository configure itself, in 
 
 ### Requirement: The operator file sets the mode and the access list
 
-The system SHALL read `mode` (local or server) and the `[access]` lists of organisations, users and administrators from the operator's file, treating an empty file as an open local instance.
+The system SHALL read `mode` (local or server) and the `[access]` lists of organisations, users and administrators from the operator's file, treating an empty file as a local instance that nobody may sign in to.
 
 #### Scenario: An empty file
 
 - **WHEN** the operator file is empty
-- **THEN** the instance is open and in local mode
+- **THEN** the instance is closed (nobody may sign in) and in local mode
 
 #### Scenario: A restricted server
 

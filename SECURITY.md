@@ -13,9 +13,9 @@ remove it from the history.
 - **Credentials:** the GitHub App's private key and client secret, the webhook secret, the session secret and the model
   credential are read from the environment; installation tokens are minted per use (valid one hour) and never stored. A
   signed-in person's GitHub token stays in the web service's memory and is lost on restart.
-- **Who may act:** the operator's access list decides who signs in (leave it empty and anyone with a GitHub account can spend
-  your model quota); per-repository roles limit who may decide; webhooks require a valid HMAC signature; `/shelf` commands
-  count only from people with write access and are matched against a fixed list.
+- **Who may act:** the operator's access list decides who signs in (closed by default: an empty list lets nobody in, because
+  whoever signs in spends your model quota); per-repository roles limit who may decide; webhooks require a valid HMAC signature; `/shelf` commands
+  count only from people the access list names (or members of a listed organisation) and are matched against a fixed list.
 - **Agents:** each step runs in a fresh clone with the tools of its role, inside Claude Code's sandbox. In a container the
   worker runs with `seccomp=unconfined` and the sandbox's weaker nested mode, which is a weaker boundary than a VM: run the
   worker on a host you are willing to expose to the repositories you let people use.

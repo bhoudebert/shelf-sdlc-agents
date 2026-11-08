@@ -50,9 +50,9 @@ if command -v python3 >/dev/null 2>&1 && python3 -c 'import tomllib' 2>/dev/null
   fi
 fi
 
-# Say loudly when nobody is restricted: an open instance spends the operator's model quota.
+# Say loudly when nobody is listed: the instance is closed by default, so nobody could sign in.
 if ! grep -Eq '^[[:space:]]*(orgs|users|admins)[[:space:]]*=[[:space:]]*\[[[:space:]]*"' "$here/shelf.toml"; then
-  echo "WARNING: $here/shelf.toml lists no organisation, user or admin: anyone with a GitHub account may sign in and use your model quota." >&2
+  echo "WARNING: $here/shelf.toml lists no organisation, user or admin: NOBODY can sign in, you included. Add yourself, for example admins = [\"your-github-login\"], then run this script again." >&2
 fi
 
 # The revision this checkout is at. It is built into the image and reported by /healthz, so you can see what really runs.

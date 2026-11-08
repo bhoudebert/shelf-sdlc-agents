@@ -10,6 +10,7 @@ from shelf.adapters.web.context import Web
 from shelf.adapters.web.webhook import Closed, Commented, interpret, valid_signature
 from shelf.adapters.web.webhook_log import Result
 from shelf.application.work import decide_work
+from shelf.domain.access import may_act_from_github
 from shelf.domain.result import Err, Ok
 
 log = logging.getLogger("shelf.webhook")
@@ -34,6 +35,11 @@ def router(web: Web) -> APIRouter:
                 await deps.runner.pull_request_closed(work_id, merged=merged)
                 web.webhooks.record(event, Result.APPLIED, f"{work_id} {'merged' if merged else 'closed'}")
                 log.info("webhook %s: %s %s", event, work_id, "merged" if merged else "closed")
+            case Commented(work_id, login, kind, note, association, owner) if not may_act_from_github(
+                deps.rules, login, association, owner
+            ):
+                web.webhooks.record(event, Result.REFUSED, f"{login} is not on the access list: ignored")
+                log.warning("webhook %s: %s on %s ignored: not on the access list", event, login, work_id)
             case Commented(work_id, login, kind, note):
                 result = await decide_work(
                     deps.runner, deps.configs, deps.rules, work_id=work_id, login=login, kind=kind, note=note

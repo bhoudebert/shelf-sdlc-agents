@@ -8,17 +8,26 @@ Decide who may use an instance and who may decide at which step, from the operat
 
 ### Requirement: The operator's access list decides who signs in
 
-The system SHALL let anyone with a GitHub account sign in when the access list names no organisation and no user, and otherwise only listed users, administrators and members of listed organisations.
+The system SHALL be closed by default: only listed users, administrators and members of listed organisations may sign in, and nobody else, so an empty list lets nobody in.
 
-#### Scenario: An open instance
+#### Scenario: A closed instance
 
 - **WHEN** the access list is empty
-- **THEN** any person who proves their GitHub identity is let in
+- **THEN** nobody is let in, and the refusal tells the person the operator has not named anyone yet
 
 #### Scenario: A restricted instance
 
 - **WHEN** the access list names users and organisations
 - **THEN** a listed user, an administrator or a member of a listed organisation is let in, and nobody else
+
+### Requirement: GitHub commands obey the same list
+
+The system SHALL act on a `/shelf` command written on a pull request only when its author is a listed user or administrator, or a member or owner of a listed organisation that owns the repository, whether the command arrives by webhook or by polling.
+
+#### Scenario: A stranger comments
+
+- **WHEN** someone not on the access list comments `/shelf approve`
+- **THEN** the command is ignored and the webhook log shows it as refused
 
 ### Requirement: Roles limit who decides, only when a repository sets them
 
