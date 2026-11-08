@@ -106,3 +106,21 @@ The system SHALL include the git revision of the build in the answer of the heal
 
 - **WHEN** the health check is requested
 - **THEN** it answers with the status and the revision
+
+### Requirement: A missing setting says where to find it
+
+The system SHALL, when a required setting is absent, name it and say in plain words where its value comes from, for every GitHub App credential, the public address and the session secret.
+
+#### Scenario: A missing slug
+
+- **WHEN** the App slug is not set
+- **THEN** the error says it is the name in the App's public link
+
+### Requirement: The by-hand registration guide matches GitHub's form
+
+The system SHALL show on the setup page the value for each field of GitHub's App form, using the instance's own address.
+
+#### Scenario: The webhook address
+
+- **WHEN** the guide is shown for an instance
+- **THEN** the webhook and callback addresses are derived from its public address

@@ -56,3 +56,26 @@ The system SHALL build the App's manifest from the instance's public address, po
 
 - **WHEN** GitHub returns a registration code
 - **THEN** the system exchanges it for the App id, client id and secret, webhook secret and private key
+
+### Requirement: The manifest is one GitHub accepts
+
+The system SHALL subscribe the manifest only to events an App may select, and only to events covered by a permission it requests, and SHALL NOT list the events GitHub always sends.
+
+#### Scenario: Always-sent events
+
+- **WHEN** the manifest is built
+- **THEN** it does not list `installation`, `installation_repositories` or `ping`
+
+### Requirement: Registering by hand is fully explained
+
+The system SHALL explain, on the setup page, every field of GitHub's form with the exact value to type, where each credential is found on the App's page, and SHALL offer a converter, running only in the browser, that turns a private key file into the one-line value the environment file needs.
+
+#### Scenario: A manual registration
+
+- **WHEN** a person opens the by-hand guide
+- **THEN** they see each form field with its value, a table of where each credential comes from, and the key converter
+
+#### Scenario: A missing credential
+
+- **WHEN** a required credential is missing at startup
+- **THEN** the error names it and says where to find it

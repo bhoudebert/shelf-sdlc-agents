@@ -40,10 +40,24 @@ class Settings:
     revision: str
 
 
+WHERE: dict[str, str] = {
+    "PUBLIC_URL": "the address people reach this instance at, e.g. https://shelf.example.org",
+    "SESSION_SECRET": "any long random string: run `openssl rand -hex 32`",
+    "GITHUB_APP_ID": "the number at the top of your GitHub App's settings page (App ID)",
+    "GITHUB_APP_SLUG": "the name in your App's public link, github.com/apps/<slug>",
+    "GITHUB_APP_CLIENT_ID": "the Client ID at the top of your App's settings page, starting with Iv",
+    "GITHUB_APP_CLIENT_SECRET": "generate one under Client secrets on your App's settings page (shown once)",
+    "GITHUB_WEBHOOK_SECRET": "the string you typed in the Webhook secret field of the App",
+    "GITHUB_APP_PRIVATE_KEY": "the .pem you downloaded under Private keys, on one line (the setup page converts it)",
+}
+"""Where each setting comes from, so a missing one says what to do and not only its name."""
+
+
 def _required(environ: Mapping[str, str], key: str) -> str:
     value = environ.get(key, "").strip()
     if not value:
-        message = f"{key} is required"
+        hint = f": {WHERE[key]}" if key in WHERE else ""
+        message = f"{key} is required{hint}"
         raise MissingSettingError(message)
     return value
 
@@ -62,7 +76,7 @@ def _github(environ: Mapping[str, str]) -> GitHubApp | None:
         return None
     key = _private_key(environ)
     if key is None:
-        message = "GITHUB_APP_PRIVATE_KEY or GITHUB_APP_PRIVATE_KEY_PATH is required with GITHUB_APP_ID"
+        message = f"GITHUB_APP_PRIVATE_KEY is required with GITHUB_APP_ID: {WHERE['GITHUB_APP_PRIVATE_KEY']}"
         raise MissingSettingError(message)
     return GitHubApp(
         app_id=_required(environ, "GITHUB_APP_ID"),

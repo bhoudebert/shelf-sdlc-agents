@@ -19,8 +19,8 @@
 <tr><td>Contents</td><td>Read and write</td></tr><tr><td>Pull requests</td><td>Read and write</td></tr>
 <tr><td>Issues</td><td>Read and write</td></tr><tr><td>Checks</td><td>Read</td></tr><tr><td>Metadata</td><td>Read</td></tr></tbody></table></div>
 <h2 id="events">Webhook events</h2>
-<ul><li><code>pull_request</code></li><li><code>issue_comment</code></li><li><code>check_suite</code></li><li><code>installation</code></li><li><code>installation_repositories</code></li><li><code>push</code></li></ul>
-<p>Webhooks are used in server mode. In local mode the app is polled instead.</p>
+<ul><li><code>pull_request</code></li><li><code>issue_comment</code></li><li><code>check_suite</code></li><li><code>push</code></li></ul>
+<p>GitHub also always sends <code>installation</code>, <code>installation_repositories</code> and <code>ping</code> events: they cannot be selected and need nothing from you. Webhooks are used in server mode. In local mode the app is polled instead.</p>
 <h2 id="install">Granting repositories</h2>
 <p>Install the app on your account or organisation and choose which repositories it may touch. Only repositories you grant appear in the picker, and the app can never reach the others.</p>
 <h2 id="manual">Creating it by hand</h2>
@@ -36,6 +36,25 @@
 <tr><td>Where can this App be installed?</td><td>Only on this account.</td></tr>
 </tbody></table></div>
 <p>Then set the repository permissions and events listed above. After creating the App, generate a <strong>client secret</strong> and a <strong>private key</strong> on its page and fill <code>GITHUB_APP_ID</code>, <code>GITHUB_APP_SLUG</code> (the name in the App's URL), <code>GITHUB_APP_CLIENT_ID</code>, <code>GITHUB_APP_CLIENT_SECRET</code>, <code>GITHUB_WEBHOOK_SECRET</code> and <code>GITHUB_APP_PRIVATE_KEY</code> in <code>deploy/.env</code>.</p>
+<h2 id="values">Where each value comes from</h2>
+<p>All of these live on the App's settings page (Settings, Developer settings, GitHub Apps, Edit). Put them in <code>deploy/.env</code>:</p>
+<div class="table-wrap"><table><thead><tr><th>Variable</th><th>Where it comes from</th></tr></thead><tbody>
+<tr><td><code>GITHUB_APP_ID</code></td><td>Top of the page: <strong>App ID</strong>, a number.</td></tr>
+<tr><td><code>GITHUB_APP_CLIENT_ID</code></td><td>Just under it: <strong>Client ID</strong>, starting with <code>Iv</code>. It is not the App ID.</td></tr>
+<tr><td><code>GITHUB_APP_SLUG</code></td><td>The name in the App's public link, <code>github.com/apps/<em>slug</em></code>: the App name in lowercase with hyphens.</td></tr>
+<tr><td><code>GITHUB_APP_CLIENT_SECRET</code></td><td>Under <strong>Client secrets</strong>, click <strong>Generate a new client secret</strong>. Shown once.</td></tr>
+<tr><td><code>GITHUB_WEBHOOK_SECRET</code></td><td>The string you typed in the Webhook secret field (a long random string you make up). Exactly the same value.</td></tr>
+<tr><td><code>GITHUB_APP_PRIVATE_KEY</code></td><td>Under <strong>Private keys</strong>, click <strong>Generate a private key</strong>: your browser downloads a <code>.pem</code> file, once. The value is that file on one line, with <code>\n</code> for line breaks. The setup page has a converter: choose the file and copy the result. It runs in your browser and sends nothing to the server.</td></tr>
+</tbody></table></div>
+<p>Two credentials, two jobs. The <strong>client secret</strong> lets people sign in. The <strong>private key</strong> is the App's own identity: it lets the agents clone, push and open pull requests. You need both. If one is missing, the service's log names it and says where to find it: <code>docker compose -f deploy/compose.yml logs web</code>.</p>
+<h2 id="troubleshooting">If something goes wrong</h2>
+<ul>
+<li><strong>"You must generate a private key in order to install your GitHub App."</strong> Normal after the manual form. Generate the key, then install.</li>
+<li><strong>The key was not downloaded.</strong> Generate another one on the same page. You can have several, and delete the lost one.</li>
+<li><strong>Sign-in loops or says the callback is wrong.</strong> The Callback URL must be exactly <code>PUBLIC_URL</code> plus <code>/auth/callback</code>, with no trailing slash and the same <code>https</code>.</li>
+<li><strong>Webhooks are refused.</strong> The webhook secret in <code>deploy/.env</code> differs from the one on GitHub. Look at the App's <strong>Advanced</strong> tab, <strong>Recent deliveries</strong>, for the response.</li>
+<li><strong>You see "App ID" where "Client ID" is wanted.</strong> They are two different values: the Client ID starts with <code>Iv</code>.</li>
+</ul>
 <nav class="pager" aria-label="Pages"><a href="getting-started.html">&larr; Getting started</a><a href="concepts.html">Concepts &rarr;</a></nav></main></div>
 <footer class="foot"><p class="big" aria-hidden="true">shelf-sdlc</p>
 <ul><li><a href="getting-started.html">Documentation</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents">Repository</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents/blob/main/CONTRIBUTING.md">Contributing</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents/issues">Issues</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents/blob/main/LICENSE">Apache-2.0</a></li></ul>

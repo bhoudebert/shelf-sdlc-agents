@@ -165,3 +165,17 @@ The system SHALL offer a button that copies a marked block of text to the clipbo
 
 - **WHEN** a person presses the copy button next to the credentials
 - **THEN** the whole block is copied and the button says so briefly
+
+### Requirement: A private key can be turned into an environment value in the browser
+
+The system SHALL offer, on the setup page, a converter that reads a private key file or pasted text in the browser, shows the single-line environment value with escaped line breaks, refuses text that is not a private key, and sends nothing to the server.
+
+#### Scenario: A valid key
+
+- **WHEN** a person chooses the downloaded key file
+- **THEN** the one-line `GITHUB_APP_PRIVATE_KEY` value appears with a button to copy it
+
+#### Scenario: Something else
+
+- **WHEN** the text is not a private key
+- **THEN** the converter says so and shows no value

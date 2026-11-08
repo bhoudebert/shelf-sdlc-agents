@@ -19,10 +19,12 @@ EVENTS = [
     "pull_request",
     "issue_comment",
     "check_suite",
-    "installation",
-    "installation_repositories",
     "push",
 ]
+"""The events to subscribe to.
+
+GitHub always sends ``installation``, ``installation_repositories`` and ``ping``; a manifest that lists them is refused.
+"""
 
 
 def app_manifest(public_url: str, name: str = "shelf-sdlc") -> dict[str, Any]:
