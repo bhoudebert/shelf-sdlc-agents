@@ -198,3 +198,17 @@ The system SHALL carry, in the result of a step as recorded in the workflow's hi
 - **WHEN** the checks report that the CI is running
 - **THEN** the recorded result says waiting, and the workflow runs the checks again in the same round
 
+### Requirement: A running step heartbeats on its own
+
+The system SHALL heartbeat from the activity that runs a step, on a timer independent of what the step does, at an interval well inside the heartbeat timeout the workflow sets, so that a step that is silent (a build, an agent thinking, a wait for the CI) is not timed out while it works, and a step that really died still is.
+
+#### Scenario: A long silent step
+
+- **WHEN** a step runs for several heartbeat timeouts without output
+- **THEN** it is not timed out
+
+#### Scenario: A dead worker
+
+- **WHEN** the worker stops
+- **THEN** the heartbeats stop and Temporal retries the step
+
