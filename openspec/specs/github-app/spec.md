@@ -109,6 +109,15 @@ The system SHALL read from GitHub, as the App, which events the App subscribes t
 - **WHEN** GitHub refuses the App's identity or cannot be reached
 - **THEN** the result is a sentence saying why, not an error
 
+### Requirement: The comments of a pull request are read back as a story
+
+The system SHALL read, as the App, every comment of a pull request (up to five pages of a hundred) and classify each by who spoke: an agent by the hidden marker of its comments, a person, or the system's own announcements, and SHALL leave out the progress comment.
+
+#### Scenario: A mixed conversation
+
+- **WHEN** a pull request has an agent's comment, the progress comment and a person's comment
+- **THEN** the story holds the agent's and the person's, in order
+
 ### Requirement: The CI of a pull request is read as the App
 
 The system SHALL read, as the App, the check runs of the head commit of a pull request (with the summary and the annotations of the ones that failed) and its commit statuses, and SHALL carry on without statuses when GitHub refuses them to the App.

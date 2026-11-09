@@ -311,6 +311,30 @@ The system SHALL reuse for a minute what GitHub said about a person's repositori
 - **WHEN** two people open the board
 - **THEN** each gets their own lookup
 
+### Requirement: The conversation of the pull request is shown on the work page, read only
+
+The system SHALL show on the work page, beside the documents, the comments of the work's pull request as a conversation (who spoke, whether an agent, a person or Shelf itself, what they said rendered for reading, and when, with a link to the comment on GitHub), oldest first and limited to the latest thirty, without the one progress comment that the timeline already tells, never turning anything a comment contains into active content, and SHALL say so when the pull request is not open yet or GitHub cannot be reached. The page SHALL NOT take comments: people reply on GitHub or decide with the buttons, and agents act only on the `/shelf` commands.
+
+#### Scenario: A pull request with a conversation
+
+- **WHEN** the pull request has an agent's report and a person's comment
+- **THEN** both are listed with their speaker, their time in UTC and a link to the comment, and the progress table is not
+
+#### Scenario: Hostile content
+
+- **WHEN** a comment contains a script tag
+- **THEN** it is shown as text and nothing runs
+
+#### Scenario: Before the pull request opens
+
+- **WHEN** the work has no pull request yet
+- **THEN** the page says the conversation starts when the pull request opens
+
+#### Scenario: Someone else's repository
+
+- **WHEN** a person asks for the conversation of a work on a repository they cannot see
+- **THEN** the answer is not found
+
 ### Requirement: The documents of a piece of work are shown on its page
 
 The system SHALL show on the work page the request, the spec, the design and the plan as the agents write them, rendered for reading, with the one the work is at open and the others folded, never turning anything the documents contain into active content, and answering a document it cannot load with a message and a retry.
