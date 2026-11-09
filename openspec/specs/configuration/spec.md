@@ -74,3 +74,12 @@ The system SHALL raise a single, named error for any invalid configuration file,
 
 - **WHEN** any configuration file is invalid
 - **THEN** the same error type carries the reason
+
+### Requirement: The time given to a repository's CI can be set
+
+The system SHALL read from the environment how long one checks step looks at the CI (`SHELF_CI_WAIT`, seconds, half an hour by default) and how long a commit may show no run before the repository counts as having no CI (`SHELF_CI_GRACE`, seconds, two minutes by default).
+
+#### Scenario: Defaults
+
+- **WHEN** neither is set
+- **THEN** a step looks for 1800 seconds and waits 120 for the first run to appear

@@ -110,7 +110,8 @@
         "src/shelf/ports/steps.py",
         "src/shelf/domain/context.py",
         "src/shelf/domain/titles.py",
-        "src/shelf/domain/toolchain.py"
+        "src/shelf/domain/toolchain.py",
+        "src/shelf/domain/ci.py"
       ],
       "tests": [
         "tests/application/test_steps.py",
@@ -119,7 +120,8 @@
         "tests/adapters/claude_agent/*.py",
         "tests/domain/test_context.py",
         "tests/domain/test_titles.py",
-        "tests/domain/test_toolchain.py"
+        "tests/domain/test_toolchain.py",
+        "tests/domain/test_ci.py"
       ]
     },
     "web": {
