@@ -151,6 +151,15 @@ The system SHALL read, for a pull request, the branch it was opened from, where 
 - **WHEN** the head repository is another one or is gone
 - **THEN** it cannot
 
+### Requirement: Issues, pull requests and files are read for the work that starts from them
+
+The system SHALL read, as the App, an issue or pull request of a repository (its title and body, only when its author has write access) and a file of it (on its default branch or the one named, as text of at most 100 KB), and SHALL say plainly when it does not exist, is a folder, is too long or is not text.
+
+#### Scenario: Written by an outsider
+
+- **WHEN** the issue's author has no write access
+- **THEN** nothing of it is used
+
 ### Requirement: A person's view of a pull request is asked as that person
 
 The system SHALL ask GitHub, with the person's own token and not the App's, whether a pull request exists and is visible to them, so that what a person may start is limited by what they can see.

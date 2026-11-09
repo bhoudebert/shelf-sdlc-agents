@@ -37,11 +37,16 @@
         "src/shelf/application/errors.py",
         "src/shelf/domain/model.py",
         "src/shelf/ports/forge.py",
-        "src/shelf/ports/configs.py"
+        "src/shelf/ports/configs.py",
+        "src/shelf/domain/reference.py",
+        "src/shelf/ports/references.py",
+        "src/shelf/adapters/github_app/references.py"
       ],
       "tests": [
         "tests/application/test_work.py",
-        "tests/fakes.py"
+        "tests/fakes.py",
+        "tests/domain/test_reference.py",
+        "tests/adapters/github_app/test_references.py"
       ]
     },
     "durable-workflow": {
