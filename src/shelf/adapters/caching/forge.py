@@ -30,6 +30,10 @@ class CachedForge:
         """Never cached: a code is used once."""
         return await self.inner.exchange_code(code)
 
+    async def pull_request_exists(self, user_token: str, repo: RepoRef, number: int) -> bool:
+        """Never cached: a pull request may be opened a moment after the person looks."""
+        return await self.inner.pull_request_exists(user_token, repo, number)
+
     async def identity(self, user_token: str) -> Identity:
         """Who the token belongs to, from the cache while it is fresh."""
         found = self._identities.get(user_token)

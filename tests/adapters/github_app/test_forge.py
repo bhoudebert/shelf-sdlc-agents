@@ -61,3 +61,18 @@ async def test_repositories_are_collected_across_installations_and_pages(setting
 
     repos = await forge_over(httpx.MockTransport(handler), settings).repositories("ghu_1")
     assert repos == [RepoRef("acme", "a"), RepoRef("acme", "b"), RepoRef("globex", "c")]
+
+
+@pytest.mark.parametrize(("status", "expected"), [(200, True), (404, False)])
+async def test_a_pull_request_exists_when_the_person_can_read_it(
+    settings: GitHubAppSettings,
+    status: int,
+    expected: bool,  # noqa: FBT001
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/repos/acme/shop/pulls/2"
+        assert request.headers["authorization"] == "Bearer ghu_1"  # as the person, not as the App
+        return httpx.Response(status, json={})
+
+    forge = forge_over(httpx.MockTransport(handler), settings)
+    assert await forge.pull_request_exists("ghu_1", RepoRef("acme", "shop"), 2) is expected

@@ -109,3 +109,19 @@ async def test_the_board_shows_only_the_repositories_the_person_can_see(forge: F
     views = await board(runner, forge, user_token="tok")
     assert [v.repo for v in views] == [REPO]
     assert views[0].phase is Phase.INTAKE
+
+
+async def test_a_review_of_a_pull_request_the_repository_does_not_have_is_refused_with_its_name(
+    forge: FakeForge,
+) -> None:
+    forge.missing_pulls.add((REPO, 2))
+    review = WorkRequest(REPO, "alice", EntryPoint.PULL_REQUEST_REVIEW, "", 2)
+    config = FakeConfigs({REPO: RepoConfig(entries=frozenset(EntryPoint))})
+    result = await start_work(FakeRunner(), forge, config, user_token="tok", request=review)
+    assert result == Err(Invalid("acme/shop has no pull request #2: check the repository"))
+
+
+async def test_a_review_of_an_existing_pull_request_starts(forge: FakeForge) -> None:
+    review = WorkRequest(REPO, "alice", EntryPoint.PULL_REQUEST_REVIEW, "", 2)
+    config = FakeConfigs({REPO: RepoConfig(entries=frozenset(EntryPoint))})
+    assert isinstance(await start_work(FakeRunner(), forge, config, user_token="tok", request=review), Ok)

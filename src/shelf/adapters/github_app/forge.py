@@ -9,6 +9,8 @@ import httpx
 from shelf.adapters.github_app.settings import GitHubAppSettings
 from shelf.domain.model import Identity, RepoRef
 
+NOT_FOUND = 404
+
 
 class SignInError(Exception):
     """GitHub refused the OAuth code."""
@@ -63,6 +65,16 @@ class GitHubForge:
             async for page in self._pages(user_token, path, key=None):
                 found.extend(parse_repositories(page))
         return found
+
+    async def pull_request_exists(self, user_token: str, repo: RepoRef, number: int) -> bool:
+        """Whether ``repo`` has a pull request ``number`` that this person can see (as them, not as the App)."""
+        response = await self.client.get(
+            f"{self.settings.api_url}/repos/{repo.full_name}/pulls/{number}", headers=_user_headers(user_token)
+        )
+        if response.status_code == NOT_FOUND:
+            return False
+        response.raise_for_status()
+        return True
 
     async def _get(self, user_token: str, path: str) -> Mapping[str, Any]:
         response = await self.client.get(f"{self.settings.api_url}{path}", headers=_user_headers(user_token))

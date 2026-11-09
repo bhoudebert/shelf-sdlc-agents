@@ -26,6 +26,10 @@ class CountingForge:
         self._count("repositories")
         return [REPO]
 
+    async def pull_request_exists(self, user_token: str, repo: RepoRef, number: int) -> bool:
+        self._count("pull_request_exists")
+        return True
+
 
 class Clock:
     def __init__(self) -> None:
@@ -91,3 +95,11 @@ async def test_documents_are_read_once_while_fresh_and_again_when_old() -> None:
     clock.now = 11
     await cached.read(REPO, WorkId("work-1"))
     assert Counting.reads == 2
+
+
+async def test_whether_a_pull_request_exists_is_never_cached() -> None:
+    inner = CountingForge()
+    forge = CachedForge(inner)
+    await forge.pull_request_exists("tok", REPO, 2)
+    await forge.pull_request_exists("tok", REPO, 2)
+    assert inner.calls["pull_request_exists"] == 2

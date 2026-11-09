@@ -126,3 +126,13 @@ def test_any_other_push_failure_is_left_as_it_is() -> None:
         explain_push_failure("git push failed (exit 1): non-fast-forward")
         == "git push failed (exit 1): non-fast-forward"
     )
+
+
+async def test_a_pull_request_the_repository_does_not_have_is_named_in_the_error(origin: Path, tmp_path: Path) -> None:
+    with pytest.raises(RuntimeError) as raised:
+        async with workspaces(origin, tmp_path).open(checkout(pull_request=2)):
+            pass
+    message = str(raised.value)
+    assert "Pull request #2 could not be fetched from acme/shop" in message
+    assert "started on the right repository" in message
+    assert "tok" not in message.replace("token", "")  # the token never appears

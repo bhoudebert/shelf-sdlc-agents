@@ -22,6 +22,7 @@ dependencies = [
 shelf-web = "shelf.entrypoints.web:main"
 shelf-worker = "shelf.entrypoints.worker:main"
 shelf-doctor = "shelf.entrypoints.doctor:main"
+shelf-diagnose = "shelf.entrypoints.diagnose:main"
 
 [dependency-groups]
 dev = [

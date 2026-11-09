@@ -14,8 +14,13 @@ class FakeForge:
     identities: dict[str, Identity] = field(default_factory=dict[str, Identity])
     repos: dict[str, tuple[RepoRef, ...]] = field(default_factory=dict[str, tuple[RepoRef, ...]])
 
+    missing_pulls: set[tuple[RepoRef, int]] = field(default_factory=set[tuple[RepoRef, int]])
+
     async def exchange_code(self, code: str) -> str:
         return f"token-{code}"
+
+    async def pull_request_exists(self, user_token: str, repo: RepoRef, number: int) -> bool:
+        return (repo, number) not in self.missing_pulls
 
     async def identity(self, user_token: str) -> Identity:
         return self.identities[user_token]
