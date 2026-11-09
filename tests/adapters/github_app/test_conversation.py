@@ -45,6 +45,10 @@ class Counting:
         self.calls += 1
         return []
 
+    async def description(self, repo: RepoRef, pull_request: int) -> str:
+        self.calls += 1
+        return "the request"
+
 
 async def test_a_conversation_is_remembered_for_a_few_seconds() -> None:
     inner, now = Counting(), [0.0]
@@ -55,3 +59,26 @@ async def test_a_conversation_is_remembered_for_a_few_seconds() -> None:
     now[0] = 11.0
     await cached.read(REPO, 12)
     assert inner.calls == 2
+
+
+async def test_a_description_is_remembered_for_a_few_seconds_too() -> None:
+    inner, now = Counting(), [0.0]
+    cached = CachedConversations(inner, ttl_seconds=10, clock=lambda: now[0])
+    assert await cached.description(REPO, 12) == "the request"
+    await cached.description(REPO, 12)
+    assert inner.calls == 1
+    now[0] = 11.0
+    await cached.description(REPO, 12)
+    assert inner.calls == 2
+
+
+async def test_the_description_of_the_pull_request_is_read(settings: GitHubAppSettings) -> None:
+    async def token_for(repo: RepoRef) -> str:
+        return "ghs_token"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/repos/acme/shop/pulls/12"
+        return httpx.Response(200, json={"body": "<!-- shelf:work-1 -->\nAdd points"})
+
+    reader = GitHubConversations(httpx.AsyncClient(transport=httpx.MockTransport(handler)), settings, token_for)
+    assert (await reader.description(REPO, 12)).endswith("Add points")

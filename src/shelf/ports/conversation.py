@@ -13,3 +13,7 @@ class Conversations(Protocol):
     async def read(self, repo: RepoRef, pull_request: int) -> Sequence[Message]:
         """The comments, oldest first, without the one progress comment that the timeline already tells."""
         ...
+
+    async def description(self, repo: RepoRef, pull_request: int) -> str:
+        """The description of the pull request, as written: for the work this system opened, the request."""
+        ...

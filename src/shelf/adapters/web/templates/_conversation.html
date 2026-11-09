@@ -1,4 +1,12 @@
 <section id="conversation" class="story" hx-get="/work/{{ work_id }}/conversation?v={{ version }}" hx-trigger="every 20s" hx-swap="outerHTML" aria-label="Conversation on the pull request">
+  {% if request_html %}
+  <details class="story-box request-box" data-key="request" open>
+    <summary>
+      <h2>{{ "The request" if request_is_ours else "Pull request description" }}</h2>
+    </summary>
+    <div class="prose">{{ request_html }}</div>
+  </details>
+  {% endif %}
   <details class="story-box" data-key="story">
     <summary>
       <h2>Conversation</h2>
