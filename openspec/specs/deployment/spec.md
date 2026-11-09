@@ -337,6 +337,39 @@ The system SHALL provide `shelf-diagnose`, run where the worker runs with a work
 - **WHEN** a secret would appear in any line
 - **THEN** it is blanked
 
+### Requirement: The install script catches the usual mistakes before building
+
+The system SHALL, before building, refuse to continue when the public address or the session secret is empty or the web port is already used by something that is not this service, saying that the port is the private one the proxy forwards to and to set another, and SHALL warn about an environment file at the repository root, which Compose does not read.
+
+#### Scenario: A busy port
+
+- **WHEN** the configured web port is in use by another program
+- **THEN** the script stops before building and tells the operator to set another port and point the proxy at it
+
+#### Scenario: Our own service holds the port
+
+- **WHEN** the web port is held by this service's own container from the last run
+- **THEN** the script goes on, because it is about to replace it
+
+#### Scenario: The wrong file
+
+- **WHEN** a `.env` exists at the repository root
+- **THEN** the script warns that only `deploy/.env` is read
+
+### Requirement: The web port's address is the operator's choice
+
+The system SHALL publish the web port on every interface unless the operator sets `WEB_BIND`, SHALL say while it is unset that `127.0.0.1` makes a same-host reverse proxy the only way in, and SHALL NOT change an existing instance's reachability by itself.
+
+#### Scenario: Unset
+
+- **WHEN** no bind address is set
+- **THEN** the port is published as before and the script prints the note
+
+#### Scenario: Loopback
+
+- **WHEN** `WEB_BIND=127.0.0.1`
+- **THEN** the web service is reachable from the host itself and not from the network
+
 ### Requirement: The operator can check that the agents work
 
 The system SHALL provide a command that runs tiny real agent checks against the instance's configuration in a throwaway repository (a shell, the repository's agent file, the title convention, commands in the sandbox, the credential) and reports each with what to do about a failure.
