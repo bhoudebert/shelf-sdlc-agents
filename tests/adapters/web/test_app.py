@@ -126,6 +126,23 @@ def test_a_person_off_the_list_is_told_so() -> None:
     assert app.client.get("/board").status_code == 303
 
 
+def test_a_refusal_on_an_instance_with_organisations_says_how_a_membership_becomes_visible() -> None:
+    app = Fixture(AccessRules(organisations=frozenset({"hid-ttt"})))
+    started = app.client.get("/auth/login")
+    state = parse_qs(urlparse(started.headers["location"]).query)["state"][0]
+    page = app.client.get("/auth/callback", params={"code": "code", "state": state}).text
+    assert "belong to an organisation" in page
+    assert "/apps/shelf/installations/new" in page
+
+
+def test_a_refusal_without_listed_organisations_does_not_talk_about_them() -> None:
+    app = Fixture(AccessRules(users=frozenset({"bob"})))
+    started = app.client.get("/auth/login")
+    state = parse_qs(urlparse(started.headers["location"]).query)["state"][0]
+    page = app.client.get("/auth/callback", params={"code": "code", "state": state}).text
+    assert "belong to an organisation" not in page
+
+
 def test_pages_that_need_a_session_send_visitors_to_sign_in(app: Fixture) -> None:
     for path in ("/board", "/start", "/work/work-1"):
         response = app.client.get(path)

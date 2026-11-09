@@ -50,7 +50,14 @@ def router(web: Web) -> APIRouter:
         result = await sign_in(web.deps.forge, web.deps.access(), code)
         match result:
             case Err(NotAllowed(reason)):
-                return web.render(request, "denied.html", None, reason=reason)
+                return web.render(
+                    request,
+                    "denied.html",
+                    None,
+                    reason=reason,
+                    install_url=web.deps.settings.install_url,
+                    organisations=bool(web.deps.access().organisations),
+                )
             case Ok(signed):
                 session_id = web.deps.sessions.create(signed.identity, signed.user_token)
         response = RedirectResponse("/board", status_code=303)

@@ -20,6 +20,11 @@ The system SHALL send a visitor through GitHub's OAuth flow with a state value t
 - **WHEN** a person who is not listed by name but belongs to a listed organisation signs in
 - **THEN** they are let in, and a refusal for anyone else says that an organisation membership must be public or readable by the App
 
+#### Scenario: A refusal when organisations are listed
+
+- **WHEN** a person is refused on an instance whose access list names organisations
+- **THEN** the page says how a membership becomes visible: public, or the App installed on the organisation by an owner (with a link to GitHub that opens in a new tab), or a listing by name by the operator
+
 #### Scenario: A forged callback
 
 - **WHEN** the callback carries a state that does not match the cookie
