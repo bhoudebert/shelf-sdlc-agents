@@ -320,6 +320,11 @@ The system SHALL serve Temporal's own interface under `/temporal`, only to signe
 - **WHEN** an administrator tries to terminate or signal a workflow from there
 - **THEN** it is refused unless the operator turned writing on, while a query always passes
 
+#### Scenario: Reading a stack trace
+
+- **WHEN** an administrator asks for a workflow's stack trace, a query named in the path, while writing is off
+- **THEN** it passes, and cancelling or terminating still does not
+
 #### Scenario: Temporal is down
 
 - **WHEN** Temporal's interface does not answer
