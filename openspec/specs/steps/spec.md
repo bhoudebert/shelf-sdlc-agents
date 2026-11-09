@@ -117,6 +117,11 @@ The system SHALL, once the repository's own commands pass, read the CI of the pu
 - **WHEN** no run appears within the grace
 - **THEN** the checks pass and the report says no CI run was found, not that CI passed
 
+#### Scenario: A wait never needs a heartbeat of its own
+
+- **WHEN** a step waits between two looks at the CI
+- **THEN** it does nothing to stay alive: the activity that runs it heartbeats for it
+
 #### Scenario: Local commands fail
 
 - **WHEN** a configured command exits non-zero
