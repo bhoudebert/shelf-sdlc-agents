@@ -1,8 +1,8 @@
-/* shelf-sdlc product interface: "night sky".
-   A deep-space navy ink and field, a nova-orange accent for what needs a person, a pulsar cyan for what is
-   moving. The pipeline reads as an orbit of ten stations. Light by default (a star chart on paper); the dark
-   theme is the night sky itself. A faint star field sits behind everything, never on top of text.
-   No web fonts, no requests to anywhere else. */
+/* shelf-sdlc product interface: "star chart".
+   Light by default: cool paper, a deep-space navy ink and field, an orange accent for what needs a person, a teal
+   for what is moving, and a small astronaut (the agents) drawn in one flat language. The pipeline reads as an orbit
+   of ten stations. The dark theme is calm: a grey-blue ground, muted colours, moderate contrast, no glow.
+   A faint star field sits behind everything, never on top of text. No web fonts, no requests to anywhere else. */
 
 :root {
   --ground: #f4f5f9;
@@ -27,6 +27,21 @@
   --star-opacity: .12;
   --orbit: color-mix(in srgb, var(--ink) 16%, transparent);
   --radius: 6px;
+  --art-line: #0a0f24;
+  --art-suit: #ffffff;
+  --art-visor: #0b1233;
+  --art-eye: #67dcef;
+  --art-glint: rgb(255 255 255 / .75);
+  --art-planet: #ffd8c2;
+  --art-band: #f2a57b;
+  --art-crater: #f7c3a5;
+  --art-moon: #dfe3f0;
+  --art-ring: #0a0f24;
+  --art-spark: #c2410c;
+  --art-spark-2: #0e7490;
+  --art-shadow: rgb(10 15 36 / .1);
+  --star-on-field: #ffffff;
+  --field-stars: .5;
   --font: "Schibsted Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
   --gutter: clamp(16px, 3.4vw, 40px);
@@ -37,22 +52,41 @@
 }
 /* Light unless the person chose dark with the toggle: the system's preference is not followed. */
 :root[data-theme="dark"] {
-  --ground: #060914;
-  --raised: #0c1124;
-  --surface: #131a33;
-  --sunk: #1f2848;
-  --ink: #e8ebf7;
-  --ink-2: #a7afcf;
-  --line: #7c86ad;
-  --accent: #ff9c63;
-  --on-accent: #1a0904;
-  --field: #0f1840;
-  --danger: #ffa58a;
-  --now: #5fd4e8;
-  --code-bg: #03050d;
-  --star: #ffffff;
-  --star-opacity: .5;
-  --orbit: color-mix(in srgb, var(--ink) 18%, transparent);
+  --ground: #171b24;
+  --raised: #1d222d;
+  --surface: #252b38;
+  --sunk: #313848;
+  --ink: #d4d8e2;
+  --ink-2: #a6adbd;
+  --line: #7a8294;
+  --accent: #e8956a;
+  --on-accent: #1f1208;
+  --field: #222a3b;
+  --on-field: #d4d8e2;
+  --on-field-2: #a6adbd;
+  --accent-on-field: #e8956a;
+  --now-on-field: #79b8c4;
+  --danger: #f0a690;
+  --now: #79b8c4;
+  --code-bg: #10131a;
+  --code-ink: #ccd1dc;
+  --star: #c9d0dc;
+  --star-opacity: .14;
+  --orbit: color-mix(in srgb, var(--ink) 12%, transparent);
+  --art-line: #0e1118;
+  --art-suit: #c9d0dc;
+  --art-visor: #10141c;
+  --art-eye: #79b8c4;
+  --art-glint: rgb(255 255 255 / .35);
+  --art-planet: #3d4659;
+  --art-band: #4d576d;
+  --art-crater: #475166;
+  --art-moon: #5a6378;
+  --art-ring: #8a93a8;
+  --art-spark: #c98a66;
+  --art-spark-2: #79b8c4;
+  --art-shadow: rgb(0 0 0 / .25);
+  --field-stars: .12;
   color-scheme: dark;
 }
 
@@ -72,14 +106,29 @@ body::before {
   -webkit-mask-composite: source-in;
   mask: var(--stars) 0 0 / 640px 640px repeat intersect, linear-gradient(#000 0, #000 30vh, rgb(0 0 0 / .35) 100vh) 0 0 / 100% 100% no-repeat;
 }
-/* At night, two faint nebulae at opposite corners; on paper, nothing but the stars. */
-:root[data-theme="dark"] body {
-  background:
-    radial-gradient(60rem 36rem at 92% -10%, color-mix(in srgb, var(--now) 10%, transparent), transparent 70%),
-    radial-gradient(48rem 30rem at -10% 110%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 70%),
-    var(--ground);
-  background-attachment: fixed;
-}
+
+/* ---------- illustrations: flat fills, one soft outline, theme colours ---------- */
+.art { display: block; overflow: visible; }
+.art .art-line { stroke: var(--art-line); stroke-width: 2.4; stroke-linejoin: round; stroke-linecap: round; }
+.art .art-suit { fill: var(--art-suit); }
+.art .art-visor { fill: var(--art-visor); }
+.art .art-eye { fill: var(--art-eye); }
+.art .art-eye-line { stroke: var(--art-eye); stroke-width: 2.4; }
+.art .art-glint { fill: var(--art-glint); }
+.art .art-accent, .art .art-accent-dot { fill: var(--accent); }
+.art .art-line-soft { stroke: color-mix(in srgb, var(--art-line) 45%, transparent); stroke-width: 1.6; }
+.art .art-shadow { fill: var(--art-shadow); }
+.art .art-planet { fill: var(--art-planet); }
+.art .art-band { stroke: var(--art-band); stroke-width: 7; }
+.art .art-crater { fill: var(--art-crater); stroke-width: 1.6; }
+.art .art-moon { fill: var(--art-moon); }
+.art .art-ring { stroke: var(--art-ring); stroke-width: 2.4; }
+.art .art-spark { fill: var(--art-spark); }
+.art .art-spark-2 { fill: var(--art-spark-2); }
+.art .art-dot { fill: var(--ink-2); opacity: .5; }
+.art .art-zz, .art .art-q { stroke: var(--ink-2); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.art .art-q { stroke: var(--accent); }
+.mascot { width: 96px; height: 96px; }
 svg { display: block; max-width: 100%; }
 a { color: inherit; text-decoration-thickness: .08em; text-underline-offset: .18em; }
 a:hover { color: var(--accent); }
@@ -106,10 +155,7 @@ p { margin: 0 0 1em; max-width: 68ch; }
   background: color-mix(in srgb, var(--ground) 94%, transparent); box-shadow: 0 1px 0 var(--orbit);
 }
 .brand { display: flex; align-items: center; gap: 10px; min-height: 44px; font-weight: 800; font-size: 1.2rem; letter-spacing: -.04em; text-decoration: none; }
-.brand svg { width: 30px; height: 30px; overflow: visible; }
-.brand .orbit { fill: none; stroke: currentColor; stroke-width: 1.6; opacity: .55; }
-.brand .planet { fill: currentColor; }
-.brand .mark { fill: var(--accent); }
+.brand .mark-art { width: 32px; height: 32px; }
 .bar nav { display: flex; gap: 4px; }
 .bar nav a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 999px; text-decoration: none; font-weight: 600; }
 .bar nav a:hover { background: var(--surface); color: var(--ink); }
@@ -169,7 +215,10 @@ p { margin: 0 0 1em; max-width: 68ch; }
 .howto li::before { content: counter(how); position: absolute; left: 18px; top: 10px; font-size: 1.9rem; font-weight: 800; letter-spacing: -.04em; color: var(--accent); }
 .denied { grid-template-columns: 1fr; margin-top: 8px; }
 .denied .reason { background: var(--field); color: var(--on-field); padding: 16px 20px; max-width: none; }
-.board-empty { grid-template-columns: 1fr; }
+.board-empty { grid-template-columns: auto minmax(0, 1fr); align-items: center; }
+.empty-art { width: clamp(88px, 12vw, 132px); height: auto; }
+.empty-side { display: grid; gap: 12px; align-content: start; }
+.empty-scene { width: 100%; max-width: 380px; height: auto; justify-self: center; }
 .no-repos .board-empty { display: none; }
 @media (max-width: 860px) { .empty { grid-template-columns: 1fr; } }
 
@@ -177,6 +226,7 @@ p { margin: 0 0 1em; max-width: 68ch; }
 .welcome { max-width: 1280px; margin: 0 auto; padding: clamp(16px, 4vw, 56px) var(--gutter) 72px; display: grid; grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); gap: clamp(28px, 5vw, 80px); align-items: center; }
 .welcome h1 { font-size: clamp(2.4rem, 6vw, 4.6rem); letter-spacing: -.05em; line-height: .96; margin-bottom: 24px; max-width: 13ch; }
 .welcome .btn { margin-top: 8px; }
+.welcome-scene { position: relative; z-index: 1; width: 100%; max-width: 420px; height: auto; margin: 0 auto -34px; }
 /* The pipeline as a trajectory through the night: a rail of stations on a field of stars. */
 .shelf {
   position: relative; isolation: isolate; overflow: hidden;
@@ -184,7 +234,7 @@ p { margin: 0 0 1em; max-width: 68ch; }
   background: var(--field); color: var(--on-field); border-radius: var(--radius);
 }
 .shelf::before {
-  content: ""; position: absolute; inset: 0; z-index: -1; background: #fff; opacity: .55;
+  content: ""; position: absolute; inset: 0; z-index: -1; background: var(--star-on-field); opacity: var(--field-stars);
   -webkit-mask: var(--stars) 40px 20px / 640px 640px repeat; mask: var(--stars) 40px 20px / 640px 640px repeat;
 }
 .shelf::after {
@@ -221,7 +271,9 @@ p { margin: 0 0 1em; max-width: 68ch; }
 #board[data-filter="done"] .group:not([data-group="done"]) { display: none; }
 
 .group { margin-bottom: 44px; }
-.group-head { display: flex; align-items: baseline; gap: 6px 20px; flex-wrap: wrap; margin-bottom: 14px; }
+.group-head { display: flex; align-items: center; gap: 6px 16px; flex-wrap: wrap; margin-bottom: 14px; }
+.group-art { width: 46px; height: 46px; flex: none; margin: -6px -4px -6px 0; }
+.group-waiting .group-art { width: 60px; height: 60px; }
 .group h2 { display: flex; align-items: baseline; gap: 10px; }
 .group .n { display: inline-grid; place-items: center; min-width: 1.7em; height: 1.7em; padding: 0 7px; border-radius: 999px; font-variant-numeric: tabular-nums; font-size: 1rem; font-weight: 700; background: var(--ink); color: var(--ground); letter-spacing: 0; align-self: center; }
 .group .hint { margin: 0; }
@@ -325,7 +377,9 @@ input:not([type="radio"]):focus-visible, select:focus-visible, textarea:focus-vi
 .alert { display: flex; align-items: center; gap: 10px; background: var(--ink); color: var(--ground); padding: 12px 16px; border-radius: var(--radius); font-weight: 600; max-width: 720px; }
 
 .start-preview { position: sticky; top: 84px; background: var(--raised); padding: 20px; border-radius: var(--radius); box-shadow: inset 0 0 0 1px var(--orbit); }
-.start-preview h2 { font-size: 1.1rem; margin-bottom: 12px; }
+.start-preview h2 { font-size: 1.1rem; }
+.preview-head { display: flex; align-items: center; gap: 10px; margin: -6px 0 10px; }
+.preview-art { width: 52px; height: 52px; flex: none; }
 /* The ten stations on a rail; the ones the work will pass through light up. */
 .preview { position: relative; list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 .preview::before { content: ""; position: absolute; left: 17px; top: 18px; bottom: 18px; width: 2px; background: var(--sunk); }
@@ -369,12 +423,17 @@ input:not([type="radio"]):focus-visible, select:focus-visible, textarea:focus-vi
 .status h2 { font-size: clamp(1.6rem, 3.6vw, 2.6rem); letter-spacing: -.04em; line-height: 1.02; }
 .status-glyph .glyph { width: clamp(32px, 5vw, 48px); height: clamp(32px, 5vw, 48px); }
 .pr-link { margin: 14px 0 0; }
+.status-art { flex: none; margin-left: auto; width: clamp(64px, 9vw, 112px); height: auto; }
+/* On a coloured status the drawing's accent takes the panel's ink, so the antenna and badge stay visible. */
+.panel-waiting .status-art { --accent: var(--field); --art-shadow: rgb(0 0 0 / .14); }
+.panel-waiting.reason-failure .status-art { --accent: #ffa26b; --art-shadow: rgb(255 255 255 / .12); }
+:root[data-theme="dark"] .panel-waiting .status-art { --accent: var(--on-accent); }
 .panel-waiting .status { background: var(--accent); color: var(--on-accent); }
 .panel-waiting.reason-failure .status { background: var(--ink); color: var(--ground); }
 .panel-running .status { background: var(--field); color: var(--on-field); }
 .panel-running .status-glyph { color: var(--now-on-field); }
 .panel-running .status::before {
-  content: ""; position: absolute; inset: 0; z-index: -1; background: #fff; opacity: .5; pointer-events: none;
+  content: ""; position: absolute; inset: 0; z-index: -1; background: var(--star-on-field); opacity: var(--field-stars); pointer-events: none;
   -webkit-mask: var(--stars) 0 0 / 640px 640px repeat; mask: var(--stars) 0 0 / 640px 640px repeat;
 }
 .panel-waiting .status .btn.quiet { background: var(--on-accent); color: var(--accent); }
@@ -395,7 +454,7 @@ input:not([type="radio"]):focus-visible, select:focus-visible, textarea:focus-vi
 .timeline li.current .glyph { color: var(--now-on-field); }
 .timeline li.waiting { background: var(--accent); color: var(--on-accent); }
 .timeline li.stopped { background: repeating-linear-gradient(135deg, var(--sunk) 0 6px, var(--surface) 6px 12px); box-shadow: inset 0 0 0 2px var(--ink); }
-.timeline li.todo { background: transparent; color: var(--ink-2); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--line) 45%, transparent); }
+.timeline li.todo { background: transparent; color: var(--ink-2); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--line) 55%, transparent); }
 .timeline li.todo .glyph { opacity: .7; }
 .timeline li.todo strong { font-weight: 500; }
 .timeline li.stopped strong { background: var(--ground); padding: 0 4px; margin-left: -4px; }
@@ -556,3 +615,25 @@ input:not([type="radio"]):focus-visible, select:focus-visible, textarea:focus-vi
 .facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 24px; margin: 0; }
 .facts dt { font-weight: 700; }
 .facts dd { margin: 0; overflow-wrap: anywhere; }
+
+/* ---------- dark: calm, no halos ---------- */
+:root[data-theme="dark"] .mini i.current::after, :root[data-theme="dark"] .mini i.waiting::after,
+:root[data-theme="dark"] .shelf li.gate::before, :root[data-theme="dark"] .avatar { box-shadow: none; }
+:root[data-theme="dark"] .item.waiting { box-shadow: inset 0 0 0 1px var(--orbit); }
+
+/* ---------- the mascot moves a little, only when motion is welcome ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  .scene-mascot { animation: float 5s ease-in-out infinite; }
+  .status-art.mascot-work > .art-line, .preview-art > .art-line { animation: float 2.6s ease-in-out infinite; }
+  @keyframes float { 50% { transform: translateY(-3px); } }
+}
+@media (max-width: 860px) { .board-empty { grid-template-columns: 1fr; } .empty-art { width: 88px; } }
+@media (max-width: 520px) { .status-art { width: 56px; } .group-art { width: 40px; height: 40px; } .group-waiting .group-art { width: 48px; height: 48px; } }
+:root[data-theme="dark"] .bar nav a[aria-current="page"], :root[data-theme="dark"] .filters button[aria-pressed="true"],
+:root[data-theme="dark"] .chip-failed, :root[data-theme="dark"] .group .n { background: var(--sunk); color: var(--ink); }
+:root[data-theme="dark"] .group-waiting .n { background: var(--accent); color: var(--on-accent); }
+:root[data-theme="dark"] .group-running .n { background: var(--now); color: var(--ground); }
+:root[data-theme="dark"] .panel-waiting.reason-failure .status, :root[data-theme="dark"] .flash.bad,
+:root[data-theme="dark"] .alert { background: var(--sunk); color: var(--ink); }
+:root[data-theme="dark"] .panel-waiting.reason-failure .status .btn.quiet { background: var(--ink); color: var(--ground); }
+:root[data-theme="dark"] .panel-waiting.reason-failure .status-art { --accent: #e8956a; }

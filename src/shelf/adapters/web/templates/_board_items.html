@@ -1,4 +1,5 @@
 {% from "_macros.html" import glyph, mini %}
+{% from "_art.html" import mascot %}
 {% if items %}
 {% set groups = [
   ("waiting", "Needs you", "Gates to decide, failures to resume, pull requests waiting for the merge."),
@@ -11,6 +12,7 @@
 {% set ordered = rows|sort(attribute="reason") if key == "waiting" else rows %}
 <section class="group group-{{ key }}" data-group="{{ key }}" aria-labelledby="g-{{ key }}">
   <div class="group-head">
+    {{ mascot({"waiting": "wave", "running": "work", "done": "celebrate"}[key], "group-art") }}
     <h2 id="g-{{ key }}">{{ title }} <span class="n">{{ rows|length }}</span></h2>
     <p class="hint">{{ hint }}</p>
   </div>
@@ -44,6 +46,7 @@
 {% endfor %}
 {% else %}
 <div class="empty board-empty">
+  {{ mascot("sleep", "empty-art") }}
   <div class="empty-main">
     <h2>Nothing running yet</h2>
     <p>Use <a href="/start">Start work</a> to begin. What you start shows up here and moves along the pipeline by itself, and anything that needs a person comes first.</p>

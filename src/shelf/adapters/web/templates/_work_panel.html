@@ -1,4 +1,5 @@
 {% from "_macros.html" import glyph %}
+{% from "_art.html" import mascot %}
 {% set words = {"done": "Done", "current": "In progress", "waiting": "Waiting", "stopped": "Stopped", "todo": "Not yet"} %}
 <div id="panel" class="panel panel-{{ item.status.value }} reason-{{ item.reason or 'none' }}" hx-get="/work/{{ item.id }}/panel?v={{ version }}" hx-trigger="every 3s" hx-swap="outerHTML" aria-live="polite" aria-label="Progress of this work">
   <section class="status" aria-labelledby="status-title">
@@ -7,6 +8,8 @@
       <h2 id="status-title">{{ item.waiting or item.outcome or "Running" }} · {{ item.phase }}</h2>
       {% if item.pull_request_url %}<p class="pr-link"><a class="btn quiet" href="{{ item.pull_request_url }}" target="_blank" rel="noopener noreferrer">Pull request<span class="vh"> (opens in a new tab)</span></a></p>{% endif %}
     </div>
+    {% set pose = "work" if item.status.value == "running" else ("confused" if item.reason == "failure" else ("wave" if item.status.value == "waiting" else ("celebrate" if item.outcome == "Merged" else "sleep"))) %}
+    {{ mascot(pose, "status-art") }}
   </section>
 
   <ol class="timeline" aria-label="Pipeline">
