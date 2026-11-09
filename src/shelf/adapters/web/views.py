@@ -13,8 +13,11 @@ from markupsafe import Markup
 from shelf.adapters.web.webhook_log import Delivery, Result
 from shelf.domain.model import WorkView
 from shelf.domain.pipeline import PIPELINE, EntryPoint, Phase
+from shelf.domain.progress import clock
 from shelf.domain.roles import DOCUMENT_TITLES
 from shelf.domain.work import DecisionKind, Outcome, Reason
+
+DAY = 86400
 
 ENTRY_LABELS: dict[EntryPoint, tuple[str, str]] = {
     EntryPoint.NEED: ("A need", "Describe what you want. The factory writes the spec first."),
@@ -94,6 +97,8 @@ class TimelineStep:
     label: str
     state: str
     """``done``, ``current``, ``waiting``, ``stopped`` or ``todo``."""
+    at: str = ""
+    """When something last happened at this step, as ``9 Nov 09:12 UTC``; empty when unknown."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,6 +117,10 @@ class ItemView:
     pull_request_url: str
     reason: str
     title: str
+    updated: str
+    """How long ago the work last did anything (``12 min ago``); empty when unknown."""
+    updated_at: str
+    """The same moment in full, for a tooltip."""
     pull_request_number: str
     """``#12``, from the pull request's address; empty while there is none."""
 
@@ -142,6 +151,16 @@ def decision_options(reason: Reason | None) -> list[DecisionOption]:
     return [DecisionOption(kind.value, *DECISION_LABELS[kind]) for kind in _DECISIONS[reason]]
 
 
+def elapsed(iso: str, now: datetime) -> str:
+    """How long ago an ISO time was (``12 min ago``, ``3 h ago``, ``2 d ago``); nothing when it is unknown."""
+    try:
+        then = datetime.fromisoformat(iso)
+    except ValueError:
+        return ""
+    days = int((now - then).total_seconds()) // DAY
+    return f"{days} d ago" if days >= 1 else ago(then, now)
+
+
 _PULL = re.compile(r"/pull/(\d+)/?$")
 
 
@@ -150,7 +169,7 @@ def _number_of(url: str) -> str:
     return f"#{found.group(1)}" if found else ""
 
 
-def item_view(work: WorkView) -> ItemView:
+def item_view(work: WorkView, now: datetime | None = None) -> ItemView:
     """Words for one piece of work."""
     if work.outcome is not None:
         status = Status.DONE
@@ -171,6 +190,8 @@ def item_view(work: WorkView) -> ItemView:
         pull_request_url=work.pull_request_url,
         reason=work.waiting_for.value if work.waiting_for else "",
         title=work.title,
+        updated=elapsed(work.updated_at, now or datetime.now(UTC)),
+        updated_at=clock(work.updated_at),
         pull_request_number=_number_of(work.pull_request_url),
     )
 
@@ -178,6 +199,7 @@ def item_view(work: WorkView) -> ItemView:
 def timeline(work: WorkView) -> list[TimelineStep]:
     """The pipeline with where this work stands: what is done, the current phase, and what is still ahead."""
     position = PIPELINE.index(work.phase)
+    known = dict(work.times)
     merged = work.outcome is Outcome.MERGED
     steps: list[TimelineStep] = []
     for index, phase in enumerate(PIPELINE):
@@ -189,7 +211,7 @@ def timeline(work: WorkView) -> list[TimelineStep]:
             state = "stopped"
         else:
             state = "waiting" if work.waiting_for is not None else "current"
-        steps.append(TimelineStep(PHASE_LABELS[phase], state))
+        steps.append(TimelineStep(PHASE_LABELS[phase], state, clock(known.get(phase.value, ""))))
     return steps
 
 

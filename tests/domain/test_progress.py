@@ -53,3 +53,22 @@ def test_a_finished_work_says_how_it_ended_and_shows_no_current_step() -> None:
 def test_a_checks_step_that_waits_for_the_ci_says_so_with_a_waiting_symbol() -> None:
     assert describe(Verified(passed=False, waiting=True), 0) == "waiting for CI"
     assert "⏳ waiting for CI" in render([Entry(Phase.VERIFY, "waiting for CI")], Phase.VERIFY)
+
+
+def test_every_row_and_the_foot_of_the_comment_carry_their_times() -> None:
+    log = [Entry(Phase.INTAKE, "written", "2026-11-09T09:12:00+00:00")]
+    text = render_progress(
+        "work-1",
+        course_for(EntryPoint.NEED, Policy()).phases,
+        log,
+        Position(Phase.SPEC_REVIEW),
+        "2026-11-09T09:15:00+00:00",
+    )
+    assert "✅ written <sub>9 Nov 09:12 UTC</sub>" in text
+    assert text.endswith("Last action: 9 Nov 09:15 UTC")
+
+
+def test_entries_without_a_time_are_shown_as_before() -> None:
+    text = render([Entry(Phase.INTAKE, "written")], Phase.SPEC_REVIEW)
+    assert "| Writing the spec | ✅ written |" in text
+    assert "Last action" not in text

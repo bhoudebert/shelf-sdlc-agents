@@ -157,3 +157,23 @@ def test_the_webhook_status_for_each_kind_of_last_delivery() -> None:
 @pytest.mark.parametrize(("seconds", "expected"), [(10, "moments ago"), (300, "5 min ago"), (7300, "2 h ago")])
 def test_how_long_ago_is_said_in_a_few_words(seconds: int, expected: str) -> None:
     assert ago(NOW - timedelta(seconds=seconds), NOW) == expected
+
+
+def test_a_row_says_how_long_ago_the_work_last_did_anything_and_when_exactly() -> None:
+    work = replace(WORK, updated_at=(NOW - timedelta(minutes=12)).isoformat())
+    card = item_view(work, NOW)
+    assert card.updated == "12 min ago"
+    assert card.updated_at == "8 Nov 11:48 UTC"
+    assert item_view(replace(work, updated_at=(NOW - timedelta(days=3)).isoformat()), NOW).updated == "3 d ago"
+
+
+def test_work_that_predates_times_shows_none() -> None:
+    card = item_view(WORK, NOW)
+    assert (card.updated, card.updated_at) == ("", "")
+
+
+def test_the_timeline_says_when_each_step_last_did_something() -> None:
+    work = replace(WORK, times=(("design", "2026-11-08T09:12:00+00:00"),))
+    shown = {step.label: step.at for step in timeline(work)}
+    assert shown["Design"] == "8 Nov 09:12 UTC"
+    assert shown["Spec"] == ""

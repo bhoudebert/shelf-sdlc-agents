@@ -75,8 +75,9 @@ def build_activities(steps: StepRunner, pulls: PullRequests) -> Sequence[Callabl
             Reason(update.reason) if update.reason else None,
             Outcome(update.outcome) if update.outcome else None,
         )
-        log = [Entry(Phase(entry.phase), entry.text) for entry in update.log]
+        log = [Entry(Phase(entry.phase), entry.text, entry.at) for entry in update.log]
         phases = wire.course_of(update.work).phases
-        await pulls.progress(wire.context_of(update.work), render_progress(update.work.work_id, phases, log, position))
+        body = render_progress(update.work.work_id, phases, log, position, update.updated)
+        await pulls.progress(wire.context_of(update.work), body)
 
     return [run_step, announce, publish, poll, set_stage, set_ready, progress]

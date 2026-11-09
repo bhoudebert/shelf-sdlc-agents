@@ -66,6 +66,10 @@ class WorkView:
     outcome: Outcome | None = None
     pull_request_url: str = ""
     title: str = ""
+    updated_at: str = ""
+    """When the work last did anything (ISO, UTC); empty for work started before times were kept."""
+    times: tuple[tuple[str, str], ...] = ()
+    """For each phase (by name), when something last happened there."""
     """A line of the request, to tell this work from another on the board; empty for work started before it was kept."""
 
 

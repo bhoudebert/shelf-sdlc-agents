@@ -15,6 +15,7 @@
       {{ glyph(step.state) }}
       <strong>{{ step.label }}</strong>
       <span class="st">{{ words[step.state] }}</span>
+      {% if step.at %}<span class="at">{{ step.at }}</span>{% endif %}
     </li>
     {% endfor %}
   </ol>

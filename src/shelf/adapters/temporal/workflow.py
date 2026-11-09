@@ -68,6 +68,8 @@ class WorkItemWorkflow:
         self._outcome = Outcome.CLOSED
         self._quiet_interval = timedelta(0)
         self._log: list[wire.LogEntryDto] = []
+        self._updated_at = ""
+        self._times: dict[str, str] = {}
 
     @workflow.signal
     def decided(self, decision: wire.DecisionDto) -> None:
@@ -84,7 +86,7 @@ class WorkItemWorkflow:
         """Where the work is, for the board."""
         if self._state is None:
             return wire.Snapshot(self._phase)
-        return wire.snapshot_of(self._state, self._phase, self._pull_request_url)
+        return wire.snapshot_of(self._state, self._phase, self._pull_request_url, self._updated_at, self._times)
 
     @workflow.run
     async def run(self, work: wire.WorkInput) -> str:
@@ -93,6 +95,7 @@ class WorkItemWorkflow:
         self._quiet_interval = timedelta(seconds=work.poll_base_seconds)
         poller = asyncio.create_task(self._poll(work))
         try:
+            self._touch(self._phase)
             self._state, commands = start(course)
             await self._execute(work, commands)
             await self._progress(work)
@@ -100,6 +103,7 @@ class WorkItemWorkflow:
                 event = await self._events.get()
                 self._quiet_interval = timedelta(seconds=work.poll_base_seconds)
                 self._note(self._state, event)
+                self._touch(self._phase)
                 self._state, commands = decide(course, self._state, event)
                 await self._execute(work, commands)
                 await self._progress(work)
@@ -113,12 +117,14 @@ class WorkItemWorkflow:
             match command:
                 case RunStep(phase):
                     self._phase = phase
+                    self._touch(phase)
                     await self._stage(work, phase, "")
                     self._step = asyncio.create_task(self._run_step(work, command))
                 case CancelStep():
                     self._cancel_step()
                 case AskPerson(phase, reason, detail):
                     self._phase = phase
+                    self._touch(phase)
                     await self._stage(work, phase, reason)
                     await self._announce(work, phase, reason, detail)
                 case SetPullRequestReady(ready):
@@ -129,15 +135,29 @@ class WorkItemWorkflow:
                     self._outcome = outcome
                     self._cancel_step()
 
+    @staticmethod
+    def _now() -> str:
+        return workflow.now().isoformat(timespec="seconds")
+
+    def _touch(self, phase: Phase) -> None:
+        """Remember when the work last did something, and when it last did something at ``phase``.
+
+        ``workflow.now()`` replays the same on every replay, and nothing here orders a command, so histories recorded
+        before times were kept replay unchanged.
+        """
+        now = self._now()
+        self._updated_at = now
+        self._times[phase] = now
+
     def _note(self, state: State, event: Event) -> None:
         """Remember, for the progress comment, what the event meant at the phase the work was in."""
         match state, event:
             case Running(phase, attempt), StepDone(result):
-                self._log.append(wire.LogEntryDto(phase, describe(result, attempt)))
+                self._log.append(wire.LogEntryDto(phase, describe(result, attempt), self._now()))
             case Running(phase), StepFailed(reason):
-                self._log.append(wire.LogEntryDto(phase, f"failed: {reason[:80]}"))
+                self._log.append(wire.LogEntryDto(phase, f"failed: {reason[:80]}", self._now()))
             case AwaitingPerson(phase), PersonDecided(_, kind):
-                self._log.append(wire.LogEntryDto(phase, f"you: {kind}"))
+                self._log.append(wire.LogEntryDto(phase, f"you: {kind}", self._now()))
             case _:
                 pass
 
@@ -151,7 +171,7 @@ class WorkItemWorkflow:
         try:
             await workflow.execute_activity(
                 PROGRESS,
-                wire.ProgressInput(work, list(self._log), self._phase, waiting or "", outcome or ""),
+                wire.ProgressInput(work, list(self._log), self._phase, waiting or "", outcome or "", self._updated_at),
                 start_to_close_timeout=GITHUB_TIMEOUT,
                 retry_policy=RetryPolicy(maximum_attempts=2),
             )
