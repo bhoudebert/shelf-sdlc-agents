@@ -484,6 +484,7 @@ def test_the_admin_page_tells_what_is_wrong_with_the_app_on_github() -> None:
     assert "GitHub App check" in page
     assert "not subscribed to: pull_request, issue_comment" in page
     assert "Subscribe to events" in page
+    assert "Make public" in page  # what to do when a second person gets a 404 signing in
 
 
 def test_the_admin_page_says_when_the_app_could_not_be_checked() -> None:

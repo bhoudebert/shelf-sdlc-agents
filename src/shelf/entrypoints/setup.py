@@ -12,7 +12,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from shelf.adapters.github_app.manifest import convert, registration_form
+from shelf.adapters.github_app.manifest import DESCRIPTION, convert, registration_form
 from shelf.adapters.web.context import ASSETS, make_templates
 
 HttpClient = Callable[[], AbstractAsyncContextManager[httpx.AsyncClient]]
@@ -28,7 +28,7 @@ def create_setup_app(public_url: str, http_client: HttpClient | None = None, rev
     @app.get("/", response_class=HTMLResponse)
     async def start(request: Request) -> Response:
         return templates.TemplateResponse(
-            request, "setup.html", {"user": None, "mode": "setup", "public_url": public_url}
+            request, "setup.html", {"user": None, "mode": "setup", "public_url": public_url, "description": DESCRIPTION}
         )
 
     @app.get("/setup/register", response_class=HTMLResponse)

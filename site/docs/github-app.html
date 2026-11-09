@@ -35,7 +35,8 @@
 <tr><td>Webhook: Active</td><td>Checked.</td></tr>
 <tr><td>Webhook URL</td><td><code>https://shelf.example.org/api/github/webhook</code></td></tr>
 <tr><td>Webhook secret</td><td>A long random string that you make up, for example <code>openssl rand -hex 32</code>. Put the same value in <code>GITHUB_WEBHOOK_SECRET</code>. GitHub uses it to sign every delivery and the instance refuses any delivery that is not signed with it.</td></tr>
-<tr><td>Where can this App be installed?</td><td>Only on this account.</td></tr>
+<tr><td>Description</td><td>What people read when they install or authorize the App. The registration page offers a ready text to copy (Markdown), and the one-click registration fills it in.</td></tr>
+<tr><td>Where can this App be installed?</td><td><strong>Any account</strong>. With &ldquo;Only on this account&rdquo; GitHub answers 404 to everyone but you when they sign in. Public does not open your instance: who may use it is the list in <code>shelf.toml</code>.</td></tr>
 </tbody></table></div>
 <p>Then set the repository permissions and events listed above. After creating the App, generate a <strong>client secret</strong> and a <strong>private key</strong> on its page and fill <code>GITHUB_APP_ID</code>, <code>GITHUB_APP_SLUG</code> (the name in the App's URL), <code>GITHUB_APP_CLIENT_ID</code>, <code>GITHUB_APP_CLIENT_SECRET</code> and <code>GITHUB_WEBHOOK_SECRET</code> in <code>deploy/.env</code>, and put the key file at <code>deploy/secrets/github-app.pem</code>.</p>
 <h2 id="values">Where each value comes from</h2>
@@ -51,6 +52,7 @@
 <p>Two credentials, two jobs. The <strong>client secret</strong> lets people sign in. The <strong>private key</strong> is the App's own identity: it lets the agents clone, push and open pull requests. You need both. If one is missing, the service's log names it and says where to find it: <code>docker compose -f deploy/compose.yml logs web</code>.</p>
 <h2 id="troubleshooting">If something goes wrong</h2>
 <ul>
+<li><strong>Another person gets a 404 on <code>github.com/login/oauth/authorize</code>.</strong> The App is private, so GitHub hides it from every account but its owner. On the App&rsquo;s page open <strong>Advanced</strong>, scroll to the bottom and choose <strong>Make public</strong>. They are still refused after signing in unless <code>shelf.toml</code> lists them.</li>
 <li><strong>"You must generate a private key in order to install your GitHub App."</strong> Normal after the manual form. Generate the key, then install.</li>
 <li><strong>The key was not downloaded.</strong> Generate another one on the same page. You can have several, and delete the lost one.</li>
 <li><strong>Sign-in loops or says the callback is wrong.</strong> The Callback URL must be exactly <code>PUBLIC_URL</code> plus <code>/auth/callback</code>, with no trailing slash and the same <code>https</code>.</li>

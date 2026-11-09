@@ -17,6 +17,28 @@ GitHub always sends ``installation``, ``installation_repositories`` and ``ping``
 """
 
 
+DESCRIPTION = """\
+**Shelf SDLC Agents** lets your team drive AI agents on your repositories from a web board, \
+from a need to a pull request.
+
+**What it does**
+- Runs agents at any step: spec, design, plan, implementation, review.
+- Opens a draft pull request, reports every step on it and waits for the CI.
+- Stops at the gates for a person: in the web board, or with `/shelf` commands on the pull request.
+
+**What it may touch**
+- Only the repositories it is installed on: it reads and writes code, pull requests and comments there, \
+and reads CI runs and their logs.
+- It cannot change workflow files unless the Workflows permission is granted.
+- Its tokens last one hour and are minted per step.
+
+**Who can use it:** only the people and organisations the operator of the instance lists. \
+Signing in with GitHub proves who you are; it does not give access.
+
+Self-hosted: each team runs its own instance. https://github.com/bhoudebert/shelf-sdlc-agents"""
+"""The App's description (Markdown) for the Basic information pane: what it does, what it touches, who may use it."""
+
+
 def app_manifest(public_url: str, name: str = "shelf-sdlc") -> dict[str, Any]:
     """The manifest to POST to ``/settings/apps/new``: URLs derived from the instance's public address."""
     base = public_url.rstrip("/")
@@ -28,7 +50,8 @@ def app_manifest(public_url: str, name: str = "shelf-sdlc") -> dict[str, Any]:
         "setup_url": f"{base}/setup/installed",
         "setup_on_update": True,
         "hook_attributes": {"url": f"{base}/api/github/webhook", "active": True},
-        "public": False,
+        "description": DESCRIPTION,
+        "public": True,
         "request_oauth_on_install": False,
         "default_permissions": PERMISSIONS,
         "default_events": EVENTS,

@@ -1,6 +1,7 @@
 import httpx
 
 from shelf.adapters.github_app.manifest import (
+    DESCRIPTION,
     EVENTS,
     PERMISSIONS,
     Registered,
@@ -17,7 +18,7 @@ def test_the_manifest_derives_every_url_from_the_public_address() -> None:
     assert manifest["hook_attributes"]["url"] == "https://shelf.example.org/api/github/webhook"
     assert manifest["default_permissions"] == PERMISSIONS
     assert manifest["default_events"] == EVENTS
-    assert manifest["public"] is False
+    assert manifest["public"] is True
 
 
 def test_the_manifest_lists_only_events_github_lets_an_app_subscribe_to() -> None:
@@ -58,3 +59,15 @@ async def test_a_registration_code_is_converted_into_credentials() -> None:
         registered = await convert(client, "abc")
     assert registered == Registered("9", "shelf", "Iv1.x", "s", "w", "PEM")
     assert settings_from(registered).app_id == "9"
+
+
+def test_the_app_is_registered_public_so_that_people_other_than_its_owner_can_sign_in() -> None:
+    assert app_manifest("https://shelf.example.org")["public"] is True
+
+
+def test_the_manifest_describes_the_app_in_markdown_with_what_it_touches_and_who_may_use_it() -> None:
+    description = app_manifest("https://shelf.example.org")["description"]
+    assert description == DESCRIPTION
+    assert "What it may touch" in description
+    assert "only the people and organisations the operator of the instance lists" in description
+    assert len(description) < 1500
