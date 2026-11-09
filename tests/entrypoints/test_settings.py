@@ -110,3 +110,9 @@ def test_the_cache_directory_and_extra_domains_are_read_from_the_environment() -
     assert settings.allowed_domains == ("nexus.example.org", "b.org")
     assert from_environ(BASE).cache_dir == ""
     assert from_environ(BASE).allowed_domains == ()
+
+
+def test_the_time_given_to_the_ci_has_defaults_and_can_be_changed() -> None:
+    assert (from_environ(BASE).ci_wait, from_environ(BASE).ci_grace) == (1800.0, 120.0)
+    settings = from_environ({**BASE, "SHELF_CI_WAIT": "600", "SHELF_CI_GRACE": "0"})
+    assert (settings.ci_wait, settings.ci_grace) == (600.0, 0.0)

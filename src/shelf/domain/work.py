@@ -70,7 +70,12 @@ class Verified:
 
     passed: bool
     report: str = ""
+    waiting: bool = False
+    """The repository's CI has not finished: look again later, without counting a round."""
 
+
+WAITING_FOR_CI = "waiting for CI"
+"""The feedback of a checks step that only looks at the CI again: the local commands already passed."""
 
 type StepResult = Produced | Reviewed | Verified
 
@@ -263,6 +268,10 @@ def _after_step(course: Course, state: Running, result: StepResult) -> Transitio
             return _send_back(course, state, issues)
         case Kind.REVIEW, Reviewed(Verdict.ESCALATE, issues):
             return _ask(state.phase, Reason.ESCALATION, issues)
+        case Kind.VERIFY, Verified(waiting=True):
+            if course.waits_for_ci:
+                return _enter(course, state.phase, state.attempt, feedback=WAITING_FOR_CI)  # look again, same round
+            return _advance(course, state.phase, state.attempt)
         case Kind.VERIFY, Verified(passed=True):
             return _advance(course, state.phase, state.attempt)
         case Kind.VERIFY, Verified(False, report):

@@ -63,6 +63,7 @@ class StepOutput:
     verdict: str = ""
     passed: bool = False
     text: str = ""
+    waiting: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,7 +166,7 @@ def result_of(output: StepOutput) -> StepResult:
         case "reviewed":
             return Reviewed(Verdict(output.verdict), output.text)
         case "verified":
-            return Verified(output.passed, output.text)
+            return Verified(output.passed, output.text, output.waiting)
         case other:
             message = f"unknown step result kind: {other!r}"
             raise ValueError(message)
@@ -178,8 +179,8 @@ def output_of(result: StepResult) -> StepOutput:
             return StepOutput("produced")
         case Reviewed(verdict, issues):
             return StepOutput("reviewed", verdict=verdict, text=issues)
-        case Verified(passed, report):
-            return StepOutput("verified", passed=passed, text=report)
+        case Verified(passed, report, waiting):
+            return StepOutput("verified", passed=passed, text=report, waiting=waiting)
 
 
 def event_of(dto: EventDto) -> Event | None:

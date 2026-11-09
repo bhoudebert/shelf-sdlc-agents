@@ -11,6 +11,7 @@ from temporalio.worker import Replayer, Worker
 from shelf.adapters.temporal import wire
 from shelf.adapters.temporal.activities import build_activities
 from shelf.adapters.temporal.workflow import WorkItemWorkflow
+from shelf.domain.ci import Ci, CiState
 from shelf.domain.model import WorkContext
 from shelf.domain.pipeline import KIND, Kind, Phase
 from shelf.domain.policy import CURRENT_PROTOCOL
@@ -70,6 +71,15 @@ class FakePulls:
     stages: list[str] = field(default_factory=list[str])
     titles: list[str] = field(default_factory=list[str])
     progressed: list[str] = field(default_factory=list[str])
+    cis: list[Ci] = field(default_factory=list[Ci])
+    """What the CI says on each look, in turn; the last one repeats. Nothing scripted means no CI."""
+    looked: int = 0
+
+    async def ci(self, work: WorkContext) -> Ci:
+        self.looked += 1
+        if not self.cis:
+            return Ci(CiState.NONE)
+        return self.cis[min(self.looked, len(self.cis)) - 1]
 
     async def publish(self, work: WorkContext, title: str) -> str:
         self.published += 1

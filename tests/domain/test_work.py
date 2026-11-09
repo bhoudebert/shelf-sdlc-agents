@@ -6,6 +6,7 @@ from hypothesis import strategies as st
 from shelf.domain.pipeline import KIND, EntryPoint, Kind, Phase
 from shelf.domain.policy import CURRENT_PROTOCOL, Course, Policy, course_for
 from shelf.domain.work import (
+    WAITING_FOR_CI,
     AskPerson,
     AwaitingPerson,
     CancelStep,
@@ -357,3 +358,22 @@ def test_work_started_before_the_early_pull_request_keeps_its_original_behaviour
 def test_new_work_starts_with_the_current_protocol() -> None:
     assert course_for(EntryPoint.NEED, Policy()).protocol == CURRENT_PROTOCOL
     assert course_for(EntryPoint.NEED, Policy()).opens_early
+
+
+def test_the_checks_that_find_the_ci_still_running_look_again_in_the_same_round() -> None:
+    course = course_for(EntryPoint.IMPLEMENT, Policy())
+    state, commands = decide(course, Running(Phase.VERIFY, 1), StepDone(Verified(False, "slow", waiting=True)))
+    assert state == Running(Phase.VERIFY, 1, WAITING_FOR_CI)
+    assert commands == (RunStep(Phase.VERIFY, 1, WAITING_FOR_CI),)
+
+
+def test_red_ci_sends_the_work_back_to_the_implementer_like_failing_checks() -> None:
+    course = course_for(EntryPoint.IMPLEMENT, Policy())
+    state, _ = decide(course, Running(Phase.VERIFY, 0, WAITING_FOR_CI), StepDone(Verified(False, "CI is red")))
+    assert state == Running(Phase.IMPLEMENT, 1, "CI is red")
+
+
+def test_work_started_before_the_ci_was_read_does_not_wait_for_it() -> None:
+    course = course_for(EntryPoint.IMPLEMENT, Policy(), protocol=3)
+    state, _ = decide(course, Running(Phase.VERIFY, 0), StepDone(Verified(False, "", waiting=True)))
+    assert state == Running(Phase.CODE_REVIEW, 0)

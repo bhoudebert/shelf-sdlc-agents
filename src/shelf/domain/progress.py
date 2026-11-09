@@ -48,6 +48,8 @@ def describe(result: StepResult, attempt: int) -> str:
             return f"written{suffix}"
         case Reviewed(verdict):
             return f"{_VERDICT_WORDS[verdict]}{suffix}"
+        case Verified(waiting=True):
+            return f"waiting for CI{suffix}"
         case Verified(passed):
             return f"{'passed' if passed else 'failed'}{suffix}"
 
@@ -57,6 +59,8 @@ def _symbol(text: str) -> str:
         return "✅"
     if text.startswith(("asked for changes", "failed", "you: changes")):
         return "🔁"
+    if text.startswith("waiting for CI"):
+        return "⏳"
     return "⚠️"
 
 

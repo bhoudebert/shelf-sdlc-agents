@@ -1,5 +1,6 @@
 """The composition root: the one place that knows every adapter and joins them to the ports."""
 
+import contextlib
 import logging
 import os
 from collections.abc import Awaitable, Callable
@@ -7,6 +8,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 import httpx
+from temporalio import activity
 from temporalio.client import Client
 
 from shelf.adapters.caching.documents import CachedDocuments
@@ -31,6 +33,12 @@ from shelf.domain.toolchain import allowed_domains
 from shelf.entrypoints.settings import GitHubApp, Settings
 
 log = logging.getLogger(__name__)
+
+
+def pulse() -> None:
+    """Tell Temporal the step in progress is alive; outside an activity there is nobody to tell."""
+    with contextlib.suppress(RuntimeError):
+        activity.heartbeat()
 
 
 def app_settings(app: GitHubApp) -> GitHubAppSettings:
@@ -115,6 +123,9 @@ def build_services(settings: Settings, github: GitHubApp, client: httpx.AsyncCli
         max_budget_usd=settings.max_budget_usd,
         cache_dir=settings.cache_dir,
         base_path=os.environ.get("PATH", ""),
+        ci_wait=settings.ci_wait,
+        ci_grace=settings.ci_grace,
+        pulse=pulse,
     )
     runner = TemporalRunner(temporal, settings.task_queue, configs, operator.mode, app.web_url)
     documents = CachedDocuments(GitHubDocuments(client, app, token_for))

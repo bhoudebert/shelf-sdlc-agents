@@ -3,6 +3,7 @@
 from collections.abc import Sequence
 from typing import Protocol
 
+from shelf.domain.ci import Ci
 from shelf.domain.model import WorkContext
 from shelf.domain.stage import Stage
 from shelf.domain.work import AskPerson, Event, RunStep, StepResult
@@ -45,6 +46,10 @@ class PullRequests(Protocol):
 
     async def comment(self, work: WorkContext, body: str) -> None:
         """Post ``body`` on the pull request (a review, for work that reviews an existing pull request)."""
+        ...
+
+    async def ci(self, work: WorkContext) -> Ci:
+        """What the repository's own CI says about the head of the pull request (``none`` while there is no run)."""
         ...
 
     async def poll(self, work: WorkContext) -> Sequence[Event]:
