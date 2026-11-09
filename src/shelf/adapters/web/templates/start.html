@@ -18,6 +18,7 @@
         <select id="repo" name="repo" required>
           {% for repo in repos %}<option>{{ repo }}</option>{% endfor %}
         </select>
+        <p class="hint">Not listed? <a href="{{ install_url }}" target="_blank" rel="noopener noreferrer">Add a repository on GitHub<span class="vh"> (opens in a new tab)</span></a>, then come back and reload.</p>
       </div>
 
       <fieldset class="entries">

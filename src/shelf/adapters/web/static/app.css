@@ -459,3 +459,5 @@ input:not([type="radio"]):focus-visible, select:focus-visible, textarea:focus-vi
 .facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 24px; margin: 0; }
 .facts dt { font-weight: 700; }
 .facts dd { margin: 0; overflow-wrap: anywhere; }
+
+.head-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
