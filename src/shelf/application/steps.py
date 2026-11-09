@@ -1,8 +1,10 @@
 """Carrying out a step: a fresh clone, the role of the phase, and what comes out, read back as a result."""
 
+import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
+from shelf.domain.ci import Ci, CiState
 from shelf.domain.config import RepoConfig
 from shelf.domain.context import CATEGORIES, EARLIER_WORK, context_brief
 from shelf.domain.model import RepoRef, WorkContext
@@ -12,7 +14,7 @@ from shelf.domain.story import agent_comment
 from shelf.domain.titles import clean_title, fallback_title
 from shelf.domain.toolchain import TOOLCHAIN_NOTE, toolchain_env
 from shelf.domain.verdict import parse_verdict
-from shelf.domain.work import Produced, RunStep, StepResult, Verified
+from shelf.domain.work import WAITING_FOR_CI, Produced, Reviewed, RunStep, StepResult, Verdict, Verified
 from shelf.ports.agents import AgentBackend, AgentTask
 from shelf.ports.configs import RepoConfigs
 from shelf.ports.steps import PullRequests
@@ -40,8 +42,8 @@ def branch_of(work: WorkContext) -> str:
     return f"shelf/{work.id}"
 
 
-def task_prompt(
-    work: WorkContext, step: RunStep, base: str = "main", picture: str = "", *, toolchain: bool = False
+def task_prompt(  # noqa: PLR0913
+    work: WorkContext, step: RunStep, base: str = "main", picture: str = "", *, toolchain: bool = False, ci: str = ""
 ) -> str:
     """What the agent is asked, built from the request, the documents so far and the feedback that sent work back."""
     folder = documents_dir(work.id)
@@ -58,6 +60,8 @@ def task_prompt(
         lines += ["", f"This is round {step.attempt}. Address this feedback first:", step.feedback]
     if step.phase in REVIEWERS or role.name == "architect":
         lines += ["", f"The base branch is `{base}`: `git diff {base}...HEAD` shows what this work changed."]
+    if ci and step.phase in REVIEWERS:
+        lines += ["", f"What the repository's CI says about this pull request right now:\n{ci}"]
     if toolchain:
         lines += ["", TOOLCHAIN_NOTE]
     if role.document:
@@ -87,6 +91,16 @@ class Steps:
     """The ``PATH`` the agents start from; the tool shims are put in front of it."""
     cache_dir: str = ""
     """Where each repository's tools and package caches live; empty gives agents the worker's own home and no tools."""
+    ci_wait: float = 1800.0
+    """How long one checks step looks at the repository's CI before it hands the wait back to the workflow."""
+    ci_poll: float = 60.0
+    """Seconds between two looks at the CI."""
+    ci_grace: float = 120.0
+    """How long a commit may show no CI run at all before the repository counts as having none: runs appear a few
+    seconds after a push, not at once."""
+    sleep: Callable[[float], Awaitable[None]] = asyncio.sleep
+    pulse: Callable[[], None] = lambda: None
+    """Tells the workflow the step is alive while it waits."""
 
     async def run(self, work: WorkContext, step: RunStep) -> StepResult:
         """Run ``step`` for ``work``, speak about it on the pull request as the agent it is, and read what came out."""
@@ -100,7 +114,8 @@ class Steps:
             result, speaker, words = await self._do(work, step, workspace, config, token)
             if recorded and not isinstance(result, Produced):
                 await workspace.commit_and_push(f"chore(shelf): record the request for {work.id}")
-            await self.pulls.comment(work, agent_comment(work.id, speaker, words))
+            if not _is_a_repeated_wait(step, result):
+                await self.pulls.comment(work, agent_comment(work.id, speaker, words))
             return result
 
     async def _do(
@@ -108,12 +123,21 @@ class Steps:
     ) -> tuple[StepResult, str, str]:
         """Carry out the phase; return its result, who speaks about it, and what they say."""
         if step.phase is Phase.VERIFY:
-            checked, ran = await self._verify(workspace, config)
+            checked, ran = await self._verify(work, step, workspace, config)
             return checked, "checks", ran
-        answer = await self._ask_agent(work, step, workspace, token, config.base_branch)
+        ci = await self._ci_now(work) if step.phase in REVIEWERS else Ci(CiState.NONE)
+        prompt = task_prompt(
+            work,
+            step,
+            config.base_branch,
+            self._picture(work, workspace),
+            toolchain=bool(self.cache_dir),
+            ci=ci.report() if ci.state is not CiState.NONE else "",
+        )
+        answer = await self._ask_agent(work, step, workspace, token, prompt)
         role = ROLES[step.phase]
         if step.phase in REVIEWERS:
-            reviewed = parse_verdict(answer)
+            reviewed = hold_back_for_ci(parse_verdict(answer), ci)
             return reviewed, role.name, f"**Verdict: {reviewed.verdict}**\n\n{reviewed.issues}".strip()
         await workspace.commit_and_push(f"chore(shelf): {role.name} for {work.id}")
         return Produced(), role.name, await self._story(work, step, workspace, config, answer)
@@ -159,13 +183,13 @@ class Steps:
         picture = self._picture(work, workspace)
         return "\n".join([*lines, "", picture] if picture else lines)
 
-    async def _ask_agent(self, work: WorkContext, step: RunStep, workspace: Workspace, token: str, base: str) -> str:
+    async def _ask_agent(self, work: WorkContext, step: RunStep, workspace: Workspace, token: str, prompt: str) -> str:
         role = ROLES[step.phase]
         return await self.agents.run(
             AgentTask(
                 role=role,
                 system_prompt=self.prompt_for(role.name),
-                prompt=task_prompt(work, step, base, self._picture(work, workspace), toolchain=bool(self.cache_dir)),
+                prompt=prompt,
                 workdir=workspace.path,
                 env={
                     **(self._toolchain_env(work, workspace)),
@@ -223,11 +247,22 @@ class Steps:
                 parts.append(f"Changes:\n\n```\n{stat.output.strip()[:REPORT_TAIL]}\n```")
         return "\n\n".join(part for part in parts if part)
 
-    async def _verify(self, workspace: Workspace, config: RepoConfig) -> tuple[Verified, str]:
-        """Run the repository's checks; return the result for the machine and a report a person can read."""
+    async def _verify(
+        self, work: WorkContext, step: RunStep, workspace: Workspace, config: RepoConfig
+    ) -> tuple[Verified, str]:
+        """Do what can be done here (the repository's commands), then rely on its CI for the rest."""
+        lines: list[str] = []
+        if step.feedback != WAITING_FOR_CI:
+            local, lines = await self._local_checks(workspace, config)
+            if not local.passed:  # no point waiting for a CI that will only repeat it
+                return local, "**Failed**\n\n" + "\n".join(lines) + f"\n\n```\n{local.report}\n```"
+        ci = await self._wait_for_ci(work)
+        return _after_ci(ci, lines)
+
+    async def _local_checks(self, workspace: Workspace, config: RepoConfig) -> tuple[Verified, list[str]]:
+        """Run the repository's own commands; the lines say what each did."""
         if not config.checks:
-            note = "No checks configured for this repository."
-            return Verified(passed=True, report=note), note
+            return Verified(passed=True), ["⚪ no commands configured for this repository (`checks` in its config)"]
         failures: list[str] = []
         lines: list[str] = []
         for command in config.checks:
@@ -237,6 +272,77 @@ class Steps:
             else:
                 lines.append(f"❌ `{command}` (exit {result.exit_code})")
                 failures.append(f"$ {command} (exit {result.exit_code})\n{result.output[-REPORT_TAIL:]}")
-        verified = Verified(passed=not failures, report="\n\n".join(failures))
-        details = f"\n\n```\n{verified.report}\n```" if failures else ""
-        return verified, f"**{'Passed' if verified.passed else 'Failed'}**\n\n" + "\n".join(lines) + details
+        return Verified(passed=not failures, report="\n\n".join(failures)), lines
+
+    async def _ci_now(self, work: WorkContext) -> Ci:
+        """The CI as it is; a CI that cannot be read counts as absent, and never stops a review."""
+        try:
+            return await self.pulls.ci(work)
+        except Exception:  # noqa: BLE001 - GitHub being unreachable is not a verdict on the work
+            return Ci(CiState.NONE)
+
+    async def _wait_for_ci(self, work: WorkContext) -> Ci:
+        """Look at the CI until it settles or this step's share of the wait is used up."""
+        waited = 0.0
+        while True:
+            ci = await self._ci_now(work)
+            if ci.state is CiState.NONE:
+                if waited >= self.ci_grace:
+                    return ci
+            elif ci.settled and ci.state is not CiState.BLOCKED:
+                return ci
+            if waited >= self.ci_wait:
+                return ci
+            await self.sleep(self.ci_poll)
+            waited += self.ci_poll
+            self.pulse()
+
+
+def _is_a_repeated_wait(step: RunStep, result: StepResult) -> bool:
+    """Whether this is one more look at a CI that was already reported as running: nothing new to say."""
+    return step.feedback == WAITING_FOR_CI and isinstance(result, Verified) and result.waiting
+
+
+def _after_ci(ci: Ci, local_lines: list[str]) -> tuple[Verified, str]:
+    """What the checks conclude from the CI, and the report a person reads."""
+    lines = [*local_lines, *_ci_line(ci)]
+    body = "\n".join(lines)
+    match ci.state:
+        case CiState.RED:
+            return Verified(passed=False, report=ci.report()), f"**Failed**\n\n{body}\n\n```\n{ci.report()}\n```"
+        case CiState.PENDING | CiState.BLOCKED:
+            return Verified(passed=False, report=ci.report(), waiting=True), f"**Waiting for CI**\n\n{body}"
+        case CiState.GREEN | CiState.NONE:
+            return Verified(passed=True), f"**Passed**\n\n{body}"
+
+
+def _ci_line(ci: Ci) -> list[str]:
+    match ci.state:
+        case CiState.NONE:
+            return ["⚪ no CI run found on the pull request"]
+        case CiState.GREEN:
+            return [f"✅ CI: {len(ci.runs)} runs, all green"]
+        case CiState.RED:
+            return [f"❌ CI: {', '.join(run.name for run in ci.failing)}"]
+        case CiState.PENDING:
+            return ["⏳ CI is still running"]
+        case CiState.BLOCKED:
+            return ["⏸ CI waits for someone to approve a run on GitHub"]
+
+
+def hold_back_for_ci(reviewed: Reviewed, ci: Ci) -> Reviewed:
+    """A reviewer cannot approve over a CI that is red (changes) or not finished (a person decides)."""
+    if reviewed.verdict is not Verdict.APPROVE:
+        return reviewed
+    match ci.state:
+        case CiState.RED:
+            return Reviewed(
+                Verdict.CHANGES, f"{reviewed.issues}\n\nNot approved: the CI is red.\n{ci.report()}".strip()
+            )
+        case CiState.PENDING | CiState.BLOCKED:
+            return Reviewed(
+                Verdict.ESCALATE,
+                f"{reviewed.issues}\n\nNot approved yet: the CI has not finished.\n{ci.report()}".strip(),
+            )
+        case CiState.GREEN | CiState.NONE:
+            return reviewed

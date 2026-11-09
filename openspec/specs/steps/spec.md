@@ -89,6 +89,44 @@ The system SHALL run each command the repository lists as a check in the clone a
 - **WHEN** one of two checks exits non-zero
 - **THEN** the report names that command and its exit code, and the step is not passed
 
+### Requirement: Checks do what they can here and rely on the repository's CI for the rest
+
+The system SHALL, once the repository's own commands pass, read the CI of the pull request (every check run and commit status of its head commit) and SHALL decide from it: no run found after a short grace for runs to appear means the repository has no CI and the checks pass; every run finished without failure means they pass; any run that failed, timed out, was cancelled, failed to start or ended in a conclusion the system does not know means they fail, with each such run's name, link and what it reports sent to the implementer; a run still going, or waiting for a person to approve it on GitHub, means the checks wait. The system SHALL NOT wait for a CI after a local command failed. A step SHALL look at the CI every minute for up to half an hour and then hand the wait back to the workflow, which looks again without counting a round or running the commands again and without repeating its comment on the pull request. The report SHALL say, for the commands and for the CI separately, whether each passed, failed, was not configured or is still running, and SHALL NOT show a check that did not run as passed.
+
+#### Scenario: A cancelled run is a failure
+
+- **WHEN** the head commit has a run that ended `cancelled` or `timed_out`
+- **THEN** the checks fail and the implementer receives that run's name, link and report
+
+#### Scenario: The CI is still running
+
+- **WHEN** a run has not finished at the end of the step's share of the wait
+- **THEN** the checks report that they wait, and the workflow looks again later in the same round
+
+#### Scenario: No CI
+
+- **WHEN** no run appears within the grace
+- **THEN** the checks pass and the report says no CI run was found, not that CI passed
+
+#### Scenario: Local commands fail
+
+- **WHEN** a configured command exits non-zero
+- **THEN** the checks fail at once without reading the CI
+
+### Requirement: A reviewer never approves over a CI that is red or unfinished
+
+The system SHALL give the code reviewer the state of the CI of the pull request and SHALL turn an approval into changes requested when the CI is red, and into a request for a person when it is not finished or waits for approval, whatever the reviewer's own verdict. The reviewer SHALL be told to read the whole picture (the repository's agent instructions, specs and decisions including older ones, and the CI workflows) and not only the diff.
+
+#### Scenario: Approval over a red CI
+
+- **WHEN** the reviewer answers APPROVE and a run of the CI failed
+- **THEN** the verdict recorded is changes requested and lists the failing runs
+
+#### Scenario: Approval while the CI runs
+
+- **WHEN** the reviewer answers APPROVE and the CI has not finished
+- **THEN** the verdict recorded asks a person to decide
+
 ### Requirement: A pull request under review receives the review
 
 The system SHALL post the code review as a comment on a pull request that was submitted for review, and read that pull request's head without being able to push to it.

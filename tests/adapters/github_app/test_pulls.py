@@ -5,6 +5,7 @@ import pytest
 
 from shelf.adapters.github_app.pulls import GitHubPullRequests, announcement, events_from
 from shelf.adapters.github_app.settings import GitHubAppSettings
+from shelf.domain.ci import CiState
 from shelf.domain.model import RepoRef, WorkContext, WorkId, WorkRequest
 from shelf.domain.pipeline import EntryPoint, Phase
 from shelf.domain.stage import stage_of
@@ -256,3 +257,44 @@ def test_a_gate_announcement_links_the_document_to_judge() -> None:
         "[docs/shelf/work-1/spec.md](https://github.com/acme/shop/blob/shelf/work-1/docs/shelf/work-1/spec.md)" in text
     )
     assert "Read it" not in announcement(NEED, AskPerson(Phase.IMPLEMENT, Reason.FAILURE, "boom"))
+
+
+def ci_handler(runs: list[dict[str, object]], statuses: list[dict[str, object]] | None = None) -> httpx.MockTransport:
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path.endswith("/pulls/7"):
+            return httpx.Response(200, json={"head": {"sha": "abc"}})
+        if path.endswith("/check-runs"):
+            return httpx.Response(200, json={"check_runs": runs})
+        if path.endswith("/annotations"):
+            return httpx.Response(200, json=[{"path": "a.py", "start_line": 3, "message": "boom"}])
+        if path.endswith("/status"):
+            if statuses is None:
+                return httpx.Response(403, json={})
+            return httpx.Response(200, json={"statuses": statuses})
+        return httpx.Response(404, json={})
+
+    return httpx.MockTransport(handler)
+
+
+async def test_the_ci_of_a_pull_request_sums_up_check_runs_and_says_what_a_red_one_reports(
+    settings: GitHubAppSettings,
+) -> None:
+    runs: list[dict[str, object]] = [
+        {"id": 1, "name": "lint", "status": "completed", "conclusion": "success"},
+        {"id": 2, "name": "test", "status": "completed", "conclusion": "timed_out", "html_url": "https://ci/2"},
+    ]
+    ci = await adapter(settings, ci_handler(runs)).ci(REVIEW)
+    assert ci.state is CiState.RED
+    [red] = ci.failing
+    assert (red.name, red.link, "a.py:3 boom" in red.detail) == ("test", "https://ci/2", True)
+
+
+async def test_commit_statuses_count_too_and_a_pending_one_means_wait(settings: GitHubAppSettings) -> None:
+    runs: list[dict[str, object]] = [{"id": 1, "name": "lint", "status": "completed", "conclusion": "success"}]
+    statuses: list[dict[str, object]] = [{"context": "legacy", "state": "pending"}]
+    assert (await adapter(settings, ci_handler(runs, statuses)).ci(REVIEW)).state is CiState.PENDING
+
+
+async def test_a_repository_without_any_run_has_no_ci(settings: GitHubAppSettings) -> None:
+    assert (await adapter(settings, ci_handler([])).ci(REVIEW)).state is CiState.NONE

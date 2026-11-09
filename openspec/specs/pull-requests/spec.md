@@ -146,7 +146,7 @@ The system SHALL post each agent's contribution as a comment headed with its rol
 
 ### Requirement: One progress comment tells the whole story at a glance
 
-The system SHALL keep exactly one progress comment, edited in place after every step, with a row per step of the course saying what happened there (written, approved, asked for changes, passed, failed, with rounds), where the work is now, and how it ended.
+The system SHALL keep exactly one progress comment, edited in place after every step, with a row per step of the course saying what happened there (written, approved, asked for changes, passed, failed, waiting for CI, with rounds), where the work is now, and how it ended.
 
 #### Scenario: A loop
 
@@ -157,6 +157,11 @@ The system SHALL keep exactly one progress comment, edited in place after every 
 
 - **WHEN** the work waits at the spec approval
 - **THEN** the progress comment says it waits for a person and for what
+
+#### Scenario: The CI is still running
+
+- **WHEN** the checks report that the repository's CI has not finished
+- **THEN** the progress comment's row for the checks says it is waiting for CI, with a waiting symbol
 
 ### Requirement: A gate announcement links what to judge
 

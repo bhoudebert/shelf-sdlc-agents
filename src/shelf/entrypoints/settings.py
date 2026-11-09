@@ -41,6 +41,8 @@ class Settings:
     claude_cli: str | None
     cache_dir: str
     allowed_domains: tuple[str, ...]
+    ci_wait: float
+    ci_grace: float
     port: int
     revision: str
     temporal_ui_upstream: str
@@ -128,6 +130,8 @@ def from_environ(environ: Mapping[str, str]) -> Settings:
         allowed_domains=tuple(
             domain.strip() for domain in environ.get("SHELF_ALLOWED_DOMAINS", "").split(",") if domain.strip()
         ),
+        ci_wait=float(environ.get("SHELF_CI_WAIT", "1800")),
+        ci_grace=float(environ.get("SHELF_CI_GRACE", "120")),
         sandbox=environ.get("SHELF_SANDBOX_DISABLED", "").strip().lower() not in {"1", "true", "yes"},
         port=int(environ.get("PORT", "8080")),
         revision=environ.get("SHELF_REVISION", "unknown"),

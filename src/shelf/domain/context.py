@@ -21,6 +21,10 @@ CATEGORIES: dict[str, tuple[str, ...]] = {
         "docs/decisions/[0-9]*.md",
         "adr/[0-9]*.md",
     ),
+    "How the repository's CI judges a change (what must be green)": (
+        ".github/workflows/*.yml",
+        ".github/workflows/*.yaml",
+    ),
     "Architecture and engineering notes": ("ARCHITECTURE.md", "docs/ENGINEERING.md", "docs/architecture*.md"),
 }
 """For each kind of document, where repositories usually keep it (glob patterns)."""

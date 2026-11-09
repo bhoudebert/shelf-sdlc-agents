@@ -1,15 +1,16 @@
 import tempfile
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from shelf.application.steps import Steps, branch_of, task_prompt
+from shelf.domain.ci import Ci, CiRun, CiState, judge
 from shelf.domain.config import RepoConfig
 from shelf.domain.model import RepoRef, WorkContext, WorkId, WorkRequest
 from shelf.domain.pipeline import EntryPoint, Phase
 from shelf.domain.story import agent_comment
-from shelf.domain.work import Produced, Reviewed, RunStep, Verdict, Verified
+from shelf.domain.work import WAITING_FOR_CI, Produced, Reviewed, RunStep, Verdict, Verified
 from shelf.ports.agents import AgentTask
 from shelf.ports.workspace import Checkout, CheckResult
 from tests.adapters.temporal.test_workflow import FakePulls
@@ -62,6 +63,13 @@ async def token_for(repo: RepoRef) -> str:
     return "ghs_token"
 
 
+slept: list[float] = []
+
+
+async def no_sleep(seconds: float) -> None:
+    slept.append(seconds)
+
+
 def steps(
     agents: FakeAgents | None = None,
     workspaces: FakeWorkspaces | None = None,
@@ -80,6 +88,7 @@ def steps(
         max_budget_usd=2.0,
         base_path="/usr/bin",
         cache_dir=cache_dir,
+        sleep=no_sleep,
     )
 
 
@@ -149,11 +158,6 @@ async def test_failing_checks_report_each_failure_for_the_implementer() -> None:
     assert not result.passed
     assert "$ make test (exit 2)" in result.report
     assert "make lint" not in result.report
-
-
-async def test_a_repository_without_checks_passes_verification_and_says_so() -> None:
-    result = await steps().run(NEED, RunStep(Phase.VERIFY, 0, ""))
-    assert result == Verified(passed=True, report="No checks configured for this repository.")
 
 
 def test_the_task_prompt_carries_the_request_the_feedback_and_where_to_write() -> None:
@@ -338,3 +342,108 @@ def test_the_title_agent_is_told_to_judge_the_type_by_the_intent_not_by_the_book
     assert "chore(shelf):" in prompt
     assert "`docs` only when the request itself is about documentation alone" in prompt
     assert "only the types and scopes the repository allows" in prompt.replace("\n", " ")
+
+
+GREEN = judge([CiRun("build", "completed", "success")])
+RED = judge([CiRun("build", "completed", "cancelled", "https://ci/9", "ran out of time")])
+RUNNING = judge([CiRun("build", "in_progress")])
+ON_CI = RepoConfig(checks=("make test",))
+
+
+async def test_the_checks_wait_for_the_ci_and_pass_once_it_is_green() -> None:
+    slept.clear()
+    pulls = FakePulls(cis=[RUNNING, RUNNING, GREEN])
+    result = await steps(pulls=pulls, config=ON_CI).run(NEED, RunStep(Phase.VERIFY, 0, ""))
+    assert result == Verified(passed=True)
+    assert pulls.looked == 3
+    assert slept == [60.0, 60.0]
+
+
+async def test_a_ci_that_was_cancelled_sends_the_work_back_with_what_it_reported() -> None:
+    result = await steps(pulls=FakePulls(cis=[RED]), config=ON_CI).run(NEED, RunStep(Phase.VERIFY, 0, ""))
+    assert isinstance(result, Verified)
+    assert not result.passed
+    assert not result.waiting
+    assert "build: cancelled (https://ci/9)" in result.report
+    assert "ran out of time" in result.report
+
+
+async def test_failing_local_commands_do_not_wait_for_the_ci() -> None:
+    pulls = FakePulls(cis=[GREEN])
+    workspaces = FakeWorkspaces(FakeWorkspace(commands={"make test": 1}))
+    result = await steps(workspaces=workspaces, pulls=pulls, config=ON_CI).run(NEED, RunStep(Phase.VERIFY, 0, ""))
+    assert isinstance(result, Verified)
+    assert not result.passed
+    assert pulls.looked == 0
+
+
+async def test_a_ci_that_outlasts_the_wait_is_handed_back_to_the_workflow_to_look_again() -> None:
+    pulls = FakePulls(cis=[RUNNING])
+    result = await steps(pulls=pulls, config=ON_CI).run(NEED, RunStep(Phase.VERIFY, 0, ""))
+    assert isinstance(result, Verified)
+    assert result.waiting
+    assert "Still running: build" in result.report
+    assert pulls.commented  # said once that the CI is running
+
+
+async def test_looking_again_runs_no_command_and_does_not_repeat_the_comment() -> None:
+    pulls = FakePulls(cis=[RUNNING])
+    workspaces = FakeWorkspaces()
+    result = await steps(workspaces=workspaces, pulls=pulls, config=ON_CI).run(
+        NEED, RunStep(Phase.VERIFY, 0, WAITING_FOR_CI)
+    )
+    assert isinstance(result, Verified)
+    assert result.waiting
+    assert workspaces.workspace.ran == []
+    assert pulls.commented == []
+
+
+async def test_a_repository_without_ci_is_given_a_grace_for_the_runs_to_appear_then_passes() -> None:
+    slept.clear()
+    nothing = Ci(CiState.NONE)
+    late = FakePulls(cis=[nothing, nothing, GREEN])
+    assert await steps(pulls=late, config=ON_CI).run(NEED, RunStep(Phase.VERIFY, 0, "")) == Verified(passed=True)
+    assert late.looked == 3  # the runs showed up during the grace
+    never = FakePulls(cis=[nothing])
+    assert await steps(pulls=never, config=ON_CI).run(NEED, RunStep(Phase.VERIFY, 0, "")) == Verified(passed=True)
+    assert never.looked == 3  # at 0, 60 and 120 seconds, then it is a repository without CI
+
+
+async def test_a_repository_with_neither_commands_nor_ci_says_nothing_was_checked() -> None:
+    pulls = FakePulls()
+    result = await steps(pulls=pulls).run(NEED, RunStep(Phase.VERIFY, 0, ""))
+    assert result == Verified(passed=True)
+    assert "no commands configured" in pulls.commented[0]
+    assert "✅" not in pulls.commented[0]
+
+
+async def test_a_reviewer_cannot_approve_over_a_red_ci() -> None:
+    result = await steps(FakeAgents("Fine.\nVERDICT: APPROVE"), pulls=FakePulls(cis=[RED])).run(
+        REVIEW, RunStep(Phase.CODE_REVIEW, 0, "")
+    )
+    assert isinstance(result, Reviewed)
+    assert result.verdict is Verdict.CHANGES
+    assert "the CI is red" in result.issues
+
+
+async def test_a_reviewer_cannot_approve_while_the_ci_runs_so_a_person_decides() -> None:
+    result = await steps(FakeAgents("Fine.\nVERDICT: APPROVE"), pulls=FakePulls(cis=[RUNNING])).run(
+        REVIEW, RunStep(Phase.CODE_REVIEW, 0, "")
+    )
+    assert isinstance(result, Reviewed)
+    assert result.verdict is Verdict.ESCALATE
+
+
+async def test_a_reviewer_is_told_what_the_ci_says_and_may_approve_over_a_green_one() -> None:
+    agents = FakeAgents("Fine.\nVERDICT: APPROVE")
+    result = await steps(agents, pulls=FakePulls(cis=[GREEN])).run(REVIEW, RunStep(Phase.CODE_REVIEW, 0, ""))
+    assert result == Reviewed(Verdict.APPROVE, "Fine.")
+    assert "CI is green" in agents.tasks[0].prompt
+
+
+async def test_a_waiting_step_tells_the_workflow_it_is_alive_each_time_it_wakes() -> None:
+    beats: list[int] = []
+    waiting = steps(pulls=FakePulls(cis=[RUNNING, RUNNING, GREEN]), config=ON_CI)
+    waiting = replace(waiting, pulse=lambda: beats.append(1))
+    await waiting.run(NEED, RunStep(Phase.VERIFY, 0, ""))
+    assert len(beats) == 2

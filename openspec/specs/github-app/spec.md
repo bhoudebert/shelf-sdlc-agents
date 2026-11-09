@@ -109,6 +109,15 @@ The system SHALL read from GitHub, as the App, which events the App subscribes t
 - **WHEN** GitHub refuses the App's identity or cannot be reached
 - **THEN** the result is a sentence saying why, not an error
 
+### Requirement: The CI of a pull request is read as the App
+
+The system SHALL read, as the App, the check runs of the head commit of a pull request (with the summary and the annotations of the ones that failed) and its commit statuses, and SHALL carry on without statuses when GitHub refuses them to the App.
+
+#### Scenario: Statuses are refused
+
+- **WHEN** GitHub answers 403 for the commit statuses
+- **THEN** the CI is judged from the check runs alone
+
 ### Requirement: The Workflows permission is off by default and its state is shown
 
 The system SHALL NOT request the Workflows permission, because a changed workflow runs with the repository's secrets, SHALL report on the admin page whether the App has it, as a confirmation either way, and SHALL explain how to grant it and, when granted, which GitHub safeguards keep changed workflows reviewed (code owners for `.github/`, environments with required reviewers, approval for fork workflows).

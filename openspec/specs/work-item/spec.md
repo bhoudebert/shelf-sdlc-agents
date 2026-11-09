@@ -109,6 +109,20 @@ The system SHALL order the pull request to be published once the first step of w
 - **WHEN** work reviews an existing pull request
 - **THEN** the system never orders it published or readied
 
+### Requirement: Checks that find the CI still running look again without losing a round
+
+The system SHALL, on a checks result that says the repository's CI has not finished, run the checks again in the same round, and SHALL send the work back like a failed check when the result is a failure. Work started before this behaviour (protocol 3 or earlier) SHALL treat such a result as passed.
+
+#### Scenario: Waiting
+
+- **WHEN** the checks report that the CI is still running
+- **THEN** the checks run again with the same round number
+
+#### Scenario: Work on an older protocol
+
+- **WHEN** work on protocol 3 receives a waiting result
+- **THEN** it goes on to the code review
+
 ### Requirement: Behaviour changes are gated on a protocol
 
 The system SHALL derive from the work's protocol whether the pull request opens early, is readied at the merge and is labelled, so that work on the original protocol decides exactly as before.

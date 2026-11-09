@@ -8,6 +8,7 @@ from urllib.parse import quote
 import httpx
 
 from shelf.adapters.github_app.settings import GitHubAppSettings
+from shelf.domain.ci import Ci, CiRun, CiState, is_red, judge
 from shelf.domain.commands import HELP, MARKER, is_ours, parse_command
 from shelf.domain.model import RepoRef, WorkContext
 from shelf.domain.pipeline import EntryPoint, Phase
@@ -18,6 +19,9 @@ from shelf.domain.work import AskPerson, Event, PersonDecided, PullRequestClosed
 
 COMMENTS_PER_PAGE = 100
 MAX_COMMENT_PAGES = 5
+MAX_CHECK_PAGES = 3
+ANNOTATIONS_PER_RUN = 10
+DETAIL_LIMIT = 1500
 
 TRUSTED = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
 """Only people with write access count: an outsider's comment is never a decision."""
@@ -181,6 +185,66 @@ class GitHubPullRequests:
         if number is None:  # the pull request is not open yet: the first step's result is in the commit
             return
         await self._call("POST", repo, f"/repos/{repo.full_name}/issues/{number}/comments", json={"body": body})
+
+    async def ci(self, work: WorkContext) -> Ci:
+        """Every check run and commit status of the pull request's head commit, summed up."""
+        repo = work.request.repo
+        number = await self._number(work)
+        if number is None:
+            return Ci(CiState.NONE)
+        pull = (await self._call("GET", repo, f"/repos/{repo.full_name}/pulls/{number}")).json()
+        sha = str(pull["head"]["sha"])
+        return judge([*await self._check_runs(repo, sha), *await self._statuses(repo, sha)])
+
+    async def _check_runs(self, repo: RepoRef, sha: str) -> list[CiRun]:
+        runs: list[CiRun] = []
+        for page in range(1, MAX_CHECK_PAGES + 1):
+            path = f"/repos/{repo.full_name}/commits/{sha}/check-runs?per_page=100&page={page}"
+            found = (await self._call("GET", repo, path)).json().get("check_runs", [])
+            runs += [await self._run_of(repo, run) for run in found]
+            if len(found) < COMMENTS_PER_PAGE:
+                break
+        return runs
+
+    async def _run_of(self, repo: RepoRef, run: Mapping[str, Any]) -> CiRun:
+        status = str(run.get("status", ""))
+        conclusion = str(run.get("conclusion") or "")
+        detail = ""
+        if status == "completed" and is_red(conclusion):
+            detail = await self._detail(repo, run)
+        return CiRun(str(run["name"]), status, conclusion, str(run.get("html_url") or ""), detail)
+
+    async def _detail(self, repo: RepoRef, run: Mapping[str, Any]) -> str:
+        """What a red run says about itself: its summary, and the annotations that point at lines."""
+        output: Mapping[str, Any] = run.get("output") or {}
+        lines = [str(output.get("title") or ""), str(output.get("summary") or "")]
+        path = f"/repos/{repo.full_name}/check-runs/{run['id']}/annotations?per_page={ANNOTATIONS_PER_RUN}"
+        notes = (await self._call("GET", repo, path, tolerate=(403, 404))).json()
+        if isinstance(notes, list):
+            found: list[Mapping[str, Any]] = notes  # pyright: ignore[reportUnknownVariableType]
+            lines += [f"{n.get('path')}:{n.get('start_line')} {n.get('message')}" for n in found]
+        return "\n".join(line for line in lines if line.strip())[:DETAIL_LIMIT]
+
+    async def _statuses(self, repo: RepoRef, sha: str) -> list[CiRun]:
+        """Commit statuses (older CI systems report these); none when the App may not read them."""
+        response = await self._call("GET", repo, f"/repos/{repo.full_name}/commits/{sha}/status", tolerate=(403, 404))
+        if not response.is_success:
+            return []
+        runs: list[CiRun] = []
+        for item in response.json().get("statuses", []):
+            state = str(item.get("state", ""))
+            finished = state != "pending"
+            conclusion = "success" if state == "success" else ("failure" if finished else "")
+            runs.append(
+                CiRun(
+                    str(item.get("context", "status")),
+                    "completed" if finished else "in_progress",
+                    conclusion,
+                    str(item.get("target_url") or ""),
+                    str(item.get("description") or "") if conclusion == "failure" else "",
+                )
+            )
+        return runs
 
     async def poll(self, work: WorkContext) -> Sequence[Event]:
         """The merge or close of the pull request, and decisions typed in comments since the last announcement."""

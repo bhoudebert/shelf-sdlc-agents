@@ -41,12 +41,17 @@ class Course:
         return self.protocol >= EARLY_PULL_REQUEST
 
     @property
+    def waits_for_ci(self) -> bool:
+        """Whether the checks wait for the repository's CI and look again while it runs (protocol 4 and later)."""
+        return self.protocol >= WAITS_FOR_CI
+
+    @property
     def asks_a_person_after_review(self) -> bool:
         """Whether a review of a pull request that is not ours hands its findings to a person, not the implementer."""
         return not self.publishes_pull_request and self.protocol >= REVIEW_ASKS_A_PERSON
 
 
-CURRENT_PROTOCOL = 3
+CURRENT_PROTOCOL = 4
 """The behaviour new work starts with. Raise it, and gate the new behaviour on it, whenever a change would alter what
 the workflow does for a history recorded before: protocol 1 is the original behaviour, which old work keeps."""
 
@@ -57,6 +62,11 @@ a progress comment."""
 REVIEW_ASKS_A_PERSON = 3
 """The protocol under which a review of someone else's pull request that finds problems waits for a person instead of
 sending the work back to the implementer."""
+
+
+WAITS_FOR_CI = 4
+"""The protocol under which the checks also read the repository's CI on the pull request, wait for it to finish, and
+send red runs back to the implementer."""
 
 
 def course_for(entry: EntryPoint, policy: Policy, protocol: int = CURRENT_PROTOCOL) -> Course:
