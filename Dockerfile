@@ -27,6 +27,19 @@ RUN case "$TARGETARCH" in \
  && echo "${sha}  /usr/local/bin/mise" | sha256sum -c - \
  && chmod 0755 /usr/local/bin/mise \
  && mkdir -p /cache && chown shelf:shelf /cache
+# gh lets an agent read the CI runs of its pull request (with the token it is given, which can read runs, not change
+# them). Pinned, and checked against the release's published checksum.
+ARG GH_VERSION=2.103.3
+RUN case "$TARGETARCH" in \
+      amd64) arch=amd64; sha=4c806978ffce1cec70853302a56d70ac6da4f19bae7adca4e1a8ab00633dd91d ;; \
+      arm64) arch=arm64; sha=ee32df2323c8847f5fac6cb6b4b69ca75828e9329a8f22f677021f7b3306ce63 ;; \
+      *) echo "unsupported architecture $TARGETARCH" >&2; exit 1 ;; \
+    esac \
+ && curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${arch}.tar.gz" -o /tmp/gh.tgz \
+ && echo "${sha}  /tmp/gh.tgz" | sha256sum -c - \
+ && tar -xzf /tmp/gh.tgz -C /tmp "gh_${GH_VERSION}_linux_${arch}/bin/gh" \
+ && install -m 0755 "/tmp/gh_${GH_VERSION}_linux_${arch}/bin/gh" /usr/local/bin/gh \
+ && rm -rf /tmp/gh.tgz "/tmp/gh_${GH_VERSION}_linux_${arch}"
 COPY --from=build --chown=shelf:shelf /app /app
 ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1
 # The git revision this image was built from, shown by /healthz. Declared last so it never invalidates the layers above.

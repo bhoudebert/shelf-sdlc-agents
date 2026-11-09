@@ -439,3 +439,12 @@ async def test_a_reviewer_is_told_what_the_ci_says_and_may_approve_over_a_green_
     result = await steps(agents, pulls=FakePulls(cis=[GREEN])).run(REVIEW, RunStep(Phase.CODE_REVIEW, 0, ""))
     assert result == Reviewed(Verdict.APPROVE, "Fine.")
     assert "CI is green" in agents.tasks[0].prompt
+
+
+async def test_the_developer_is_told_what_the_ci_says_with_the_failing_runs() -> None:
+    agents = FakeAgents()
+    await steps(agents, pulls=FakePulls(cis=[RED])).run(NEED, RunStep(Phase.IMPLEMENT, 1, "CI is red"))
+    [task] = agents.tasks
+    assert "What the repository's CI says" in task.prompt
+    assert "build: cancelled (https://ci/9)" in task.prompt
+    assert "ran out of time" in task.prompt

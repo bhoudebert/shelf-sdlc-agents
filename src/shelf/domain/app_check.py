@@ -13,6 +13,7 @@ REQUIRED_PERMISSIONS: Mapping[str, str] = {
     "pull_requests": "write",
     "issues": "write",
     "checks": "read",
+    "actions": "read",
     "metadata": "read",
 }
 """The repository permissions the system needs, at the least level that works."""

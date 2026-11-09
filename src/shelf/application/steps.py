@@ -60,7 +60,7 @@ def task_prompt(  # noqa: PLR0913
         lines += ["", f"This is round {step.attempt}. Address this feedback first:", step.feedback]
     if step.phase in REVIEWERS or role.name == "architect":
         lines += ["", f"The base branch is `{base}`: `git diff {base}...HEAD` shows what this work changed."]
-    if ci and step.phase in REVIEWERS:
+    if ci and (step.phase in REVIEWERS or step.phase is Phase.IMPLEMENT):
         lines += ["", f"What the repository's CI says about this pull request right now:\n{ci}"]
     if toolchain:
         lines += ["", TOOLCHAIN_NOTE]
@@ -123,7 +123,8 @@ class Steps:
         if step.phase is Phase.VERIFY:
             checked, ran = await self._verify(work, step, workspace, config)
             return checked, "checks", ran
-        ci = await self._ci_now(work) if step.phase in REVIEWERS else Ci(CiState.NONE)
+        sees_ci = step.phase in REVIEWERS or step.phase is Phase.IMPLEMENT
+        ci = await self._ci_now(work) if sees_ci else Ci(CiState.NONE)
         prompt = task_prompt(
             work,
             step,

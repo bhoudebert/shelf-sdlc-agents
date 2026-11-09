@@ -122,3 +122,11 @@ def test_a_granted_workflows_permission_is_accepted_and_names_the_safeguards() -
     assert note.level is Level.OK
     assert "CODEOWNERS" in note.advice
     assert "required reviewers" in note.advice
+
+
+def test_an_app_without_the_actions_permission_is_an_error_because_the_developer_cannot_read_a_failing_log() -> None:
+    permissions = {name: level for name, level in REQUIRED_PERMISSIONS.items() if name != "actions"}
+    found = check_app(facts(permissions=permissions), URL)
+    error = next(finding for finding in found if "permissions" in finding.title)
+    assert error.level is Level.ERROR
+    assert "actions (read needed, none granted)" in error.title

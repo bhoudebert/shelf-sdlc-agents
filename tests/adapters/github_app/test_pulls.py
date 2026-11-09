@@ -298,3 +298,53 @@ async def test_commit_statuses_count_too_and_a_pending_one_means_wait(settings: 
 
 async def test_a_repository_without_any_run_has_no_ci(settings: GitHubAppSettings) -> None:
     assert (await adapter(settings, ci_handler([])).ci(REVIEW)).state is CiState.NONE
+
+
+def log_handler(log_status: int, log: str = "") -> httpx.MockTransport:
+    runs = [
+        {
+            "id": 2,
+            "name": "build",
+            "status": "completed",
+            "conclusion": "failure",
+            "html_url": "https://github.com/acme/shop/actions/runs/9/job/555",
+        },
+        {
+            "id": 3,
+            "name": "external",
+            "status": "completed",
+            "conclusion": "failure",
+            "html_url": "https://ci.example/3",
+        },
+    ]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path.endswith("/pulls/7"):
+            return httpx.Response(200, json={"head": {"sha": "abc"}})
+        if path.endswith("/check-runs"):
+            return httpx.Response(200, json={"check_runs": runs})
+        if path.endswith("/annotations"):
+            return httpx.Response(200, json=[{"path": ".github", "start_line": 9, "message": "exit code 1"}])
+        if path.endswith("/jobs/555/logs"):
+            return httpx.Response(log_status, text=log)
+        return httpx.Response(404, json={})
+
+    return httpx.MockTransport(handler)
+
+
+async def test_a_failing_actions_job_brings_the_end_of_its_log(settings: GitHubAppSettings) -> None:
+    log = "\n".join(f"2026-11-09T08:00:00.000Z line {n}" for n in range(200)) + "\n2026-11-09T08:01:00.000Z error: boom"
+    ci = await adapter(settings, log_handler(200, log)).ci(REVIEW)
+    build = next(run for run in ci.failing if run.name == "build")
+    assert "error: boom" in build.detail
+    assert "line 0" not in build.detail  # only the end
+    assert "2026-11-09T" not in build.detail  # without timestamps
+    external = next(run for run in ci.failing if run.name == "external")
+    assert "Log (end" not in external.detail  # not an Actions job: nothing to fetch
+
+
+async def test_a_log_the_app_may_not_read_is_reported_as_a_missing_permission(settings: GitHubAppSettings) -> None:
+    ci = await adapter(settings, log_handler(403)).ci(REVIEW)
+    build = next(run for run in ci.failing if run.name == "build")
+    assert "lacks the Actions permission" in build.detail
