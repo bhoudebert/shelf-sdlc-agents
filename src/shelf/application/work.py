@@ -29,16 +29,28 @@ async def start_work(
     config = await configs.load(request.repo)
     if request.entry not in config.entries:
         return Err(Invalid(f"{request.entry} is not enabled on {request.repo.full_name}"))
-    if request.entry is EntryPoint.PULL_REQUEST_REVIEW:
-        if request.pull_request is None:
-            return Err(Invalid("a pull request number is required to review a pull request"))
-        if not await forge.pull_request_exists(user_token, request.repo, request.pull_request):
-            return Err(
-                Invalid(f"{request.repo.full_name} has no pull request #{request.pull_request}: check the repository")
-            )
+    if request.entry in (EntryPoint.PULL_REQUEST_REVIEW, EntryPoint.PULL_REQUEST_WORK):
+        refusal = await _pull_request_refusal(forge, user_token, request)
+        if refusal is not None:
+            return Err(refusal)
     if request.entry is not EntryPoint.PULL_REQUEST_REVIEW and not request.text.strip():
         return Err(Invalid("the request is empty"))
     return Ok(await runner.start(request))
+
+
+async def _pull_request_refusal(forge: Forge, user_token: str, request: WorkRequest) -> Invalid | None:
+    """Why the pull request of a request cannot be worked on, or ``None`` when it can."""
+    number = request.pull_request
+    if number is None:
+        return Invalid("a pull request number is required to work on a pull request")
+    pull = await forge.pull_request(user_token, request.repo, number)
+    if pull is None:
+        return Invalid(f"{request.repo.full_name} has no pull request #{number}: check the repository")
+    if request.entry is EntryPoint.PULL_REQUEST_WORK and not pull.open:
+        return Invalid(f"pull request #{number} is closed")
+    if request.entry is EntryPoint.PULL_REQUEST_WORK and not pull.same_repository:
+        return Invalid(f"pull request #{number} comes from a fork: the App cannot push to its branch")
+    return None
 
 
 async def decide_work(  # noqa: PLR0913

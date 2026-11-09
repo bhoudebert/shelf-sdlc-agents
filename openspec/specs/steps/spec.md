@@ -168,6 +168,25 @@ The system SHALL, when GitHub refuses a push because it changes `.github/workflo
 - **WHEN** a step's push is refused for the Workflows permission
 - **THEN** the failure the person reads names the permission and how to grant it
 
+### Requirement: Work on a pull request pushes to its own branch and never over someone else's work
+
+The system SHALL, for work on an existing pull request, clone and work on the branch the pull request was opened from and not on a branch of its own, SHALL record nothing of the work in that branch, SHALL push a branch that a rebase or an amendment rewrote although nothing is left to commit, and SHALL replace the remote branch only if it is still at the commit it was at when the step began, so that what the author pushed meanwhile is never overwritten. It SHALL refuse a pull request that is from a fork or no longer open, and SHALL tell the developer which pull request it is on, that it may rebase onto the base, that it has no credentials and does not push, and that the checks wait for the CI.
+
+#### Scenario: A rebase
+
+- **WHEN** the developer rebased the branch and nothing is left to commit
+- **THEN** the system pushes the rewritten branch, replacing the old one only if it has not moved
+
+#### Scenario: The author pushed meanwhile
+
+- **WHEN** the author pushed to the branch while the step ran
+- **THEN** the push is refused and the author's commit stays
+
+#### Scenario: A fork
+
+- **WHEN** the pull request comes from a fork
+- **THEN** the step fails saying so and nothing is pushed
+
 ### Requirement: A pull request that cannot be fetched is named
 
 The system SHALL, when the checkout of a pull request for a review cannot fetch it, say in the error which pull request of which repository could not be fetched, that the repository may have no such pull request or the App may not see it, and that the work may have been started on the wrong repository, without the token.

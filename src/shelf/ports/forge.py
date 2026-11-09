@@ -3,7 +3,7 @@
 from collections.abc import Sequence
 from typing import Protocol
 
-from shelf.domain.model import Identity, RepoRef
+from shelf.domain.model import Identity, PullInfo, RepoRef
 
 
 class Forge(Protocol):
@@ -17,8 +17,8 @@ class Forge(Protocol):
         """Who the token belongs to, with the organisations they belong to."""
         ...
 
-    async def pull_request_exists(self, user_token: str, repo: RepoRef, number: int) -> bool:
-        """Whether ``repo`` has a pull request ``number`` that this person can see."""
+    async def pull_request(self, user_token: str, repo: RepoRef, number: int) -> PullInfo | None:
+        """The pull request ``number`` of ``repo`` as this person sees it, or ``None`` when they cannot see one."""
         ...
 
     async def repositories(self, user_token: str) -> Sequence[RepoRef]:

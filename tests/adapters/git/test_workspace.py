@@ -136,3 +136,71 @@ async def test_a_pull_request_the_repository_does_not_have_is_named_in_the_error
     assert "Pull request #2 could not be fetched from acme/shop" in message
     assert "started on the right repository" in message
     assert "tok" not in message.replace("token", "")  # the token never appears
+
+
+def own_branch(origin: Path, tmp_path: Path) -> str:
+    """A branch an author pushed for a pull request; returns the commit it is at."""
+    author = tmp_path / "author"
+    git(tmp_path, "clone", "--quiet", str(origin), str(author))
+    git(author, "config", "user.name", "author")
+    git(author, "config", "user.email", "author@example.org")
+    git(author, "checkout", "--quiet", "-b", "feat/x")
+    (author / "x.txt").write_text("x\n")
+    git(author, "add", "--all")
+    git(author, "commit", "--quiet", "-m", "feat: x")
+    git(author, "push", "--quiet", "origin", "feat/x")
+    return git(author, "rev-parse", "HEAD")
+
+
+async def test_a_rebased_branch_that_belongs_to_a_pull_request_is_pushed_although_nothing_is_left_to_commit(
+    origin: Path, tmp_path: Path
+) -> None:
+    tip = own_branch(origin, tmp_path)
+    async with workspaces(origin, tmp_path).open(checkout(branch="feat/x", lease=tip)) as workspace:
+        assert (workspace.path / "x.txt").exists()
+        git(
+            workspace.path,
+            "-c",
+            "user.name=a",
+            "-c",
+            "user.email=a@b.c",
+            "commit",
+            "--allow-empty",
+            "--amend",
+            "-m",
+            "feat: x, rebased",
+        )
+        assert await workspace.commit_and_push("chore: not needed")
+    assert git(origin, "log", "--format=%s", "-1", "feat/x") == "feat: x, rebased"
+
+
+async def test_an_unchanged_branch_that_belongs_to_a_pull_request_is_not_pushed(origin: Path, tmp_path: Path) -> None:
+    tip = own_branch(origin, tmp_path)
+    async with workspaces(origin, tmp_path).open(checkout(branch="feat/x", lease=tip)) as workspace:
+        assert not await workspace.commit_and_push("chore: nothing")
+    assert git(origin, "rev-parse", "feat/x") == tip
+
+
+async def test_the_author_having_pushed_meanwhile_is_never_overwritten(origin: Path, tmp_path: Path) -> None:
+    tip = own_branch(origin, tmp_path)
+    async with workspaces(origin, tmp_path).open(checkout(branch="feat/x", lease=tip)) as workspace:
+        git(
+            workspace.path,
+            "-c",
+            "user.name=a",
+            "-c",
+            "user.email=a@b.c",
+            "commit",
+            "--allow-empty",
+            "--amend",
+            "-m",
+            "ours",
+        )
+        author = tmp_path / "author"
+        (author / "y.txt").write_text("y\n")
+        git(author, "add", "--all")
+        git(author, "commit", "--quiet", "-m", "feat: y")
+        git(author, "push", "--quiet", "origin", "feat/x")  # the author pushes while the work is going on
+        with pytest.raises(RuntimeError):
+            await workspace.commit_and_push("chore: ours")
+    assert git(origin, "log", "--format=%s", "-1", "feat/x") == "feat: y"

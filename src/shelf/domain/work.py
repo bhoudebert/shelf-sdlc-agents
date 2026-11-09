@@ -293,10 +293,12 @@ def _when_waiting(course: Course, state: AwaitingPerson, event: Event) -> Transi
         case PersonDecided(kind=DecisionKind.APPROVE) if state.reason in (Reason.GATE, Reason.ESCALATION):
             return _advance(course, state.phase, 0)
         case PersonDecided(kind=DecisionKind.CHANGES, note=note):
-            if course.asks_a_person_after_review and not note.strip():  # hand over the reviewer's own findings
+            if course.asks_a_person_after_review and not course.review_is_read_only and not note.strip():
+                # hand over the reviewer's own findings
                 note = state.detail
-            back = _enter(course, LOOP_BACK.get(state.phase, state.phase), feedback=note)
-            if state.reason is Reason.MERGE and course.opens_early and course.publishes_pull_request:  # back to draft
+            target = Phase.CODE_REVIEW if course.review_is_read_only else LOOP_BACK.get(state.phase, state.phase)
+            back = _enter(course, target, feedback=note)
+            if state.reason is Reason.MERGE and course.readies_pull_request:  # back to draft while agents rework it
                 return Transition(back.state, (SetPullRequestReady(ready=False), *back.commands))
             return back
         case PersonDecided(kind=DecisionKind.RESUME, note=note) if state.reason in (
@@ -322,6 +324,8 @@ def _enter(course: Course, phase: Phase, attempt: int = 0, feedback: str = "") -
             publish: tuple[Command, ...] = ()
             if course.publishes_pull_request:
                 publish = (PublishPullRequest(), *((SetPullRequestReady(ready=True),) if course.opens_early else ()))
+            elif course.adopts_pull_request:
+                publish = (SetPullRequestReady(ready=True),)
             return Transition(AwaitingPerson(phase, Reason.MERGE), (*publish, AskPerson(phase, Reason.MERGE, "")))
         case Kind.PRODUCE | Kind.REVIEW | Kind.VERIFY:
             return Transition(Running(phase, attempt, feedback), (RunStep(phase, attempt, feedback),))

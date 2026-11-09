@@ -26,7 +26,17 @@ ENTRY_LABELS: dict[EntryPoint, tuple[str, str]] = {
     EntryPoint.DESIGN: ("A design to make", "The spec is approved. Start at the design."),
     EntryPoint.PLAN: ("A plan to make", "The design is done. Start at the plan."),
     EntryPoint.IMPLEMENT: ("Code to write", "The plan is done. Start implementing."),
-    EntryPoint.PULL_REQUEST_REVIEW: ("Review my pull request", "A pull request already exists. Get it reviewed."),
+    EntryPoint.PULL_REQUEST_REVIEW: (
+        "Review my pull request",
+        "A pull request already exists. Get it reviewed, read only: nothing is changed on it.",
+    ),
+    EntryPoint.PULL_REQUEST_WORK: (
+        "Work on my pull request",
+        (
+            "A pull request already exists. The agents change its branch as you ask (rebase, fix, verify), then wait "
+            "for its CI. They may force-push that branch when a rebase needs it, only if nobody pushed to it meanwhile."
+        ),
+    ),
 }
 
 PHASE_LABELS: dict[Phase, str] = {
@@ -130,7 +140,10 @@ def entry_options(allowed: frozenset[EntryPoint]) -> list[EntryOption]:
     """The entry points a repository enables, in pipeline order."""
     return [
         EntryOption(
-            entry.value, ENTRY_LABELS[entry][0], ENTRY_LABELS[entry][1], entry is EntryPoint.PULL_REQUEST_REVIEW
+            entry.value,
+            ENTRY_LABELS[entry][0],
+            ENTRY_LABELS[entry][1],
+            entry in (EntryPoint.PULL_REQUEST_REVIEW, EntryPoint.PULL_REQUEST_WORK),
         )
         for entry in EntryPoint
         if entry in allowed

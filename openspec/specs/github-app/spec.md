@@ -137,6 +137,20 @@ The system SHALL read, as the App, every comment of a pull request (up to five p
 - **WHEN** a pull request has an agent's comment, the progress comment and a person's comment
 - **THEN** the story holds the agent's and the person's, in order
 
+### Requirement: A pull request's branch and its state are read for the work on it
+
+The system SHALL read, for a pull request, the branch it was opened from, where that branch is, whether it is open and whether it comes from the repository itself, as the person when they ask to start and as the App for each step.
+
+#### Scenario: From the repository itself
+
+- **WHEN** the head of a pull request is in the same repository
+- **THEN** it can be changed by the App
+
+#### Scenario: From a fork or a deleted fork
+
+- **WHEN** the head repository is another one or is gone
+- **THEN** it cannot
+
 ### Requirement: A person's view of a pull request is asked as that person
 
 The system SHALL ask GitHub, with the person's own token and not the App's, whether a pull request exists and is visible to them, so that what a person may start is limited by what they can see.

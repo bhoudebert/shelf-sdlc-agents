@@ -85,6 +85,8 @@ class GitWorkspace:
     pushes: bool
     auth: tuple[str, ...] = ()
     secrets: tuple[str, ...] = ()
+    lease: str = ""
+    """The commit the branch was at when it was cloned, for a branch that belongs to someone's pull request."""
 
     async def run(self, command: str) -> CheckResult:
         """Run a shell command in the clone."""
@@ -92,17 +94,23 @@ class GitWorkspace:
         return await _exec([command], self.path, shell=True)  # noqa: S604
 
     async def commit_and_push(self, message: str) -> bool:
-        """Commit what changed and push the branch; ``False`` when nothing changed."""
+        """Commit what changed and push the branch; ``False`` when nothing changed.
+
+        On a branch that belongs to a pull request (``lease`` set) a rebase that changed the history counts as a change
+        although nothing is left to commit, and the push replaces the branch only if it is still where it was cloned.
+        """
         if not self.pushes:
             return False
         await _git(self.path, "add", "--all")
-        if (await _git(self.path, "status", "--porcelain")).output.strip() == "":
+        dirty = (await _git(self.path, "status", "--porcelain")).output.strip() != ""
+        if dirty:
+            await _git(self.path, "-c", "commit.gpgsign=false", "commit", "-m", message)
+        elif not self.lease or (await _git(self.path, "rev-parse", "HEAD")).output.strip() == self.lease:
             return False
-        await _git(self.path, "-c", "commit.gpgsign=false", "commit", "-m", message)
+        target = f"refs/heads/{self.branch}"
+        guard = (f"--force-with-lease={target}:{self.lease}",) if self.lease else ()
         try:
-            await _git(
-                self.path, "push", "origin", f"HEAD:refs/heads/{self.branch}", auth=self.auth, secrets=self.secrets
-            )
+            await _git(self.path, "push", *guard, "origin", f"HEAD:{target}", auth=self.auth, secrets=self.secrets)
         except RuntimeError as error:
             raise RuntimeError(explain_push_failure(str(error))) from error
         return True
@@ -166,6 +174,6 @@ class GitWorkspaces:
                 await _git(repo, "checkout", "--quiet", "-B", checkout.branch, "FETCH_HEAD")
             else:
                 await _git(repo, "checkout", "--quiet", "-b", checkout.branch)
-            yield GitWorkspace(repo, checkout.branch, pushes=True, auth=auth, secrets=secrets)
+            yield GitWorkspace(repo, checkout.branch, pushes=True, auth=auth, secrets=secrets, lease=checkout.lease)
         finally:
             shutil.rmtree(directory, ignore_errors=True)

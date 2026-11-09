@@ -8,10 +8,11 @@ from urllib.parse import quote
 
 import httpx
 
+from shelf.adapters.github_app.forge import pull_info
 from shelf.adapters.github_app.settings import GitHubAppSettings
 from shelf.domain.ci import Ci, CiRun, CiState, is_red, judge
 from shelf.domain.commands import HELP, MARKER, is_ours, parse_command
-from shelf.domain.model import RepoRef, WorkContext
+from shelf.domain.model import PullInfo, RepoRef, WorkContext
 from shelf.domain.pipeline import EntryPoint, Phase
 from shelf.domain.progress import marker
 from shelf.domain.roles import documents_dir
@@ -41,6 +42,9 @@ TokenFor = Callable[[RepoRef], Awaitable[str]]
 """Gives an installation token for a repository. Minted per call, never stored."""
 
 BranchOf = Callable[[WorkContext], str]
+
+OWN_PULL_REQUEST = frozenset({EntryPoint.PULL_REQUEST_REVIEW, EntryPoint.PULL_REQUEST_WORK})
+"""The entry points that arrive with a pull request of their own, so none is looked for by the work's branch."""
 
 
 def branch_name(work: WorkContext) -> str:
@@ -197,6 +201,16 @@ class GitHubPullRequests:
             return
         await self._call("POST", repo, f"/repos/{repo.full_name}/issues/{number}/comments", json={"body": body})
 
+    async def head(self, work: WorkContext) -> PullInfo:
+        """The pull request of this work as it is now; raises when there is none."""
+        repo = work.request.repo
+        number = await self._number(work)
+        if number is None:
+            message = f"{repo.full_name} has no pull request for {work.id}"
+            raise RuntimeError(message)
+        pull = (await self._call("GET", repo, f"/repos/{repo.full_name}/pulls/{number}")).json()
+        return pull_info(pull, repo)
+
     async def ci(self, work: WorkContext) -> Ci:
         """Every check run and commit status of the pull request's head commit, summed up."""
         repo = work.request.repo
@@ -304,7 +318,7 @@ class GitHubPullRequests:
 
     async def _number(self, work: WorkContext) -> int | None:
         """The pull request of this work, or ``None`` while there is none."""
-        if work.request.entry is EntryPoint.PULL_REQUEST_REVIEW and work.request.pull_request is not None:
+        if work.request.entry in OWN_PULL_REQUEST and work.request.pull_request is not None:
             return work.request.pull_request
         repo = work.request.repo
         found = (

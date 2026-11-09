@@ -74,6 +74,19 @@ class WorkView:
 
 
 @dataclass(frozen=True, slots=True)
+class PullInfo:
+    """What GitHub says a pull request is, as far as starting and doing work on it needs."""
+
+    branch: str
+    """The branch it was opened from."""
+    sha: str
+    """Where that branch is now."""
+    open: bool
+    same_repository: bool
+    """False for a pull request from a fork, whose branch the App cannot push to."""
+
+
+@dataclass(frozen=True, slots=True)
 class WorkContext:
     """Everything a step needs to know about the piece of work it serves."""
 

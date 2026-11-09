@@ -71,6 +71,7 @@ class EntryPoint(StrEnum):
     PLAN = auto()
     IMPLEMENT = auto()
     PULL_REQUEST_REVIEW = auto()
+    PULL_REQUEST_WORK = auto()
 
 
 FIRST_PHASE: dict[EntryPoint, Phase] = {
@@ -80,6 +81,7 @@ FIRST_PHASE: dict[EntryPoint, Phase] = {
     EntryPoint.PLAN: Phase.PLAN,
     EntryPoint.IMPLEMENT: Phase.IMPLEMENT,
     EntryPoint.PULL_REQUEST_REVIEW: Phase.CODE_REVIEW,
+    EntryPoint.PULL_REQUEST_WORK: Phase.IMPLEMENT,
 }
 """The phase at which each entry point joins the pipeline."""
 

@@ -7,7 +7,7 @@ from typing import Any
 import httpx
 
 from shelf.adapters.github_app.settings import GitHubAppSettings
-from shelf.domain.model import Identity, RepoRef
+from shelf.domain.model import Identity, PullInfo, RepoRef
 
 NOT_FOUND = 404
 
@@ -24,6 +24,18 @@ def parse_identity(user: Mapping[str, Any], organisations: list[Mapping[str, Any
 def parse_repositories(payload: Mapping[str, Any]) -> list[RepoRef]:
     """Read the repositories of an ``/installations/{id}/repositories`` page."""
     return [RepoRef.parse(str(repo["full_name"])) for repo in payload.get("repositories", [])]
+
+
+def pull_info(pull: Mapping[str, Any], repo: RepoRef) -> PullInfo:
+    """Read what matters of a pull request from GitHub's answer; ``repo`` is where the pull request was asked for."""
+    head: Mapping[str, Any] = pull.get("head") or {}
+    origin: Mapping[str, Any] = head.get("repo") or {}
+    return PullInfo(
+        branch=str(head.get("ref") or ""),
+        sha=str(head.get("sha") or ""),
+        open=pull.get("state") == "open",
+        same_repository=origin.get("full_name") == repo.full_name,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,15 +78,15 @@ class GitHubForge:
                 found.extend(parse_repositories(page))
         return found
 
-    async def pull_request_exists(self, user_token: str, repo: RepoRef, number: int) -> bool:
-        """Whether ``repo`` has a pull request ``number`` that this person can see (as them, not as the App)."""
+    async def pull_request(self, user_token: str, repo: RepoRef, number: int) -> PullInfo | None:
+        """The pull request as this person sees it (asked as them, not as the App); ``None`` when there is none."""
         response = await self.client.get(
             f"{self.settings.api_url}/repos/{repo.full_name}/pulls/{number}", headers=_user_headers(user_token)
         )
         if response.status_code == NOT_FOUND:
-            return False
+            return None
         response.raise_for_status()
-        return True
+        return pull_info(response.json(), repo)
 
     async def _get(self, user_token: str, path: str) -> Mapping[str, Any]:
         response = await self.client.get(f"{self.settings.api_url}{path}", headers=_user_headers(user_token))

@@ -4,7 +4,7 @@ from shelf.application.errors import Invalid, NotAllowed, NotFound
 from shelf.application.work import board, decide_work, start_work
 from shelf.domain.access import AccessRules
 from shelf.domain.config import RepoConfig, Role
-from shelf.domain.model import RepoRef, WorkId, WorkRequest
+from shelf.domain.model import PullInfo, RepoRef, WorkId, WorkRequest
 from shelf.domain.pipeline import EntryPoint, Phase
 from shelf.domain.result import Err, Ok
 from shelf.domain.work import DecisionKind, PersonDecided
@@ -111,17 +111,62 @@ async def test_the_board_shows_only_the_repositories_the_person_can_see(forge: F
     assert views[0].phase is Phase.INTAKE
 
 
+def everything_on(forge: FakeForge) -> FakeConfigs:
+    forge.everything_exists = False
+    return FakeConfigs({REPO: RepoConfig(entries=frozenset(EntryPoint))})
+
+
 async def test_a_review_of_a_pull_request_the_repository_does_not_have_is_refused_with_its_name(
     forge: FakeForge,
 ) -> None:
-    forge.missing_pulls.add((REPO, 2))
     review = WorkRequest(REPO, "alice", EntryPoint.PULL_REQUEST_REVIEW, "", 2)
-    config = FakeConfigs({REPO: RepoConfig(entries=frozenset(EntryPoint))})
-    result = await start_work(FakeRunner(), forge, config, user_token="tok", request=review)
+    result = await start_work(FakeRunner(), forge, everything_on(forge), user_token="tok", request=review)
     assert result == Err(Invalid("acme/shop has no pull request #2: check the repository"))
 
 
 async def test_a_review_of_an_existing_pull_request_starts(forge: FakeForge) -> None:
     review = WorkRequest(REPO, "alice", EntryPoint.PULL_REQUEST_REVIEW, "", 2)
-    config = FakeConfigs({REPO: RepoConfig(entries=frozenset(EntryPoint))})
+    config = everything_on(forge)
+    forge.pulls[(REPO, 2)] = PullInfo("feat/x", "abc", open=False, same_repository=False)  # a review needs none of it
     assert isinstance(await start_work(FakeRunner(), forge, config, user_token="tok", request=review), Ok)
+
+
+def work_on(text: str = "rebase it onto main", number: int | None = 2) -> WorkRequest:
+    return WorkRequest(REPO, "alice", EntryPoint.PULL_REQUEST_WORK, text, number)
+
+
+@pytest.mark.parametrize(
+    ("pull", "refusal"),
+    [
+        (None, "acme/shop has no pull request #2: check the repository"),
+        (PullInfo("feat/x", "abc", open=False, same_repository=True), "pull request #2 is closed"),
+        (
+            PullInfo("feat/x", "abc", open=True, same_repository=False),
+            "pull request #2 comes from a fork: the App cannot push to its branch",
+        ),
+    ],
+)
+async def test_work_on_a_pull_request_needs_one_that_is_open_and_from_this_repository(
+    forge: FakeForge, pull: PullInfo | None, refusal: str
+) -> None:
+    config = everything_on(forge)
+    if pull is not None:
+        forge.pulls[(REPO, 2)] = pull
+    result = await start_work(FakeRunner(), forge, config, user_token="tok", request=work_on())
+    assert result == Err(Invalid(refusal))
+
+
+async def test_work_on_a_pull_request_starts_when_it_can_be_changed(forge: FakeForge) -> None:
+    config = everything_on(forge)
+    forge.pulls[(REPO, 2)] = PullInfo("feat/x", "abc", open=True, same_repository=True)
+    assert isinstance(await start_work(FakeRunner(), forge, config, user_token="tok", request=work_on()), Ok)
+
+
+async def test_work_on_a_pull_request_needs_a_number_and_something_to_do(forge: FakeForge) -> None:
+    config = everything_on(forge)
+    forge.pulls[(REPO, 2)] = PullInfo("feat/x", "abc", open=True, same_repository=True)
+    no_number = await start_work(FakeRunner(), forge, config, user_token="tok", request=work_on(number=None))
+    assert isinstance(no_number, Err)
+    assert await start_work(FakeRunner(), forge, config, user_token="tok", request=work_on(text="  ")) == Err(
+        Invalid("the request is empty")
+    )

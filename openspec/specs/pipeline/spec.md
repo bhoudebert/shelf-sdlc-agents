@@ -17,7 +17,7 @@ The system SHALL define the pipeline as a fixed, ordered list of phases from int
 
 ### Requirement: Every entry point joins the pipeline at one phase
 
-The system SHALL map each entry point (need, spec, design, plan, implement, pull-request review) to the single phase at which the work joins the pipeline.
+The system SHALL map each entry point (need, spec, design, plan, implement, pull-request review, work on a pull request) to the single phase at which the work joins the pipeline.
 
 #### Scenario: Starting from a need
 
@@ -26,8 +26,13 @@ The system SHALL map each entry point (need, spec, design, plan, implement, pull
 
 #### Scenario: Reviewing a pull request
 
-- **WHEN** work starts from an existing pull request
+- **WHEN** work starts from an existing pull request to be reviewed
 - **THEN** it skips every phase before code review
+
+#### Scenario: Working on a pull request
+
+- **WHEN** work starts from an existing pull request to be changed
+- **THEN** it joins at implementation and goes through the checks, the code review and the merge
 
 ### Requirement: Work started late runs the rest of the pipeline
 
@@ -63,7 +68,7 @@ The system SHALL let a policy turn off the spec approval and the design review, 
 
 ### Requirement: Only work without a pull request publishes one
 
-The system SHALL publish a pull request for work that arrives without one, and SHALL NOT for work that starts from an existing pull request.
+The system SHALL publish a pull request for work that arrives without one, and SHALL NOT for work that starts from an existing pull request, whether to review it or to change it.
 
 #### Scenario: Starting from a plan
 

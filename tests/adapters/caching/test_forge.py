@@ -2,7 +2,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from shelf.adapters.caching.forge import CachedForge
-from shelf.domain.model import Identity, RepoRef
+from shelf.domain.model import Identity, PullInfo, RepoRef
 
 REPO = RepoRef("acme", "shop")
 
@@ -26,9 +26,9 @@ class CountingForge:
         self._count("repositories")
         return [REPO]
 
-    async def pull_request_exists(self, user_token: str, repo: RepoRef, number: int) -> bool:
-        self._count("pull_request_exists")
-        return True
+    async def pull_request(self, user_token: str, repo: RepoRef, number: int) -> PullInfo | None:
+        self._count("pull_request")
+        return None
 
 
 class Clock:
@@ -100,6 +100,6 @@ async def test_documents_are_read_once_while_fresh_and_again_when_old() -> None:
 async def test_whether_a_pull_request_exists_is_never_cached() -> None:
     inner = CountingForge()
     forge = CachedForge(inner)
-    await forge.pull_request_exists("tok", REPO, 2)
-    await forge.pull_request_exists("tok", REPO, 2)
-    assert inner.calls["pull_request_exists"] == 2
+    await forge.pull_request("tok", REPO, 2)
+    await forge.pull_request("tok", REPO, 2)
+    assert inner.calls["pull_request"] == 2

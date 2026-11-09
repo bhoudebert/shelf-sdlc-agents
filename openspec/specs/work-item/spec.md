@@ -123,6 +123,34 @@ The system SHALL, on a checks result that says the repository's CI has not finis
 - **WHEN** work on protocol 3 receives a waiting result
 - **THEN** it goes on to the code review
 
+### Requirement: Work on an existing pull request changes that pull request
+
+The system SHALL, for work started on a pull request that already exists to be changed (protocol 5 and later), run implementation, checks, code review and the merge in that order on the pull request's own branch, SHALL NOT open or retitle a pull request, SHALL send a reviewer's requested changes back to the developer by itself like work of its own, SHALL mark the pull request ready for review when the work asks for the merge, and SHALL put it back to draft when a person asks for changes at the merge.
+
+#### Scenario: A rebase and verify
+
+- **WHEN** work on a pull request is started with the instruction to rebase it
+- **THEN** the developer runs first, the checks wait for the CI of what was pushed, the reviewer reviews, and a person is asked at the merge, and no pull request is opened
+
+#### Scenario: Changes asked at the merge
+
+- **WHEN** a person asks for changes while the work waits at the merge
+- **THEN** the pull request goes back to draft and the developer runs again with their note
+
+### Requirement: A read-only review never starts a developer
+
+The system SHALL answer a person who asks for changes after a review of a pull request that agents do not change (protocol 5 and later) with another review that takes their note into account, and SHALL NOT start a developer on a branch of its own that has nothing to do with that pull request. Work started earlier SHALL keep sending the reviewer's findings to the developer on request.
+
+#### Scenario: Changes asked after a read-only review
+
+- **WHEN** a person asks for changes with a note after the review
+- **THEN** the review runs again with the note
+
+#### Scenario: Older work
+
+- **WHEN** work on protocol 4 receives the same request
+- **THEN** the developer runs with the findings, as before
+
 ### Requirement: Behaviour changes are gated on a protocol
 
 The system SHALL derive from the work's protocol whether the pull request opens early, is readied at the merge and is labelled, so that work on the original protocol decides exactly as before.
