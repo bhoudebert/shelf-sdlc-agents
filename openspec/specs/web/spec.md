@@ -410,6 +410,11 @@ The system SHALL show on the work page the request, the spec, the design and the
 - **WHEN** the work waits at the spec approval
 - **THEN** the spec is open on the page beside the decision buttons
 
+#### Scenario: Work on an existing pull request
+
+- **WHEN** the work happens on a pull request that already exists
+- **THEN** the documents pane says that it writes no spec, design or plan, instead of promising them
+
 #### Scenario: A wide window
 
 - **WHEN** a document is open in a wide window

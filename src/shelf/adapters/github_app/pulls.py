@@ -73,9 +73,12 @@ READ_AT: dict[Phase, str] = {
 
 
 def _where_to_read(work: WorkContext, phase: Phase) -> str:
-    """A link to the document the person is asked to judge, when there is one."""
+    """A link to the document the person is asked to judge, when there is one.
+
+    Work on a pull request that already exists writes no spec, design or plan, so there is nothing to link.
+    """
     name = READ_AT.get(phase)
-    if name is None:
+    if name is None or work.request.entry in OWN_PULL_REQUEST:
         return ""
     path = f"{documents_dir(work.id)}/{name}"
     return f"\n\nRead it: [{path}](https://github.com/{work.request.repo.full_name}/blob/{branch_name(work)}/{path})"

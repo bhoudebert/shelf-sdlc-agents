@@ -363,3 +363,17 @@ async def test_the_head_of_a_pull_request_that_arrived_with_the_work_is_read_by_
 
     head = await adapter(settings, httpx.MockTransport(handler)).head(adopted)
     assert head == PullInfo("feat/x", "abc", open=True, same_repository=True)
+
+
+def test_work_on_a_pull_request_that_exists_links_no_plan_because_it_writes_none() -> None:
+    for entry in (EntryPoint.PULL_REQUEST_WORK, EntryPoint.PULL_REQUEST_REVIEW):
+        work = WorkContext(WorkId("work-4"), WorkRequest(REPO, "alice", entry, "rebase", 2))
+        text = announcement(work, AskPerson(Phase.PULL_REQUEST, Reason.MERGE, ""))
+        assert "Read it" not in text
+        assert "plan.md" not in text
+        assert "Ready for review and merge" in text
+
+
+def test_work_of_our_own_still_links_its_plan_at_the_merge() -> None:
+    text = announcement(NEED, AskPerson(Phase.PULL_REQUEST, Reason.MERGE, ""))
+    assert "docs/shelf/work-1/plan.md" in text
