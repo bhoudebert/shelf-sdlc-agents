@@ -168,6 +168,20 @@ The system SHALL, when GitHub refuses a push because it changes `.github/workflo
 - **WHEN** a step's push is refused for the Workflows permission
 - **THEN** the failure the person reads names the permission and how to grant it
 
+### Requirement: A step tidies the pull request before it speaks
+
+The system SHALL, before a step runs and speaks, ask for the pull request to be tidied: the waits that are over are marked outdated, and when the step starts again because the flow circled back (its round is above zero, or it was sent back with feedback) what the agents said from its phase on is too. A step that only looks at the CI again SHALL ask for nothing, and a failure to tidy SHALL NOT stop the step.
+
+#### Scenario: A developer round after a review
+
+- **WHEN** the developer starts its second round
+- **THEN** the pull request is asked to outdate from the implementation on
+
+#### Scenario: A first step
+
+- **WHEN** a step runs for the first time
+- **THEN** only the finished waits are outdated
+
 ### Requirement: Work on a pull request pushes to its own branch and never over someone else's work
 
 The system SHALL, for work on an existing pull request, clone and work on the branch the pull request was opened from and not on a branch of its own, SHALL record nothing of the work in that branch, SHALL push a branch that a rebase or an amendment rewrote although nothing is left to commit, and SHALL replace the remote branch only if it is still at the commit it was at when the step began, so that what the author pushed meanwhile is never overwritten. It SHALL refuse a pull request that is from a fork or no longer open, and SHALL tell the developer which pull request it is on, that it may rebase onto the base, that it has no credentials and does not push, and that the checks wait for the CI.
