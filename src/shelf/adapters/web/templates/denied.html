@@ -7,6 +7,18 @@
       <h1 id="denied-title">This instance is not open to you</h1>
       <p class="lead reason" role="alert">{{ reason }}</p>
       <p>Ask the operator to add you to the access list.</p>
+      {% if organisations %}
+      <div class="why-not">
+        <h2>Do you belong to an organisation on the list?</h2>
+        <p>Shell can only see your membership when one of these is true:</p>
+        <ul>
+          <li>Your membership is <strong>public</strong>: set your visibility to Public on the People page of
+            {% for organisation in organisations %}<a href="https://github.com/orgs/{{ organisation | urlencode }}/people" target="_blank" rel="noopener noreferrer">{{ organisation }}<span class="vh"> (opens in a new tab)</span></a>{{ ", " if not loop.last else "" }}{% endfor %}.</li>
+          <li>Or an owner of the organisation has <strong>installed this GitHub App on it</strong> and allowed it to read members: <a href="{{ install_url }}" target="_blank" rel="noopener noreferrer">install it here<span class="vh"> (opens in a new tab)</span></a>.</li>
+          <li>Or the operator adds your GitHub name to the list directly.</li>
+        </ul>
+      </div>
+      {% endif %}
       <p><a class="btn quiet" href="/">Back to sign in</a></p>
     </div>
   </section>

@@ -640,4 +640,8 @@ textarea.roomy { min-height: 14rem; max-height: 70vh; line-height: 1.6; font-siz
 :root[data-theme="dark"] .panel-waiting.reason-failure .status .btn.quiet { background: var(--ink); color: var(--ground); }
 :root[data-theme="dark"] .panel-waiting.reason-failure .status-art { --accent: #e8956a; }
 
+.why-not { margin: 18px 0; padding: 16px 20px; border-radius: var(--radius); background: var(--raised); box-shadow: inset 0 0 0 1px var(--orbit); }
+.why-not h2 { font-size: 1.05rem; margin: 0 0 8px; }
+.why-not p, .why-not ul { margin: 0 0 8px; }
+.why-not ul { padding-left: 1.2rem; display: grid; gap: 6px; }
 .head-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
