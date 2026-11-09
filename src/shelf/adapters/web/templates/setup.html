@@ -30,7 +30,10 @@
         <dt>Webhook secret</dt><dd>a long random string that you make up, for example the output of <code>openssl rand -hex 32</code>. <strong>Write it down</strong>: it becomes <code>GITHUB_WEBHOOK_SECRET</code>.</dd>
         <dt>Repository permissions</dt><dd>Contents: Read and write. Pull requests: Read and write. Issues: Read and write. Checks: Read-only. Actions: Read-only (so the agents can read why a CI job failed). Metadata: Read-only. Everything else: No access.</dd>
         <dt>Subscribe to events</dt><dd>Pull request and Issue comment, nothing else. <small>Boxes stay greyed until the permissions above are set; tick only these two.</small></dd>
-        <dt>Where can this App be installed?</dt><dd>Only on this account</dd>
+        <dt>Description</dt><dd>what people read when they install or authorize the App. Paste this (Markdown):
+          <pre id="app-description" class="desc">{{ description }}</pre>
+          <button class="btn-secondary" type="button" data-copy="#app-description" data-done="Copied">Copy the description</button></dd>
+        <dt>Where can this App be installed?</dt><dd><strong>Any account</strong>. <small>Needed for anyone but you to sign in: GitHub answers 404 to every other account when it is "Only on this account". Who may use the instance is decided by <code>shelf.toml</code>, not by this setting.</small></dd>
       </dl>
       <p>Click <strong>Create GitHub App</strong>. GitHub says "You must generate a private key in order to install your GitHub App": that is the next step, not an error.</p>
 
@@ -75,7 +78,8 @@
       <li><strong>Metadata</strong><span>read: required by GitHub</span></li>
     </ul>
     <p class="muted"><strong>Workflows</strong> is left off on purpose: it would let agents change CI files, which run with your repository's secrets. Turn it on later only if you want that.</p>
-    <p class="muted">Private to your account. Access is limited to the repositories you install it on, and the agents only receive a token that lasts one hour.</p>
+    <p class="muted">Public means any GitHub account can see and authorize the App, not that anyone can use your instance: that is the list in <code>shelf.toml</code>. Access to code is limited to the repositories the App is installed on, and the agents only receive a token that lasts one hour.</p>
+    <p class="muted"><strong>Someone else gets a 404 when signing in?</strong> The App is private. On its GitHub page open <strong>Advanced</strong>, scroll to the bottom and choose <strong>Make public</strong>.</p>
   </section>
 </div>
 {% endblock %}
