@@ -150,6 +150,11 @@ The system SHALL show administrators, on the admin page, the findings about the 
 - **WHEN** GitHub cannot be asked about the App
 - **THEN** one finding says the App could not be checked and why
 
+#### Scenario: A second person cannot sign in
+
+- **WHEN** the administrator opens the check
+- **THEN** it says that a 404 on sign-in for a second person means the App is private, and that Make public on the App's Advanced tab fixes it
+
 ### Requirement: The setup page says what the App may do and what it may not
 
 The system SHALL list on the setup page the permissions the App is given and say that Workflows is left off on purpose, and why.
