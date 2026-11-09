@@ -30,6 +30,10 @@ class CachedForge:
         """Never cached: a code is used once."""
         return await self.inner.exchange_code(code)
 
+    async def memberships(self, login: str, organisations: frozenset[str]) -> frozenset[str]:
+        """Never cached: it is asked once, at sign-in."""
+        return await self.inner.memberships(login, organisations)
+
     async def pull_request(self, user_token: str, repo: RepoRef, number: int) -> PullInfo | None:
         """Never cached: a pull request may be opened or closed a moment after the person looks."""
         return await self.inner.pull_request(user_token, repo, number)

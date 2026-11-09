@@ -20,6 +20,30 @@ The system SHALL trade the OAuth code from the sign-in redirect for the person's
 - **WHEN** GitHub answers with an error instead of a token
 - **THEN** sign-in fails with GitHub's reason
 
+### Requirement: Membership of a listed organisation is asked per organisation
+
+The system SHALL find out whether a person belongs to each organisation the access list names by asking about that organisation, never from the list GitHub gives for the person's own token, which is empty for a GitHub App; it SHALL ask through the App's installation on the organisation when there is one, which sees private members once the App may read members, and otherwise, or when that is refused, from the public members; and it SHALL log, without a token, that the permission is missing when it was refused.
+
+#### Scenario: A private member where the App may read members
+
+- **WHEN** the App is installed on a listed organisation with the Members permission and the person is a private member
+- **THEN** the person is a member and may sign in
+
+#### Scenario: Without the permission
+
+- **WHEN** the App is installed on the organisation without the Members permission and the person's membership is private
+- **THEN** the person is not found a member, and the log says which permission or setting would change that
+
+#### Scenario: The App is not installed there
+
+- **WHEN** the App is not installed on the organisation
+- **THEN** only a public membership counts
+
+#### Scenario: A name with a slash
+
+- **WHEN** a login or organisation name contains characters that mean something in a path
+- **THEN** it is encoded and cannot change which resource is asked about
+
 ### Requirement: A person sees only what the App and they share
 
 The system SHALL list the repositories of every installation the person can reach, following pagination, using the person's own token, so that no access table is kept.

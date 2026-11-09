@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from urllib.parse import quote
 
 import httpx
 import jwt
@@ -12,6 +13,7 @@ from shelf.domain.model import RepoRef
 JWT_LIFETIME = timedelta(minutes=9)
 """GitHub accepts at most ten minutes."""
 CLOCK_SKEW = timedelta(seconds=30)
+NOT_FOUND = 404
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,6 +47,19 @@ async def installation_id(client: httpx.AsyncClient, settings: GitHubAppSettings
     response = await client.get(
         f"{settings.api_url}/repos/{repo.full_name}/installation", headers=_headers(app_jwt(settings, now))
     )
+    response.raise_for_status()
+    return int(response.json()["id"])
+
+
+async def organisation_installation_id(
+    client: httpx.AsyncClient, settings: GitHubAppSettings, organisation: str, now: datetime
+) -> int | None:
+    """The id of the installation on ``organisation``, or ``None`` when the App is not installed there."""
+    response = await client.get(
+        f"{settings.api_url}/orgs/{quote(organisation, safe='')}/installation", headers=_headers(app_jwt(settings, now))
+    )
+    if response.status_code == NOT_FOUND:
+        return None
     response.raise_for_status()
     return int(response.json()["id"])
 
