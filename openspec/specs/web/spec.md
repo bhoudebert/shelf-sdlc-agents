@@ -306,6 +306,11 @@ The system SHALL show on the work page the request, the spec, the design and the
 - **WHEN** the work waits at the spec approval
 - **THEN** the spec is open on the page beside the decision buttons
 
+#### Scenario: A wide window
+
+- **WHEN** a document is open in a wide window
+- **THEN** its text uses the whole width of the folded panel instead of a narrow column inside it
+
 #### Scenario: Hostile content
 
 - **WHEN** a document contains a script tag or a javascript link
