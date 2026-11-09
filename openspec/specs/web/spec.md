@@ -275,6 +275,20 @@ The system SHALL show the interface in its light theme by default, whatever the 
 - **WHEN** the person has chosen dark with the toggle
 - **THEN** the next page is dark from the first paint
 
+### Requirement: Decoration never competes with reading
+
+The system SHALL keep its decoration (the star field, the orbits behind a status, the nebulae of the dark theme) faint and behind the content, never moving and never on top of text, and SHALL keep every text and its background at a WCAG AA contrast in both themes; where the board shows how far a piece of work has gone, each state of a phase SHALL differ by shape as well as colour.
+
+#### Scenario: A stopped piece of work on the board
+
+- **WHEN** a piece of work was aborted at the design phase
+- **THEN** its row shows the earlier phases as filled nodes, the design phase as a diamond and the later phases as hollow nodes, next to the word for its phase
+
+#### Scenario: Reduced motion
+
+- **WHEN** the person's system asks for reduced motion
+- **THEN** nothing on the page moves, decoration included
+
 ### Requirement: The pipeline timeline is readable without colour
 
 The system SHALL show every phase of the pipeline on the work page with a distinct glyph and word for done, in progress, waiting, stopped and not yet reached, and SHALL mark the current phase for assistive technology.
