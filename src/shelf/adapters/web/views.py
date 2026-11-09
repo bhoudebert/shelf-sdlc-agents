@@ -177,6 +177,9 @@ def elapsed(iso: str, now: datetime) -> str:
 
 _PULL = re.compile(r"/pull/(\d+)/?$")
 
+NO_DOCUMENTS = frozenset({EntryPoint.PULL_REQUEST_REVIEW, EntryPoint.PULL_REQUEST_WORK})
+"""The entry points whose work happens on a pull request that exists: no spec, design or plan is ever written."""
+
 FEED_LIMIT = 30
 """How many of the latest comments the work page shows; the rest is on GitHub."""
 

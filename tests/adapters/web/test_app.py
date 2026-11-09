@@ -680,3 +680,14 @@ def test_every_stylesheet_and_script_is_addressed_with_a_fingerprint_so_a_browse
     page = app.client.get("/board").text
     assert re.search(r'href="/static/app\.css\?v=[0-9a-f]{10}"', page)
     assert re.search(r'src="/static/app\.js\?v=[0-9a-f]{10}"', page)
+
+
+def test_the_documents_pane_of_work_on_an_existing_pull_request_does_not_promise_a_spec() -> None:
+    fixture = Fixture(documents=FakeDocuments({}))
+    fixture.sign_in()
+    fixture.runner.views[WorkId("work-1")] = WorkView(
+        WorkId("work-1"), REPO, "alice", EntryPoint.PULL_REQUEST_WORK, Phase.IMPLEMENT
+    )
+    html = fixture.client.get("/work/work-1/documents").text
+    assert "writes no spec, design or plan" in html
+    assert "the spec first" not in html

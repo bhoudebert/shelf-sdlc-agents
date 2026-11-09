@@ -38,6 +38,7 @@ def router(web: Web) -> APIRouter:
             session,
             work_id=work_id,
             docs=views.document_views(found, work.phase),
+            writes_documents=work.entry not in views.NO_DOCUMENTS,
             failed=failed,
             version=version,
         )

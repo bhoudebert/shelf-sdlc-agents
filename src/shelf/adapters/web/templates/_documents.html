@@ -10,6 +10,10 @@
   </details>
   {% endfor %}
   {% else %}
+  {% if writes_documents %}
   <p class="muted">Nothing is written yet. The documents appear here as the agents write them: the spec first.</p>
+  {% else %}
+  <p class="muted">This work happens on a pull request that already exists, so it writes no spec, design or plan. Read what was said in the conversation above and on the pull request.</p>
+  {% endif %}
   {% endif %}
 </section>
