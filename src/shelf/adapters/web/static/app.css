@@ -266,12 +266,14 @@ input:not([type="radio"]):focus-visible, select:focus-visible, textarea:focus-vi
 .start:has(input[value="design"]:checked) .preview li:nth-child(n+4),
 .start:has(input[value="plan"]:checked) .preview li:nth-child(n+6),
 .start:has(input[value="implement"]:checked) .preview li:nth-child(n+7),
+.start:has(input[value="pull_request_work"]:checked) .preview li:nth-child(n+7),
 .start:has(input[value="pull_request_review"]:checked) .preview li:nth-child(n+9) { background: var(--field); color: var(--on-field); box-shadow: none; font-weight: 600; }
 .start:has(input[value="need"]:checked) .preview li:nth-child(n+1)::after,
 .start:has(input[value="spec"]:checked) .preview li:nth-child(n+2)::after,
 .start:has(input[value="design"]:checked) .preview li:nth-child(n+4)::after,
 .start:has(input[value="plan"]:checked) .preview li:nth-child(n+6)::after,
 .start:has(input[value="implement"]:checked) .preview li:nth-child(n+7)::after,
+.start:has(input[value="pull_request_work"]:checked) .preview li:nth-child(n+7)::after,
 .start:has(input[value="pull_request_review"]:checked) .preview li:nth-child(n+9)::after { content: ""; }
 @media (max-width: 960px) { .start { grid-template-columns: 1fr; } .start-preview { display: none; } }
 
