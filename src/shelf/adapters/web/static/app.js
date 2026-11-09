@@ -64,9 +64,29 @@
   }
   document.body.addEventListener("htmx:beforeRequest", function (event) {
     var section = event.detail.elt;
-    if (!section || (section.id !== "panel" && section.id !== "documents")) return;
+    if (!section || (section.id !== "panel" && section.id !== "documents" && section.id !== "conversation")) return;
     if (event.detail.requestConfig && event.detail.requestConfig.verb !== "get") return; // a decision is never held back
     if (inUse(section)) event.preventDefault();
+  });
+
+  // A refreshed conversation keeps what the person had opened: the sections are folded by default, so a redraw would
+  // otherwise close them again under their eyes.
+  var opened = [];
+  document.body.addEventListener("htmx:beforeSwap", function (event) {
+    var section = event.detail.target;
+    if (!section || section.id !== "conversation") return;
+    opened = Array.prototype.map.call(section.querySelectorAll("details[open][data-key]"), function (d) {
+      return d.getAttribute("data-key");
+    });
+  });
+  document.body.addEventListener("htmx:afterSettle", function () {
+    var section = document.getElementById("conversation");
+    if (!section || !opened.length) return;
+    opened.forEach(function (key) {
+      var d = section.querySelector('details[data-key="' + key + '"]');
+      if (d) d.open = true;
+    });
+    opened = [];
   });
 
   // The board is pushed by the server: hold a push while the pointer is over the list, and catch up when it leaves.

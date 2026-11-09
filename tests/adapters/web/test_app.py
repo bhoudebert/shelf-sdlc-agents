@@ -660,3 +660,22 @@ def test_a_person_cannot_read_the_conversation_of_a_repository_they_cannot_see()
         WorkId("work-9"), RepoRef("acme", "secret"), "x", EntryPoint.NEED, Phase.DESIGN
     )
     assert fixture.client.get("/work/work-9/conversation").status_code == 404
+
+
+def test_the_conversation_is_folded_with_the_newest_message_first_and_a_summary_per_agent() -> None:
+    html = with_conversation(FakeConversations(STORY)).client.get("/work/work-1/conversation").text
+    assert html.index("carol") < html.index("Spec writer")  # newest first
+    assert '<details class="story-box" data-key="story">' in html  # the section is folded
+    assert '<details class="msg-fold" data-key="1">' in html  # so is an agent's report, and
+    assert "<summary>" in html
+    assert "1." in html
+    assert html.count('<details class="msg-fold"') == 1  # a person's comment is not folded
+
+
+def test_every_stylesheet_and_script_is_addressed_with_a_fingerprint_so_a_browser_never_keeps_an_old_one(
+    app: Fixture,
+) -> None:
+    app.sign_in()
+    page = app.client.get("/board").text
+    assert re.search(r'href="/static/app\.css\?v=[0-9a-f]{10}"', page)
+    assert re.search(r'src="/static/app\.js\?v=[0-9a-f]{10}"', page)

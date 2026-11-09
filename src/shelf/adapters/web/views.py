@@ -178,20 +178,52 @@ def pull_request_of(url: str) -> int | None:
 class FeedItem:
     """One comment of the conversation, ready to show."""
 
+    number: int
+    """Its place in the whole conversation, counting from the first comment."""
     speaker: str
     voice: str
     """``agent``, ``person`` or ``other``."""
+    headline: str
+    """What it comes to in a few words (an agent's verdict, or its first line)."""
     html: Markup
     when: str
     url: str
+    folded: bool
+    """Whether it is folded until someone opens it: what the agents report is, a person's comment is not."""
+
+
+_VERDICT = re.compile(r"\*\*(Verdict: [^*]+)\*\*")
+_HEADLINE = 90
+
+
+def headline_of(body: str) -> str:
+    """An agent's verdict when it gave one, else the first line that says something, shortened."""
+    verdict = _VERDICT.search(body)
+    if verdict:
+        return verdict.group(1).strip()
+    for line in body.splitlines():
+        text = " ".join(line.replace("*", "").replace("`", "").lstrip("#>- ").split())
+        if text:
+            return text if len(text) <= _HEADLINE else text[: _HEADLINE - 1].rstrip() + "…"
+    return ""
 
 
 def feed(story: Sequence[Message]) -> list[FeedItem]:
-    """The latest comments, oldest first, rendered for reading (never as active content)."""
+    """The latest comments, newest first, each numbered by its place in the conversation and rendered for reading."""
     shown = [message for message in story if message.voice is not Voice.SUMMARY and message.body.strip()]
+    first = len(shown) - len(shown[-FEED_LIMIT:])
     return [
-        FeedItem(message.speaker, message.voice.value, render_markdown(message.body), clock(message.when), message.url)
-        for message in shown[-FEED_LIMIT:]
+        FeedItem(
+            first + offset + 1,
+            message.speaker,
+            message.voice.value,
+            headline_of(message.body),
+            render_markdown(message.body),
+            clock(message.when),
+            message.url,
+            folded=message.voice is Voice.AGENT,
+        )
+        for offset, message in reversed(list(enumerate(shown[-FEED_LIMIT:])))
     ]
 
 

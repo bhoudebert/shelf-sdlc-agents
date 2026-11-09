@@ -6,11 +6,14 @@ import pytest
 
 from shelf.adapters.web.sessions import LIFETIME, SessionStore
 from shelf.adapters.web.views import (
+    FEED_LIMIT,
     Status,
     ago,
     decision_options,
     document_views,
     entry_options,
+    feed,
+    headline_of,
     item_view,
     render_markdown,
     timeline,
@@ -18,6 +21,7 @@ from shelf.adapters.web.views import (
 )
 from shelf.domain.model import Identity, RepoRef, WorkId, WorkView
 from shelf.domain.pipeline import EntryPoint, Phase
+from shelf.domain.story import Message, Voice
 from shelf.domain.work import Outcome, Reason
 
 NOW = datetime(2026, 11, 8, 12, 0, tzinfo=UTC)
@@ -177,3 +181,44 @@ def test_the_timeline_says_when_each_step_last_did_something() -> None:
     shown = {step.label: step.at for step in timeline(work)}
     assert shown["Design"] == "8 Nov 09:12 UTC"
     assert shown["Spec"] == ""
+
+
+def message(voice: Voice, speaker: str, body: str, when: str = "2026-11-09T09:12:00Z") -> Message:
+    return Message(voice, speaker, body, when, "https://github.com/c/1")
+
+
+def test_the_feed_lists_the_newest_first_numbered_by_their_place_in_the_whole_conversation() -> None:
+    items = feed(
+        [
+            message(Voice.AGENT, "Spec writer", "wrote it"),
+            message(Voice.SUMMARY, "Progress", "table"),
+            message(Voice.AGENT, "Spec reviewer", "**Verdict: escalate**\n\nunclear"),
+            message(Voice.PERSON, "carol", "ok"),
+        ]
+    )
+    assert [(item.number, item.speaker) for item in items] == [(3, "carol"), (2, "Spec reviewer"), (1, "Spec writer")]
+
+
+def test_an_agents_entry_is_folded_with_its_verdict_as_summary_and_a_persons_is_not() -> None:
+    items = feed(
+        [
+            message(Voice.AGENT, "Spec reviewer", "**Verdict: escalate**\n\nunclear"),
+            message(Voice.PERSON, "carol", "ok"),
+        ]
+    )
+    person, agent = items
+    assert (agent.folded, agent.headline) == (True, "Verdict: escalate")
+    assert (person.folded, person.headline) == (False, "ok")
+
+
+def test_without_a_verdict_the_headline_is_the_first_line_that_says_something() -> None:
+    assert headline_of("\n## Round 1.\n\nI changed things") == "Round 1."
+    assert headline_of("x" * 200).endswith("…")
+    assert headline_of("") == ""
+
+
+def test_only_the_latest_comments_are_shown_but_numbers_keep_their_place() -> None:
+    story = [message(Voice.PERSON, "p", f"m{n}") for n in range(FEED_LIMIT + 5)]
+    items = feed(story)
+    assert len(items) == FEED_LIMIT
+    assert (items[0].number, items[-1].number) == (FEED_LIMIT + 5, 6)
