@@ -137,6 +137,15 @@ The system SHALL read, as the App, every comment of a pull request (up to five p
 - **WHEN** a pull request has an agent's comment, the progress comment and a person's comment
 - **THEN** the story holds the agent's and the person's, in order
 
+### Requirement: A person's view of a pull request is asked as that person
+
+The system SHALL ask GitHub, with the person's own token and not the App's, whether a pull request exists and is visible to them, so that what a person may start is limited by what they can see.
+
+#### Scenario: A pull request the person cannot see
+
+- **WHEN** GitHub answers 404 to the person's token
+- **THEN** the pull request is treated as not existing for them
+
 ### Requirement: The CI of a pull request is read as the App
 
 The system SHALL read, as the App, the check runs of the head commit of a pull request (with the summary and the annotations of the ones that failed) and its commit statuses, and SHALL carry on without statuses when GitHub refuses them to the App.

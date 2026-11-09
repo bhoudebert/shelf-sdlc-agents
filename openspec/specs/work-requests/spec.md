@@ -29,6 +29,20 @@ The system SHALL refuse a start request whose entry point the repository disable
 - **WHEN** a person starts a pull-request review with a pull request number and no text
 - **THEN** the work starts
 
+### Requirement: A review starts only on a pull request the repository has
+
+The system SHALL, before starting a review of a pull request, ask GitHub as the person whether the chosen repository has that pull request, and SHALL refuse the start with a message naming the repository and the number when it does not, so that a work is never started on the wrong repository and left to fail at its first step.
+
+#### Scenario: A number the repository does not have
+
+- **WHEN** a person asks to review pull request 2 of a repository that has none
+- **THEN** nothing starts and the message says that repository has no pull request #2 and to check the repository
+
+#### Scenario: An existing pull request
+
+- **WHEN** the repository has the pull request
+- **THEN** the work starts
+
 ### Requirement: Decisions are checked against the person's role
 
 The system SHALL deliver a decision to the work only if the person may decide at the phase the work waits at, and SHALL refuse it otherwise without changing the work.
