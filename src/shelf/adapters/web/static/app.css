@@ -408,7 +408,8 @@ input:not([type="radio"]):focus-visible, select:focus-visible, textarea:focus-vi
 .doc { background: var(--raised); margin-bottom: 10px; }
 .doc summary { cursor: pointer; padding: 14px 18px; min-height: 48px; display: flex; align-items: center; font-weight: 800; font-size: 1.1rem; letter-spacing: -.01em; }
 .doc[open] summary { background: var(--surface); }
-.prose { padding: 8px clamp(16px, 3vw, 28px) 24px; max-width: 78ch; line-height: 1.6; overflow-wrap: anywhere; }
+.prose { padding: 8px clamp(16px, 3vw, 28px) 24px; line-height: 1.6; overflow-wrap: anywhere; }
+.prose p, .prose li, .prose blockquote { max-width: none; }
 .prose h1, .prose h2, .prose h3, .prose h4 { margin: 1.6em 0 .5em; letter-spacing: -.02em; line-height: 1.2; }
 .prose h1 { font-size: 1.5rem; } .prose h2 { font-size: 1.25rem; } .prose h3, .prose h4 { font-size: 1.05rem; }
 .prose p, .prose ul, .prose ol, .prose pre, .prose blockquote, .prose table { margin: 0 0 1em; }
