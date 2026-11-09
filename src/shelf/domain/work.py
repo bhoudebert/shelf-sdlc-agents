@@ -291,7 +291,7 @@ def _when_waiting(course: Course, state: AwaitingPerson, event: Event) -> Transi
         case PersonDecided(kind=DecisionKind.REJECT):
             return _conclude(Outcome.CLOSED)
         case PersonDecided(kind=DecisionKind.APPROVE) if state.reason in (Reason.GATE, Reason.ESCALATION):
-            return _advance(course, state.phase, 0)
+            return _approved(course, state)
         case PersonDecided(kind=DecisionKind.CHANGES, note=note):
             if course.asks_a_person_after_review and not course.review_is_read_only and not note.strip():
                 # hand over the reviewer's own findings
@@ -331,6 +331,20 @@ def _enter(course: Course, phase: Phase, attempt: int = 0, feedback: str = "") -
             return Transition(Running(phase, attempt, feedback), (RunStep(phase, attempt, feedback),))
         case _ as unreachable:
             assert_never(unreachable)
+
+
+def _approved(course: Course, state: AwaitingPerson) -> Transition:
+    moved = _advance(course, state.phase, 0)
+    if state.reason is Reason.ESCALATION and course.approval_counts_for_the_gate:
+        return _past_gate(course, moved)
+    return moved
+
+
+def _past_gate(course: Course, moved: Transition) -> Transition:
+    """Skip the gate that a person's acceptance of the escalated review just before it already answered."""
+    if isinstance(moved.state, AwaitingPerson) and moved.state.reason is Reason.GATE:
+        return _advance(course, moved.state.phase, 0)
+    return moved
 
 
 def _advance(course: Course, phase: Phase, attempt: int) -> Transition:
