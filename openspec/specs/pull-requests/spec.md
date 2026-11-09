@@ -158,6 +158,11 @@ The system SHALL keep exactly one progress comment, edited in place after every 
 - **WHEN** the work waits at the spec approval
 - **THEN** the progress comment says it waits for a person and for what
 
+#### Scenario: Every step says when
+
+- **WHEN** a step has finished
+- **THEN** its entry in the progress comment carries the date and time it happened in UTC, and the foot of the comment says when the work last did anything; entries recorded before times were kept are shown without one
+
 #### Scenario: The CI is still running
 
 - **WHEN** the checks report that the repository's CI has not finished

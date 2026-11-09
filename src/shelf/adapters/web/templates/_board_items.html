@@ -34,6 +34,7 @@
       <div class="item-where">
         {{ mini(item) }}
         <span class="phase">{{ item.phase }}</span>
+        {% if item.updated %}<span class="when" title="Last action {{ item.updated_at }}">{{ item.updated }}</span>{% endif %}
       </div>
     </li>
   {% endfor %}

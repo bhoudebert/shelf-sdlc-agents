@@ -184,6 +184,8 @@ class TemporalRunner:
             outcome=Outcome(snapshot.outcome) if snapshot.outcome else None,
             pull_request_url=snapshot.pull_request_url or self._link_of(repo, memo.get("pull_request")),
             title=str(memo.get("title") or ""),
+            updated_at=snapshot.updated_at,
+            times=tuple(sorted(snapshot.times.items())),
         )
 
     def _link_of(self, repo: RepoRef, number: object) -> str:

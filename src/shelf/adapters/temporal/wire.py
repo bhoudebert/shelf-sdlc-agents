@@ -4,7 +4,7 @@ Temporal serialises payloads as JSON, and unions of dataclasses do not survive t
 flat and tagged, and the conversions below are the only place that knows both shapes.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from shelf.domain.model import RepoRef, WorkContext, WorkId, WorkRequest
 from shelf.domain.pipeline import EntryPoint, Phase
@@ -92,6 +92,8 @@ class LogEntryDto:
 
     phase: str
     text: str
+    at: str = ""
+    """When it happened (ISO, UTC); empty for entries recorded before times were kept."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,6 +105,8 @@ class ProgressInput:
     phase: str
     reason: str = ""
     outcome: str = ""
+    updated: str = ""
+    """When the work last changed, for the line at the foot of the progress comment."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,6 +146,10 @@ class Snapshot:
     detail: str = ""
     outcome: str = ""
     pull_request_url: str = ""
+    updated_at: str = ""
+    """When the work last did anything (ISO, UTC); empty for work that predates times."""
+    times: dict[str, str] = field(default_factory=dict[str, str])
+    """For each phase, when something last happened there."""
 
 
 def course_of(work: WorkInput) -> Course:
@@ -210,12 +218,24 @@ def decision_of(dto: DecisionDto) -> PersonDecided:
     return PersonDecided(dto.by, DecisionKind(dto.kind), dto.note)
 
 
-def snapshot_of(state: State, last_phase: Phase, pull_request_url: str) -> Snapshot:
+def snapshot_of(
+    state: State, last_phase: Phase, pull_request_url: str, updated_at: str = "", times: dict[str, str] | None = None
+) -> Snapshot:
     """Describe ``state`` for the board; ``last_phase`` is where a finished piece of work ended."""
+    seen = dict(times or {})
     match state:
         case Running(phase):
-            return Snapshot(phase, pull_request_url=pull_request_url)
+            return Snapshot(phase, pull_request_url=pull_request_url, updated_at=updated_at, times=seen)
         case AwaitingPerson(phase, reason, detail):
-            return Snapshot(phase, waiting_for=reason, detail=detail, pull_request_url=pull_request_url)
+            return Snapshot(
+                phase,
+                waiting_for=reason,
+                detail=detail,
+                pull_request_url=pull_request_url,
+                updated_at=updated_at,
+                times=seen,
+            )
         case Finished(outcome):
-            return Snapshot(last_phase, outcome=outcome, pull_request_url=pull_request_url)
+            return Snapshot(
+                last_phase, outcome=outcome, pull_request_url=pull_request_url, updated_at=updated_at, times=seen
+            )

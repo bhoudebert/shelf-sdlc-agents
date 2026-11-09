@@ -186,6 +186,8 @@ async def test_work_from_a_need_publishes_a_pull_request_and_stops_at_the_spec_g
     assert any("Now:** ✅ ready to review and merge" in body for body in pulls.progressed)
     assert "Now:** ✅ merged" in pulls.progressed[-1]
     assert "approved" in pulls.progressed[-1]
+    assert "UTC</sub>" in pulls.progressed[-1], "every step says when it happened"
+    assert "Last action: " in pulls.progressed[-1]
 
 
 async def test_a_reviewer_asking_for_changes_sends_the_work_back_with_the_issues(env: WorkflowEnvironment) -> None:

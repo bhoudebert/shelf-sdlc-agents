@@ -147,6 +147,20 @@ The system SHALL keep, with the workflow's memo and not in its history, the firs
 - **WHEN** work is started with a multi-line request
 - **THEN** the board's view of it carries the request's first line
 
+### Requirement: The workflow knows when it last acted
+
+The system SHALL record, from the workflow's own deterministic clock, when the work last did anything and when something last happened at each phase, SHALL put that in the answer to the board's query and the log entries of the progress comment, and SHALL do so without ordering any command, so that histories recorded before times were kept replay unchanged.
+
+#### Scenario: A moving work
+
+- **WHEN** the work enters a phase and a step finishes
+- **THEN** the answer to the query carries the time of the last action and a time for the phase
+
+#### Scenario: An older history
+
+- **WHEN** a history recorded before times were kept is replayed
+- **THEN** it replays without error
+
 ### Requirement: Work that cannot be read is shown, not hidden
 
 The system SHALL show a piece of work that exists but whose state cannot be read as failed, with the reason, instead of leaving it off the board.

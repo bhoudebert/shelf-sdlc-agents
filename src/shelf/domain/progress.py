@@ -2,6 +2,7 @@
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 from shelf.domain.pipeline import Phase
 from shelf.domain.stage import RUNNING_NAMES
@@ -17,6 +18,17 @@ class Entry:
 
     phase: Phase
     text: str
+    at: str = ""
+    """When it happened (ISO, UTC); empty when unknown."""
+
+
+def clock(iso: str) -> str:
+    """``9 Nov 09:12 UTC`` from an ISO time, or nothing when there is none or it cannot be read."""
+    try:
+        moment = datetime.fromisoformat(iso).astimezone(UTC)
+    except ValueError:
+        return ""
+    return f"{moment.day} {moment:%b %H:%M} UTC"
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,6 +76,11 @@ def _symbol(text: str) -> str:
     return "⚠️"
 
 
+def _at(iso: str) -> str:
+    shown = clock(iso)
+    return f" <sub>{shown}</sub>" if shown else ""
+
+
 def _now(phase: Phase, waiting: Reason | None) -> str:
     if waiting is Reason.MERGE:
         return "✅ ready to review and merge"
@@ -77,11 +94,12 @@ def render_progress(
     phases: Sequence[Phase],
     log: Sequence[Entry],
     position: Position,
+    updated: str = "",
 ) -> str:
     """The markdown of the progress comment: a row per step of the course, what happened, and where the work is."""
     rows: list[str] = []
     for step in phases:
-        events = [f"{_symbol(e.text)} {e.text}" for e in log if e.phase is step]
+        events = [f"{_symbol(e.text)} {e.text}{_at(e.at)}" for e in log if e.phase is step]
         if position.outcome is None and step is position.phase:
             events.append(_now(step, position.waiting))
         rows.append(f"| {RUNNING_NAMES[step].capitalize()} | {' → '.join(events) if events else '·'} |")
@@ -92,4 +110,5 @@ def render_progress(
         Outcome.ABORTED: "aborted",
     }[position.outcome]
     table = "\n".join(["| Step | What happened |", "| --- | --- |", *rows])
-    return f"{marker(work_id)}\n{TITLE}\n\n{table}\n\n**Now:** {state}"
+    last = f"\n\nLast action: {clock(updated)}" if clock(updated) else ""
+    return f"{marker(work_id)}\n{TITLE}\n\n{table}\n\n**Now:** {state}{last}"
