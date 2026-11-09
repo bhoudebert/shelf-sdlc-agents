@@ -2,12 +2,12 @@
   var root = document.documentElement;
   root.classList.add("js");
 
-  // Theme toggle: remembers a manual choice, otherwise follows the system.
+  // Theme toggle: remembers a manual choice, otherwise the page is dark.
   var btn = document.getElementById("theme");
   function current() {
     var t = root.getAttribute("data-theme");
     if (t) return t;
-    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    return "dark";
   }
   if (btn) {
     btn.addEventListener("click", function () {

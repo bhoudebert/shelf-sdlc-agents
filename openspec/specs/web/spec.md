@@ -261,19 +261,24 @@ The system SHALL group the board by what is asked of the person (needs you, runn
 - **WHEN** one piece of work waits for a decision and another runs
 - **THEN** the waiting one is listed first, under its own heading
 
-### Requirement: The interface is light unless the person chose dark
+### Requirement: The interface is dark unless the person chose light
 
-The system SHALL show the interface in its light theme by default, whatever the system's colour preference, and in the dark theme only after the person chose it with the toggle, which SHALL remember the choice in the browser.
+The system SHALL show the interface, and the project's site, in the dark theme by default, whatever the system's colour preference, and in the light theme only after the person chose it with the toggle, which SHALL remember the choice in the browser.
 
-#### Scenario: A first visit on a dark system
+#### Scenario: A first visit on a light system
 
-- **WHEN** a person with no remembered choice opens a page on a system set to dark
-- **THEN** the page is light
+- **WHEN** a person with no remembered choice opens a page on a system set to light
+- **THEN** the page is dark
 
-#### Scenario: A chosen dark theme
+#### Scenario: A chosen light theme
 
-- **WHEN** the person has chosen dark with the toggle
-- **THEN** the next page is dark from the first paint
+- **WHEN** the person has chosen light with the toggle
+- **THEN** the next page is light from the first paint
+
+#### Scenario: Without script
+
+- **WHEN** a page is opened with scripts turned off
+- **THEN** it is dark
 
 ### Requirement: Decoration never competes with reading
 
@@ -307,6 +312,20 @@ The system SHALL show every phase of the pipeline on the work page with a distin
 
 - **WHEN** work was aborted at the design phase
 - **THEN** earlier phases show as done, the design phase as stopped and later phases as not reached
+
+### Requirement: Saying what should change is comfortable
+
+The system SHALL give the box where a person says what should change room to write: a tall box that grows with the text, a column wide enough for it, a line saying that the words are what the agents receive, a draft kept in the browser until the decision is sent, and Ctrl+Enter to send.
+
+#### Scenario: A long note
+
+- **WHEN** a person types a long note into the box
+- **THEN** the box grows with it up to most of the screen's height instead of scrolling inside a few lines
+
+#### Scenario: Leaving by accident
+
+- **WHEN** a person has typed a note, then reloads the page or comes back later
+- **THEN** the text is still in the box until the decision is sent
 
 ### Requirement: Destructive decisions are set apart and confirmed
 

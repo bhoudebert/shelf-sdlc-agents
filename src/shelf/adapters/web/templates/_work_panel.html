@@ -38,7 +38,8 @@
       {% if asks %}
       <div class="ask">
         <label for="note">What should change</label>
-        <textarea id="note" name="note" rows="3"></textarea>
+        <p class="hint" id="note-hint">This is what the agents receive, so say what is wrong and what you expect. It grows as you write, and your draft is kept if you leave the page. Press Ctrl+Enter to send.</p>
+        <textarea id="note" name="note" rows="9" class="roomy" data-draft="work-{{ item.id }}" aria-describedby="note-hint"></textarea>
         <div class="ask-actions">
           {% for decision in asks %}<button class="btn-secondary" name="kind" value="{{ decision.value }}">{{ decision.label }}</button>{% endfor %}
         </div>
