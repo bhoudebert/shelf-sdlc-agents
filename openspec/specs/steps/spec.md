@@ -6,6 +6,25 @@ Carry out one step of the pipeline: a fresh clone, the agent role of the phase (
 
 ## Requirements
 
+### Requirement: A repository with no base branch can still be worked on
+
+The system SHALL, when the base branch cannot be cloned, tell an empty repository (no branch at all) from one that has other branches: for an empty repository it SHALL start the base branch with one empty commit so that the work branch and its pull request have something to be cut from and opened against, and for one that has other branches but not the named base it SHALL stop with the branches it has and the setting that names the right one, never choosing one on its own; a repository that cannot be reached SHALL report git's own error, and a review of a pull request on an empty repository SHALL be refused because there is none.
+
+#### Scenario: A repository that was just created
+
+- **WHEN** work starts on a repository with no commit
+- **THEN** its base branch is created with an empty "initialise the repository" commit, the work branch is cut from it, and the step goes on
+
+#### Scenario: A base branch that is not there
+
+- **WHEN** the repository has branches but not the base the work asks for
+- **THEN** the step stops saying which branches exist and that `base_branch` in `.shelf/config.toml` names the right one
+
+#### Scenario: A repository that cannot be reached
+
+- **WHEN** the clone fails and the repository cannot be listed either
+- **THEN** git's own error is reported, with credentials hidden
+
 ### Requirement: Every step runs in a fresh clone that is removed afterwards
 
 The system SHALL clone the repository anew for each step, continue the work's branch if an earlier step pushed it, and remove the clone when the step ends, whatever its outcome.

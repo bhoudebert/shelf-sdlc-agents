@@ -204,3 +204,50 @@ async def test_the_author_having_pushed_meanwhile_is_never_overwritten(origin: P
         with pytest.raises(RuntimeError):
             await workspace.commit_and_push("chore: ours")
     assert git(origin, "log", "--format=%s", "-1", "feat/x") == "feat: y"
+
+
+@pytest.fixture
+def empty_origin(tmp_path: Path) -> Path:
+    bare = tmp_path / "empty.git"
+    git(tmp_path, "init", "--quiet", "--bare", "--initial-branch=main", str(bare))
+    return bare
+
+
+async def test_an_empty_repository_gets_its_base_branch_and_the_work_goes_on(
+    empty_origin: Path, tmp_path: Path
+) -> None:
+    async with workspaces(empty_origin, tmp_path).open(checkout()) as workspace:
+        (workspace.path / "docs").mkdir()
+        (workspace.path / "docs" / "spec.md").write_text("spec\n")
+        assert await workspace.commit_and_push("chore(shelf): intake")
+    assert git(empty_origin, "log", "--format=%s", "main") == "chore: initialise the repository"
+    assert git(empty_origin, "log", "--format=%s", "-1", "shelf/work-1") == "chore(shelf): intake"
+    assert git(empty_origin, "merge-base", "main", "shelf/work-1") == git(empty_origin, "rev-parse", "main")
+
+
+async def test_a_repository_without_the_named_base_says_which_branches_it_has(tmp_path: Path) -> None:
+    other = tmp_path / "other.git"
+    seed = tmp_path / "seed"
+    git(tmp_path, "init", "--quiet", "--bare", "--initial-branch=master", str(other))
+    git(tmp_path, "init", "--quiet", "--initial-branch=master", str(seed))
+    git(seed, "config", "user.name", "seed")
+    git(seed, "config", "user.email", "seed@example.org")
+    git(seed, "commit", "--quiet", "--allow-empty", "-m", "seed")
+    git(seed, "remote", "add", "origin", str(other))
+    git(seed, "push", "--quiet", "origin", "master")
+    with pytest.raises(RuntimeError, match=r"no branch 'main'.*master.*base_branch"):
+        async with workspaces(other, tmp_path).open(checkout()):
+            pass
+    assert "main" not in git(other, "branch", "--list")
+
+
+async def test_a_review_of_a_pull_request_on_an_empty_repository_is_refused(empty_origin: Path, tmp_path: Path) -> None:
+    with pytest.raises(RuntimeError, match="is empty"):
+        async with workspaces(empty_origin, tmp_path).open(checkout(pull_request=3)):
+            pass
+
+
+async def test_a_repository_that_cannot_be_reached_reports_git_s_own_error(tmp_path: Path) -> None:
+    with pytest.raises(RuntimeError, match="git clone failed"):
+        async with workspaces(tmp_path / "nowhere.git", tmp_path).open(checkout()):
+            pass
