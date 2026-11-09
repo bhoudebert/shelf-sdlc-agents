@@ -17,7 +17,7 @@
 <h2 id="permissions">Repository permissions</h2>
 <div class="table-wrap"><table><thead><tr><th>Permission</th><th>Access</th></tr></thead><tbody>
 <tr><td>Contents</td><td>Read and write</td></tr><tr><td>Pull requests</td><td>Read and write</td></tr>
-<tr><td>Issues</td><td>Read and write</td></tr><tr><td>Checks</td><td>Read</td></tr><tr><td>Metadata</td><td>Read</td></tr></tbody></table></div>
+<tr><td>Issues</td><td>Read and write</td></tr><tr><td>Checks</td><td>Read</td></tr><tr><td>Actions</td><td>Read (so the agents can read why a CI job failed)</td></tr><tr><td>Metadata</td><td>Read</td></tr></tbody></table></div>
 <p><strong>Workflows is optional, and off by default.</strong> GitHub refuses any push that changes <code>.github/workflows</code> unless the App has it. Granting it lets agents edit CI files, and a changed workflow runs with the repository&rsquo;s secrets, so turn it on if you want that and keep GitHub&rsquo;s safeguards on: a CODEOWNERS line for <code>.github/</code> with code-owner review required, environments with required reviewers for deploy secrets, and approval for workflows from forks. They apply to the agents&rsquo; changes as to anyone&rsquo;s. Under Permissions &amp; events set Workflows to Read and write, then accept the change on each installation. The admin page shows whether it is granted. Without it, a step that must change a workflow fails with this explanation.</p>
 <h2 id="events">Webhook events</h2>
 <ul><li><code>pull_request</code></li><li><code>issue_comment</code></li></ul>

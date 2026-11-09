@@ -248,6 +248,15 @@ The system SHALL wire, when the App's credentials are present, the means to read
 - **WHEN** the web service starts with the App's id and private key
 - **THEN** the admin page can ask GitHub about the App without further configuration
 
+### Requirement: The worker image carries the GitHub command line
+
+The system SHALL build the worker image with the GitHub command line, pinned and checked against its published checksum, so that an agent can read the CI runs of its pull request with the installation token it is given.
+
+#### Scenario: The image is built
+
+- **WHEN** the image is built for amd64 or arm64
+- **THEN** `gh` is on the path and its download matched the pinned checksum
+
 ### Requirement: The worker keeps a cache for each repository's tools
 
 The system SHALL ship the worker image with a pinned, checksum-verified `mise` and no toolchain, and give the worker a persistent volume, owned by the image's user, where the tools and package caches of each repository are kept.

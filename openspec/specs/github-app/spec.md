@@ -118,6 +118,20 @@ The system SHALL read, as the App, the check runs of the head commit of a pull r
 - **WHEN** GitHub answers 403 for the commit statuses
 - **THEN** the CI is judged from the check runs alone
 
+### Requirement: A failing job's log reaches the agents
+
+The system SHALL request the Actions permission at read, SHALL read as the App the end of the log of each failing GitHub Actions job of a pull request's head commit, and SHALL say in the report when it could not (permission missing, or the log expired) instead of leaving the report without detail. The admin check SHALL list a missing Actions permission as an error, because without the log the developer cannot see why a job failed.
+
+#### Scenario: The log is readable
+
+- **WHEN** a GitHub Actions job failed
+- **THEN** the report of the run carries the last lines of its log
+
+#### Scenario: The App lacks the permission
+
+- **WHEN** GitHub refuses the log with 403
+- **THEN** the report says the log could not be read because the App lacks the Actions permission, and the admin check lists that permission as missing
+
 ### Requirement: The Workflows permission is off by default and its state is shown
 
 The system SHALL NOT request the Workflows permission, because a changed workflow runs with the repository's secrets, SHALL report on the admin page whether the App has it, as a confirmation either way, and SHALL explain how to grant it and, when granted, which GitHub safeguards keep changed workflows reviewed (code owners for `.github/`, environments with required reviewers, approval for fork workflows).

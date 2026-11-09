@@ -127,6 +127,15 @@ The system SHALL, once the repository's own commands pass, read the CI of the pu
 - **WHEN** a configured command exits non-zero
 - **THEN** the checks fail at once without reading the CI
 
+### Requirement: The developer sees the CI too
+
+The system SHALL give the developer, in its task, the state of the CI of the pull request and, for each failing run, what it reported including the end of the job's log, so that it fixes the cause without being able to reach GitHub itself, and SHALL tell it to read the first real error and never to answer that it cannot see the CI. The worker image SHALL carry the GitHub command line, so that an agent may look further with the token it is given.
+
+#### Scenario: A round after a red CI
+
+- **WHEN** the developer is asked to fix a red CI
+- **THEN** its task names the failing runs with their logs
+
 ### Requirement: A reviewer never approves over a CI that is red or unfinished
 
 The system SHALL give the code reviewer the state of the CI of the pull request and SHALL turn an approval into changes requested when the CI is red, and into a request for a person when it is not finished or waits for approval, whatever the reviewer's own verdict. The reviewer SHALL be told to read the whole picture (the repository's agent instructions, specs and decisions including older ones, and the CI workflows) and not only the diff.
