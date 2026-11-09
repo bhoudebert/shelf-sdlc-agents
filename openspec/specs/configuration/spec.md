@@ -6,6 +6,20 @@ Let the operator configure an instance and each repository configure itself, in 
 
 ## Requirements
 
+### Requirement: The operator's file is read again when it changes
+
+The system SHALL read `shelf.toml` strictly at start, so that a mistake stops the program, and again whenever its inode, modification time or size changes, taking the new access list only when the file is valid; the mode is read at start only.
+
+#### Scenario: A valid edit
+
+- **WHEN** the file changes to a valid list of users
+- **THEN** the next access decision uses the new list
+
+#### Scenario: An invalid edit
+
+- **WHEN** the file changes to something that cannot be parsed
+- **THEN** the previous configuration is kept and the error is logged
+
 ### Requirement: The operator file sets the mode and the access list
 
 The system SHALL read `mode` (local or server) and the `[access]` lists of organisations, users and administrators from the operator's file, treating an empty file as a local instance that nobody may sign in to.

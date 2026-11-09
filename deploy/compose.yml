@@ -22,8 +22,10 @@ x-shelf: &shelf
     SHELF_CONFIG: /etc/shelf/shelf.toml
     GITHUB_APP_PRIVATE_KEY_PATH: /run/secrets/github-app.pem
   volumes:
-    # The operator's access list and mode (deploy/shelf.toml, created from shelf.toml.example by install.sh). Read-only.
-    - ./shelf.toml:/etc/shelf/shelf.toml:ro
+    # The operator's access list and mode (deploy/config/shelf.toml, created from shelf.toml.example by install.sh). Read-only.
+    # A directory is mounted, not the file: an editor that saves by replacing the file would otherwise leave the container
+    # looking at the old copy.
+    - ./config:/etc/shelf:ro
     # The GitHub App's private key: put the .pem you downloaded at deploy/secrets/github-app.pem. A directory is mounted, not
     # the file, so a missing key never makes Docker invent a directory in its place.
     - ./secrets:/run/secrets:ro
@@ -77,7 +79,7 @@ services:
       SHELF_CACHE_DIR: /cache
     # A `volumes` key replaces the shared one, so the shared mounts are repeated here.
     volumes:
-      - ./shelf.toml:/etc/shelf/shelf.toml:ro
+      - ./config:/etc/shelf:ro
       - ./secrets:/run/secrets:ro
       - worker-cache:/cache
     # The agents' sandbox (bubblewrap) needs user namespaces, which the default seccomp profile blocks. This is the only

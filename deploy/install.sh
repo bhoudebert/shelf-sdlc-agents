@@ -47,9 +47,14 @@ if [ -z "$(value WEB_BIND)" ]; then
 fi
 
 # Your access file is yours: created once from the example, then never touched or committed.
-if [ ! -f "$here/shelf.toml" ]; then
-  cp "$here/shelf.toml.example" "$here/shelf.toml"
-  echo "Created $here/shelf.toml from the example. Edit it to say who may sign in (it ships open to any GitHub account)."
+mkdir -p "$here/config"
+if [ -f "$here/shelf.toml" ] && [ ! -f "$here/config/shelf.toml" ]; then
+  mv "$here/shelf.toml" "$here/config/shelf.toml"
+  echo "Moved $here/shelf.toml to $here/config/shelf.toml (a folder is mounted so that edits are always seen)."
+fi
+if [ ! -f "$here/config/shelf.toml" ]; then
+  cp "$here/shelf.toml.example" "$here/config/shelf.toml"
+  echo "Created $here/config/shelf.toml from the example. Edit it to say who may sign in (it ships open to any GitHub account)."
 fi
 
 # If the GitHub App is configured, its private key must be there: a file in deploy/secrets (or inline in the env file).
@@ -64,16 +69,16 @@ fi
 
 # The access file must be valid TOML: say so now, not after a build and a crash loop.
 if command -v python3 >/dev/null 2>&1 && python3 -c 'import tomllib' 2>/dev/null; then
-  if ! python3 -c 'import sys, tomllib; tomllib.load(open(sys.argv[1], "rb"))' "$here/shelf.toml" 2>/tmp/shelf-toml-error; then
-    echo "ERROR: $here/shelf.toml is not valid TOML: $(tail -n 1 /tmp/shelf-toml-error)" >&2
+  if ! python3 -c 'import sys, tomllib; tomllib.load(open(sys.argv[1], "rb"))' "$here/config/shelf.toml" 2>/tmp/shelf-toml-error; then
+    echo "ERROR: $here/config/shelf.toml is not valid TOML: $(tail -n 1 /tmp/shelf-toml-error)" >&2
     echo "       Names go in quotes, for example: users = [\"alice\", \"bob\"]" >&2
     exit 1
   fi
 fi
 
 # Say loudly when nobody is listed: the instance is closed by default, so nobody could sign in.
-if ! grep -Eq '^[[:space:]]*(orgs|users|admins)[[:space:]]*=[[:space:]]*\[[[:space:]]*"' "$here/shelf.toml"; then
-  echo "WARNING: $here/shelf.toml lists no organisation, user or admin: NOBODY can sign in, you included. Add yourself, for example admins = [\"your-github-login\"], then run this script again." >&2
+if ! grep -Eq '^[[:space:]]*(orgs|users|admins)[[:space:]]*=[[:space:]]*\[[[:space:]]*"' "$here/config/shelf.toml"; then
+  echo "WARNING: $here/config/shelf.toml lists no organisation, user or admin: NOBODY can sign in, you included. Add yourself, for example admins = [\"your-github-login\"], then run this script again." >&2
 fi
 
 # The revision this checkout is at. It is built into the image and reported by /healthz, so you can see what really runs.

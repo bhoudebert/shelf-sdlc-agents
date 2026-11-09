@@ -15,7 +15,7 @@ from shelf.adapters.caching.documents import CachedDocuments
 from shelf.adapters.claude_agent.backend import ClaudeBackend
 from shelf.adapters.claude_agent.prompts import load_prompt
 from shelf.adapters.config.github import GitHubRepoConfigs
-from shelf.adapters.config.toml_files import parse_operator
+from shelf.adapters.config.operator_file import OperatorFile, read_operator
 from shelf.adapters.git.workspace import GitWorkspaces
 from shelf.adapters.github_app.app_auth import installation_id, installation_token
 from shelf.adapters.github_app.context_sources import GitHubContextSources
@@ -29,7 +29,6 @@ from shelf.adapters.github_app.settings import GitHubAppSettings
 from shelf.adapters.temporal.runner import TemporalRunner
 from shelf.application.steps import Steps
 from shelf.domain.access import may_act_from_github
-from shelf.domain.config import InvalidConfigError
 from shelf.domain.model import RepoRef
 from shelf.domain.operator import OperatorConfig
 from shelf.domain.toolchain import allowed_domains
@@ -45,16 +44,7 @@ def app_settings(app: GitHubApp) -> GitHubAppSettings:
 
 def load_operator(settings: Settings) -> OperatorConfig:
     """Read ``shelf.toml``. Without one, or with an empty access list, nobody can sign in, which is logged loudly."""
-    if not settings.config_path.exists():
-        log.warning(
-            "%s not found: NOBODY can sign in until it names users, admins or organisations", settings.config_path
-        )
-        return OperatorConfig()
-    try:
-        return parse_operator(settings.config_path.read_text(encoding="utf-8"))
-    except InvalidConfigError as error:
-        message = f'{settings.config_path} is not valid: {error}. Names go in quotes, e.g. users = ["alice", "bob"]'
-        raise InvalidConfigError(message) from error
+    return read_operator(settings.config_path)
 
 
 def token_source(client: httpx.AsyncClient, github: GitHubAppSettings) -> Callable[[RepoRef], Awaitable[str]]:
@@ -78,11 +68,14 @@ class Services:
     steps: Steps
     runner: TemporalRunner
     operator: OperatorConfig
+    """The configuration read at start: the mode."""
     documents: CachedDocuments
     inspector: GitHubAppInspector
     conversations: CachedConversations
     references: GitHubReferences
     context_sources: GitHubContextSources
+    current_operator: Callable[[], OperatorConfig]
+    """The configuration in force now: the access list follows an edit of the file."""
 
 
 async def connect(settings: Settings) -> Client:
@@ -93,9 +86,12 @@ async def connect(settings: Settings) -> Client:
 def build_services(settings: Settings, github: GitHubApp, client: httpx.AsyncClient, temporal: Client) -> Services:
     """Join every adapter to its port."""
     app = app_settings(github)
-    operator = load_operator(settings)
+    file = OperatorFile(settings.config_path)
+    operator = file.current()
     if not operator.access.is_configured:
-        log.warning("The access list is empty: NOBODY can sign in. Edit deploy/shelf.toml (users, admins or orgs).")
+        log.warning(
+            "The access list is empty: NOBODY can sign in. Edit deploy/config/shelf.toml (users, admins or orgs)."
+        )
     token_for = token_source(client, app)
     configs = GitHubRepoConfigs(client, app.api_url, token_for)
 
@@ -103,7 +99,7 @@ def build_services(settings: Settings, github: GitHubApp, client: httpx.AsyncCli
         return (await configs.load(repo)).base_branch
 
     def may_act(login: str, association: str, owner: str) -> bool:
-        return may_act_from_github(operator.access, login, association, owner)
+        return may_act_from_github(file.current().access, login, association, owner)
 
     pulls = GitHubPullRequests(client, app, token_for, base_branch, may_act)
     context_cache = Path(settings.cache_dir) / "context" if settings.cache_dir else None
@@ -143,4 +139,5 @@ def build_services(settings: Settings, github: GitHubApp, client: httpx.AsyncCli
         CachedConversations(GitHubConversations(client, app, token_for)),
         GitHubReferences(client, app, token_for),
         context_sources,
+        file.current,
     )

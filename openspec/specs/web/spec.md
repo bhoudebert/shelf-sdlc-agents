@@ -20,6 +20,20 @@ The system SHALL send a visitor through GitHub's OAuth flow with a state value t
 - **WHEN** the callback carries a state that does not match the cookie
 - **THEN** it is refused
 
+### Requirement: The web service uses the access list in force now
+
+The system SHALL decide who may sign in, who is an administrator and who may decide on a piece of work from the access list as it is when the question is asked, so that an edit of `shelf.toml` applies to the next sign-in and the next decision without a restart.
+
+#### Scenario: A person added while the service runs
+
+- **WHEN** an operator adds a person to the access list after the service started
+- **THEN** that person can sign in on their next attempt
+
+#### Scenario: An administrator removed
+
+- **WHEN** an operator removes an administrator from the list
+- **THEN** their next request to an administrator page is refused
+
 ### Requirement: Installing the App lands on the board
 
 The system SHALL answer the address GitHub redirects to after the App is installed by sending the person to the board, which asks them to sign in first if they are not.

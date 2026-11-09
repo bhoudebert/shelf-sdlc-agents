@@ -52,6 +52,7 @@ async def build(settings: settings_module.Settings) -> FastAPI:
             documents=services.documents,
             inspector=services.inspector,
             conversations=services.conversations,
+            access_source=lambda: services.current_operator().access,
             references=services.references,
             context_sources=services.context_sources,
         )

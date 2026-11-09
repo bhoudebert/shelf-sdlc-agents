@@ -1,6 +1,7 @@
 """What every router shares: the instance's wiring, templates, and the signed cookies that carry a session."""
 
 import hashlib
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from functools import cache
@@ -88,6 +89,13 @@ class WebDeps:
     """Where other repositories are read from to check what a person asks to be read; none without it."""
     conversations: Conversations | None = None
     """Where the pull request's conversation is read from; the page shows none without it."""
+    access_source: Callable[[], AccessRules] | None = None
+    """Where the access list is read from each time it is needed, so an edit of ``shelf.toml`` applies without a
+    restart; ``rules`` is used when there is none."""
+
+    def access(self) -> AccessRules:
+        """The access rules in force now."""
+        return self.access_source() if self.access_source else self.rules
 
 
 @cache
@@ -157,7 +165,7 @@ class Web:
 
     def is_admin(self, session: Session | None) -> bool:
         """Whether the signed-in person administers this instance."""
-        return session is not None and is_admin(self.deps.rules, session.identity.login)
+        return session is not None and is_admin(self.deps.access(), session.identity.login)
 
     async def visible_work(self, session: Session, work_id: str) -> WorkView:
         """The work, if this person may see it (its repository is visible to them, or they administer the instance)."""
