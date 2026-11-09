@@ -6,7 +6,7 @@
 <div class="page">
   <div class="page-head">
     <h1>Board</h1>
-    {% if has_repos %}<a class="btn" href="/start">Start work</a>{% endif %}
+    {% if has_repos %}<span class="head-actions"><a class="btn-secondary" href="{{ install_url }}" target="_blank" rel="noopener noreferrer">Add a repository<span class="vh"> on GitHub (opens in a new tab)</span></a> <a class="btn" href="/start">Start work</a></span>{% endif %}
   </div>
   {% if not has_repos %}
   {% set heading = "No repositories yet" %}
