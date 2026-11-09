@@ -2,6 +2,7 @@
 
 import re
 from dataclasses import dataclass
+from urllib.parse import urlsplit
 
 from shelf.domain.model import RepoRef
 from shelf.domain.result import Err, Ok, Result
@@ -10,12 +11,17 @@ MAX_BYTES = 100_000
 """The most text that is taken from one reference; a longer document is better pointed at than pasted into a prompt."""
 
 MAX_PATH = 200
+MIN_SEGMENTS = 4
+"""An address of this kind has an owner, a repository, a kind and something after it."""
+MIN_BLOB = 2
+"""A file address has a branch and at least one part of a path after ``blob``."""
 TRUSTED_AUTHORS = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
 """Only people with write access: whatever an outsider wrote must never steer the agents."""
 
-_NUMBER = re.compile(r"^#?(\d+)$")
-_THREAD = re.compile(r"^https://github\.com/([\w.-]+)/([\w.-]+)/(?:issues|pull)/(\d+)/?(?:[#?].*)?$")
-_BLOB = re.compile(r"^https://github\.com/([\w.-]+)/([\w.-]+)/blob/([^/]+)/(.+?)(?:[#?].*)?$")
+MAX_REFERENCE = 500
+"""The longest reference that is looked at: an address or a path is short, and nothing longer is worth parsing."""
+
+_NUMBER = re.compile(r"#?[0-9]{1,9}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,20 +53,34 @@ class Imported:
 def parse_reference(text: str, repo: RepoRef) -> Result[Reference, str]:
     """Read what a person typed: ``#12``, an issue or pull request address, a file's address, or a path.
 
-    Only this repository is accepted: the App reads what it is installed on, and no other address is followed.
+    Only this repository is accepted: the App reads what it is installed on, and no other address is followed. Addresses
+    are split into their parts, never matched with a pattern, so nothing a person types can make this slow.
     """
     given = text.strip()
-    if found := _NUMBER.match(given):
-        return Ok(Thread(int(found.group(1))))
-    if found := _THREAD.match(given):
-        wrong = _elsewhere(repo, found.group(1), found.group(2))
-        return Err(wrong) if wrong else Ok(Thread(int(found.group(3))))
-    if found := _BLOB.match(given):
-        wrong = _elsewhere(repo, found.group(1), found.group(2))
-        return Err(wrong) if wrong else _file(found.group(4), found.group(3))
+    if len(given) > MAX_REFERENCE:
+        return Err("that reference is too long to be an issue, a pull request or a path")
+    if _NUMBER.fullmatch(given):
+        return Ok(Thread(int(given.lstrip("#"))))
     if "://" in given:
-        return Err("only an address on GitHub that belongs to this repository can be followed")
+        return _address(given, repo)
     return _file(given)
+
+
+def _address(given: str, repo: RepoRef) -> Result[Reference, str]:
+    """An address on GitHub: an issue, a pull request or a file of this repository."""
+    parts = urlsplit(given)
+    segments = [segment for segment in parts.path.split("/") if segment]
+    if parts.scheme != "https" or parts.netloc.lower() != "github.com" or len(segments) < MIN_SEGMENTS:
+        return Err("only an address on GitHub that belongs to this repository can be followed")
+    wrong = _elsewhere(repo, segments[0], segments[1])
+    if wrong:
+        return Err(wrong)
+    kind, rest = segments[2], segments[3:]
+    if kind in ("issues", "pull") and len(rest) == 1 and rest[0].isdigit():
+        return Ok(Thread(int(rest[0])))
+    if kind == "blob" and len(rest) >= MIN_BLOB:
+        return _file("/".join(rest[1:]), rest[0])
+    return Err("that address is not an issue, a pull request or a file")
 
 
 def _elsewhere(repo: RepoRef, owner: str, name: str) -> str:

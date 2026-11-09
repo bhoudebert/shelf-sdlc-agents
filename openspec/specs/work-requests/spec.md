@@ -72,6 +72,11 @@ The system SHALL accept, with any start, an optional reference to existing mater
 - **WHEN** the address belongs to another repository
 - **THEN** the start is refused and names both repositories
 
+#### Scenario: A reference that is not one
+
+- **WHEN** the reference is longer than five hundred characters, or an address that is not an issue, a pull request or a file of GitHub
+- **THEN** it is refused at once, without being matched against any pattern that a crafted text could slow down
+
 ### Requirement: A review starts only on a pull request the repository has
 
 The system SHALL, before starting a review of a pull request, ask GitHub as the person whether the chosen repository has that pull request, and SHALL refuse the start with a message naming the repository and the number when it does not, so that a work is never started on the wrong repository and left to fail at its first step.

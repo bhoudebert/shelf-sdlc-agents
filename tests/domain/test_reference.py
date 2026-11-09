@@ -61,3 +61,17 @@ def test_imported_text_says_where_it_came_from_and_keeps_what_the_requester_adde
 
 def test_imported_text_alone_has_no_note() -> None:
     assert "Note from the requester" not in combine(Imported("#42", "# Title\n\nbody"), "  ")
+
+
+def test_a_long_or_hostile_reference_is_refused_at_once_and_never_matched_with_a_pattern() -> None:
+    hostile = "https://github.com/-/-/blob/./" + "a#" * 5000
+    assert isinstance(parse_reference(hostile, REPO), Err)
+    assert isinstance(parse_reference("#" * 100_000, REPO), Err)
+    assert isinstance(parse_reference("9" * 400, REPO), Err)  # a number that cannot be a real issue number
+
+
+def test_an_address_that_is_not_a_thread_or_a_file_is_refused_with_why() -> None:
+    result = parse_reference("https://github.com/acme/shop/actions/runs/9", REPO)
+    assert result == Err("that address is not an issue, a pull request or a file")
+    assert isinstance(parse_reference("http://github.com/acme/shop/issues/1", REPO), Err)
+    assert isinstance(parse_reference("https://github.com/acme/shop", REPO), Err)
