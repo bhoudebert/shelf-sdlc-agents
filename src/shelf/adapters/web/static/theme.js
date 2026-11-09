@@ -1,4 +1,4 @@
-// Applies a remembered theme before the first paint. Without it the page follows the system.
+// Applies a remembered theme before the first paint. Without one the page is light.
 (function () {
   try {
     var saved = localStorage.getItem("shelf-theme");
