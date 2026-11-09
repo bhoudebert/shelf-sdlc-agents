@@ -48,3 +48,8 @@ def test_a_finished_work_says_how_it_ended_and_shows_no_current_step() -> None:
     assert "**Now:** ✅ merged" in text
     assert "⏳" not in text
     assert "**Now:** aborted" in render([], Phase.PLAN, outcome=Outcome.ABORTED)
+
+
+def test_a_checks_step_that_waits_for_the_ci_says_so_with_a_waiting_symbol() -> None:
+    assert describe(Verified(passed=False, waiting=True), 0) == "waiting for CI"
+    assert "⏳ waiting for CI" in render([Entry(Phase.VERIFY, "waiting for CI")], Phase.VERIFY)
