@@ -138,9 +138,23 @@ class GitWorkspaces:
             await _git(repo, "config", "user.name", BOT_NAME)
             await _git(repo, "config", "user.email", BOT_EMAIL)
             if checkout.pull_request is not None:
-                await _git(
-                    repo, "fetch", "--quiet", "origin", f"pull/{checkout.pull_request}/head", auth=auth, secrets=secrets
-                )
+                try:
+                    await _git(
+                        repo,
+                        "fetch",
+                        "--quiet",
+                        "origin",
+                        f"pull/{checkout.pull_request}/head",
+                        auth=auth,
+                        secrets=secrets,
+                    )
+                except RuntimeError as error:
+                    message = (
+                        f"Pull request #{checkout.pull_request} could not be fetched from {checkout.repo.full_name}: "
+                        f"that repository has no such pull request, or the App cannot see it. Check that the work "
+                        f"was started on the right repository. ({error})"
+                    )
+                    raise RuntimeError(message) from error
                 await _git(repo, "checkout", "--quiet", "--detach", "FETCH_HEAD")
                 yield GitWorkspace(repo, checkout.branch, pushes=False)
                 return

@@ -168,6 +168,15 @@ The system SHALL, when GitHub refuses a push because it changes `.github/workflo
 - **WHEN** a step's push is refused for the Workflows permission
 - **THEN** the failure the person reads names the permission and how to grant it
 
+### Requirement: A pull request that cannot be fetched is named
+
+The system SHALL, when the checkout of a pull request for a review cannot fetch it, say in the error which pull request of which repository could not be fetched, that the repository may have no such pull request or the App may not see it, and that the work may have been started on the wrong repository, without the token.
+
+#### Scenario: A missing pull request
+
+- **WHEN** a review checkout asks for a pull request the remote does not have
+- **THEN** the error names the pull request and the repository and suggests checking the repository
+
 ### Requirement: Secrets never appear in errors
 
 The system SHALL NOT include the installation token in an error raised by a failed git command.

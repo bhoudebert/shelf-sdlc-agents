@@ -70,6 +70,15 @@ The system SHALL show every piece of work of the repositories the person can see
 - **WHEN** the App is installed on none of the person's repositories
 - **THEN** the board explains how to install it and links to GitHub
 
+### Requirement: A review of a pull request that is not there is refused on the form
+
+The system SHALL answer a start form that asks to review a pull request the chosen repository does not have with the form again and a message naming the repository and the number, and SHALL NOT start anything.
+
+#### Scenario: Wrong repository
+
+- **WHEN** the form asks to review #2 of a repository that has no #2
+- **THEN** the form is shown again with that message and no work exists
+
 ### Requirement: Work starts from a form at any entry point
 
 The system SHALL let a person pick a visible repository, an entry point and the text or pull request number, start the work, and answer a bad request on the form with the reason.

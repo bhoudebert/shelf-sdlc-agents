@@ -313,6 +313,30 @@ The system SHALL provide a script that finds what an Ubuntu 23.10+ host restrict
 - **WHEN** the operator runs it with `--undo`
 - **THEN** Ubuntu's defaults are restored
 
+### Requirement: The operator can replay what a step meets and get a report safe to share
+
+The system SHALL provide `shelf-diagnose`, run where the worker runs with a work id or `owner/repo#number`, that uses the App's real credentials to report, without ever printing a secret, which installation covers the repository and what it was granted and has not accepted yet, what GitHub says the pull request is, what git lists and whether the checkout a review does works, and for a work id the repository, the pull request and the latest failed or timed-out attempts of its workflow with their times and innermost messages. Its exit code SHALL say whether anything failed, and its output SHALL be safe to paste into an issue or a chat.
+
+#### Scenario: A repository the App is not installed on
+
+- **WHEN** the repository has no installation of the App
+- **THEN** the report says so and to install it, and goes no further
+
+#### Scenario: A permission not accepted
+
+- **WHEN** the App asks for a permission that the installation has not accepted
+- **THEN** the report names it with what was asked and what is granted
+
+#### Scenario: A work id
+
+- **WHEN** it is run with a work id
+- **THEN** the report starts from the workflow's own repository and pull request and lists its latest failed attempts
+
+#### Scenario: Secrets
+
+- **WHEN** a secret would appear in any line
+- **THEN** it is blanked
+
 ### Requirement: The operator can check that the agents work
 
 The system SHALL provide a command that runs tiny real agent checks against the instance's configuration in a throwaway repository (a shell, the repository's agent file, the title convention, commands in the sandbox, the credential) and reports each with what to do about a failure.

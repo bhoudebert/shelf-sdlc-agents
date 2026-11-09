@@ -17,6 +17,10 @@ class Forge(Protocol):
         """Who the token belongs to, with the organisations they belong to."""
         ...
 
+    async def pull_request_exists(self, user_token: str, repo: RepoRef, number: int) -> bool:
+        """Whether ``repo`` has a pull request ``number`` that this person can see."""
+        ...
+
     async def repositories(self, user_token: str) -> Sequence[RepoRef]:
         """The repositories the app is installed on that this person can also access."""
         ...

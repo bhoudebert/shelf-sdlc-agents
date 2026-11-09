@@ -29,8 +29,13 @@ async def start_work(
     config = await configs.load(request.repo)
     if request.entry not in config.entries:
         return Err(Invalid(f"{request.entry} is not enabled on {request.repo.full_name}"))
-    if request.entry is EntryPoint.PULL_REQUEST_REVIEW and request.pull_request is None:
-        return Err(Invalid("a pull request number is required to review a pull request"))
+    if request.entry is EntryPoint.PULL_REQUEST_REVIEW:
+        if request.pull_request is None:
+            return Err(Invalid("a pull request number is required to review a pull request"))
+        if not await forge.pull_request_exists(user_token, request.repo, request.pull_request):
+            return Err(
+                Invalid(f"{request.repo.full_name} has no pull request #{request.pull_request}: check the repository")
+            )
     if request.entry is not EntryPoint.PULL_REQUEST_REVIEW and not request.text.strip():
         return Err(Invalid("the request is empty"))
     return Ok(await runner.start(request))

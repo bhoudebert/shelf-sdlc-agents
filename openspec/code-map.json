@@ -151,12 +151,14 @@
         "src/shelf/adapters/web/templates/setup.html",
         "src/shelf/adapters/web/templates/registered.html",
         "Dockerfile",
-        "deploy/*"
+        "deploy/*",
+        "src/shelf/entrypoints/diagnose.py"
       ],
       "tests": [
         "tests/entrypoints/*.py",
         "tests/entrypoints/test_setup.py",
-        "tests/entrypoints/test_doctor.py"
+        "tests/entrypoints/test_doctor.py",
+        "tests/adapters/github_app/test_diagnose.py"
       ]
     }
   }
