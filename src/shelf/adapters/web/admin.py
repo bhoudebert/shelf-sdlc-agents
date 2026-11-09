@@ -30,7 +30,7 @@ def router(web: Web) -> APIRouter:
     async def admin(request: Request, session: Annotated[Session, Depends(web.signed_in)]) -> Response:
         if not web.is_admin(session):
             raise HTTPException(status_code=403, detail="administrators only")
-        settings, rules = web.deps.settings, web.deps.rules
+        settings, rules = web.deps.settings, web.deps.access()
         facts = [
             ("Revision", settings.revision),
             ("Address", settings.public_url),

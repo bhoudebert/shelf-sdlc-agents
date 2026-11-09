@@ -38,7 +38,7 @@ src/shelf/entrypoints   settings, wiring, the web and worker programs, first-run
 src/shelf/prompts       one system prompt per agent role
 openspec/specs          what the system does, as requirements with scenarios
 tests                   mirrors src; Temporal tests run on a real dev server
-deploy                  compose.yml, .env.example, shelf.toml.example, install.sh
+deploy                  compose.yml, .env.example, shelf.toml.example, install.sh (the access list lives in config/shelf.toml)
 site                    the public site (GitHub Pages)
 docs                    this page, the workflow (EVOLVING.md), decision records (adr/)
 ```

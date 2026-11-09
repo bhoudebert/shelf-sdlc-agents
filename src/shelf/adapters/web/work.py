@@ -74,7 +74,7 @@ def router(web: Web) -> APIRouter:  # noqa: C901 - one small closure per route
             result = await decide_work(
                 deps.runner,
                 deps.configs,
-                deps.rules,
+                deps.access(),
                 work_id=WorkId(work_id),
                 login=session.identity.login,
                 kind=decision,

@@ -35,3 +35,4 @@ deploy/secrets/*
 
 # Operator-owned files: created from the .example next to them, never committed
 deploy/shelf.toml
+deploy/config/shelf.toml

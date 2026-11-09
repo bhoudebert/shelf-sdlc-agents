@@ -41,13 +41,13 @@ def router(web: Web) -> APIRouter:
                 )
                 log.info("webhook %s: %s %s", event, work_id, "merged" if merged else "closed")
             case Commented(work_id, login, kind, note, association, owner) if not may_act_from_github(
-                deps.rules, login, association, owner
+                deps.access(), login, association, owner
             ):
                 web.webhooks.record(event, Result.REFUSED, f"{login} is not on the access list: ignored")
                 log.warning("webhook %s: %s on %s ignored: not on the access list", event, login, work_id)
             case Commented(work_id, login, kind, note):
                 result = await decide_work(
-                    deps.runner, deps.configs, deps.rules, work_id=work_id, login=login, kind=kind, note=note
+                    deps.runner, deps.configs, deps.access(), work_id=work_id, login=login, kind=kind, note=note
                 )
                 match result:
                     case Ok():

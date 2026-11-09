@@ -47,7 +47,7 @@ def router(web: Web) -> APIRouter:
         expected = web.read_cookie(request, STATE_COOKIE, STATE_SECONDS)
         if not code or expected is None or not secrets.compare_digest(expected, state):
             raise HTTPException(status_code=400, detail="the sign-in did not start here, or took too long")
-        result = await sign_in(web.deps.forge, web.deps.rules, code)
+        result = await sign_in(web.deps.forge, web.deps.access(), code)
         match result:
             case Err(NotAllowed(reason)):
                 return web.render(request, "denied.html", None, reason=reason)

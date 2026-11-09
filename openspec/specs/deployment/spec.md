@@ -24,6 +24,30 @@ The system SHALL NOT bundle a TLS terminator, and SHALL document that any proxy 
 - **WHEN** an operator wants HTTPS
 - **THEN** they put their own proxy in front of the web port, and the instance reads its public address from `PUBLIC_URL`
 
+### Requirement: The access file is picked up when it changes
+
+The system SHALL read the access list again whenever `shelf.toml` changes, in the web service and in the worker, without a restart, keeping the rules in force when an edit cannot be read or is not valid and saying so in its log; the compose file SHALL mount the folder that holds the file and not the file alone, so that an editor which replaces the file is still seen.
+
+#### Scenario: An edit that adds a person
+
+- **WHEN** an operator adds a user to `shelf.toml` while the instance runs
+- **THEN** that person can sign in on their next attempt, with no restart
+
+#### Scenario: An edit with a typo
+
+- **WHEN** the file is saved with invalid TOML
+- **THEN** the previous access list stays in force and the log names the file and the mistake
+
+#### Scenario: A file that is gone
+
+- **WHEN** the file is deleted while the instance runs
+- **THEN** the previous access list stays in force until the file is back
+
+#### Scenario: An editor that replaces the file
+
+- **WHEN** an editor saves by writing a new file and renaming it over the old one
+- **THEN** the change is seen, because the folder is mounted
+
 ### Requirement: All settings come from the environment and one access file
 
 The system SHALL read its settings from environment variables, naming any required one that is missing, and the access list and mode from a mounted `shelf.toml`, warning loudly when none exists because the instance is then open.

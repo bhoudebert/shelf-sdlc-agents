@@ -82,3 +82,19 @@ def test_the_script_says_while_the_bind_address_is_unset_that_loopback_is_an_opt
     assert "WEB_BIND=127.0.0.1" in run(server).stdout
     write_env(server, WEB_BIND="127.0.0.1")
     assert "WEB_BIND=127.0.0.1 in" not in run(server).stdout
+
+
+def test_an_access_file_in_the_old_place_moves_into_the_mounted_folder(server: Path) -> None:
+    write_env(server)
+    old = server / "deploy" / "shelf.toml"
+    old.write_text('[access]\nusers = ["alice"]\n')
+    done = run(server)
+    assert "Moved" in done.stdout
+    assert not old.exists()
+    assert "alice" in (server / "deploy" / "config" / "shelf.toml").read_text()
+
+
+def test_a_first_install_creates_the_access_file_in_the_mounted_folder(server: Path) -> None:
+    write_env(server)
+    run(server)
+    assert (server / "deploy" / "config" / "shelf.toml").exists()
