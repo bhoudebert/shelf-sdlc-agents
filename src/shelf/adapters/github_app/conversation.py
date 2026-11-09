@@ -19,6 +19,20 @@ class GitHubConversations:
     settings: GitHubAppSettings
     token_for: TokenFor
 
+    async def description(self, repo: RepoRef, pull_request: int) -> str:
+        """The description of the pull request."""
+        token = await self.token_for(repo)
+        response = await self.client.get(
+            f"{self.settings.api_url}/repos/{repo.full_name}/pulls/{pull_request}",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28",
+            },
+        )
+        response.raise_for_status()
+        return str(response.json().get("body") or "")
+
     async def read(self, repo: RepoRef, pull_request: int) -> Sequence[Message]:
         """Every comment of the pull request, as the story it tells, oldest first."""
         token = await self.token_for(repo)

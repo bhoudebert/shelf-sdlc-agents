@@ -92,6 +92,22 @@ class Posted:
     hidden: bool
 
 
+def request_in(description: str) -> tuple[str, bool]:
+    """What a pull request's description says, and whether it is the request this system wrote there.
+
+    The description this system opens a pull request with is its marker, the request and a ``Requested-by`` line; the
+    marker and that line are not part of what was asked. Any other description is returned as it is.
+    """
+    text = description.strip()
+    ours = text.startswith(MARKER)
+    if ours:
+        text = text.partition("-->")[2].strip()
+    lines = text.splitlines()
+    if ours and lines and lines[-1].startswith("Requested-by:"):
+        lines.pop()
+    return "\n".join(lines).strip(), ours
+
+
 def superseded(comments: Sequence[Posted], work_id: str, rerun_from: Phase | None) -> list[str]:
     """The comments of this work that no longer belong on the straight line of the pull request.
 
