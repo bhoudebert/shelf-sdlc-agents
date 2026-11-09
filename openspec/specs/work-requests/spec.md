@@ -48,6 +48,25 @@ The system SHALL, before starting work on an existing pull request, refuse a pul
 - **WHEN** the instruction is empty
 - **THEN** nothing starts
 
+### Requirement: Work may read other public repositories as reference
+
+The system SHALL let a piece of work read up to three other public repositories as reference material, those a person lists on the start form (each as `owner/name`, with an optional `@` branch, tag or commit and an optional `:` folder, or as an address on GitHub) and those a request links to in its own text (a repository, a folder or a file of it, not an issue, a pull request or another kind of address), so that a request such as "implement the CI like https://github.com/foo/bar" needs nothing more. It SHALL refuse a listed repository that is missing or private with the reason, and SHALL leave out a linked one that cannot be read, since a link to a private repository is only a mention. It SHALL never read the repository the work is on this way, never read one twice, and SHALL show on the work's page which repositories it reads. A request that names none SHALL work exactly as before.
+
+#### Scenario: A link in the request
+
+- **WHEN** the request says to do something like a public repository and gives its address
+- **THEN** the work reads that repository as reference without any other field being filled
+
+#### Scenario: A private repository
+
+- **WHEN** a listed repository is private
+- **THEN** the start is refused saying so, while a private repository only linked in the text is left out
+
+#### Scenario: More than three
+
+- **WHEN** a person lists more than three
+- **THEN** the start is refused
+
 ### Requirement: Work may start from existing material, always optionally
 
 The system SHALL accept, with any start, an optional reference to existing material of the same repository: an issue or pull request (`#12` or its address) or a file (a path, or the address of a file), SHALL make what it says the request, said where it came from and followed by whatever the person typed, and SHALL work as before when no reference is given, so that material that does not exist never blocks a start. It SHALL use only what people with write access wrote, refuse an address that belongs to another repository, a path that climbs out of the repository, a folder, a file that is not text and one longer than 100 KB, each with a message that says why, and SHALL accept an empty text when a reference is given.

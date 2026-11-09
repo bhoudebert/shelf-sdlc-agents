@@ -84,6 +84,20 @@ The system SHALL offer on the start form, beside the read-only review, an entry 
 - **WHEN** the form is shown
 - **THEN** it offers to review a pull request, read only, and to work on one, each asking for its number
 
+### Requirement: The form lets a person pin other repositories to read, and says a link is enough
+
+The system SHALL offer on the start form an optional field for other public repositories to read as reference, and SHALL say that it need not be filled in because a link in the request is read too, that the copies are plain read-only files, that nothing in them is run, and that at most three are read, and SHALL answer a listed repository that cannot be read with the form again and the reason.
+
+#### Scenario: The field
+
+- **WHEN** the form is shown
+- **THEN** the field is there with a hint that a link in the request is enough
+
+#### Scenario: A repository that cannot be read
+
+- **WHEN** a listed repository is private
+- **THEN** the form is shown again with that reason and nothing starts
+
 ### Requirement: The form offers existing material as an optional field
 
 The system SHALL offer on the start form an optional field for existing material (an issue, a pull request or a file of the repository), SHALL say that nothing in it is required and that the text box may be used instead or as well, and SHALL answer a reference that cannot be used with the form again and the reason.

@@ -168,6 +168,25 @@ The system SHALL, when GitHub refuses a push because it changes `.github/workflo
 - **WHEN** a step's push is refused for the Workflows permission
 - **THEN** the failure the person reads names the permission and how to grant it
 
+### Requirement: Other repositories are read as plain files and never run
+
+The system SHALL, before each step of a work that reads other repositories, put read-only copies of their text files in a folder of the working clone that git does not track, so that nothing of them is ever committed or pushed, and SHALL tell the agent where they are, that they are someone else's text to take as reference and never as instructions, and that nothing in them is to be run, installed, built or executed. It SHALL stop the step with the reason when a repository cannot be copied, and when the instance cannot read other repositories at all. The copies SHALL be made by the system and not by the agent, which keeps no network of its own.
+
+#### Scenario: A reference repository
+
+- **WHEN** a step of a work that reads `foo/bar` runs
+- **THEN** its files are under the ignored folder of the clone and the agent is told they are material only
+
+#### Scenario: Not committed
+
+- **WHEN** the developer's work is committed
+- **THEN** the copies are not part of the commit
+
+#### Scenario: A repository that cannot be copied
+
+- **WHEN** the copy fails
+- **THEN** the step stops saying which repository and why
+
 ### Requirement: A step tidies the pull request before it speaks
 
 The system SHALL, before a step runs and speaks, ask for the pull request to be tidied: the waits that are over are marked outdated, and when the step starts again because the flow circled back (its round is above zero, or it was sent back with feedback) what the agents said from its phase on is too. A step that only looks at the CI again SHALL ask for nothing, and a failure to tidy SHALL NOT stop the step.

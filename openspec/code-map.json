@@ -40,13 +40,18 @@
         "src/shelf/ports/configs.py",
         "src/shelf/domain/reference.py",
         "src/shelf/ports/references.py",
-        "src/shelf/adapters/github_app/references.py"
+        "src/shelf/adapters/github_app/references.py",
+        "src/shelf/domain/context_repo.py",
+        "src/shelf/ports/context_sources.py",
+        "src/shelf/adapters/github_app/context_sources.py"
       ],
       "tests": [
         "tests/application/test_work.py",
         "tests/fakes.py",
         "tests/domain/test_reference.py",
-        "tests/adapters/github_app/test_references.py"
+        "tests/adapters/github_app/test_references.py",
+        "tests/domain/test_context_repo.py",
+        "tests/adapters/github_app/test_context_sources.py"
       ]
     },
     "durable-workflow": {
