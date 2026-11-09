@@ -23,6 +23,7 @@ orgs   = [&quot;acme&quot;]          # members of these organisations may sign i
 users  = [&quot;alice&quot;, &quot;bob&quot;]  # these users may sign in
 admins = [&quot;alice&quot;]         # may sign in, and may decide at any gate</code></pre>
 <p>Access is closed by default. A person signs in only if they are in <code>users</code> or <code>admins</code>, or belong to an organisation in <code>orgs</code>; everyone else is refused. With all three empty nobody can sign in, you included, so name yourself first. The same list governs <code>/shelf</code> commands written on a pull request: someone outside it is ignored, whatever their rights on the repository.</p>
+<p><strong>Repositories follow the same list.</strong> Anyone can install the GitHub App on an account or organisation of their own, so being able to reach a repository proves nothing. Shell only shows, starts work on and obeys <code>/shelf</code> commands for repositories owned by a listed organisation, a listed user or administrator, or the signed-in person themself. Repositories of any other owner are ignored, even where the App is installed.</p>
 <h2 id="repo">.shelf/config.toml (per repository)</h2>
 <p>Lives in the repository, so changes to who may do what are reviewed like any other change. Every key is optional.</p>
 <pre><code># .shelf/config.toml

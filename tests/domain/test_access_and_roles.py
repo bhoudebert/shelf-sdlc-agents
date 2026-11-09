@@ -1,6 +1,6 @@
 import pytest
 
-from shelf.domain.access import AccessRules, is_admin, may_act_from_github, may_sign_in
+from shelf.domain.access import AccessRules, is_admin, may_act_from_github, may_sign_in, may_use_repository
 from shelf.domain.config import RepoConfig, Role, may_decide
 from shelf.domain.model import Identity, RepoRef
 from shelf.domain.pipeline import Phase
@@ -16,8 +16,11 @@ def test_an_instance_that_lists_nobody_lets_nobody_in() -> None:
 @pytest.mark.parametrize(
     ("login", "association", "owner", "expected"),
     [
-        ("alice", "NONE", "x", True),
-        ("root", "NONE", "x", True),
+        ("alice", "NONE", "acme", True),
+        ("alice", "NONE", "alice", True),
+        ("root", "NONE", "acme", True),
+        ("alice", "NONE", "x", False),
+        ("root", "NONE", "x", False),
         ("bob", "MEMBER", "acme", True),
         ("bob", "OWNER", "acme", True),
         ("bob", "COLLABORATOR", "acme", False),
@@ -90,3 +93,24 @@ def test_a_malformed_repository_name_is_refused(bad: str) -> None:
 def test_map_ok_changes_a_success_and_keeps_a_failure() -> None:
     assert map_ok(Ok(2), lambda n: n * 2) == Ok(4)
     assert map_ok(Err("no"), lambda n: n) == Err("no")
+
+
+@pytest.mark.parametrize(
+    ("owner", "login", "expected"),
+    [
+        ("acme", "", True),
+        ("ACME", "", True),
+        ("alice", "", True),
+        ("root", "", True),
+        ("stranger-org", "", False),
+        ("stranger-org", "mallory", False),
+        ("mallory", "mallory", True),
+        ("Mallory", "mallory", True),
+        ("", "", False),
+    ],
+)
+def test_work_happens_only_on_repositories_of_a_listed_owner_or_the_persons_own_account(
+    owner: str, login: str, *, expected: bool
+) -> None:
+    rules = AccessRules(organisations=frozenset({"acme"}), users=frozenset({"alice"}), admins=frozenset({"root"}))
+    assert may_use_repository(rules, owner, login) is expected

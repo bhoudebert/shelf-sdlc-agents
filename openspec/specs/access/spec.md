@@ -25,6 +25,25 @@ The system SHALL be closed by default: only listed users, administrators and mem
 - **WHEN** a person belongs to a listed organisation but GitHub lists no organisations for their sign-in token
 - **THEN** the organisation is asked about directly, and the person is let in when it says they are a member
 
+### Requirement: Only repositories of a listed owner are served
+
+The system SHALL treat a repository as existing only when its owner is a listed organisation, a listed user or administrator, or the signed-in person's own account, for the board, the start form, the check at the start of work, a pull request looked at for a review, and a `/shelf` command written on a pull request, because anyone can install the App on an account or organisation they own and that must not let them spend the instance's model account there; owner names SHALL compare without regard to case.
+
+#### Scenario: A repository of an organisation nobody listed
+
+- **WHEN** a signed-in person installs the App on an organisation that is not listed and opens the board
+- **THEN** its repositories are not shown and work cannot start on them
+
+#### Scenario: A listed organisation and a person's own account
+
+- **WHEN** a repository belongs to a listed organisation, or to the signed-in person's own account
+- **THEN** it is shown and work may start on it
+
+#### Scenario: A command on an unlisted owner's pull request
+
+- **WHEN** a listed person comments `/shelf approve` on a pull request of a repository whose owner is not listed
+- **THEN** the command is ignored
+
 ### Requirement: GitHub commands obey the same list
 
 The system SHALL act on a `/shelf` command written on a pull request only when its author is a listed user or administrator, or a member or owner of a listed organisation that owns the repository, whether the command arrives by webhook or by polling.

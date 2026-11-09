@@ -24,6 +24,15 @@ The system SHALL NOT bundle a TLS terminator, and SHALL document that any proxy 
 - **WHEN** an operator wants HTTPS
 - **THEN** they put their own proxy in front of the web port, and the instance reads its public address from `PUBLIC_URL`
 
+### Requirement: The web service serves only what the access list names
+
+The system SHALL wire the web service so that every repository it lists or acts on has passed the access list's owner check, whichever page or webhook asks.
+
+#### Scenario: Wired once
+
+- **WHEN** the web service starts with the GitHub App configured
+- **THEN** the forge its pages and webhooks use is the one narrowed to listed owners, not the raw one
+
 ### Requirement: The access file is picked up when it changes
 
 The system SHALL read the access list again whenever `shelf.toml` changes, in the web service and in the worker, without a restart, keeping the rules in force when an edit cannot be read or is not valid and saying so in its log; the compose file SHALL mount the folder that holds the file and not the file alone, so that an editor which replaces the file is still seen.
