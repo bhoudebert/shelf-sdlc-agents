@@ -482,3 +482,33 @@ async def test_a_pull_request_from_a_fork_or_one_that_closed_is_never_worked_on(
     closed = FakePulls(pull=PullInfo("feat/x", "abc", open=False, same_repository=True))
     with pytest.raises(RuntimeError, match="no longer open"):
         await steps(pulls=closed).run(ADOPT, RunStep(Phase.IMPLEMENT, 0, ""))
+
+
+async def test_a_first_step_only_hides_the_waits_that_are_over() -> None:
+    pulls = FakePulls()
+    await steps(pulls=pulls).run(NEED, RunStep(Phase.IMPLEMENT, 0, ""))
+    assert pulls.outdated == [None]
+
+
+async def test_a_step_that_starts_again_after_the_flow_circled_back_hides_from_its_phase_on() -> None:
+    pulls = FakePulls()
+    await steps(pulls=pulls).run(NEED, RunStep(Phase.IMPLEMENT, 1, "rename it"))
+    await steps(pulls=pulls).run(NEED, RunStep(Phase.IMPLEMENT, 0, "a person asked for this"))
+    await steps(pulls=pulls).run(NEED, RunStep(Phase.VERIFY, 1, ""))
+    assert pulls.outdated == [Phase.IMPLEMENT, Phase.IMPLEMENT, Phase.VERIFY]
+
+
+async def test_another_look_at_the_ci_changes_nothing_on_the_pull_request() -> None:
+    pulls = FakePulls()
+    await steps(pulls=pulls, config=ON_CI).run(NEED, RunStep(Phase.VERIFY, 1, WAITING_FOR_CI))
+    assert pulls.outdated == []
+
+
+async def test_github_refusing_to_hide_a_comment_never_stops_the_work() -> None:
+    class Refusing(FakePulls):
+        async def outdate(self, work: WorkContext, rerun_from: Phase | None) -> None:
+            message = "forbidden"
+            raise RuntimeError(message)
+
+    result = await steps(pulls=Refusing()).run(NEED, RunStep(Phase.IMPLEMENT, 1, "x"))
+    assert result == Produced()

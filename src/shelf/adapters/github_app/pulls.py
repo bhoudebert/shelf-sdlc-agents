@@ -17,6 +17,7 @@ from shelf.domain.pipeline import EntryPoint, Phase
 from shelf.domain.progress import marker
 from shelf.domain.roles import documents_dir
 from shelf.domain.stage import PREFIX, Stage
+from shelf.domain.story import Posted, superseded
 from shelf.domain.work import AskPerson, Event, PersonDecided, PullRequestClosed, Reason
 
 COMMENTS_PER_PAGE = 100
@@ -40,6 +41,9 @@ TRUSTED = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
 
 TokenFor = Callable[[RepoRef], Awaitable[str]]
 """Gives an installation token for a repository. Minted per call, never stored."""
+
+_NODE = re.compile(r"[A-Za-z0-9_=-]+")
+"""What a GitHub node id looks like: checked before one is put into a mutation."""
 
 BranchOf = Callable[[WorkContext], str]
 
@@ -203,6 +207,33 @@ class GitHubPullRequests:
         if number is None:  # the pull request is not open yet: the first step's result is in the commit
             return
         await self._call("POST", repo, f"/repos/{repo.full_name}/issues/{number}/comments", json={"body": body})
+
+    async def outdate(self, work: WorkContext, rerun_from: Phase | None) -> None:
+        """Hide as outdated, in one call, what ``superseded`` says no longer belongs on the pull request."""
+        repo = work.request.repo
+        number = await self._number(work)
+        if number is None:
+            return
+        ask = (
+            "query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) "
+            "{ pullRequest(number: $number) { comments(last: 100) { nodes { id body isMinimized } } } } }"
+        )
+        asked = await self._call(
+            "POST",
+            repo,
+            "/graphql",
+            json={"query": ask, "variables": {"owner": repo.owner, "name": repo.name, "number": number}},
+        )
+        nodes: list[Mapping[str, Any]] = asked.json()["data"]["repository"]["pullRequest"]["comments"]["nodes"]
+        posted = [Posted(str(n["id"]), str(n["body"]), bool(n["isMinimized"])) for n in nodes]
+        hide = [node for node in superseded(posted, str(work.id), rerun_from) if _NODE.fullmatch(node)]
+        if not hide:
+            return
+        calls = " ".join(
+            f'h{i}: minimizeComment(input: {{subjectId: "{node}", classifier: OUTDATED}}) {{ clientMutationId }}'
+            for i, node in enumerate(hide)
+        )
+        await self._call("POST", repo, "/graphql", json={"query": f"mutation {{ {calls} }}"})
 
     async def head(self, work: WorkContext) -> PullInfo:
         """The pull request of this work as it is now; raises when there is none."""

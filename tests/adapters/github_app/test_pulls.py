@@ -9,6 +9,7 @@ from shelf.domain.ci import CiState
 from shelf.domain.model import PullInfo, RepoRef, WorkContext, WorkId, WorkRequest
 from shelf.domain.pipeline import EntryPoint, Phase
 from shelf.domain.stage import stage_of
+from shelf.domain.story import agent_comment
 from shelf.domain.work import AskPerson, DecisionKind, PersonDecided, PullRequestClosed, Reason
 
 REPO = RepoRef("acme", "shop")
@@ -377,3 +378,55 @@ def test_work_on_a_pull_request_that_exists_links_no_plan_because_it_writes_none
 def test_work_of_our_own_still_links_its_plan_at_the_merge() -> None:
     text = announcement(NEED, AskPerson(Phase.PULL_REQUEST, Reason.MERGE, ""))
     assert "docs/shelf/work-1/plan.md" in text
+
+
+def graphql_handler(comments: list[dict[str, object]], sent: list[str]) -> httpx.MockTransport:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/pulls") or "/pulls?" in str(request.url):
+            return httpx.Response(200, json=[{"number": 12}])
+        body = json.loads(request.content)
+        sent.append(body["query"])
+        if "comments(last: 100)" in body["query"]:
+            nodes = {"data": {"repository": {"pullRequest": {"comments": {"nodes": comments}}}}}
+            return httpx.Response(200, json=nodes)
+        return httpx.Response(200, json={"data": {}})
+
+    return httpx.MockTransport(handler)
+
+
+async def test_the_comments_that_no_longer_belong_are_hidden_as_outdated_in_one_call(
+    settings: GitHubAppSettings,
+) -> None:
+    sent: list[str] = []
+    comments: list[dict[str, object]] = [
+        {"id": "C1", "body": agent_comment("work-1", "implementer", "round 1"), "isMinimized": False},
+        {"id": "C2", "body": agent_comment("work-1", "intake", "spec"), "isMinimized": False},
+        {"id": "C3", "body": "<!-- shelf:work-1 -->\nwait", "isMinimized": False},
+        {"id": "C4", "body": agent_comment("work-1", "checks", "x"), "isMinimized": True},
+    ]
+    await adapter(settings, graphql_handler(comments, sent)).outdate(NEED, Phase.IMPLEMENT)
+    mutation = sent[-1]
+    assert mutation.startswith("mutation")
+    assert 'subjectId: "C1"' in mutation
+    assert 'subjectId: "C3"' in mutation
+    assert 'subjectId: "C2"' not in mutation  # the spec still holds
+    assert 'subjectId: "C4"' not in mutation  # already hidden
+    assert mutation.count("classifier: OUTDATED") == 2
+
+
+async def test_nothing_is_sent_when_nothing_needs_hiding(settings: GitHubAppSettings) -> None:
+    sent: list[str] = []
+    comments: list[dict[str, object]] = [
+        {"id": "C2", "body": agent_comment("work-1", "intake", "spec"), "isMinimized": False}
+    ]
+    await adapter(settings, graphql_handler(comments, sent)).outdate(NEED, Phase.IMPLEMENT)
+    assert len(sent) == 1  # only the question
+
+
+async def test_an_id_that_is_not_a_node_id_never_reaches_a_mutation(settings: GitHubAppSettings) -> None:
+    sent: list[str] = []
+    comments: list[dict[str, object]] = [
+        {"id": 'x"}) { evil', "body": "<!-- shelf:work-1 -->\nwait", "isMinimized": False}
+    ]
+    await adapter(settings, graphql_handler(comments, sent)).outdate(NEED, None)
+    assert all("evil" not in query for query in sent)

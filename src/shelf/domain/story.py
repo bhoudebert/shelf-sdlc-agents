@@ -4,8 +4,13 @@ Every comment the system posts carries a hidden marker saying who is speaking, s
 both read the conversation back and tell an agent from a person.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import StrEnum, auto
+
+from shelf.domain.commands import MARKER
+from shelf.domain.pipeline import PIPELINE, Phase
+from shelf.domain.roles import ROLES
 
 AGENT_MARK = "<!-- shelf-agent:"
 PERSON_MARK = "<!-- shelf-person:"
@@ -72,3 +77,44 @@ def _after_header(body: str) -> str:
     """The comment without its marker line and its speaker header."""
     lines = body.split("\n")
     return "\n".join(lines[3:]).strip() if len(lines) > 3 else ""  # noqa: PLR2004 - marker, header, blank line
+
+
+PHASE_OF_ROLE: dict[str, Phase] = {role.name: phase for phase, role in ROLES.items()} | {"checks": Phase.VERIFY}
+"""The phase each agent speaks for."""
+
+
+@dataclass(frozen=True, slots=True)
+class Posted:
+    """A comment on the pull request, as far as tidying it needs: its id, what it says, whether it is hidden."""
+
+    node: str
+    body: str
+    hidden: bool
+
+
+def superseded(comments: Sequence[Posted], work_id: str, rerun_from: Phase | None) -> list[str]:
+    """The comments of this work that no longer belong on the straight line of the pull request.
+
+    The system's own announcements of a wait are over once the work moves on. When the flow circles back to
+    ``rerun_from``, what the agents said from that phase on describes a state that is gone, so it is hidden too, while
+    what came before it still holds. The progress comment and everything a person wrote are never touched.
+    """
+    hide: list[str] = []
+    for comment in comments:
+        if comment.hidden:
+            continue
+        if comment.body.startswith(f"{MARKER}{work_id} -->") or (
+            rerun_from is not None and _is_later_than(comment.body, work_id, rerun_from)
+        ):
+            hide.append(comment.node)
+    return hide
+
+
+def _is_later_than(body: str, work_id: str, phase: Phase) -> bool:
+    """Whether ``body`` is an agent's comment of this work for ``phase`` or a later one."""
+    if not body.startswith(AGENT_MARK):
+        return False
+    role, _, rest = body[len(AGENT_MARK) :].partition(":")
+    if rest.split(" ", 1)[0] != work_id or role not in PHASE_OF_ROLE:
+        return False
+    return PIPELINE.index(PHASE_OF_ROLE[role]) >= PIPELINE.index(phase)
