@@ -92,3 +92,54 @@ async def test_a_pull_request_from_a_fork_or_a_deleted_fork_cannot_be_pushed_to(
 
 async def test_a_pull_request_the_person_cannot_see_is_none(settings: GitHubAppSettings) -> None:
     assert await forge_over(pull_handler(404, {}), settings).pull_request("ghu_1", RepoRef("acme", "shop"), 2) is None
+
+
+def membership_forge(
+    settings: GitHubAppSettings, *, installed: bool, members: int, public: int
+) -> tuple[GitHubForge, list[str]]:
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.url.raw_path.decode())
+        match request.url.path:
+            case "/orgs/hid-ttt/installation":
+                return httpx.Response(200, json={"id": 7}) if installed else httpx.Response(404)
+            case "/app/installations/7/access_tokens":
+                return httpx.Response(201, json={"token": "ghs_1", "expires_at": "2030-01-01T00:00:00Z"})
+            case "/orgs/hid-ttt/members/hidwulf":
+                assert request.headers["Authorization"] == "Bearer ghs_1"
+                return httpx.Response(members)
+            case "/orgs/hid-ttt/public_members/hidwulf":
+                return httpx.Response(public)
+            case _:
+                return httpx.Response(404)
+
+    return forge_over(httpx.MockTransport(handler), settings), seen
+
+
+async def test_a_private_member_is_found_through_the_apps_installation_on_the_organisation(
+    settings: GitHubAppSettings,
+) -> None:
+    forge, seen = membership_forge(settings, installed=True, members=204, public=404)
+    assert await forge.memberships("hidwulf", frozenset({"hid-ttt"})) == frozenset({"hid-ttt"})
+    assert "/user/orgs" not in seen
+
+
+async def test_without_the_members_permission_only_a_public_member_is_found(settings: GitHubAppSettings) -> None:
+    forge, _ = membership_forge(settings, installed=True, members=403, public=204)
+    assert await forge.memberships("hidwulf", frozenset({"hid-ttt"})) == frozenset({"hid-ttt"})
+    forge, _ = membership_forge(settings, installed=True, members=403, public=404)
+    assert await forge.memberships("hidwulf", frozenset({"hid-ttt"})) == frozenset()
+
+
+async def test_where_the_app_is_not_installed_the_public_list_decides(settings: GitHubAppSettings) -> None:
+    forge, _ = membership_forge(settings, installed=False, members=404, public=204)
+    assert await forge.memberships("hidwulf", frozenset({"hid-ttt"})) == frozenset({"hid-ttt"})
+    forge, _ = membership_forge(settings, installed=False, members=404, public=404)
+    assert await forge.memberships("hidwulf", frozenset({"hid-ttt"})) == frozenset()
+
+
+async def test_a_name_cannot_change_the_path_it_is_asked_about(settings: GitHubAppSettings) -> None:
+    forge, seen = membership_forge(settings, installed=False, members=404, public=404)
+    await forge.memberships("a/../b", frozenset({"hid-ttt"}))
+    assert all("/../" not in path for path in seen)

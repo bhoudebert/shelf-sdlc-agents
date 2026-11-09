@@ -1,15 +1,23 @@
 """Signing in and seeing repositories, with the person's own token (the App's user-to-server flow)."""
 
+import logging
 from collections.abc import AsyncIterator, Mapping
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
+from shelf.adapters.github_app.app_auth import installation_token, organisation_installation_id
 from shelf.adapters.github_app.settings import GitHubAppSettings
 from shelf.domain.model import Identity, PullInfo, RepoRef
 
 NOT_FOUND = 404
+MEMBER = 204
+FORBIDDEN = 403
+
+log = logging.getLogger(__name__)
 
 
 class SignInError(Exception):
@@ -68,6 +76,35 @@ class GitHubForge:
         user = await self._get(user_token, "/user")
         organisations = [org async for org in self._pages(user_token, "/user/orgs")]
         return parse_identity(user, organisations)
+
+    async def memberships(self, login: str, organisations: frozenset[str]) -> frozenset[str]:
+        """Which of ``organisations`` ``login`` belongs to.
+
+        GitHub answers ``/user/orgs`` with an empty list for the token of a GitHub App, so membership is asked per
+        organisation: with the App's own installation there when it exists (which sees private members once the App may
+        read members), and otherwise, or when that is refused, from the public list of members.
+        """
+        return frozenset([org for org in sorted(organisations) if await self._is_member(org, login)])
+
+    async def _is_member(self, organisation: str, login: str) -> bool:
+        base = f"{self.settings.api_url}/orgs/{quote(organisation, safe='')}"
+        who = quote(login, safe="")
+        now = datetime.now(UTC)
+        installation = await organisation_installation_id(self.client, self.settings, organisation, now)
+        headers: dict[str, str] = {"Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"}
+        if installation is not None:
+            token = (await installation_token(self.client, self.settings, installation, now)).value
+            headers["Authorization"] = f"Bearer {token}"
+            answer = await self.client.get(f"{base}/members/{who}", headers=headers)
+            if answer.status_code == MEMBER:
+                return True
+            if answer.status_code == FORBIDDEN:
+                log.warning(
+                    "The App may not read the members of %s: only public members can sign in through it. Grant the "
+                    "organisation permission Members: read, make the membership public, or list the person as a user.",
+                    organisation,
+                )
+        return (await self.client.get(f"{base}/public_members/{who}", headers=headers)).status_code == MEMBER
 
     async def repositories(self, user_token: str) -> list[RepoRef]:
         """The repositories the App is installed on that this person can access."""

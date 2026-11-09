@@ -17,6 +17,8 @@ class FakeForge:
     pulls: dict[tuple[RepoRef, int], PullInfo] = field(default_factory=dict[tuple[RepoRef, int], PullInfo])
     """The pull requests that exist; any other number answers like a repository that has no such pull request."""
     everything_exists: bool = True
+    members: dict[str, frozenset[str]] = field(default_factory=dict[str, frozenset[str]])
+    """The organisations each person really belongs to, as the per-organisation question answers."""
 
     async def exchange_code(self, code: str) -> str:
         return f"token-{code}"
@@ -32,6 +34,9 @@ class FakeForge:
 
     async def repositories(self, user_token: str) -> Sequence[RepoRef]:
         return self.repos.get(user_token, ())
+
+    async def memberships(self, login: str, organisations: frozenset[str]) -> frozenset[str]:
+        return organisations & self.members.get(login, frozenset())
 
 
 @dataclass

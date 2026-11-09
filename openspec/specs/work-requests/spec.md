@@ -6,6 +6,15 @@ Let a signed-in person start work, decide for it and see it, on the repositories
 
 ## Requirements
 
+### Requirement: The forge answers which organisations a person belongs to, separately
+
+The system SHALL ask the forge which of a set of organisations a named person belongs to, as its own question next to the person's identity and repositories, because the token of a signed-in person does not tell it; the answer SHALL cover only the organisations asked about.
+
+#### Scenario: Only the organisations asked about
+
+- **WHEN** the access check asks about the listed organisations
+- **THEN** the answer names those of them the person belongs to and no others
+
 ### Requirement: Work starts only on a repository the person can see
 
 The system SHALL start work only on a repository that the app is installed on and that the person can access, and SHALL answer "not found" for any other.

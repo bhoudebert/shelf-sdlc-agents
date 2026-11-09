@@ -9,7 +9,9 @@ import httpx
 from shelf.adapters.github_app.settings import GitHubAppSettings
 from shelf.domain.app_check import REQUIRED_EVENTS, REQUIRED_PERMISSIONS
 
-PERMISSIONS = dict(REQUIRED_PERMISSIONS)
+PERMISSIONS = {**REQUIRED_PERMISSIONS, "members": "read"}
+"""The repository permissions, plus the organisation permission that lets a private member of a listed organisation
+sign in."""
 EVENTS = list(REQUIRED_EVENTS)
 """The events to subscribe to: only the two the web service reads (a pull request closed, a comment created).
 

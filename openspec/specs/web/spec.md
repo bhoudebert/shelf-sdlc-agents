@@ -15,6 +15,11 @@ The system SHALL send a visitor through GitHub's OAuth flow with a state value t
 - **WHEN** a person on the access list completes the sign-in
 - **THEN** a session starts and they reach the board
 
+#### Scenario: A member of a listed organisation
+
+- **WHEN** a person who is not listed by name but belongs to a listed organisation signs in
+- **THEN** they are let in, and a refusal for anyone else says that an organisation membership must be public or readable by the App
+
 #### Scenario: A forged callback
 
 - **WHEN** the callback carries a state that does not match the cookie

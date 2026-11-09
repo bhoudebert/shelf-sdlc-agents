@@ -26,6 +26,10 @@ class CountingForge:
         self._count("repositories")
         return [REPO]
 
+    async def memberships(self, login: str, organisations: frozenset[str]) -> frozenset[str]:
+        self._count("memberships")
+        return frozenset()
+
     async def pull_request(self, user_token: str, repo: RepoRef, number: int) -> PullInfo | None:
         self._count("pull_request")
         return None
