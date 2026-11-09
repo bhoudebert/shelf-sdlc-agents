@@ -15,6 +15,7 @@ from shelf.domain.model import RepoRef, WorkId, WorkRequest, WorkView
 from shelf.domain.pipeline import EntryPoint, Phase
 from shelf.domain.policy import CURRENT_PROTOCOL
 from shelf.domain.polling import Mode, poll_bounds
+from shelf.domain.titles import summary
 from shelf.domain.work import Outcome, PersonDecided, Reason
 from shelf.ports.configs import RepoConfigs
 from shelf.ports.runner import UnreachableWorkError
@@ -77,6 +78,7 @@ class TemporalRunner:
                 "repo": work.repo,
                 "requester": work.requester,
                 "entry": work.entry,
+                "title": summary(work.text),
                 **({"pull_request": work.pull_request} if work.pull_request is not None else {}),
             },
         )
@@ -150,12 +152,26 @@ class TemporalRunner:
         except Exception as error:  # noqa: BLE001 - it exists, but its workflow task fails (an older release, or closed)
             if description.status == WorkflowExecutionStatus.TERMINATED:  # closed by an administrator
                 return WorkView(
-                    WorkId(handle.id), repo, requester, entry, Phase.INTAKE, detail=TERMINATED, outcome=Outcome.ABORTED
+                    WorkId(handle.id),
+                    repo,
+                    requester,
+                    entry,
+                    Phase.INTAKE,
+                    detail=TERMINATED,
+                    outcome=Outcome.ABORTED,
+                    title=str(memo.get("title") or ""),
                 )
             kind = type(error).__name__
             message = f"This work cannot be read right now ({kind}). It may have been started by an older release."
             return WorkView(
-                WorkId(handle.id), repo, requester, entry, Phase.INTAKE, waiting_for=Reason.FAILURE, detail=message
+                WorkId(handle.id),
+                repo,
+                requester,
+                entry,
+                Phase.INTAKE,
+                waiting_for=Reason.FAILURE,
+                detail=message,
+                title=str(memo.get("title") or ""),
             )
         return WorkView(
             id=WorkId(handle.id),
@@ -167,6 +183,7 @@ class TemporalRunner:
             detail=snapshot.detail,
             outcome=Outcome(snapshot.outcome) if snapshot.outcome else None,
             pull_request_url=snapshot.pull_request_url or self._link_of(repo, memo.get("pull_request")),
+            title=str(memo.get("title") or ""),
         )
 
     def _link_of(self, repo: RepoRef, number: object) -> str:

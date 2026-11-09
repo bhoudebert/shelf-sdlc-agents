@@ -65,6 +65,8 @@ class WorkView:
     detail: str = ""
     outcome: Outcome | None = None
     pull_request_url: str = ""
+    title: str = ""
+    """A line of the request, to tell this work from another on the board; empty for work started before it was kept."""
 
 
 @dataclass(frozen=True, slots=True)

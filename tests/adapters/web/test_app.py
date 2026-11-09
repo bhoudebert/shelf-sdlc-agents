@@ -553,3 +553,28 @@ def test_an_administrator_sees_the_admin_link_in_the_navigation() -> None:
 
 def test_a_visitor_who_is_not_signed_in_is_sent_to_sign_in_from_the_admin_page(app: Fixture) -> None:
     assert app.client.get("/admin").status_code == 303
+
+
+def test_a_row_of_the_board_says_what_the_work_is_and_links_its_pull_request(app: Fixture) -> None:
+    app.sign_in()
+    app.runner.views[WorkId("work-1")] = WorkView(
+        WorkId("work-1"),
+        REPO,
+        "alice",
+        EntryPoint.NEED,
+        Phase.IMPLEMENT,
+        pull_request_url="https://github.com/acme/shop/pull/12",
+        title="Loyalty points at checkout",
+    )
+    page = app.client.get("/board").text
+    assert "Loyalty points at checkout" in page
+    assert "PR #12" in page
+    assert 'href="https://github.com/acme/shop/pull/12"' in page
+    assert "acme/shop" in page
+
+
+def test_work_without_a_kept_title_is_still_listed_under_its_repository(app: Fixture) -> None:
+    waiting(app)
+    page = app.client.get("/board").text
+    assert "acme/shop" in page
+    assert "PR #" not in page

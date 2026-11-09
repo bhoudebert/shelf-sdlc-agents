@@ -1,6 +1,7 @@
 """What the templates show: plain view models built from domain values, with the words people read."""
 
 import hashlib
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -110,6 +111,9 @@ class ItemView:
     outcome: str
     pull_request_url: str
     reason: str
+    title: str
+    pull_request_number: str
+    """``#12``, from the pull request's address; empty while there is none."""
 
 
 def entry_options(allowed: frozenset[EntryPoint]) -> list[EntryOption]:
@@ -138,6 +142,14 @@ def decision_options(reason: Reason | None) -> list[DecisionOption]:
     return [DecisionOption(kind.value, *DECISION_LABELS[kind]) for kind in _DECISIONS[reason]]
 
 
+_PULL = re.compile(r"/pull/(\d+)/?$")
+
+
+def _number_of(url: str) -> str:
+    found = _PULL.search(url)
+    return f"#{found.group(1)}" if found else ""
+
+
 def item_view(work: WorkView) -> ItemView:
     """Words for one piece of work."""
     if work.outcome is not None:
@@ -158,6 +170,8 @@ def item_view(work: WorkView) -> ItemView:
         outcome=OUTCOME_LABELS[work.outcome] if work.outcome else "",
         pull_request_url=work.pull_request_url,
         reason=work.waiting_for.value if work.waiting_for else "",
+        title=work.title,
+        pull_request_number=_number_of(work.pull_request_url),
     )
 
 

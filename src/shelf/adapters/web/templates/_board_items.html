@@ -22,8 +22,8 @@
     {% endif %}
     <li class="item {{ item.status.value }}" data-reason="{{ item.reason }}">
       <div class="item-main">
-        <a class="item-link" href="/work/{{ item.id }}">{{ item.repo }}</a>
-        <span class="meta">{{ item.entry }} · {{ item.requester }}</span>
+        <a class="item-link" href="/work/{{ item.id }}">{{ item.title or item.repo }}</a>
+        <span class="meta">{% if item.title %}{{ item.repo }} · {% endif %}{% if item.pull_request_number %}{% if item.pull_request_url %}<a class="pr-ref" href="{{ item.pull_request_url }}" target="_blank" rel="noopener noreferrer">PR {{ item.pull_request_number }}<span class="vh"> (opens in a new tab)</span></a>{% endif %} · {% endif %}{{ item.entry }} · {{ item.requester }}</span>
       </div>
       <div class="item-state">
         <span class="chip chip-{{ item.status.value }}{% if item.reason == 'failure' %} chip-failed{% endif %}">

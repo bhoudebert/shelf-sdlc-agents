@@ -213,6 +213,7 @@ p { margin: 0 0 1em; max-width: 68ch; }
 .group-waiting .item-link { font-size: 1.4rem; }
 .item-main { display: grid; gap: 2px; min-width: 0; }
 .item .meta { font-size: .92rem; }
+.item .pr-ref { position: relative; z-index: 1; font-weight: 600; }
 .item-where { display: grid; gap: 6px; }
 .phase { font-size: .92rem; font-weight: 600; }
 
