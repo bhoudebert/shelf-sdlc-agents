@@ -353,3 +353,13 @@ The system SHALL send a heartbeat from the worker every fifteen seconds for as l
 
 - **WHEN** the step finishes or fails
 - **THEN** the heartbeats stop
+
+### Requirement: The first-run page serves fingerprinted assets like the service
+
+The system SHALL build the first-run setup page from the same templates and the same fingerprinted static addresses as the service, so that a browser that kept an old stylesheet from an earlier visit fetches the current one.
+
+#### Scenario: The setup page's links
+
+- **WHEN** the setup page is served
+- **THEN** each stylesheet and script it links to carries a fingerprint and is served
+

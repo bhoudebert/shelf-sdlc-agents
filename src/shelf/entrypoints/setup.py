@@ -11,10 +11,9 @@ import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 
 from shelf.adapters.github_app.manifest import convert, registration_form
-from shelf.adapters.web.context import ASSETS
+from shelf.adapters.web.context import ASSETS, make_templates
 
 HttpClient = Callable[[], AbstractAsyncContextManager[httpx.AsyncClient]]
 
@@ -23,7 +22,7 @@ def create_setup_app(public_url: str, http_client: HttpClient | None = None, rev
     """The registration helper for the instance served at ``public_url``."""
     app = FastAPI(title="shelf-sdlc setup", docs_url=None, redoc_url=None, openapi_url=None)
     app.mount("/static", StaticFiles(directory=ASSETS / "static"), name="static")
-    templates = Jinja2Templates(directory=ASSETS / "templates")
+    templates = make_templates()
     client_for: HttpClient = http_client or (lambda: httpx.AsyncClient(timeout=30))
 
     @app.get("/", response_class=HTMLResponse)

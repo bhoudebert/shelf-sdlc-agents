@@ -311,14 +311,33 @@ The system SHALL reuse for a minute what GitHub said about a person's repositori
 - **WHEN** two people open the board
 - **THEN** each gets their own lookup
 
+### Requirement: A changed stylesheet or script is never served from an old copy
+
+The system SHALL address each static file of its pages with a fingerprint of the file's content, so that a browser fetches a file again as soon as it changes and never lays out a new page with an old stylesheet.
+
+#### Scenario: A page's assets
+
+- **WHEN** a page is served
+- **THEN** its stylesheet and scripts are addressed with a fingerprint of their content
+
+#### Scenario: The first-run page
+
+- **WHEN** the setup page is served
+- **THEN** its assets carry the same fingerprint and are served
+
 ### Requirement: The conversation of the pull request is shown on the work page, read only
 
-The system SHALL show on the work page, beside the documents, the comments of the work's pull request as a conversation (who spoke, whether an agent, a person or Shelf itself, what they said rendered for reading, and when, with a link to the comment on GitHub), oldest first and limited to the latest thirty, without the one progress comment that the timeline already tells, never turning anything a comment contains into active content, and SHALL say so when the pull request is not open yet or GitHub cannot be reached. The page SHALL NOT take comments: people reply on GitHub or decide with the buttons, and agents act only on the `/shelf` commands.
+The system SHALL show on the work page, beside the documents, the comments of the work's pull request as a conversation that can be folded and is folded by default, newest first and limited to the latest thirty, each comment numbered by its place in the whole conversation (who spoke, whether an agent, a person or Shelf itself, what they said rendered for reading, and when, with a link to the comment on GitHub), an agent's comment folded behind a one-line summary (its number, who, when, and its verdict or else its first line) and a person's shown open, keeping what a person opened when the page refreshes, without the one progress comment that the timeline already tells, never turning anything a comment contains into active content, and SHALL say so when the pull request is not open yet or GitHub cannot be reached. The page SHALL NOT take comments: people reply on GitHub or decide with the buttons, and agents act only on the `/shelf` commands.
 
 #### Scenario: A pull request with a conversation
 
 - **WHEN** the pull request has an agent's report and a person's comment
 - **THEN** both are listed with their speaker, their time in UTC and a link to the comment, and the progress table is not
+
+#### Scenario: Newest first, folded
+
+- **WHEN** the pull request has a spec writer's report, a reviewer's verdict and a person's comment
+- **THEN** the person's comment comes first, and each agent's report is a folded line such as `1. Spec writer on 9 Nov 09:12 UTC — Verdict: escalate` that opens to its detail
 
 #### Scenario: Hostile content
 
@@ -347,7 +366,7 @@ The system SHALL show on the work page the request, the spec, the design and the
 #### Scenario: A wide window
 
 - **WHEN** a document is open in a wide window
-- **THEN** its text uses the whole width of the folded panel instead of a narrow column inside it
+- **THEN** its text, lists, tables and code use the whole width of the panel (the page keeps its one principal column) instead of a narrow column inside it
 
 #### Scenario: Hostile content
 

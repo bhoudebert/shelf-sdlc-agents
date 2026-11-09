@@ -1,7 +1,9 @@
 """What every router shares: the instance's wiring, templates, and the signed cookies that carry a session."""
 
+import hashlib
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from functools import cache
 from importlib import resources
 from pathlib import Path
 
@@ -82,13 +84,30 @@ class WebDeps:
     """Where the pull request's conversation is read from; the page shows none without it."""
 
 
+@cache
+def asset(name: str) -> str:
+    """The address of a static file with a fingerprint of its content.
+
+    A browser never keeps an old copy of a file that changed, because its address changes with it.
+    """
+    digest = hashlib.sha1((ASSETS / "static" / name).read_bytes(), usedforsecurity=False).hexdigest()[:10]
+    return f"/static/{name}?v={digest}"
+
+
+def make_templates() -> Jinja2Templates:
+    """The page templates, with the ``asset`` function for static files."""
+    templates = Jinja2Templates(directory=ASSETS / "templates")
+    templates.env.globals["asset"] = asset  # pyright: ignore[reportUnknownMemberType]
+    return templates
+
+
 @dataclass(frozen=True, slots=True)
 class Web:
     """The shared toolbox of the routers."""
 
     deps: WebDeps
     webhooks: WebhookLog = field(default_factory=WebhookLog)
-    templates: Jinja2Templates = field(default_factory=lambda: Jinja2Templates(directory=ASSETS / "templates"))
+    templates: Jinja2Templates = field(default_factory=make_templates)
 
     @property
     def _signer(self) -> URLSafeTimedSerializer:
