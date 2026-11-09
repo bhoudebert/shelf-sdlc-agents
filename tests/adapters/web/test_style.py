@@ -27,3 +27,18 @@ def test_the_start_preview_knows_every_entry_point_so_none_shows_everything_as_s
     css = CSS.read_text(encoding="utf-8")
     for entry in EntryPoint:
         assert f'input[value="{entry.value}"]:checked) .preview li' in css, entry
+
+
+def test_a_stopped_phase_on_the_board_differs_by_shape_not_only_by_colour() -> None:
+    css = CSS.read_text(encoding="utf-8")
+    stopped = re.search(r"^\.mini i\.stopped::after \{([^}]*)\}", css, re.MULTILINE)
+    assert stopped is not None
+    assert "rotate(45deg)" in stopped.group(1)
+
+
+def test_the_star_field_sits_behind_the_content_and_lets_clicks_through() -> None:
+    css = CSS.read_text(encoding="utf-8")
+    stars = re.search(r"^body::before \{([^}]*)\}", css, re.MULTILINE)
+    assert stars is not None
+    assert "z-index: -1" in stars.group(1)
+    assert "pointer-events: none" in stars.group(1)
