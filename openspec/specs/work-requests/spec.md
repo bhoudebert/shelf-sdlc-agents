@@ -60,6 +60,11 @@ The system SHALL list the work of every repository for an administrator, and onl
 
 The system SHALL give the view of a piece of work, in addition to its repository, requester, entry and phase, a short line of its request (empty for work that has none), so that every list of work can say what each one is.
 
+#### Scenario: A work with times
+
+- **WHEN** a work has acted
+- **THEN** its view carries when it last did anything and when it last did something at each phase
+
 #### Scenario: A work with a line
 
 - **WHEN** a work was started with a request

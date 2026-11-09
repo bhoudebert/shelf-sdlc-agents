@@ -182,6 +182,20 @@ The system SHALL show on each row of the board and at the head of the work's pag
 - **WHEN** work has no kept title
 - **THEN** its row is headed by its repository
 
+### Requirement: The board and the work page say when things happened
+
+The system SHALL show on each row of the board how long ago the work last did anything, with the exact date and time in UTC as its tooltip, and on the work page's timeline when something last happened at each step, and SHALL show nothing for work that predates times.
+
+#### Scenario: A running work
+
+- **WHEN** the work's last action was twelve minutes ago
+- **THEN** its row says 12 min ago and the exact time is in the tooltip
+
+#### Scenario: A step of the timeline
+
+- **WHEN** the design step last did something at 09:12 UTC on 8 November
+- **THEN** the timeline shows that date and time under the step
+
 ### Requirement: The board puts what needs a person first
 
 The system SHALL group the board by what is asked of the person (needs you, running, finished), show each piece of work's status with a word and a glyph and not by colour alone, and keep a chosen filter when the board updates live.
