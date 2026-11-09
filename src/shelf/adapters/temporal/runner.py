@@ -3,8 +3,9 @@
 import asyncio
 import time
 import uuid
-from collections.abc import Callable, Collection, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, field
+from typing import Any
 
 from temporalio.client import Client, WorkflowExecutionStatus, WorkflowFailureError, WorkflowHandle
 from temporalio.service import RPCError
@@ -73,6 +74,7 @@ class TemporalRunner:
             poll_base_seconds=base.total_seconds(),
             poll_ceiling_seconds=ceiling.total_seconds(),
             protocol=CURRENT_PROTOCOL,
+            context=list(request.context),
         )
         await self.client.start_workflow(
             WorkItemWorkflow.run,
@@ -84,6 +86,7 @@ class TemporalRunner:
                 "requester": work.requester,
                 "entry": work.entry,
                 "title": summary(work.text),
+                **({"context": list(work.context)} if work.context else {}),
                 **({"pull_request": work.pull_request} if work.pull_request is not None else {}),
             },
         )
@@ -200,6 +203,7 @@ class TemporalRunner:
             outcome=Outcome(snapshot.outcome) if snapshot.outcome else None,
             pull_request_url=snapshot.pull_request_url or self._link_of(repo, memo.get("pull_request")),
             title=str(memo.get("title") or ""),
+            context=_context_of(memo),
             updated_at=snapshot.updated_at,
             times=tuple(sorted(snapshot.times.items())),
         )
@@ -228,3 +232,9 @@ def _innermost(error: BaseException) -> BaseException:
     while isinstance(inner := getattr(error, "cause", None), BaseException):
         error = inner
     return error
+
+
+def _context_of(memo: Mapping[str, Any]) -> tuple[str, ...]:
+    """The other repositories a work reads, from its memo; none for work started before it was kept."""
+    kept: list[object] = list(memo.get("context") or [])
+    return tuple(str(item) for item in kept)

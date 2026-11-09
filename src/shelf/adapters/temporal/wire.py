@@ -43,6 +43,8 @@ class WorkInput:
     poll_ceiling_seconds: float = 900.0
     protocol: int = 1
     """How the work behaves, fixed at start. Work started before the field existed has 1, the original behaviour."""
+    context: list[str] = field(default_factory=list[str])
+    """Other repositories the agents may read as reference; work started before the field existed has none."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -161,7 +163,12 @@ def course_of(work: WorkInput) -> Course:
 def context_of(work: WorkInput) -> WorkContext:
     """The context a step runs with."""
     request = WorkRequest(
-        RepoRef.parse(work.repo), work.requester, EntryPoint(work.entry), work.text, work.pull_request
+        RepoRef.parse(work.repo),
+        work.requester,
+        EntryPoint(work.entry),
+        work.text,
+        work.pull_request,
+        tuple(work.context),
     )
     return WorkContext(WorkId(work.work_id), request)
 

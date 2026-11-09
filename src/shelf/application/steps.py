@@ -7,8 +7,10 @@ from dataclasses import dataclass
 from shelf.domain.ci import Ci, CiState
 from shelf.domain.config import RepoConfig
 from shelf.domain.context import CATEGORIES, EARLIER_WORK, context_brief
+from shelf.domain.context_repo import FOLDER, note_for, parse_context
 from shelf.domain.model import RepoRef, WorkContext
 from shelf.domain.pipeline import EntryPoint, Phase
+from shelf.domain.result import Err, Ok
 from shelf.domain.roles import PROVIDED_DOCUMENT, REVIEWERS, ROLES, TITLER, documents_dir
 from shelf.domain.story import agent_comment
 from shelf.domain.titles import clean_title, fallback_title
@@ -17,6 +19,7 @@ from shelf.domain.verdict import parse_verdict
 from shelf.domain.work import WAITING_FOR_CI, Produced, Reviewed, RunStep, StepResult, Verdict, Verified
 from shelf.ports.agents import AgentBackend, AgentTask
 from shelf.ports.configs import RepoConfigs
+from shelf.ports.context_sources import ContextSources
 from shelf.ports.steps import PullRequests
 from shelf.ports.workspace import Checkout, Workspace, Workspaces
 
@@ -62,6 +65,7 @@ def task_prompt(  # noqa: PLR0913
     *,
     toolchain: bool = False,
     ci: str = "",
+    context: str = "",
 ) -> str:
     """What the agent is asked, built from the request, the documents so far and the feedback that sent work back."""
     folder = documents_dir(work.id)
@@ -82,10 +86,13 @@ def task_prompt(  # noqa: PLR0913
         lines += ["", f"This is round {step.attempt}. Address this feedback first:", step.feedback]
     if step.phase in REVIEWERS or role.name == "architect":
         lines += ["", f"The base branch is `{base}`: `git diff {base}...HEAD` shows what this work changed."]
-    if ci and (step.phase in REVIEWERS or step.phase is Phase.IMPLEMENT):
-        lines += ["", f"What the repository's CI says about this pull request right now:\n{ci}"]
-    if toolchain:
-        lines += ["", TOOLCHAIN_NOTE]
+    sees_ci = step.phase in REVIEWERS or step.phase is Phase.IMPLEMENT
+    notes = [
+        f"What the repository's CI says about this pull request right now:\n{ci}" if ci and sees_ci else "",
+        context,
+        TOOLCHAIN_NOTE if toolchain else "",
+    ]
+    lines += [part for note in notes if note for part in ("", note)]
     if role.document:
         lines += ["", f"Write your result to `{folder}/{role.document}`."]
     if step.phase in REVIEWERS:
@@ -121,6 +128,8 @@ class Steps:
     """How long a commit may show no CI run at all before the repository counts as having none: runs appear a few
     seconds after a push, not at once."""
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep
+    context_sources: ContextSources | None = None
+    """Where other repositories are read from, as reference material put next to the clone (none without it)."""
 
     async def run(self, work: WorkContext, step: RunStep) -> StepResult:
         """Run ``step`` for ``work``, speak about it on the pull request as the agent it is, and read what came out."""
@@ -132,6 +141,7 @@ class Steps:
         branch, lease = await self._branch(work)
         checkout = Checkout(repo, token, branch, config.base_branch, reviewing, lease)
         async with self.workspaces.open(checkout) as workspace:
+            await self._attach_context(work, workspace)
             recorded = await self._record_request(work, workspace)
             result, speaker, words = await self._do(work, step, workspace, config, token)
             if recorded and not isinstance(result, Produced):
@@ -139,6 +149,34 @@ class Steps:
             if not _is_a_repeated_wait(step, result):
                 await self.pulls.comment(work, agent_comment(work.id, speaker, words))
             return result
+
+    async def _attach_context(self, work: WorkContext, workspace: Workspace) -> None:
+        """Put read-only copies of the other repositories the work reads next to the clone, outside what git tracks.
+
+        A repository that cannot be read stops the step with the reason: the agent was promised that reference.
+        """
+        if not work.request.context:
+            return
+        if self.context_sources is None:
+            message = "this work reads other repositories, but this instance cannot read any"
+            raise RuntimeError(message)
+        git = workspace.path / ".git"
+        if git.is_dir():
+            exclude = git / "info" / "exclude"
+            exclude.parent.mkdir(parents=True, exist_ok=True)
+            with exclude.open("a", encoding="utf-8") as out:
+                out.write(f"\n{FOLDER}/\n")
+        for spec in work.request.context:
+            match parse_context(spec):
+                case Err(error):
+                    raise RuntimeError(error)
+                case Ok(item):
+                    match await self.context_sources.copy_into(item, workspace.path / FOLDER / item.directory):
+                        case Err(error):
+                            message = f"cannot read {spec} as reference: {error}"
+                            raise RuntimeError(message)
+                        case Ok():
+                            pass
 
     async def _straighten(self, work: WorkContext, step: RunStep) -> None:
         """Keep the pull request a straight line.
@@ -187,6 +225,7 @@ class Steps:
             self._picture(work, workspace),
             toolchain=bool(self.cache_dir),
             ci=ci.report() if ci.state is not CiState.NONE else "",
+            context=_context_note(work),
         )
         answer = await self._ask_agent(work, step, workspace, token, prompt)
         role = ROLES[step.phase]
@@ -399,3 +438,9 @@ def hold_back_for_ci(reviewed: Reviewed, ci: Ci) -> Reviewed:
             )
         case CiState.GREEN | CiState.NONE:
             return reviewed
+
+
+def _context_note(work: WorkContext) -> str:
+    """What the agent is told about the reference repositories of this work, nothing when it has none."""
+    found = [parse_context(spec) for spec in work.request.context]
+    return note_for(tuple(item.value for item in found if isinstance(item, Ok))) if work.request.context else ""

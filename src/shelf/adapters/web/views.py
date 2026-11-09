@@ -128,6 +128,7 @@ class ItemView:
     pull_request_url: str
     reason: str
     title: str
+    context: tuple[str, ...]
     updated: str
     """How long ago the work last did anything (``12 min ago``); empty when unknown."""
     updated_at: str
@@ -269,6 +270,7 @@ def item_view(work: WorkView, now: datetime | None = None) -> ItemView:
         pull_request_url=work.pull_request_url,
         reason=work.waiting_for.value if work.waiting_for else "",
         title=work.title,
+        context=work.context,
         updated=elapsed(work.updated_at, now or datetime.now(UTC)),
         updated_at=clock(work.updated_at),
         pull_request_number=_number_of(work.pull_request_url),

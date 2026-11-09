@@ -5,6 +5,7 @@ import os
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
 
 import httpx
 from temporalio.client import Client
@@ -17,6 +18,7 @@ from shelf.adapters.config.github import GitHubRepoConfigs
 from shelf.adapters.config.toml_files import parse_operator
 from shelf.adapters.git.workspace import GitWorkspaces
 from shelf.adapters.github_app.app_auth import installation_id, installation_token
+from shelf.adapters.github_app.context_sources import GitHubContextSources
 from shelf.adapters.github_app.conversation import GitHubConversations
 from shelf.adapters.github_app.documents import GitHubDocuments
 from shelf.adapters.github_app.forge import GitHubForge
@@ -80,6 +82,7 @@ class Services:
     inspector: GitHubAppInspector
     conversations: CachedConversations
     references: GitHubReferences
+    context_sources: GitHubContextSources
 
 
 async def connect(settings: Settings) -> Client:
@@ -103,6 +106,8 @@ def build_services(settings: Settings, github: GitHubApp, client: httpx.AsyncCli
         return may_act_from_github(operator.access, login, association, owner)
 
     pulls = GitHubPullRequests(client, app, token_for, base_branch, may_act)
+    context_cache = Path(settings.cache_dir) / "context" if settings.cache_dir else None
+    context_sources = GitHubContextSources(client, app, context_cache)
     steps = Steps(
         workspaces=GitWorkspaces(),
         agents=ClaudeBackend(
@@ -122,6 +127,7 @@ def build_services(settings: Settings, github: GitHubApp, client: httpx.AsyncCli
         base_path=os.environ.get("PATH", ""),
         ci_wait=settings.ci_wait,
         ci_grace=settings.ci_grace,
+        context_sources=context_sources,
     )
     runner = TemporalRunner(temporal, settings.task_queue, configs, operator.mode, app.web_url)
     documents = CachedDocuments(GitHubDocuments(client, app, token_for))
@@ -136,4 +142,5 @@ def build_services(settings: Settings, github: GitHubApp, client: httpx.AsyncCli
         GitHubAppInspector(client, app),
         CachedConversations(GitHubConversations(client, app, token_for)),
         GitHubReferences(client, app, token_for),
+        context_sources,
     )

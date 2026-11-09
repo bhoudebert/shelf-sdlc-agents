@@ -198,3 +198,12 @@ async def test_a_running_workflow_that_cannot_be_read_is_still_flagged_for_a_per
     assert view is not None
     assert view.waiting_for is Reason.FAILURE
     assert "cannot be read right now" in view.detail
+
+
+async def test_the_other_repositories_a_work_reads_are_kept_and_shown_on_the_board(env: WorkflowEnvironment) -> None:
+    runner = runner_for(env)
+    async with worker(env, FakeSteps(), FakePulls()):
+        request = WorkRequest(REPO, "alice", EntryPoint.NEED, "ci like foo/bar", context=("foo/bar@v1",))
+        work_id = await runner.start(request)
+        board = await _until_waiting(runner, work_id, Reason.GATE)
+    assert board.context == ("foo/bar@v1",)
