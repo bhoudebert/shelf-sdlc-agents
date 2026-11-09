@@ -138,6 +138,15 @@ The system SHALL link, on the board and on the work page, the pull request a rev
 - **WHEN** work starts at the review of pull request 7
 - **THEN** its view links pull request 7 of that repository
 
+### Requirement: The workflow keeps a line of the request for the board
+
+The system SHALL keep, with the workflow's memo and not in its history, the first line of the request shortened, so the board can tell pieces of work apart without opening each, and SHALL read work whose memo has none as untitled.
+
+#### Scenario: A started work
+
+- **WHEN** work is started with a multi-line request
+- **THEN** the board's view of it carries the request's first line
+
 ### Requirement: Work that cannot be read is shown, not hidden
 
 The system SHALL show a piece of work that exists but whose state cannot be read as failed, with the reason, instead of leaving it off the board.

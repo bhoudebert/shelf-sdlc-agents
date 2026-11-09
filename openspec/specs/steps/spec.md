@@ -89,6 +89,15 @@ The system SHALL run each command the repository lists as a check in the clone a
 - **WHEN** one of two checks exits non-zero
 - **THEN** the report names that command and its exit code, and the step is not passed
 
+### Requirement: A line of the request is shortened for the board
+
+The system SHALL shorten a request to its first non-empty line, without markdown heading marks and with whitespace collapsed, and end it with an ellipsis when it is longer than ninety characters.
+
+#### Scenario: A long first line
+
+- **WHEN** the first line is longer than ninety characters
+- **THEN** the summary is exactly ninety characters ending in an ellipsis
+
 ### Requirement: Checks do what they can here and rely on the repository's CI for the rest
 
 The system SHALL, once the repository's own commands pass, read the CI of the pull request (every check run and commit status of its head commit) and SHALL decide from it: no run found after a short grace for runs to appear means the repository has no CI and the checks pass; every run finished without failure means they pass; any run that failed, timed out, was cancelled, failed to start or ended in a conclusion the system does not know means they fail, with each such run's name, link and what it reports sent to the implementer; a run still going, or waiting for a person to approve it on GitHub, means the checks wait. The system SHALL NOT wait for a CI after a local command failed. A step SHALL look at the CI every minute for up to half an hour and then hand the wait back to the workflow, which looks again without counting a round or running the commands again and without repeating its comment on the pull request. The report SHALL say, for the commands and for the CI separately, whether each passed, failed, was not configured or is still running, and SHALL NOT show a check that did not run as passed.

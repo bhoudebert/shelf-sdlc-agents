@@ -1,6 +1,6 @@
 import pytest
 
-from shelf.domain.titles import MAX_TITLE, clean_title, fallback_title
+from shelf.domain.titles import MAX_TITLE, SUMMARY_LENGTH, clean_title, fallback_title, summary
 
 
 def test_the_last_line_of_the_answer_is_the_title() -> None:
@@ -33,3 +33,14 @@ def test_the_fallback_is_the_first_line_of_the_request_cut_to_fit() -> None:
     assert fallback_title("\n\n  Add badges  \nmore") == "Add badges"
     assert len(fallback_title("x" * 200)) == 70
     assert fallback_title("  ") == "shelf work"
+
+
+def test_the_board_summary_is_the_first_line_of_the_request_without_markdown_headings() -> None:
+    assert summary("\n# Loyalty points\nmore detail") == "Loyalty points"
+    assert summary("") == ""
+
+
+def test_a_long_first_line_is_shortened_with_an_ellipsis() -> None:
+    shown = summary("word " * 40)
+    assert len(shown) == SUMMARY_LENGTH
+    assert shown.endswith("…")

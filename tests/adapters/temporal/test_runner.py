@@ -34,6 +34,7 @@ async def test_work_started_through_the_runner_shows_on_the_board_and_takes_deci
         board = await _until_waiting(runner, work_id, Reason.GATE)
         assert (board.repo, board.requester, board.entry) == (REPO, "alice", EntryPoint.NEED)
         assert board.phase is Phase.SPEC_APPROVAL
+        assert board.title == "loyalty points"
 
         await runner.decide(work_id, PersonDecided("carol", DecisionKind.ABORT))
         finished = await _until_finished(runner, work_id)

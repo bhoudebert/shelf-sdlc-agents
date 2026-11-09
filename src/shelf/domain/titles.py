@@ -15,6 +15,18 @@ def fallback_title(request: str) -> str:
     return first[:FALLBACK_LENGTH]
 
 
+SUMMARY_LENGTH = 90
+
+
+def summary(text: str) -> str:
+    """What a person reads on the board to tell one piece of work from another: the request's first line, shortened."""
+    first = next(
+        (line.strip().lstrip("#").strip() for line in text.splitlines() if line.strip().lstrip("#").strip()), ""
+    )
+    first = " ".join(first.split())
+    return first if len(first) <= SUMMARY_LENGTH else first[: SUMMARY_LENGTH - 1].rstrip() + "…"
+
+
 def clean_title(answer: str, fallback: str) -> str:
     """The title an agent answered: its last non-empty line without quotes, backticks or a ``Title:`` label.
 
