@@ -55,3 +55,13 @@ The system SHALL list the work of every repository for an administrator, and onl
 
 - **WHEN** an administrator asks for the board
 - **THEN** work on repositories they cannot open is listed too
+
+### Requirement: The board's view of a work carries a line of its request
+
+The system SHALL give the view of a piece of work, in addition to its repository, requester, entry and phase, a short line of its request (empty for work that has none), so that every list of work can say what each one is.
+
+#### Scenario: A work with a line
+
+- **WHEN** a work was started with a request
+- **THEN** its view carries the request's first line
+
