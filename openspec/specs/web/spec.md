@@ -168,6 +168,20 @@ The system SHALL answer a start or a decision on a repository with an invalid co
 - **WHEN** a person starts work on a repository whose `.shelf/config.toml` has an unknown key
 - **THEN** the start form shows the reason and nothing starts
 
+### Requirement: A row of the board says what the work is
+
+The system SHALL show on each row of the board and at the head of the work's page a line taken from the request to tell one piece of work from another (the first line of the request, shortened), with the repository, the pull request's number as a link to it when there is one, the entry and the requester; work started before the line was kept SHALL be shown under its repository as before.
+
+#### Scenario: A titled row with a pull request
+
+- **WHEN** work has a kept title and a pull request
+- **THEN** its row shows the title, the repository, the pull request number linking to GitHub, the entry and the requester
+
+#### Scenario: Older work
+
+- **WHEN** work has no kept title
+- **THEN** its row is headed by its repository
+
 ### Requirement: The board puts what needs a person first
 
 The system SHALL group the board by what is asked of the person (needs you, running, finished), show each piece of work's status with a word and a glyph and not by colour alone, and keep a chosen filter when the board updates live.
