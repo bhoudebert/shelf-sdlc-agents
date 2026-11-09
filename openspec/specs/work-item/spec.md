@@ -67,6 +67,16 @@ The system SHALL accept from people only approve, changes, resume, reject and ab
 - **WHEN** a person approves the spec gate
 - **THEN** the work goes on to the next phase
 
+#### Scenario: Accepting an escalated review also approves the gate after it
+
+- **WHEN** a person accepts a spec review that escalated, on work of protocol 6 or later
+- **THEN** the spec approval gate is not asked again and the design starts
+
+#### Scenario: Earlier work asks twice
+
+- **WHEN** work on protocol 5 or earlier has its escalated spec review accepted
+- **THEN** the work waits at the spec approval gate, as before
+
 #### Scenario: Changes at a gate
 
 - **WHEN** a person asks for changes at a gate with a note

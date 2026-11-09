@@ -99,3 +99,8 @@ The system SHALL build the course of a piece of work with the protocol version i
 - **WHEN** courses are built under protocols 3 and 4
 - **THEN** only the one under protocol 4 waits for the repository's CI
 
+
+#### Scenario: One approval for a review and its gate by protocol
+
+- **WHEN** courses are built under protocols 5 and 6
+- **THEN** only the one under protocol 6 counts a person's acceptance of an escalated review as the approval of the gate right after it

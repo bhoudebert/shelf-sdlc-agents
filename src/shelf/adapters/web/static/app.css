@@ -637,3 +637,5 @@ input:not([type="radio"]):focus-visible, select:focus-visible, textarea:focus-vi
 :root[data-theme="dark"] .alert { background: var(--sunk); color: var(--ink); }
 :root[data-theme="dark"] .panel-waiting.reason-failure .status .btn.quiet { background: var(--ink); color: var(--ground); }
 :root[data-theme="dark"] .panel-waiting.reason-failure .status-art { --accent: #e8956a; }
+
+.head-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
