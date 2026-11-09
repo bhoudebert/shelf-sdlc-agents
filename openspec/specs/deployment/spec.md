@@ -61,6 +61,20 @@ The system SHALL relax the container security profile only for the worker, which
 - **WHEN** the stack runs
 - **THEN** only the worker has the relaxed seccomp profile
 
+### Requirement: The setup and the admin pages say how to let a second person sign in
+
+The system SHALL say on the setup page, for the registration by hand, to choose Any account for where the App can be installed and to copy the description it offers, SHALL explain that public does not open the instance, and SHALL tell on both the setup page and the administrator's check what to do when a second person gets a 404 signing in: make the App public from its Advanced tab.
+
+#### Scenario: The setup page
+
+- **WHEN** the setup page is served
+- **THEN** it offers the description to copy, asks for Any account and names Make public
+
+#### Scenario: The administrator's check
+
+- **WHEN** the administrator opens the check
+- **THEN** it says that a 404 on sign-in for a second person means the App is private and how to make it public
+
 ### Requirement: The setup page is complete without any other service
 
 The system SHALL serve from the instance itself every style and script that the first-run setup page links to.

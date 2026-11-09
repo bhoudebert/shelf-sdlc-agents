@@ -43,6 +43,25 @@ The system SHALL sign a short-lived JWT with the App's private key, find the ins
 - **WHEN** the JWT is signed
 - **THEN** it expires within ten minutes of being issued
 
+### Requirement: The App is public so that more than its owner can sign in
+
+The system SHALL register the App as public and with a description, because GitHub shows a private App to no account but its owner and answers 404 to every other account that tries to sign in. The description (Markdown) SHALL say what the App does, what it may touch and that only the people and organisations the operator lists can use the instance, and SHALL be offered to copy on the setup page for the registration by hand. Public SHALL NOT widen access: who may use the instance stays decided by the access list.
+
+#### Scenario: One-click registration
+
+- **WHEN** the manifest is built
+- **THEN** it is public and carries the description
+
+#### Scenario: A second person signs in
+
+- **WHEN** a person who does not own the App signs in and is on the access list
+- **THEN** GitHub lets them authorize it
+
+#### Scenario: A person who is not listed
+
+- **WHEN** a person who is not on the access list authorizes the public App
+- **THEN** they are refused by the instance after signing in
+
 ### Requirement: Registration is one click
 
 The system SHALL build the App's manifest from the instance's public address, post it to GitHub from the browser, and convert the code GitHub returns into the App's credentials.
