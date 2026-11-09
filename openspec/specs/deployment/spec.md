@@ -321,3 +321,18 @@ The system SHALL have the doctor start the sandbox's own tool first and, when it
 
 - **WHEN** the sandbox cannot start on an Ubuntu host
 - **THEN** the report names the AppArmor setting to change and the safer order of remedies
+
+### Requirement: The worker tells Temporal that a waiting step is alive
+
+The system SHALL send a heartbeat from the worker while a step waits for the repository's CI, so that a wait of half an hour is not mistaken for a dead step, and SHALL read how long it waits from `SHELF_CI_WAIT` and `SHELF_CI_GRACE`.
+
+#### Scenario: Waiting for a CI
+
+- **WHEN** a checks step waits between two looks at the CI
+- **THEN** it sends a heartbeat each time it wakes
+
+#### Scenario: Outside an activity
+
+- **WHEN** the heartbeat is requested where no activity runs
+- **THEN** it does nothing and raises nothing
+
