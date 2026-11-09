@@ -19,7 +19,8 @@ from shelf.adapters.web.sessions import Session
 
 PREFIX = "/temporal"
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
-_QUERY = re.compile(r"/api/v1/namespaces/[^/]+/workflows/[^/]+/(runs/[^/]+/)?query$")
+_QUERY = re.compile(r"/api/v1/namespaces/[^/]+/workflows/[^/]+/(runs/[^/]+/)?query(/(?!\.\.?$)[^/]+)?$")
+"""A workflow query, with or without the run and with or without the query's name (``__stack_trace``, a custom one)."""
 HOP_BY_HOP = frozenset(
     {
         "connection",
