@@ -12,6 +12,7 @@ from shelf.adapters.caching.forge import CachedForge
 from shelf.adapters.web.app import create_app
 from shelf.adapters.web.context import WebDeps, WebSettings
 from shelf.adapters.web.sessions import SessionStore
+from shelf.application.scoped_forge import ScopedForge
 from shelf.domain.config import InvalidConfigError
 from shelf.entrypoints import settings as settings_module
 from shelf.entrypoints.setup import create_setup_app
@@ -45,7 +46,7 @@ async def build(settings: settings_module.Settings) -> FastAPI:
         WebDeps(
             web,
             services.operator.access,
-            CachedForge(services.forge),
+            ScopedForge(CachedForge(services.forge), lambda: services.current_operator().access),
             services.runner,
             services.configs,
             SessionStore(),

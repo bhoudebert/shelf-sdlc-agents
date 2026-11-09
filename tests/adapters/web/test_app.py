@@ -296,7 +296,7 @@ def test_a_merged_pull_request_is_signalled_to_its_work(app: Fixture) -> None:
 
 
 def test_a_command_in_a_comment_reaches_the_work_as_a_decision() -> None:
-    app = Fixture(AccessRules(users=frozenset({"carol"})))
+    app = Fixture(AccessRules(users=frozenset({"carol"}), organisations=frozenset({"acme"})))
     app.runner.views[WorkId("work-abc123")] = WorkView(
         WorkId("work-abc123"), REPO, "alice", EntryPoint.NEED, Phase.SPEC_APPROVAL, waiting_for=Reason.GATE
     )
@@ -304,6 +304,7 @@ def test_a_command_in_a_comment_reaches_the_work_as_a_decision() -> None:
         "action": "created",
         "issue": {"pull_request": {}, "body": "<!-- shelf:work-abc123 -->\nneed"},
         "comment": {"body": "/shelf approve", "user": {"login": "carol"}, "author_association": "MEMBER"},
+        "repository": {"full_name": "acme/shop", "owner": {"login": "acme"}},
     }
     assert post_hook(app, "issue_comment", payload) == 202
     assert app.runner.decisions == [(WorkId("work-abc123"), PersonDecided("carol", DecisionKind.APPROVE))]
@@ -475,12 +476,15 @@ def test_a_webhook_with_the_wrong_secret_is_reported_with_what_to_do() -> None:
 
 
 def test_a_command_that_could_not_be_applied_is_reported_not_swallowed() -> None:
-    fixture = Fixture(AccessRules(admins=frozenset({"alice"}), users=frozenset({"carol"})))
+    fixture = Fixture(
+        AccessRules(admins=frozenset({"alice"}), users=frozenset({"carol"}), organisations=frozenset({"acme"}))
+    )
     fixture.sign_in()
     payload: dict[str, object] = {
         "action": "created",
         "issue": {"pull_request": {}, "body": "<!-- shelf:work-abc123 -->\nneed"},
         "comment": {"body": "/shelf approve", "user": {"login": "carol"}, "author_association": "MEMBER"},
+        "repository": {"full_name": "acme/shop", "owner": {"login": "acme"}},
     }
     assert post_hook(fixture, "issue_comment", payload) == 202  # the work is unknown to this instance
     board = fixture.client.get("/board").text
@@ -808,3 +812,18 @@ def test_an_access_list_edited_while_the_service_runs_applies_to_the_next_sign_i
     current[0] = AccessRules(users=frozenset({"alice"}))
     app.sign_in()
     assert app.client.get("/board").status_code == 200
+
+
+def test_a_command_on_a_pull_request_of_an_owner_nobody_listed_is_ignored() -> None:
+    app = Fixture(AccessRules(users=frozenset({"carol"}), organisations=frozenset({"acme"})))
+    app.runner.views[WorkId("work-abc123")] = WorkView(
+        WorkId("work-abc123"), REPO, "alice", EntryPoint.NEED, Phase.SPEC_APPROVAL, waiting_for=Reason.GATE
+    )
+    payload: dict[str, object] = {
+        "action": "created",
+        "issue": {"pull_request": {}, "body": "<!-- shelf:work-abc123 -->\nneed"},
+        "comment": {"body": "/shelf approve", "user": {"login": "carol"}, "author_association": "MEMBER"},
+        "repository": {"full_name": "stranger/loot", "owner": {"login": "stranger"}},
+    }
+    assert post_hook(app, "issue_comment", payload) == 202
+    assert app.runner.decisions == []

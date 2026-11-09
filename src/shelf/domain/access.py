@@ -35,12 +35,30 @@ def may_sign_in(rules: AccessRules, identity: Identity) -> bool:
     )
 
 
+def may_use_repository(rules: AccessRules, owner: str, login: str = "") -> bool:
+    """Whether work may happen on a repository of ``owner``.
+
+    That is a listed organisation, a listed person's own account, or the signed-in person's own account (``login``).
+
+    Anyone can install the App on an account or organisation they own, so that the App can reach a repository says
+    nothing about whether this instance may spend its model account there. Names compare without regard to case,
+    as GitHub's do.
+    """
+    wanted = owner.casefold()
+    listed = {name.casefold() for name in (*rules.organisations, *rules.users, *rules.admins)}
+    return wanted in listed or (login != "" and wanted == login.casefold())
+
+
 def may_act_from_github(rules: AccessRules, login: str, association: str, owner: str) -> bool:
-    """Whether a command typed on a pull request counts: the person is listed, or belongs to a listed organisation.
+    """Whether a command typed on a pull request counts.
+
+    The repository must be one this instance serves, and the person listed or a member of a listed organisation.
 
     GitHub tells us a commenter's association with the repository's owner, not their organisations, so membership of a
     listed organisation is read as: the repository belongs to it and the commenter is a member (or the owner) of it.
     """
+    if not may_use_repository(rules, owner, login):
+        return False
     return (
         login in rules.users
         or login in rules.admins
