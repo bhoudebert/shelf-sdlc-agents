@@ -76,6 +76,46 @@ async def _git(
     return result
 
 
+INITIAL_COMMIT = "chore: initialise the repository"
+
+
+async def _clone_without_base(  # noqa: PLR0913, PLR0917 - one clone's worth of context
+    directory: Path,
+    repo: Path,
+    url: str,
+    checkout: Checkout,
+    auth: tuple[str, ...],
+    secrets: tuple[str, ...],
+    failure: RuntimeError,
+) -> None:
+    """The clone of the base branch failed: say why, or, for a repository with nothing in it, start its base branch.
+
+    A repository that was just created has no commit and so no branch at all, and a pull request needs a base to open
+    against. The one thing done for it is an empty first commit on the base branch; a repository that has other
+    branches but not this one, or that cannot be reached, is reported as it is.
+    """
+    listing = await _git(directory, "ls-remote", "--heads", url, check=False, auth=auth)
+    if listing.exit_code != 0:
+        raise failure
+    branches = [line.split("refs/heads/", 1)[1] for line in listing.output.splitlines() if "refs/heads/" in line]
+    if branches:
+        message = (
+            f"{checkout.repo.full_name} has no branch '{checkout.base}' to start from (it has: "
+            f"{', '.join(sorted(branches)[:10])}). Name the right one with base_branch in .shelf/config.toml."
+        )
+        raise RuntimeError(message) from failure
+    if checkout.pull_request is not None:
+        message = f"{checkout.repo.full_name} is empty, so it has no pull request #{checkout.pull_request}."
+        raise RuntimeError(message) from failure
+    shutil.rmtree(repo, ignore_errors=True)
+    await _git(directory, "clone", "--quiet", url, str(repo), auth=auth, secrets=secrets)
+    await _git(repo, "config", "user.name", BOT_NAME)
+    await _git(repo, "config", "user.email", BOT_EMAIL)
+    await _git(repo, "checkout", "--quiet", "-b", checkout.base)
+    await _git(repo, "-c", "commit.gpgsign=false", "commit", "--quiet", "--allow-empty", "-m", INITIAL_COMMIT)
+    await _git(repo, "push", "--quiet", "origin", f"HEAD:refs/heads/{checkout.base}", auth=auth, secrets=secrets)
+
+
 @dataclass(frozen=True, slots=True)
 class GitWorkspace:
     """One clone, alive for one step."""
@@ -131,18 +171,13 @@ class GitWorkspaces:
         try:
             url = self.remote(checkout)
             auth, secrets = self.authenticate(checkout), secrets_of(checkout)
-            await _git(
-                directory,
-                "clone",
-                "--quiet",
-                "--branch",
-                checkout.base,
-                url,
-                str(directory / "repo"),
-                auth=auth,
-                secrets=secrets,
-            )
             repo = directory / "repo"
+            try:
+                await _git(
+                    directory, "clone", "--quiet", "--branch", checkout.base, url, str(repo), auth=auth, secrets=secrets
+                )
+            except RuntimeError as error:
+                await _clone_without_base(directory, repo, url, checkout, auth, secrets, error)
             await _git(repo, "config", "user.name", BOT_NAME)
             await _git(repo, "config", "user.email", BOT_EMAIL)
             if checkout.pull_request is not None:
