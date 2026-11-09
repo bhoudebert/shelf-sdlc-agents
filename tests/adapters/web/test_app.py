@@ -628,9 +628,12 @@ def test_work_without_a_kept_title_is_still_listed_under_its_repository(app: Fix
 
 
 class FakeConversations:
-    def __init__(self, story: list[Message], *, fail: bool = False) -> None:
-        self.story, self.fail = story, fail
+    def __init__(self, story: list[Message], *, fail: bool = False, body: str = "") -> None:
+        self.story, self.fail, self.body = story, fail, body
         self.read_for: list[tuple[RepoRef, int]] = []
+
+    async def description(self, repo: RepoRef, pull_request: int) -> str:
+        return self.body
 
     async def read(self, repo: RepoRef, pull_request: int) -> list[Message]:
         self.read_for.append((repo, pull_request))
@@ -827,3 +830,20 @@ def test_a_command_on_a_pull_request_of_an_owner_nobody_listed_is_ignored() -> N
     }
     assert post_hook(app, "issue_comment", payload) == 202
     assert app.runner.decisions == []
+
+
+def test_the_request_is_shown_above_the_conversation() -> None:
+    body = "<!-- shelf:work-1 -->\nAdd **loyalty points** to every order\n\nRequested-by: alice"
+    page = with_conversation(FakeConversations([], body=body)).client.get("/work/work-1/conversation").text
+    assert "The request" in page
+    assert "<strong>loyalty points</strong>" in page
+    assert "Requested-by" not in page
+    assert "shelf:work-1" not in page
+
+
+def test_a_pull_request_that_is_not_ours_shows_its_own_description() -> None:
+    page = (
+        with_conversation(FakeConversations([], body="Fixes the rounding")).client.get("/work/work-1/conversation").text
+    )
+    assert "Pull request description" in page
+    assert "Fixes the rounding" in page

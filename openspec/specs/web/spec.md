@@ -472,6 +472,20 @@ The system SHALL address each static file of its pages with a fingerprint of the
 - **WHEN** the setup page is served
 - **THEN** its assets carry the same fingerprint and are served
 
+### Requirement: The request is shown above the conversation
+
+The system SHALL show, above the conversation on the work page and open by default, what was asked for: the request the pull request was opened with, without the marker and the `Requested-by` line that the system wrote around it, rendered for reading and never as active content; for a pull request this system did not open it SHALL show the pull request's own description under that name.
+
+#### Scenario: Work this system opened
+
+- **WHEN** the pull request was opened by this system from a request
+- **THEN** the page shows "The request" with that text, and not the marker nor the requester line
+
+#### Scenario: Someone else's pull request
+
+- **WHEN** the work reviews or changes a pull request that this system did not open
+- **THEN** the page shows "Pull request description" with the description as written
+
 ### Requirement: The conversation of the pull request is shown on the work page, read only
 
 The system SHALL show on the work page, beside the documents, the comments of the work's pull request as a conversation that can be folded and is folded by default, newest first and limited to the latest thirty, each comment numbered by its place in the whole conversation (who spoke, whether an agent, a person or Shelf itself, what they said rendered for reading, and when, with a link to the comment on GitHub), an agent's comment folded behind a one-line summary (its number, who, when, and its verdict or else its first line) and a person's shown open, keeping what a person opened when the page refreshes, without the one progress comment that the timeline already tells, never turning anything a comment contains into active content, and SHALL say so when the pull request is not open yet or GitHub cannot be reached. The page SHALL NOT take comments: people reply on GitHub or decide with the buttons, and agents act only on the `/shelf` commands.

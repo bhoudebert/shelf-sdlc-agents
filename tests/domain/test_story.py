@@ -96,3 +96,17 @@ def test_what_is_hidden_already_and_what_belongs_to_another_work_is_left_alone()
         posted("<!-- shelf:work-2 -->\\nwait", node="other-wait"),
     ]
     assert superseded(comments, "work-1", Phase.IMPLEMENT) == []
+
+
+def test_the_request_is_read_out_of_the_description_this_system_wrote() -> None:
+    from shelf.domain.story import request_in  # noqa: PLC0415
+
+    body = "<!-- shelf:work-1 -->\nAdd loyalty points\nto every order\n\nRequested-by: alice"
+    assert request_in(body) == ("Add loyalty points\nto every order", True)
+
+
+def test_any_other_description_is_returned_as_it_is() -> None:
+    from shelf.domain.story import request_in  # noqa: PLC0415
+
+    assert request_in("  Fixes the rounding \n") == ("Fixes the rounding", False)
+    assert request_in("") == ("", False)
