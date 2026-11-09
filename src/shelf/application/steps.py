@@ -8,7 +8,7 @@ from shelf.domain.ci import Ci, CiState
 from shelf.domain.config import RepoConfig
 from shelf.domain.context import CATEGORIES, EARLIER_WORK, context_brief
 from shelf.domain.model import RepoRef, WorkContext
-from shelf.domain.pipeline import Phase
+from shelf.domain.pipeline import EntryPoint, Phase
 from shelf.domain.roles import PROVIDED_DOCUMENT, REVIEWERS, ROLES, TITLER, documents_dir
 from shelf.domain.story import agent_comment
 from shelf.domain.titles import clean_title, fallback_title
@@ -42,16 +42,38 @@ def branch_of(work: WorkContext) -> str:
     return f"shelf/{work.id}"
 
 
+def adopted_note(number: int | None, base: str) -> str:
+    """What the developer is told about a pull request that already exists and whose branch it is working on."""
+    return (
+        f"This work is on pull request #{number}, which already exists. You are on its own branch, checked out in this "
+        f"clone; the base branch is `{base}` (`git diff {base}...HEAD` shows the pull request). Do what the request "
+        f"asks to that branch: you may rebase it onto the base (`git rebase origin/{base}`), amend, add commits and "
+        "fix what breaks. You have no credentials and need none: you do not push, the system does, replacing the "
+        "branch only if nobody pushed to it in the meantime. After a rebase, run the project's own checks. The "
+        "repository's CI runs on what is pushed, and the checks wait for it."
+    )
+
+
 def task_prompt(  # noqa: PLR0913
-    work: WorkContext, step: RunStep, base: str = "main", picture: str = "", *, toolchain: bool = False, ci: str = ""
+    work: WorkContext,
+    step: RunStep,
+    base: str = "main",
+    picture: str = "",
+    *,
+    toolchain: bool = False,
+    ci: str = "",
 ) -> str:
     """What the agent is asked, built from the request, the documents so far and the feedback that sent work back."""
     folder = documents_dir(work.id)
     role = ROLES[step.phase]
-    lines = [
-        f"Requested by: {work.request.requester}",
-        f"Documents of this work live in `{folder}/` (spec.md, design.md, plan.md). Read the ones that exist.",
-    ]
+    adopted = work.request.entry is EntryPoint.PULL_REQUEST_WORK
+    lines = [f"Requested by: {work.request.requester}"]
+    if adopted:
+        lines += [adopted_note(work.request.pull_request, base)]
+    else:
+        lines += [
+            f"Documents of this work live in `{folder}/` (spec.md, design.md, plan.md). Read the ones that exist."
+        ]
     if picture:
         lines += ["", picture]
     if work.request.text:
@@ -106,7 +128,8 @@ class Steps:
         config = await self.configs.load(repo)
         token = await self.token_for(repo)
         reviewing = work.request.pull_request if step.phase is Phase.CODE_REVIEW else None
-        checkout = Checkout(repo, token, branch_of(work), config.base_branch, reviewing)
+        branch, lease = await self._branch(work)
+        checkout = Checkout(repo, token, branch, config.base_branch, reviewing, lease)
         async with self.workspaces.open(checkout) as workspace:
             recorded = await self._record_request(work, workspace)
             result, speaker, words = await self._do(work, step, workspace, config, token)
@@ -115,6 +138,23 @@ class Steps:
             if not _is_a_repeated_wait(step, result):
                 await self.pulls.comment(work, agent_comment(work.id, speaker, words))
             return result
+
+    async def _branch(self, work: WorkContext) -> tuple[str, str]:
+        """The branch a step works on, and for a pull request that is not ours where that branch is now.
+
+        Work on someone's pull request changes that pull request's own branch, never a branch of ours, and only when the
+        pull request is open and from this repository.
+        """
+        if work.request.entry is not EntryPoint.PULL_REQUEST_WORK:
+            return branch_of(work), ""
+        head = await self.pulls.head(work)
+        if not head.same_repository:
+            message = "this pull request comes from a fork: the App cannot push to its branch"
+            raise RuntimeError(message)
+        if not head.open:
+            message = "this pull request is no longer open"
+            raise RuntimeError(message)
+        return head.branch, head.sha
 
     async def _do(
         self, work: WorkContext, step: RunStep, workspace: Workspace, config: RepoConfig, token: str

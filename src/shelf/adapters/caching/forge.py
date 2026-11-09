@@ -8,7 +8,7 @@ import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 
-from shelf.domain.model import Identity, RepoRef
+from shelf.domain.model import Identity, PullInfo, RepoRef
 from shelf.ports.forge import Forge
 
 
@@ -30,9 +30,9 @@ class CachedForge:
         """Never cached: a code is used once."""
         return await self.inner.exchange_code(code)
 
-    async def pull_request_exists(self, user_token: str, repo: RepoRef, number: int) -> bool:
-        """Never cached: a pull request may be opened a moment after the person looks."""
-        return await self.inner.pull_request_exists(user_token, repo, number)
+    async def pull_request(self, user_token: str, repo: RepoRef, number: int) -> PullInfo | None:
+        """Never cached: a pull request may be opened or closed a moment after the person looks."""
+        return await self.inner.pull_request(user_token, repo, number)
 
     async def identity(self, user_token: str) -> Identity:
         """Who the token belongs to, from the cache while it is fresh."""

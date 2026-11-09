@@ -4,10 +4,12 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import pytest
+
 from shelf.application.steps import Steps, branch_of, task_prompt
 from shelf.domain.ci import Ci, CiRun, CiState, judge
 from shelf.domain.config import RepoConfig
-from shelf.domain.model import RepoRef, WorkContext, WorkId, WorkRequest
+from shelf.domain.model import PullInfo, RepoRef, WorkContext, WorkId, WorkRequest
 from shelf.domain.pipeline import EntryPoint, Phase
 from shelf.domain.story import agent_comment
 from shelf.domain.work import WAITING_FOR_CI, Produced, Reviewed, RunStep, Verdict, Verified
@@ -448,3 +450,35 @@ async def test_the_developer_is_told_what_the_ci_says_with_the_failing_runs() ->
     assert "What the repository's CI says" in task.prompt
     assert "build: cancelled (https://ci/9)" in task.prompt
     assert "ran out of time" in task.prompt
+
+
+ADOPT = WorkContext(
+    WorkId("work-3"), WorkRequest(REPO, "alice", EntryPoint.PULL_REQUEST_WORK, "rebase it onto main", 7)
+)
+
+
+async def test_work_on_a_pull_request_runs_on_its_own_branch_and_records_nothing_in_it() -> None:
+    agents, workspaces = FakeAgents(), FakeWorkspaces()
+    await steps(agents, workspaces).run(ADOPT, RunStep(Phase.IMPLEMENT, 0, ""))
+    assert workspaces.opened == [Checkout(REPO, "ghs_token", "feat/x", "main", None, "abc")]
+    assert workspaces.workspace.pushed == ["chore(shelf): implementer for work-3"]  # no request.md in their branch
+    [task] = agents.tasks
+    assert "pull request #7, which already exists" in task.prompt
+    assert "git rebase origin/main" in task.prompt
+    assert "rebase it onto main" in task.prompt
+    assert "Documents of this work live" not in task.prompt
+
+
+async def test_the_review_of_work_on_a_pull_request_reads_its_head_like_any_review() -> None:
+    workspaces = FakeWorkspaces()
+    await steps(FakeAgents("ok\\nVERDICT: APPROVE"), workspaces).run(ADOPT, RunStep(Phase.CODE_REVIEW, 0, ""))
+    assert workspaces.opened[0].pull_request == 7
+
+
+async def test_a_pull_request_from_a_fork_or_one_that_closed_is_never_worked_on() -> None:
+    fork = FakePulls(pull=PullInfo("feat/x", "abc", open=True, same_repository=False))
+    with pytest.raises(RuntimeError, match="fork"):
+        await steps(pulls=fork).run(ADOPT, RunStep(Phase.IMPLEMENT, 0, ""))
+    closed = FakePulls(pull=PullInfo("feat/x", "abc", open=False, same_repository=True))
+    with pytest.raises(RuntimeError, match="no longer open"):
+        await steps(pulls=closed).run(ADOPT, RunStep(Phase.IMPLEMENT, 0, ""))

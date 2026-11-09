@@ -26,6 +26,9 @@ class Checkout:
     branch: str
     base: str
     pull_request: int | None = None
+    lease: str = ""
+    """For work on a pull request's own branch: the commit the branch was at when the work began. A push replaces the
+    branch only if it is still there, so what the author pushed meanwhile is never overwritten."""
 
 
 class Workspace(Protocol):

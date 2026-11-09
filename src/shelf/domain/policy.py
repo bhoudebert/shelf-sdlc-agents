@@ -31,6 +31,8 @@ class Course:
     max_rounds: int
     publishes_pull_request: bool
     """False when the work arrived with a pull request of its own."""
+    adopts_pull_request: bool = False
+    """True when the work changes the branch of a pull request that already exists (protocol 5 and later)."""
     protocol: int = 1
     """How this piece of work behaves, fixed when it starts. Work already running keeps the behaviour it started with,
     so a new release never changes what a replayed history does: see ``CURRENT_PROTOCOL``."""
@@ -48,10 +50,25 @@ class Course:
     @property
     def asks_a_person_after_review(self) -> bool:
         """Whether a review of a pull request that is not ours hands its findings to a person, not the implementer."""
-        return not self.publishes_pull_request and self.protocol >= REVIEW_ASKS_A_PERSON
+        return (
+            not self.publishes_pull_request and not self.adopts_pull_request and self.protocol >= REVIEW_ASKS_A_PERSON
+        )
+
+    @property
+    def review_is_read_only(self) -> bool:
+        """Whether this is a review of someone else's pull request that agents never change (protocol 5 and later).
+
+        A person who asks for changes gets another review, since there is no developer to send them to.
+        """
+        return not self.publishes_pull_request and not self.adopts_pull_request and self.protocol >= READ_ONLY_REVIEW
+
+    @property
+    def readies_pull_request(self) -> bool:
+        """Whether the pull request leaves the draft state when the work asks for the merge: ours, or adopted."""
+        return self.opens_early and (self.publishes_pull_request or self.adopts_pull_request)
 
 
-CURRENT_PROTOCOL = 4
+CURRENT_PROTOCOL = 5
 """The behaviour new work starts with. Raise it, and gate the new behaviour on it, whenever a change would alter what
 the workflow does for a history recorded before: protocol 1 is the original behaviour, which old work keeps."""
 
@@ -69,6 +86,11 @@ WAITS_FOR_CI = 4
 send red runs back to the implementer."""
 
 
+READ_ONLY_REVIEW = 5
+"""The protocol from which a read-only review answers a request for changes with another review, and from which an
+existing pull request can be adopted."""
+
+
 def course_for(entry: EntryPoint, policy: Policy, protocol: int = CURRENT_PROTOCOL) -> Course:
     """Build the course for ``entry``: the pipeline from its first phase, minus what the policy turns off."""
     skipped = {
@@ -83,6 +105,7 @@ def course_for(entry: EntryPoint, policy: Policy, protocol: int = CURRENT_PROTOC
     return Course(
         phases=tuple(phase for phase in PIPELINE[first:] if phase not in skipped),
         max_rounds=policy.max_rounds,
-        publishes_pull_request=entry is not EntryPoint.PULL_REQUEST_REVIEW,
+        publishes_pull_request=entry not in (EntryPoint.PULL_REQUEST_REVIEW, EntryPoint.PULL_REQUEST_WORK),
+        adopts_pull_request=entry is EntryPoint.PULL_REQUEST_WORK,
         protocol=protocol,
     )

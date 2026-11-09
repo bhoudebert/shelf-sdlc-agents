@@ -106,8 +106,8 @@ def test_a_review_of_someone_elses_pull_request_that_finds_problems_asks_a_perso
     assert commands == (AskPerson(Phase.CODE_REVIEW, Reason.ESCALATION, "rename it"),)
 
 
-def test_asking_for_changes_after_such_a_review_hands_the_findings_to_the_implementer() -> None:
-    course = course_for(EntryPoint.PULL_REQUEST_REVIEW, Policy())
+def test_work_started_before_protocol_5_hands_the_findings_of_a_review_to_the_implementer_on_request() -> None:
+    course = course_for(EntryPoint.PULL_REQUEST_REVIEW, Policy(), protocol=4)
     waiting = AwaitingPerson(Phase.CODE_REVIEW, Reason.ESCALATION, "rename it")
     state, commands = decide(course, waiting, PersonDecided("bob", DecisionKind.CHANGES))
     assert state == Running(Phase.IMPLEMENT, 0, "rename it")
@@ -377,3 +377,45 @@ def test_work_started_before_the_ci_was_read_does_not_wait_for_it() -> None:
     course = course_for(EntryPoint.IMPLEMENT, Policy(), protocol=3)
     state, _ = decide(course, Running(Phase.VERIFY, 0), StepDone(Verified(False, "", waiting=True)))
     assert state == Running(Phase.CODE_REVIEW, 0)
+
+
+def test_asking_for_changes_after_a_read_only_review_asks_for_another_review_not_for_a_developer() -> None:
+    course = course_for(EntryPoint.PULL_REQUEST_REVIEW, Policy())
+    waiting = AwaitingPerson(Phase.CODE_REVIEW, Reason.ESCALATION, "rename it")
+    state, commands = decide(course, waiting, PersonDecided("bob", DecisionKind.CHANGES, "also look at the tests"))
+    assert state == Running(Phase.CODE_REVIEW, 0, "also look at the tests")
+    assert commands == (RunStep(Phase.CODE_REVIEW, 0, "also look at the tests"),)
+
+
+def test_work_on_a_pull_request_goes_from_the_developer_through_the_checks_and_the_review_to_the_merge() -> None:
+    course = course_for(EntryPoint.PULL_REQUEST_WORK, Policy())
+    assert course.phases == (Phase.IMPLEMENT, Phase.VERIFY, Phase.CODE_REVIEW, Phase.PULL_REQUEST)
+    assert course.adopts_pull_request
+    assert not course.publishes_pull_request
+
+
+def test_work_on_a_pull_request_never_opens_a_pull_request_but_readies_the_one_it_has_at_the_merge() -> None:
+    course = course_for(EntryPoint.PULL_REQUEST_WORK, Policy())
+    log, _ = drive(course, happy)
+    assert PublishPullRequest() not in log
+    assert SetPullRequestReady(ready=True) in log
+
+
+def test_a_review_of_work_on_a_pull_request_sends_changes_back_to_the_developer_by_itself() -> None:
+    course = course_for(EntryPoint.PULL_REQUEST_WORK, Policy())
+    state, _ = decide(course, Running(Phase.CODE_REVIEW), StepDone(Reviewed(Verdict.CHANGES, "rename it")))
+    assert state == Running(Phase.IMPLEMENT, 1, "rename it")
+
+
+def test_changes_asked_at_the_merge_of_work_on_a_pull_request_put_it_back_to_draft() -> None:
+    course = course_for(EntryPoint.PULL_REQUEST_WORK, Policy())
+    waiting = AwaitingPerson(Phase.PULL_REQUEST, Reason.MERGE)
+    state, commands = decide(course, waiting, PersonDecided("bob", DecisionKind.CHANGES, "one more thing"))
+    assert state == Running(Phase.IMPLEMENT, 0, "one more thing")
+    assert commands[0] == SetPullRequestReady(ready=False)
+
+
+def test_work_started_before_protocol_5_has_no_adopted_pull_request_behaviour() -> None:
+    course = course_for(EntryPoint.PULL_REQUEST_REVIEW, Policy(), protocol=4)
+    assert not course.review_is_read_only
+    assert not course.adopts_pull_request

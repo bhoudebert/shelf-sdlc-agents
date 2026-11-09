@@ -4,7 +4,7 @@ from collections.abc import Collection, Sequence
 from dataclasses import dataclass, field
 
 from shelf.domain.config import RepoConfig
-from shelf.domain.model import Identity, RepoRef, WorkId, WorkRequest, WorkView
+from shelf.domain.model import Identity, PullInfo, RepoRef, WorkId, WorkRequest, WorkView
 from shelf.domain.pipeline import Phase
 from shelf.domain.work import PersonDecided
 
@@ -14,13 +14,18 @@ class FakeForge:
     identities: dict[str, Identity] = field(default_factory=dict[str, Identity])
     repos: dict[str, tuple[RepoRef, ...]] = field(default_factory=dict[str, tuple[RepoRef, ...]])
 
-    missing_pulls: set[tuple[RepoRef, int]] = field(default_factory=set[tuple[RepoRef, int]])
+    pulls: dict[tuple[RepoRef, int], PullInfo] = field(default_factory=dict[tuple[RepoRef, int], PullInfo])
+    """The pull requests that exist; any other number answers like a repository that has no such pull request."""
+    everything_exists: bool = True
 
     async def exchange_code(self, code: str) -> str:
         return f"token-{code}"
 
-    async def pull_request_exists(self, user_token: str, repo: RepoRef, number: int) -> bool:
-        return (repo, number) not in self.missing_pulls
+    async def pull_request(self, user_token: str, repo: RepoRef, number: int) -> PullInfo | None:
+        found = self.pulls.get((repo, number))
+        if found is None and self.everything_exists:
+            return PullInfo("feat/x", "abc123", open=True, same_repository=True)
+        return found
 
     async def identity(self, user_token: str) -> Identity:
         return self.identities[user_token]

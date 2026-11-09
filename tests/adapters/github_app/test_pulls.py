@@ -6,7 +6,7 @@ import pytest
 from shelf.adapters.github_app.pulls import GitHubPullRequests, announcement, events_from
 from shelf.adapters.github_app.settings import GitHubAppSettings
 from shelf.domain.ci import CiState
-from shelf.domain.model import RepoRef, WorkContext, WorkId, WorkRequest
+from shelf.domain.model import PullInfo, RepoRef, WorkContext, WorkId, WorkRequest
 from shelf.domain.pipeline import EntryPoint, Phase
 from shelf.domain.stage import stage_of
 from shelf.domain.work import AskPerson, DecisionKind, PersonDecided, PullRequestClosed, Reason
@@ -348,3 +348,18 @@ async def test_a_log_the_app_may_not_read_is_reported_as_a_missing_permission(se
     ci = await adapter(settings, log_handler(403)).ci(REVIEW)
     build = next(run for run in ci.failing if run.name == "build")
     assert "lacks the Actions permission" in build.detail
+
+
+async def test_the_head_of_a_pull_request_that_arrived_with_the_work_is_read_by_its_number(
+    settings: GitHubAppSettings,
+) -> None:
+    adopted = WorkContext(WorkId("work-3"), WorkRequest(REPO, "alice", EntryPoint.PULL_REQUEST_WORK, "rebase", 7))
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/repos/acme/shop/pulls/7"  # by number, not by looking for the work's branch
+        return httpx.Response(
+            200, json={"state": "open", "head": {"ref": "feat/x", "sha": "abc", "repo": {"full_name": "acme/shop"}}}
+        )
+
+    head = await adapter(settings, httpx.MockTransport(handler)).head(adopted)
+    assert head == PullInfo("feat/x", "abc", open=True, same_repository=True)

@@ -222,3 +222,12 @@ def test_only_the_latest_comments_are_shown_but_numbers_keep_their_place() -> No
     items = feed(story)
     assert len(items) == FEED_LIMIT
     assert (items[0].number, items[-1].number) == (FEED_LIMIT + 5, 6)
+
+
+def test_the_form_offers_to_review_and_to_work_on_a_pull_request_and_each_asks_for_its_number() -> None:
+    options = {o.value: o for o in entry_options(frozenset(EntryPoint))}
+    assert options["pull_request_review"].needs_pull_request
+    assert options["pull_request_work"].needs_pull_request
+    assert not options["need"].needs_pull_request
+    assert "force-push" in options["pull_request_work"].help
+    assert "read only" in options["pull_request_review"].help

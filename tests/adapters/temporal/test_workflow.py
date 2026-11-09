@@ -12,7 +12,7 @@ from shelf.adapters.temporal import wire
 from shelf.adapters.temporal.activities import build_activities
 from shelf.adapters.temporal.workflow import WorkItemWorkflow
 from shelf.domain.ci import Ci, CiState
-from shelf.domain.model import WorkContext
+from shelf.domain.model import PullInfo, WorkContext
 from shelf.domain.pipeline import KIND, Kind, Phase
 from shelf.domain.policy import CURRENT_PROTOCOL
 from shelf.domain.stage import Stage
@@ -74,6 +74,10 @@ class FakePulls:
     cis: list[Ci] = field(default_factory=list[Ci])
     """What the CI says on each look, in turn; the last one repeats. Nothing scripted means no CI."""
     looked: int = 0
+    pull: PullInfo = field(default_factory=lambda: PullInfo("feat/x", "abc", open=True, same_repository=True))
+
+    async def head(self, work: WorkContext) -> PullInfo:
+        return self.pull
 
     async def ci(self, work: WorkContext) -> Ci:
         self.looked += 1
@@ -113,7 +117,7 @@ def work_input(entry: str, **overrides: object) -> wire.WorkInput:
         "requester": "alice",
         "entry": entry,
         "text": "loyalty points",
-        "pull_request": 7 if entry == "pull_request_review" else None,
+        "pull_request": 7 if entry in ("pull_request_review", "pull_request_work") else None,
         "protocol": CURRENT_PROTOCOL,
         **FAST,
     }
@@ -274,3 +278,15 @@ async def test_work_started_by_an_older_release_does_none_of_the_newer_extras(en
     assert pulls.ready == []
     assert pulls.progressed == []
     assert pulls.published == 1  # opened at the merge, as it always was
+
+
+async def test_work_on_a_pull_request_never_opens_one_and_readies_the_one_it_has(env: WorkflowEnvironment) -> None:
+    steps, pulls = FakeSteps(), FakePulls()
+    async with worker(env, steps, pulls):
+        handle = await start(env, work_input("pull_request_work"))
+        await until(handle, lambda s: s.waiting_for == "merge")
+        await handle.signal(WorkItemWorkflow.pull_request_closed, True)
+        assert await handle.result() == "merged"
+    assert [s.phase for s in steps.ran] == [Phase.IMPLEMENT, Phase.VERIFY, Phase.CODE_REVIEW]
+    assert pulls.published == 0, "the pull request already exists: nothing is opened or retitled"
+    assert pulls.ready == [True]

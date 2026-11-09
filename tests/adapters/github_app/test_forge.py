@@ -1,9 +1,11 @@
+from collections.abc import Mapping
+
 import httpx
 import pytest
 
 from shelf.adapters.github_app.forge import GitHubForge, SignInError, parse_identity, parse_repositories
 from shelf.adapters.github_app.settings import GitHubAppSettings
-from shelf.domain.model import Identity, RepoRef
+from shelf.domain.model import Identity, PullInfo, RepoRef
 
 
 def forge_over(handler: httpx.MockTransport, settings: GitHubAppSettings) -> GitHubForge:
@@ -63,16 +65,30 @@ async def test_repositories_are_collected_across_installations_and_pages(setting
     assert repos == [RepoRef("acme", "a"), RepoRef("acme", "b"), RepoRef("globex", "c")]
 
 
-@pytest.mark.parametrize(("status", "expected"), [(200, True), (404, False)])
-async def test_a_pull_request_exists_when_the_person_can_read_it(
-    settings: GitHubAppSettings,
-    status: int,
-    expected: bool,  # noqa: FBT001
-) -> None:
+def pull_handler(status: int, body: Mapping[str, object]) -> httpx.MockTransport:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/repos/acme/shop/pulls/2"
         assert request.headers["authorization"] == "Bearer ghu_1"  # as the person, not as the App
-        return httpx.Response(status, json={})
+        return httpx.Response(status, json=body)
 
-    forge = forge_over(httpx.MockTransport(handler), settings)
-    assert await forge.pull_request_exists("ghu_1", RepoRef("acme", "shop"), 2) is expected
+    return httpx.MockTransport(handler)
+
+
+async def test_a_pull_request_is_read_as_the_person_with_its_branch_and_where_it_comes_from(
+    settings: GitHubAppSettings,
+) -> None:
+    body = {"state": "open", "head": {"ref": "feat/x", "sha": "abc", "repo": {"full_name": "acme/shop"}}}
+    found = await forge_over(pull_handler(200, body), settings).pull_request("ghu_1", RepoRef("acme", "shop"), 2)
+    assert found == PullInfo("feat/x", "abc", open=True, same_repository=True)
+
+
+async def test_a_pull_request_from_a_fork_or_a_deleted_fork_cannot_be_pushed_to(settings: GitHubAppSettings) -> None:
+    fork = {"state": "closed", "head": {"ref": "x", "sha": "a", "repo": {"full_name": "bob/shop"}}}
+    deleted = {"state": "open", "head": {"ref": "x", "sha": "a", "repo": None}}
+    shop = RepoRef("acme", "shop")
+    assert not (await forge_over(pull_handler(200, fork), settings).pull_request("ghu_1", shop, 2)).same_repository  # type: ignore[union-attr]
+    assert not (await forge_over(pull_handler(200, deleted), settings).pull_request("ghu_1", shop, 2)).same_repository  # type: ignore[union-attr]
+
+
+async def test_a_pull_request_the_person_cannot_see_is_none(settings: GitHubAppSettings) -> None:
+    assert await forge_over(pull_handler(404, {}), settings).pull_request("ghu_1", RepoRef("acme", "shop"), 2) is None
