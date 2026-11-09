@@ -1,5 +1,6 @@
 """The ``PullRequests`` port over GitHub: open the pull request, announce on it, read what people did there."""
 
+import re
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -21,7 +22,17 @@ COMMENTS_PER_PAGE = 100
 MAX_COMMENT_PAGES = 5
 MAX_CHECK_PAGES = 3
 ANNOTATIONS_PER_RUN = 10
-DETAIL_LIMIT = 1500
+DETAIL_LIMIT = 4000
+FORBIDDEN = 403
+NOT_FOUND = 404
+LOG_LINES = 80
+"""How many lines from the end of a failing job's log go to the implementer: where the error is."""
+LOG_UNREADABLE = (
+    "(the job's log could not be read: the App lacks the Actions permission. Grant Actions: Read on the App and "
+    "accept it on each installation, or the developer cannot see why the job failed.)"
+)
+_JOB = re.compile(r"/actions/runs/\d+/job/(\d+)")
+_NOISE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]|^\d{4}-\d\d-\d\dT[\d:.]+Z ", re.MULTILINE)
 
 TRUSTED = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
 """Only people with write access count: an outsider's comment is never a decision."""
@@ -223,7 +234,28 @@ class GitHubPullRequests:
         if isinstance(notes, list):
             found: list[Mapping[str, Any]] = notes  # pyright: ignore[reportUnknownVariableType]
             lines += [f"{n.get('path')}:{n.get('start_line')} {n.get('message')}" for n in found]
-        return "\n".join(line for line in lines if line.strip())[:DETAIL_LIMIT]
+        notes_text = "\n".join(line for line in lines if line.strip())[: DETAIL_LIMIT // 2]
+        log = await self._job_log(repo, str(run.get("html_url") or ""))
+        return f"{notes_text}\n\n{log}".strip()[:DETAIL_LIMIT]
+
+    async def _job_log(self, repo: RepoRef, url: str) -> str:
+        """The end of a failing GitHub Actions job's log, where its error is; nothing for a run that is not one."""
+        job = _JOB.search(url)
+        if job is None:
+            return ""
+        response = await self._call(
+            "GET",
+            repo,
+            f"/repos/{repo.full_name}/actions/jobs/{job.group(1)}/logs",
+            tolerate=(FORBIDDEN, NOT_FOUND),
+            follow=True,
+        )
+        if response.status_code == FORBIDDEN:
+            return LOG_UNREADABLE
+        if response.status_code == NOT_FOUND:
+            return "(the job's log is no longer available on GitHub)"
+        tail = _NOISE.sub("", response.text).strip().splitlines()[-LOG_LINES:]
+        return "Log (end of the job):\n" + "\n".join(tail)
 
     async def _statuses(self, repo: RepoRef, sha: str) -> list[CiRun]:
         """Commit statuses (older CI systems report these); none when the App may not read them."""
@@ -282,13 +314,15 @@ class GitHubPullRequests:
         ).json()
         return int(found[0]["number"]) if found else None
 
-    async def _call(
+    async def _call(  # noqa: PLR0913
         self,
         method: str,
         repo: RepoRef,
         path: str,
         json: Mapping[str, Any] | None = None,
         tolerate: tuple[int, ...] = (),
+        *,
+        follow: bool = False,
     ) -> httpx.Response:
         token = await self.token_for(repo)
         response = await self.client.request(
@@ -300,6 +334,7 @@ class GitHubPullRequests:
                 "X-GitHub-Api-Version": "2022-11-28",
             },
             json=json,
+            follow_redirects=follow,
         )
         if response.status_code not in tolerate:
             response.raise_for_status()
