@@ -22,3 +22,8 @@ def test_only_work_that_arrives_without_a_pull_request_publishes_one() -> None:
 def test_a_policy_must_allow_at_least_one_round() -> None:
     with pytest.raises(ValueError, match="max_rounds"):
         Policy(max_rounds=0)
+
+
+def test_only_the_current_protocol_waits_for_the_repositorys_ci() -> None:
+    assert not course_for(EntryPoint.IMPLEMENT, Policy(), protocol=3).waits_for_ci
+    assert course_for(EntryPoint.IMPLEMENT, Policy(), protocol=4).waits_for_ci
