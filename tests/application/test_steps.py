@@ -1,7 +1,7 @@
 import tempfile
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from shelf.application.steps import Steps, branch_of, task_prompt
@@ -439,11 +439,3 @@ async def test_a_reviewer_is_told_what_the_ci_says_and_may_approve_over_a_green_
     result = await steps(agents, pulls=FakePulls(cis=[GREEN])).run(REVIEW, RunStep(Phase.CODE_REVIEW, 0, ""))
     assert result == Reviewed(Verdict.APPROVE, "Fine.")
     assert "CI is green" in agents.tasks[0].prompt
-
-
-async def test_a_waiting_step_tells_the_workflow_it_is_alive_each_time_it_wakes() -> None:
-    beats: list[int] = []
-    waiting = steps(pulls=FakePulls(cis=[RUNNING, RUNNING, GREEN]), config=ON_CI)
-    waiting = replace(waiting, pulse=lambda: beats.append(1))
-    await waiting.run(NEED, RunStep(Phase.VERIFY, 0, ""))
-    assert len(beats) == 2

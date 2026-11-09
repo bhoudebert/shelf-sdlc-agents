@@ -99,8 +99,6 @@ class Steps:
     """How long a commit may show no CI run at all before the repository counts as having none: runs appear a few
     seconds after a push, not at once."""
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep
-    pulse: Callable[[], None] = lambda: None
-    """Tells the workflow the step is alive while it waits."""
 
     async def run(self, work: WorkContext, step: RunStep) -> StepResult:
         """Run ``step`` for ``work``, speak about it on the pull request as the agent it is, and read what came out."""
@@ -295,7 +293,6 @@ class Steps:
                 return ci
             await self.sleep(self.ci_poll)
             waited += self.ci_poll
-            self.pulse()
 
 
 def _is_a_repeated_wait(step: RunStep, result: StepResult) -> bool:

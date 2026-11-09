@@ -1,5 +1,7 @@
 """The activities: the only place where the workflow touches the world, built from the ports they need."""
 
+import asyncio
+import contextlib
 from collections.abc import Callable, Sequence
 from typing import Any
 
@@ -13,13 +15,34 @@ from shelf.domain.stage import stage_of
 from shelf.domain.work import AskPerson, Outcome, Reason, RunStep
 from shelf.ports.steps import PullRequests, StepRunner
 
+HEARTBEAT_EVERY = 15.0
+"""Seconds between two heartbeats of a running step; the workflow gives a step 60 seconds of silence."""
+
+
+async def keep_alive(beat: Callable[[], None], every: float) -> None:
+    """Call ``beat`` every ``every`` seconds until cancelled.
+
+    A step cannot be trusted to speak up by itself while an agent thinks, a build runs or the CI is awaited.
+    """
+    while True:
+        beat()
+        await asyncio.sleep(every)
+
 
 def build_activities(steps: StepRunner, pulls: PullRequests) -> Sequence[Callable[..., Any]]:
     """Bind the activities to the adapters that carry them out. No globals: the composition root calls this."""
 
     @activity.defn(name=RUN_STEP)
     async def run_step(step: wire.StepInput) -> wire.StepOutput:
-        result = await steps.run(wire.context_of(step.work), RunStep(Phase(step.phase), step.attempt, step.feedback))
+        beating = asyncio.create_task(keep_alive(activity.heartbeat, HEARTBEAT_EVERY))
+        try:
+            result = await steps.run(
+                wire.context_of(step.work), RunStep(Phase(step.phase), step.attempt, step.feedback)
+            )
+        finally:
+            beating.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await beating
         return wire.output_of(result)
 
     @activity.defn(name=ANNOUNCE)

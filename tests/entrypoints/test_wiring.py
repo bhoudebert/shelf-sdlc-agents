@@ -5,7 +5,7 @@ import pytest
 
 from shelf.domain.polling import Mode
 from shelf.entrypoints.settings import from_environ
-from shelf.entrypoints.wiring import load_operator, pulse
+from shelf.entrypoints.wiring import load_operator
 
 BASE = {"PUBLIC_URL": "https://shelf.example.org", "SESSION_SECRET": "s" * 32}
 
@@ -77,7 +77,3 @@ def test_a_configuration_mistake_stops_the_program_with_one_readable_line() -> N
     with pytest.raises(SystemExit) as stop:
         exit_with(MissingSettingError("SESSION_SECRET is required"))
     assert str(stop.value) == "shelf: cannot start: SESSION_SECRET is required"
-
-
-def test_the_heartbeat_outside_an_activity_does_nothing() -> None:
-    pulse()
