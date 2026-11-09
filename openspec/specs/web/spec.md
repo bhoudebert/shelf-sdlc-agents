@@ -84,6 +84,20 @@ The system SHALL offer on the start form, beside the read-only review, an entry 
 - **WHEN** the form is shown
 - **THEN** it offers to review a pull request, read only, and to work on one, each asking for its number
 
+### Requirement: The form offers existing material as an optional field
+
+The system SHALL offer on the start form an optional field for existing material (an issue, a pull request or a file of the repository), SHALL say that nothing in it is required and that the text box may be used instead or as well, and SHALL answer a reference that cannot be used with the form again and the reason.
+
+#### Scenario: Optional
+
+- **WHEN** the form is shown
+- **THEN** the field is there with a hint that it can be left empty
+
+#### Scenario: A reference that cannot be used
+
+- **WHEN** the reference names a file the repository does not have
+- **THEN** the form is shown again with that message and nothing starts
+
 ### Requirement: A review of a pull request that is not there is refused on the form
 
 The system SHALL answer a start form that asks to review a pull request the chosen repository does not have with the form again and a message naming the repository and the number, and SHALL NOT start anything.

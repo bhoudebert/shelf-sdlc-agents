@@ -48,6 +48,30 @@ The system SHALL, before starting work on an existing pull request, refuse a pul
 - **WHEN** the instruction is empty
 - **THEN** nothing starts
 
+### Requirement: Work may start from existing material, always optionally
+
+The system SHALL accept, with any start, an optional reference to existing material of the same repository: an issue or pull request (`#12` or its address) or a file (a path, or the address of a file), SHALL make what it says the request, said where it came from and followed by whatever the person typed, and SHALL work as before when no reference is given, so that material that does not exist never blocks a start. It SHALL use only what people with write access wrote, refuse an address that belongs to another repository, a path that climbs out of the repository, a folder, a file that is not text and one longer than 100 KB, each with a message that says why, and SHALL accept an empty text when a reference is given.
+
+#### Scenario: A file and a note
+
+- **WHEN** a person starts at the design with `docs/specs/loyalty.md` and a sentence of their own
+- **THEN** the request is that file, headed by where it came from, followed by their sentence
+
+#### Scenario: Nothing to point at
+
+- **WHEN** a person gives no reference
+- **THEN** the text they typed is the request, as before
+
+#### Scenario: An outsider's issue
+
+- **WHEN** the issue was written by someone without write access
+- **THEN** the start is refused and says to paste the text they trust instead
+
+#### Scenario: Another repository
+
+- **WHEN** the address belongs to another repository
+- **THEN** the start is refused and names both repositories
+
 ### Requirement: A review starts only on a pull request the repository has
 
 The system SHALL, before starting a review of a pull request, ask GitHub as the person whether the chosen repository has that pull request, and SHALL refuse the start with a message naming the repository and the number when it does not, so that a work is never started on the wrong repository and left to fail at its first step.

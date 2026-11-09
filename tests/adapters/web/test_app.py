@@ -18,12 +18,14 @@ from shelf.domain.app_check import REQUIRED_EVENTS, REQUIRED_PERMISSIONS, AppFac
 from shelf.domain.config import RepoConfig, Role
 from shelf.domain.model import Identity, RepoRef, WorkId, WorkView
 from shelf.domain.pipeline import EntryPoint, Phase
+from shelf.domain.reference import Imported, Reference
 from shelf.domain.result import Err, Ok, Result
 from shelf.domain.story import Message, Voice
 from shelf.domain.work import DecisionKind, PersonDecided, Reason
 from shelf.ports.app_inspector import AppInspector
 from shelf.ports.conversation import Conversations
 from shelf.ports.documents import Documents
+from shelf.ports.references import References
 from shelf.ports.runner import UnreachableWorkError
 from tests.fakes import FakeConfigs, FakeForge, FakeRunner
 
@@ -50,6 +52,7 @@ class Fixture:
         documents: Documents | None = None,
         inspector: AppInspector | None = None,
         conversations: Conversations | None = None,
+        references: References | None = None,
     ) -> None:
         self.forge = FakeForge(identities={"token-code": ALICE}, repos={"token-code": (REPO,)})
         self.runner = FakeRunner()
@@ -63,6 +66,7 @@ class Fixture:
             transport,
             documents,
             inspector,
+            references,
             conversations,
         )
         self.client = TestClient(create_app(deps), base_url="https://shelf.example.org", follow_redirects=False)
@@ -691,3 +695,36 @@ def test_the_documents_pane_of_work_on_an_existing_pull_request_does_not_promise
     html = fixture.client.get("/work/work-1/documents").text
     assert "writes no spec, design or plan" in html
     assert "the spec first" not in html
+
+
+class FakeReferences:
+    def __init__(self, result: Ok[Imported] | Err[str]) -> None:
+        self.result = result
+
+    async def read(self, repo: RepoRef, reference: Reference) -> Ok[Imported] | Err[str]:
+        return self.result
+
+
+def test_the_start_form_offers_optional_existing_material() -> None:
+    fixture = Fixture(references=FakeReferences(Ok(Imported("#1", "x"))))
+    fixture.sign_in()
+    page = fixture.client.get("/start").text
+    assert 'name="reference"' in page
+    assert "Nothing here is required" in page
+
+
+def test_existing_material_given_on_the_form_starts_the_work_from_it() -> None:
+    fixture = Fixture(references=FakeReferences(Ok(Imported("docs/spec.md", "The spec."))))
+    fixture.sign_in()
+    response = fixture.client.post("/start", data={"repo": "acme/shop", "entry": "spec", "reference": "docs/spec.md"})
+    assert response.status_code == 303
+    assert fixture.runner.started[0].text.startswith("> Imported from docs/spec.md")
+
+
+def test_a_reference_that_cannot_be_used_is_said_on_the_form_and_nothing_starts() -> None:
+    fixture = Fixture(references=FakeReferences(Err("acme/shop has no file docs/spec.md on the default branch")))
+    fixture.sign_in()
+    response = fixture.client.post("/start", data={"repo": "acme/shop", "entry": "spec", "reference": "docs/spec.md"})
+    assert response.status_code == 422
+    assert "has no file docs/spec.md" in response.text
+    assert fixture.runner.started == []

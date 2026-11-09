@@ -6,6 +6,7 @@ from shelf.domain.access import AccessRules
 from shelf.domain.config import RepoConfig, Role
 from shelf.domain.model import PullInfo, RepoRef, WorkId, WorkRequest
 from shelf.domain.pipeline import EntryPoint, Phase
+from shelf.domain.reference import File, Imported, Reference
 from shelf.domain.result import Err, Ok
 from shelf.domain.work import DecisionKind, PersonDecided
 from tests.fakes import FakeConfigs, FakeForge, FakeRunner
@@ -170,3 +171,67 @@ async def test_work_on_a_pull_request_needs_a_number_and_something_to_do(forge: 
     assert await start_work(FakeRunner(), forge, config, user_token="tok", request=work_on(text="  ")) == Err(
         Invalid("the request is empty")
     )
+
+
+class FakeReferences:
+    def __init__(self, result: Ok[Imported] | Err[str]) -> None:
+        self.result = result
+        self.asked: list[tuple[RepoRef, Reference]] = []
+
+    async def read(self, repo: RepoRef, reference: Reference) -> Ok[Imported] | Err[str]:
+        self.asked.append((repo, reference))
+        return self.result
+
+
+async def test_existing_material_becomes_the_request_followed_by_what_the_person_typed(forge: FakeForge) -> None:
+    references = FakeReferences(Ok(Imported("docs/spec.md", "The spec.")))
+    runner = FakeRunner()
+    spec = WorkRequest(REPO, "alice", EntryPoint.SPEC, "also empty carts")
+    result = await start_work(
+        runner, forge, FakeConfigs(), user_token="tok", request=spec, references=references, reference="docs/spec.md"
+    )
+    assert isinstance(result, Ok)
+    assert references.asked == [(REPO, File("docs/spec.md"))]
+    [started] = runner.started
+    assert started.text.startswith("> Imported from docs/spec.md\n\nThe spec.")
+    assert started.text.rstrip().endswith("also empty carts")
+
+
+async def test_material_alone_is_enough_so_the_text_box_may_stay_empty(forge: FakeForge) -> None:
+    references = FakeReferences(Ok(Imported("#42", "# Loyalty")))
+    spec = WorkRequest(REPO, "alice", EntryPoint.NEED, "")
+    result = await start_work(
+        FakeRunner(), forge, FakeConfigs(), user_token="tok", request=spec, references=references, reference="#42"
+    )
+    assert isinstance(result, Ok)
+
+
+async def test_without_any_reference_nothing_is_read_and_the_text_is_used_as_before(forge: FakeForge) -> None:
+    references = FakeReferences(Err("never asked"))
+    result = await start_work(
+        FakeRunner(), forge, FakeConfigs(), user_token="tok", request=need(), references=references
+    )
+    assert isinstance(result, Ok)
+    assert references.asked == []
+
+
+async def test_a_reference_that_cannot_be_used_is_refused_with_why(forge: FakeForge) -> None:
+    references = FakeReferences(Err("#42 was written by someone without write access"))
+    result = await start_work(
+        FakeRunner(), forge, FakeConfigs(), user_token="tok", request=need(), references=references, reference="#42"
+    )
+    assert result == Err(Invalid("#42 was written by someone without write access"))
+
+
+async def test_a_reference_that_is_not_one_is_refused_before_anything_is_read(forge: FakeForge) -> None:
+    references = FakeReferences(Ok(Imported("x", "y")))
+    result = await start_work(
+        FakeRunner(), forge, FakeConfigs(), user_token="tok", request=need(), references=references, reference="../x"
+    )
+    assert isinstance(result, Err)
+    assert references.asked == []
+
+
+async def test_without_a_reader_a_reference_is_refused_plainly(forge: FakeForge) -> None:
+    result = await start_work(FakeRunner(), forge, FakeConfigs(), user_token="tok", request=need(), reference="#42")
+    assert result == Err(Invalid("starting from existing material is not available here"))

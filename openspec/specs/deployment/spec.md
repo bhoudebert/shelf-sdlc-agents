@@ -370,6 +370,15 @@ The system SHALL publish the web port on every interface unless the operator set
 - **WHEN** `WEB_BIND=127.0.0.1`
 - **THEN** the web service is reachable from the host itself and not from the network
 
+### Requirement: The web service reads existing material to start work from
+
+The system SHALL wire the web service to read the issues, pull requests and files that a start refers to, as the App, with an installation token minted for the request.
+
+#### Scenario: A start from a file
+
+- **WHEN** the form carries a reference
+- **THEN** the service reads it before the work starts
+
 ### Requirement: The operator can check that the agents work
 
 The system SHALL provide a command that runs tiny real agent checks against the instance's configuration in a throwaway repository (a shell, the repository's agent file, the title convention, commands in the sandbox, the credential) and reports each with what to do about a failure.
