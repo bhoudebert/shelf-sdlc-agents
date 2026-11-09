@@ -56,7 +56,7 @@ def router(web: Web) -> APIRouter:
                     None,
                     reason=reason,
                     install_url=web.deps.settings.install_url,
-                    organisations=bool(web.deps.access().organisations),
+                    organisations=sorted(web.deps.access().organisations),
                 )
             case Ok(signed):
                 session_id = web.deps.sessions.create(signed.identity, signed.user_token)

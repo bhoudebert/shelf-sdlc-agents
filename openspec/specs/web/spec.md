@@ -23,7 +23,7 @@ The system SHALL send a visitor through GitHub's OAuth flow with a state value t
 #### Scenario: A refusal when organisations are listed
 
 - **WHEN** a person is refused on an instance whose access list names organisations
-- **THEN** the page says how a membership becomes visible: public, or the App installed on the organisation by an owner (with a link to GitHub that opens in a new tab), or a listing by name by the operator
+- **THEN** the page says how a membership becomes visible: public, or the App installed on the organisation by an owner (each with a link to GitHub that opens in a new tab: the People page of every listed organisation, and the App's installation page), or a listing by name by the operator
 
 #### Scenario: A forged callback
 

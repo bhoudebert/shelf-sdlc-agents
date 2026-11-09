@@ -133,6 +133,7 @@ def test_a_refusal_on_an_instance_with_organisations_says_how_a_membership_becom
     page = app.client.get("/auth/callback", params={"code": "code", "state": state}).text
     assert "belong to an organisation" in page
     assert "/apps/shelf/installations/new" in page
+    assert "/orgs/hid-ttt/people" in page
 
 
 def test_a_refusal_without_listed_organisations_does_not_talk_about_them() -> None:
