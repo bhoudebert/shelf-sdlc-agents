@@ -15,6 +15,7 @@ from shelf.domain.model import WorkView
 from shelf.domain.pipeline import PIPELINE, EntryPoint, Phase
 from shelf.domain.progress import clock
 from shelf.domain.roles import DOCUMENT_TITLES
+from shelf.domain.story import Message, Voice
 from shelf.domain.work import DecisionKind, Outcome, Reason
 
 DAY = 86400
@@ -162,6 +163,36 @@ def elapsed(iso: str, now: datetime) -> str:
 
 
 _PULL = re.compile(r"/pull/(\d+)/?$")
+
+FEED_LIMIT = 30
+"""How many of the latest comments the work page shows; the rest is on GitHub."""
+
+
+def pull_request_of(url: str) -> int | None:
+    """The number in a pull request's address, or ``None`` while there is no pull request."""
+    found = _PULL.search(url)
+    return int(found.group(1)) if found else None
+
+
+@dataclass(frozen=True, slots=True)
+class FeedItem:
+    """One comment of the conversation, ready to show."""
+
+    speaker: str
+    voice: str
+    """``agent``, ``person`` or ``other``."""
+    html: Markup
+    when: str
+    url: str
+
+
+def feed(story: Sequence[Message]) -> list[FeedItem]:
+    """The latest comments, oldest first, rendered for reading (never as active content)."""
+    shown = [message for message in story if message.voice is not Voice.SUMMARY and message.body.strip()]
+    return [
+        FeedItem(message.speaker, message.voice.value, render_markdown(message.body), clock(message.when), message.url)
+        for message in shown[-FEED_LIMIT:]
+    ]
 
 
 def _number_of(url: str) -> str:

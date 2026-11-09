@@ -51,6 +51,7 @@ async def build(settings: settings_module.Settings) -> FastAPI:
             SessionStore(),
             documents=services.documents,
             inspector=services.inspector,
+            conversations=services.conversations,
         )
     )
 

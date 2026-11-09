@@ -1,0 +1,24 @@
+<section id="conversation" class="story" hx-get="/work/{{ work_id }}/conversation?v={{ version }}" hx-trigger="every 20s" hx-swap="outerHTML" aria-label="Conversation on the pull request">
+  <h2>Conversation</h2>
+  {% if not has_pull_request %}
+  <p class="muted">The conversation starts when the pull request opens, after the first step.</p>
+  {% elif failed %}
+  <p class="muted">The conversation could not be loaded from GitHub just now. It will appear on the next refresh.</p>
+  {% elif items %}
+  <ol class="feed">
+    {% for item in items %}
+    <li class="msg msg-{{ item.voice }}">
+      <div class="msg-head">
+        <strong>{{ item.speaker }}</strong>
+        <span class="msg-kind">{{ "agent" if item.voice == "agent" else "person" if item.voice == "person" else "shelf" }}</span>
+        {% if item.when %}<a class="msg-when" href="{{ item.url }}" target="_blank" rel="noopener noreferrer">{{ item.when }}<span class="vh"> (opens on GitHub in a new tab)</span></a>{% endif %}
+      </div>
+      <div class="prose">{{ item.html }}</div>
+    </li>
+    {% endfor %}
+  </ol>
+  {% else %}
+  <p class="muted">Nothing has been said on the pull request yet.</p>
+  {% endif %}
+  {% if has_pull_request %}<p class="feed-foot"><a href="{{ pull_request_url }}" target="_blank" rel="noopener noreferrer">Reply on GitHub<span class="vh"> (opens in a new tab)</span></a>, or decide with the buttons above.</p>{% endif %}
+</section>
