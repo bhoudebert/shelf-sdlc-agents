@@ -6,6 +6,20 @@ Make the pull request the home of a piece of work: where it is published, what i
 
 ## Requirements
 
+### Requirement: The request is read back out of the pull request's description
+
+The system SHALL read the request back from the description of the pull request it opened, taking what follows its marker and leaving out the `Requested-by` line, and SHALL return any other description as written, saying that it is not its own.
+
+#### Scenario: A description this system wrote
+
+- **WHEN** a description starts with the system's marker and ends with a `Requested-by` line
+- **THEN** the request is what lies between them, and the description is reported as the system's own
+
+#### Scenario: Any other description
+
+- **WHEN** a pull request's description does not start with the marker
+- **THEN** it is returned as it is, and reported as not the system's own
+
 ### Requirement: Work is published as a draft pull request
 
 The system SHALL open a draft pull request from the work's branch, titled with the first line of the need and carrying the requester's login.
