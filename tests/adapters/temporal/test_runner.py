@@ -1,8 +1,11 @@
 import asyncio
 import itertools
 from collections.abc import Callable
+from types import SimpleNamespace
 
 import pytest
+from temporalio.client import WorkflowExecutionStatus, WorkflowFailureError
+from temporalio.exceptions import ApplicationError
 from temporalio.testing import WorkflowEnvironment
 
 from shelf.adapters.temporal.runner import TemporalRunner
@@ -138,3 +141,60 @@ async def test_an_administrator_can_close_work_even_when_it_cannot_be_read(env: 
 async def test_closing_work_that_does_not_exist_is_reported_as_unreachable(env: WorkflowEnvironment) -> None:
     with pytest.raises(UnreachableWorkError):
         await runner_for(env).terminate(WorkId("work-nope"), "x")
+
+
+class FinishedBadly:
+    """A workflow handle whose workflow ended with ``status`` and can no longer be queried."""
+
+    id = "work-1"
+
+    def __init__(self, status: WorkflowExecutionStatus, failure: BaseException | None) -> None:
+        self.status, self.failure = status, failure
+
+    async def describe(self) -> SimpleNamespace:
+        async def memo() -> dict[str, object]:
+            return {"repo": "acme/shop", "requester": "alice", "entry": "need", "title": "loyalty points"}
+
+        return SimpleNamespace(status=self.status, memo=memo)
+
+    async def query(self, *args: object) -> None:
+        message = "workflow task failed"
+        raise RuntimeError(message)
+
+    async def result(self, *, follow_runs: bool) -> None:
+        if self.failure is not None:
+            raise WorkflowFailureError(cause=self.failure)
+
+
+def runner_over(handle: FinishedBadly) -> TemporalRunner:
+    def get_workflow_handle_for(*_args: object) -> FinishedBadly:
+        return handle
+
+    client = SimpleNamespace(get_workflow_handle_for=get_workflow_handle_for)
+    return TemporalRunner(client, QUEUE, FakeConfigs(), Mode.SERVER)  # type: ignore[arg-type]
+
+
+async def test_a_workflow_that_failed_long_ago_is_shown_as_over_with_the_reason_it_gave() -> None:
+    handle = FinishedBadly(WorkflowExecutionStatus.FAILED, ApplicationError("list index out of range"))
+    view = await runner_over(handle).view(WorkId("work-1"))
+    assert view is not None
+    assert view.outcome is Outcome.ABORTED
+    assert view.waiting_for is None
+    assert "its workflow failed" in view.detail
+    assert "It said: list index out of range." in view.detail
+    assert "start the work again" in view.detail
+    assert view.title == "loyalty points"
+
+
+async def test_a_workflow_that_timed_out_says_so() -> None:
+    view = await runner_over(FinishedBadly(WorkflowExecutionStatus.TIMED_OUT, None)).view(WorkId("work-1"))
+    assert view is not None
+    assert "its workflow timed out" in view.detail
+    assert "It said" not in view.detail
+
+
+async def test_a_running_workflow_that_cannot_be_read_is_still_flagged_for_a_person() -> None:
+    view = await runner_over(FinishedBadly(WorkflowExecutionStatus.RUNNING, None)).view(WorkId("work-1"))
+    assert view is not None
+    assert view.waiting_for is Reason.FAILURE
+    assert "cannot be read right now" in view.detail

@@ -6,7 +6,7 @@ import uuid
 from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass, field
 
-from temporalio.client import Client, WorkflowExecutionStatus, WorkflowHandle
+from temporalio.client import Client, WorkflowExecutionStatus, WorkflowFailureError, WorkflowHandle
 from temporalio.service import RPCError
 
 from shelf.adapters.temporal import wire
@@ -28,6 +28,11 @@ def new_work_id() -> WorkId:
     """A fresh id for a piece of work."""
     return WorkId(f"work-{uuid.uuid4().hex[:12]}")
 
+
+ENDED_BADLY = frozenset(
+    {WorkflowExecutionStatus.FAILED, WorkflowExecutionStatus.TIMED_OUT, WorkflowExecutionStatus.CANCELED}
+)
+"""The ways a workflow can be over without having finished its work."""
 
 TERMINATED = "This work was closed by an administrator because it could not be steered any more."
 
@@ -161,6 +166,17 @@ class TemporalRunner:
                     outcome=Outcome.ABORTED,
                     title=str(memo.get("title") or ""),
                 )
+            if description.status in ENDED_BADLY:  # over for good: say why, instead of "cannot be read"
+                return WorkView(
+                    WorkId(handle.id),
+                    repo,
+                    requester,
+                    entry,
+                    Phase.INTAKE,
+                    detail=await _why_it_ended(handle, description.status),
+                    outcome=Outcome.ABORTED,
+                    title=str(memo.get("title") or ""),
+                )
             kind = type(error).__name__
             message = f"This work cannot be read right now ({kind}). It may have been started by an older release."
             return WorkView(
@@ -191,3 +207,24 @@ class TemporalRunner:
     def _link_of(self, repo: RepoRef, number: object) -> str:
         """The link to the pull request a review started from; nothing for work that opens its own."""
         return f"{self.web_url.rstrip('/')}/{repo.full_name}/pull/{number}" if isinstance(number, int) else ""
+
+
+async def _why_it_ended(handle: WorkflowHandle[WorkItemWorkflow, str], status: WorkflowExecutionStatus | None) -> str:
+    """What a finished-badly workflow says about its end: the innermost message of its failure."""
+    name = (status.name if status else "ended").lower().replace("_", " ")
+    reason = ""
+    try:
+        await handle.result(follow_runs=False)
+    except WorkflowFailureError as error:
+        reason = " ".join(str(_innermost(error)).split())[:300]
+    except Exception as error:  # noqa: BLE001 - the reason is a courtesy; say what kind of thing went wrong
+        reason = type(error).__name__
+    said = f" It said: {reason}." if reason else ""
+    return f"This work is over: its workflow {name}.{said} A finished workflow cannot be resumed: start the work again."
+
+
+def _innermost(error: BaseException) -> BaseException:
+    """The cause at the bottom of a chain of Temporal failures, which is the one that says what really happened."""
+    while isinstance(inner := getattr(error, "cause", None), BaseException):
+        error = inner
+    return error
