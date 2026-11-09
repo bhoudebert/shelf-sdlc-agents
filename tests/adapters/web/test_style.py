@@ -1,6 +1,8 @@
 import re
 from pathlib import Path
 
+from shelf.domain.pipeline import EntryPoint
+
 CSS = Path(__file__).parents[3] / "src/shelf/adapters/web/static/app.css"
 
 
@@ -19,3 +21,9 @@ def test_the_interface_is_light_whatever_the_system_prefers_and_dark_only_when_c
     script = (CSS.parent / "app.js").read_text(encoding="utf-8")
     assert "prefers-color-scheme" not in script
     assert 'return "light"' in script
+
+
+def test_the_start_preview_knows_every_entry_point_so_none_shows_everything_as_skipped() -> None:
+    css = CSS.read_text(encoding="utf-8")
+    for entry in EntryPoint:
+        assert f'input[value="{entry.value}"]:checked) .preview li' in css, entry

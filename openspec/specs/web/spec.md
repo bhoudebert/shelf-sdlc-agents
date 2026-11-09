@@ -74,6 +74,11 @@ The system SHALL show every piece of work of the repositories the person can see
 
 The system SHALL offer on the start form, beside the read-only review, an entry that changes an existing pull request, asking for its number and for what to do to it, and SHALL say beside it that the agents change that branch as asked, wait for its CI and may force-push it when a rebase needs it, only if nobody pushed to it meanwhile.
 
+#### Scenario: The preview follows the choice
+
+- **WHEN** a person chooses to work on a pull request
+- **THEN** the preview lists implementation, checks, code review and the merge as the steps the work goes through, and the earlier ones as skipped
+
 #### Scenario: The two pull request entries
 
 - **WHEN** the form is shown
