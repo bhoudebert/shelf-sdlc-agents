@@ -1,0 +1,101 @@
+{# The illustrations: one flat language (fills with a soft ink outline), in the theme's colours.
+   The mascot is a small astronaut who stands for the agents. Poses: wave (hello, or "this needs you"),
+   work (agents at it), sleep (nothing going on), celebrate (merged), confused (a step failed).
+   Every drawing is decoration: hidden from assistive technology, the words around it say the same thing. #}
+
+{% macro sparkle(x, y, s, cls="art-spark") -%}
+<path class="{{ cls }}" d="M{{ x }} {{ y - s }}Q{{ x }} {{ y }} {{ x + s }} {{ y }}Q{{ x }} {{ y }} {{ x }} {{ y + s }}Q{{ x }} {{ y }} {{ x - s }} {{ y }}Q{{ x }} {{ y }} {{ x }} {{ y - s }}Z"/>
+{%- endmacro %}
+
+{% macro mascot_parts(pose) -%}
+<g class="art-line">
+  <ellipse class="art-shadow" cx="48" cy="90" rx="19" ry="3.2" stroke="none"/>
+  {%- if pose == "celebrate" %}
+  <rect class="art-suit" x="24" y="26" width="9" height="24" rx="4.5" transform="rotate(-28 33 52)"/>
+  <rect class="art-suit" x="63" y="26" width="9" height="24" rx="4.5" transform="rotate(28 63 52)"/>
+  {%- elif pose == "wave" %}
+  <rect class="art-suit" x="24" y="54" width="9" height="20" rx="4.5" transform="rotate(12 28 56)"/>
+  <rect class="art-suit art-wave" x="63" y="32" width="9" height="24" rx="4.5" transform="rotate(26 67 56)"/>
+  {%- elif pose == "confused" %}
+  <rect class="art-suit" x="23" y="30" width="9" height="24" rx="4.5" transform="rotate(-38 30 54)"/>
+  <rect class="art-suit" x="63" y="54" width="9" height="20" rx="4.5" transform="rotate(-12 68 56)"/>
+  {%- elif pose == "work" %}
+  <rect class="art-suit" x="27" y="53" width="9" height="19" rx="4.5" transform="rotate(-40 31 55)"/>
+  <rect class="art-suit" x="60" y="53" width="9" height="19" rx="4.5" transform="rotate(40 65 55)"/>
+  {%- else %}
+  <rect class="art-suit" x="24" y="54" width="9" height="20" rx="4.5" transform="rotate(12 28 56)"/>
+  <rect class="art-suit" x="63" y="54" width="9" height="20" rx="4.5" transform="rotate(-12 68 56)"/>
+  {%- endif %}
+  <rect class="art-suit" x="37" y="72" width="9" height="15" rx="4"/>
+  <rect class="art-suit" x="50" y="72" width="9" height="15" rx="4"/>
+  <rect class="art-suit" x="31" y="51" width="34" height="27" rx="11"/>
+  <circle class="art-accent" cx="48" cy="63" r="3.6"/>
+  {%- if pose == "work" %}
+  <rect class="art-accent" x="37" y="61" width="22" height="15" rx="3"/>
+  <path class="art-line-soft" d="M37 66h22" fill="none"/>
+  {%- endif %}
+  <path d="M48 13V6" fill="none"/>
+  <circle class="art-accent" cx="48" cy="5" r="3.6"/>
+  <rect class="art-visor" x="24.5" y="29" width="5" height="11" rx="2.5"/>
+  <rect class="art-visor" x="66.5" y="29" width="5" height="11" rx="2.5"/>
+  <circle class="art-suit" cx="48" cy="34" r="20.5"/>
+  <rect class="art-visor" x="33" y="24" width="30" height="19" rx="9.5"/>
+  <rect class="art-glint" x="37" y="27" width="6" height="2.4" rx="1.2" stroke="none"/>
+  {%- if pose in ("wave", "celebrate") %}
+  <path class="art-eye-line" d="M39.5 35.5q3-4 6 0M50.5 35.5q3-4 6 0" fill="none"/>
+  {%- elif pose == "sleep" %}
+  <path class="art-eye-line" d="M39.5 33.5q3 3.5 6 0M50.5 33.5q3 3.5 6 0" fill="none"/>
+  {%- elif pose == "confused" %}
+  <rect class="art-eye" x="41" y="30.5" width="4" height="6.5" rx="2" stroke="none"/>
+  <path class="art-eye-line" d="M50.5 34h6" fill="none"/>
+  {%- else %}
+  <rect class="art-eye" x="41" y="30.5" width="4" height="6.5" rx="2" stroke="none"/>
+  <rect class="art-eye" x="51" y="30.5" width="4" height="6.5" rx="2" stroke="none"/>
+  {%- endif %}
+</g>
+{%- if pose == "sleep" %}
+<path class="art-zz" d="M70 14h7l-7 8h7M81 4h5l-5 6h5" fill="none"/>
+{%- elif pose == "confused" %}
+<path class="art-q" d="M72 10q0-6 6-6t6 6q0 4-6 6v4" fill="none"/><circle class="art-accent-dot" cx="78" cy="25" r="2"/>
+{%- elif pose == "celebrate" %}
+{{ sparkle(14, 18, 6) }}{{ sparkle(84, 14, 5, "art-spark-2") }}{{ sparkle(86, 44, 3.5) }}{{ sparkle(10, 46, 3.5, "art-spark-2") }}
+{%- elif pose == "work" %}
+{{ sparkle(80, 58, 4, "art-spark-2") }}
+{%- endif %}
+{%- endmacro %}
+
+{% macro mascot(pose="wave", cls="") -%}
+<svg class="art mascot mascot-{{ pose }} {{ cls }}" viewBox="0 0 96 96" aria-hidden="true" focusable="false">{{ mascot_parts(pose) }}</svg>
+{%- endmacro %}
+
+{# A ringed planet, a moon and a few sparkles: the backdrop of the welcome and empty states. #}
+{% macro planet_parts() -%}
+<g class="art-line">
+  <path class="art-ring" d="M15.5 124.5A118 26 -14 0 0 244.5 67.5" fill="none"/>
+  <circle class="art-planet" cx="130" cy="96" r="58"/>
+  <path class="art-band" d="M76 82q54 18 110-6M74 104q58 18 112-6" fill="none"/>
+  <circle class="art-crater" cx="112" cy="70" r="7"/>
+  <circle class="art-crater" cx="152" cy="118" r="5"/>
+  <path class="art-ring" d="M244.5 67.5A118 26 -14 0 0 15.5 124.5" fill="none"/>
+  <circle class="art-moon" cx="232" cy="30" r="12"/>
+</g>
+{{ sparkle(40, 30, 7) }}{{ sparkle(206, 160, 5, "art-spark-2") }}{{ sparkle(256, 120, 4) }}{{ sparkle(24, 160, 4, "art-spark-2") }}
+<circle class="art-dot" cx="72" cy="20" r="2"/><circle class="art-dot" cx="190" cy="14" r="1.6"/><circle class="art-dot" cx="250" cy="172" r="1.6"/>
+{%- endmacro %}
+
+{# The welcome scene: the planet with the mascot in front of it, in one pose. #}
+{% macro scene(pose="wave", cls="") -%}
+<svg class="art scene {{ cls }}" viewBox="0 0 280 190" aria-hidden="true" focusable="false">
+  {{ planet_parts() }}
+  <g transform="translate(150 70) scale(1.25)"><g class="scene-mascot">{{ mascot_parts(pose) }}</g></g>
+</svg>
+{%- endmacro %}
+
+{# The brand mark: the mascot's helmet. #}
+{% macro mark() -%}
+<svg class="art mark-art" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><g class="art-line" stroke-width="1.8">
+  <path d="M16 5.5V2" fill="none"/><circle class="art-accent" cx="16" cy="2.6" r="2.2"/>
+  <circle class="art-suit" cx="16" cy="17.5" r="12"/><rect class="art-visor" x="7.5" y="11.5" width="17" height="11" rx="5.5"/>
+  <rect class="art-eye" x="11.6" y="15" width="2.4" height="3.6" rx="1.2" stroke="none"/><rect class="art-eye" x="18" y="15" width="2.4" height="3.6" rx="1.2" stroke="none"/>
+</g></svg>
+{%- endmacro %}

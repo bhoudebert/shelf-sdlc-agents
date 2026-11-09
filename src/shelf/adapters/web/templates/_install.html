@@ -1,12 +1,16 @@
+{% from "_art.html" import scene %}
 <section class="empty install" aria-labelledby="install-title">
   <div class="empty-main">
     <h2 id="install-title">{{ heading or "No repositories yet" }}</h2>
     <p class="lead">Install the GitHub App on the repositories you want to work on. They appear here once you do.</p>
     <p><a class="btn" href="{{ install_url }}" target="_blank" rel="noopener noreferrer">Install or configure on GitHub<span class="vh"> (opens in a new tab)</span></a></p>
   </div>
+  <div class="empty-side">
+  {{ scene("wave", "empty-scene") }}
   <ol class="howto">
     <li><strong>Install the app.</strong> On GitHub, choose the account, then the repositories the factory may use.</li>
     <li><strong>Come back here.</strong> The repositories show up within a few seconds. You only see work on repositories you can open yourself.</li>
     <li><strong>Start work.</strong> Pick a repository and the step to begin at.</li>
   </ol>
+  </div>
 </section>

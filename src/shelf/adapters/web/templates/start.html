@@ -3,6 +3,7 @@
 {% block content %}
 {% include "_model_warning.html" %}
 {% from "_macros.html" import glyph %}
+{% from "_art.html" import mascot %}
 <div class="page">
   <div class="page-head"><h1>Start work</h1></div>
   {% if error %}<p class="alert" role="alert">{{ glyph("stopped") }}<span>{{ error }}</span></p>{% endif %}
@@ -63,7 +64,7 @@
     </div>
 
     <aside class="start-preview" aria-hidden="true">
-      <h2>Where it goes</h2>
+      <div class="preview-head">{{ mascot("work", "preview-art") }}<h2>Where it goes</h2></div>
       <ol class="preview">
         <li>Spec</li><li>Spec review</li><li>Spec approval</li><li>Design</li><li>Design review</li>
         <li>Plan</li><li>Implementation</li><li>Checks</li><li>Code review</li><li>Pull request</li>

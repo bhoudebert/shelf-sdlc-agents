@@ -280,6 +280,30 @@ The system SHALL show the interface in its light theme by default, whatever the 
 - **WHEN** the person has chosen dark with the toggle
 - **THEN** the next page is dark from the first paint
 
+### Requirement: Decoration never competes with reading
+
+The system SHALL keep its decoration (the star field, the orbits, the illustrations and the mascot that stands for the agents) behind or beside the content, never on top of text and hidden from assistive technology, with the words around it saying the same thing; SHALL keep every text and its background at a WCAG AA contrast in both themes, with the dark theme calm (body text between 10:1 and 14:1, no glow); and, where the board shows how far a piece of work has gone, each state of a phase SHALL differ by shape as well as colour.
+
+#### Scenario: The mascot tells the state of a piece of work
+
+- **WHEN** a piece of work is running, waits for a person, failed at a step, was merged, or was closed
+- **THEN** its status shows the mascot at work, waving, puzzled, celebrating or asleep, next to the words that say the state
+
+#### Scenario: The dark theme stays calm
+
+- **WHEN** the person chose the dark theme
+- **THEN** the body text stands at a moderate contrast on a grey-blue ground, without glow or nebula
+
+#### Scenario: A stopped piece of work on the board
+
+- **WHEN** a piece of work was aborted at the design phase
+- **THEN** its row shows the earlier phases as filled nodes, the design phase as a diamond and the later phases as hollow nodes, next to the word for its phase
+
+#### Scenario: Reduced motion
+
+- **WHEN** the person's system asks for reduced motion
+- **THEN** nothing on the page moves, the mascot included
+
 ### Requirement: The pipeline timeline is readable without colour
 
 The system SHALL show every phase of the pipeline on the work page with a distinct glyph and word for done, in progress, waiting, stopped and not yet reached, and SHALL mark the current phase for assistive technology.
