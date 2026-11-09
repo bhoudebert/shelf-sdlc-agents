@@ -379,6 +379,15 @@ The system SHALL wire the web service to read the issues, pull requests and file
 - **WHEN** the form carries a reference
 - **THEN** the service reads it before the work starts
 
+### Requirement: Reference repositories are read by the worker and cached beside the tools
+
+The system SHALL read reference repositories in the worker, with no credential, and SHALL keep their copies for an hour under the worker's cache directory when one is set, so that the agents' own network allow-list does not change.
+
+#### Scenario: A cache directory
+
+- **WHEN** a cache directory is set
+- **THEN** the steps of one work share one download of each repository
+
 ### Requirement: The operator can check that the agents work
 
 The system SHALL provide a command that runs tiny real agent checks against the instance's configuration in a throwaway repository (a shell, the repository's agent file, the title convention, commands in the sandbox, the credential) and reports each with what to do about a failure.

@@ -240,3 +240,17 @@ The system SHALL heartbeat from the activity that runs a step, on a timer indepe
 - **WHEN** the worker stops
 - **THEN** the heartbeats stop and Temporal retries the step
 
+### Requirement: The other repositories a work reads are part of its input
+
+The system SHALL carry the list of other repositories a work reads in the workflow's input and keep it in its memo for the board, and SHALL read a workflow recorded without that list as reading none, so that histories recorded before it replay unchanged.
+
+#### Scenario: A work that reads a repository
+
+- **WHEN** a work is started with `foo/bar@v1`
+- **THEN** every step receives it and the board's view of the work lists it
+
+#### Scenario: An older history
+
+- **WHEN** a history recorded without the list is replayed
+- **THEN** it replays and the work reads no other repository
+

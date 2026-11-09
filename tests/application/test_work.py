@@ -1,9 +1,12 @@
+from pathlib import Path
+
 import pytest
 
 from shelf.application.errors import Invalid, NotAllowed, NotFound
 from shelf.application.work import board, decide_work, start_work
 from shelf.domain.access import AccessRules
 from shelf.domain.config import RepoConfig, Role
+from shelf.domain.context_repo import ContextRepo
 from shelf.domain.model import PullInfo, RepoRef, WorkId, WorkRequest
 from shelf.domain.pipeline import EntryPoint, Phase
 from shelf.domain.reference import File, Imported, Reference
@@ -235,3 +238,82 @@ async def test_a_reference_that_is_not_one_is_refused_before_anything_is_read(fo
 async def test_without_a_reader_a_reference_is_refused_plainly(forge: FakeForge) -> None:
     result = await start_work(FakeRunner(), forge, FakeConfigs(), user_token="tok", request=need(), reference="#42")
     assert result == Err(Invalid("starting from existing material is not available here"))
+
+
+class FakeSources:
+    def __init__(self, unreadable: dict[str, str] | None = None) -> None:
+        self.unreadable = unreadable or {}
+        self.checked: list[str] = []
+
+    async def check(self, item: ContextRepo) -> str:
+        self.checked.append(item.spec)
+        return self.unreadable.get(item.spec, "")
+
+    async def copy_into(self, item: ContextRepo, destination: Path) -> Ok[int]:
+        return Ok(1)
+
+
+async def started_with(
+    forge: FakeForge, sources: FakeSources, text: str, context: str = ""
+) -> tuple[object, FakeRunner]:
+    runner = FakeRunner()
+    result = await start_work(
+        runner,
+        forge,
+        FakeConfigs(),
+        user_token="tok",
+        request=WorkRequest(REPO, "alice", EntryPoint.NEED, text),
+        context_sources=sources,
+        context=context,
+    )
+    return result, runner
+
+
+async def test_a_link_in_the_request_is_read_as_reference_without_anyone_asking(forge: FakeForge) -> None:
+    result, runner = await started_with(forge, FakeSources(), "Implement the CI like https://github.com/foo/bar please")
+    assert isinstance(result, Ok)
+    assert runner.started[0].context == ("foo/bar",)
+
+
+async def test_a_link_to_a_private_or_missing_repository_is_only_a_mention_and_never_stops_the_start(
+    forge: FakeForge,
+) -> None:
+    sources = FakeSources({"foo/secret": "foo/secret is private"})
+    result, runner = await started_with(
+        forge, sources, "Look at https://github.com/foo/secret and https://github.com/foo/bar"
+    )
+    assert isinstance(result, Ok)
+    assert runner.started[0].context == ("foo/bar",)
+
+
+async def test_a_repository_the_person_listed_that_cannot_be_read_stops_the_start_with_why(forge: FakeForge) -> None:
+    sources = FakeSources({"foo/bar": "foo/bar was not found, or it is not public"})
+    result, runner = await started_with(forge, sources, "do it", context="foo/bar")
+    assert result == Err(Invalid("foo/bar was not found, or it is not public"))
+    assert runner.started == []
+
+
+async def test_what_the_person_listed_comes_first_pinned_and_a_repository_is_not_read_twice(forge: FakeForge) -> None:
+    result, runner = await started_with(forge, FakeSources(), "like https://github.com/foo/bar", context="foo/bar@v1")
+    assert isinstance(result, Ok)
+    assert runner.started[0].context == ("foo/bar@v1", "foo/bar")
+
+
+async def test_a_work_with_no_other_repository_reads_none(forge: FakeForge) -> None:
+    sources = FakeSources()
+    result, runner = await started_with(forge, sources, "loyalty points")
+    assert isinstance(result, Ok)
+    assert runner.started[0].context == ()
+    assert sources.checked == []
+
+
+async def test_listing_a_repository_where_none_can_be_read_is_refused_plainly(forge: FakeForge) -> None:
+    result = await start_work(
+        FakeRunner(),
+        forge,
+        FakeConfigs(),
+        user_token="tok",
+        request=need(),
+        context="foo/bar",
+    )
+    assert result == Err(Invalid("reading other repositories is not available here"))

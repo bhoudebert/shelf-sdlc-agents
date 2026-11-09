@@ -1,7 +1,7 @@
 import tempfile
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import pytest
@@ -9,8 +9,10 @@ import pytest
 from shelf.application.steps import Steps, branch_of, task_prompt
 from shelf.domain.ci import Ci, CiRun, CiState, judge
 from shelf.domain.config import RepoConfig
+from shelf.domain.context_repo import ContextRepo
 from shelf.domain.model import PullInfo, RepoRef, WorkContext, WorkId, WorkRequest
 from shelf.domain.pipeline import EntryPoint, Phase
+from shelf.domain.result import Err, Ok
 from shelf.domain.story import agent_comment
 from shelf.domain.work import WAITING_FOR_CI, Produced, Reviewed, RunStep, Verdict, Verified
 from shelf.ports.agents import AgentTask
@@ -512,3 +514,60 @@ async def test_github_refusing_to_hide_a_comment_never_stops_the_work() -> None:
 
     result = await steps(pulls=Refusing()).run(NEED, RunStep(Phase.IMPLEMENT, 1, "x"))
     assert result == Produced()
+
+
+class FakeContextSources:
+    def __init__(self, fail: str = "") -> None:
+        self.fail = fail
+        self.copied: list[tuple[str, Path]] = []
+
+    async def check(self, item: ContextRepo) -> str:
+        return ""
+
+    async def copy_into(self, item: ContextRepo, destination: Path) -> Ok[int] | Err[str]:
+        if self.fail:
+            return Err(self.fail)
+        self.copied.append((item.spec, destination))
+        return Ok(1)
+
+
+def on_context(*specs: str) -> WorkContext:
+    return WorkContext(WorkId("work-5"), WorkRequest(REPO, "alice", EntryPoint.NEED, "ci like foo/bar", context=specs))
+
+
+async def test_other_repositories_are_copied_next_to_the_clone_and_the_agent_is_told_they_are_only_material() -> None:
+    sources, agents, workspaces = FakeContextSources(), FakeAgents(), FakeWorkspaces()
+    work = replace(steps(agents, workspaces), context_sources=sources)
+    await work.run(on_context("foo/bar@v1"), RunStep(Phase.INTAKE, 0, ""))
+    [(spec, destination)] = sources.copied
+    assert spec == "foo/bar@v1"
+    assert destination == workspaces.workspace.path / ".shelf-context" / "foo__bar__v1"
+    [task] = agents.tasks
+    assert "`.shelf-context/foo__bar__v1/`" in task.prompt
+    assert "never run, install, build or execute" in task.prompt.lower()
+
+
+async def test_the_copies_are_kept_out_of_what_git_tracks(tmp_path: Path) -> None:
+    workspaces = FakeWorkspaces(FakeWorkspace(path=tmp_path))
+    (tmp_path / ".git").mkdir()
+    work = replace(steps(workspaces=workspaces), context_sources=FakeContextSources())
+    await work.run(on_context("foo/bar"), RunStep(Phase.INTAKE, 0, ""))
+    assert ".shelf-context/" in (tmp_path / ".git" / "info" / "exclude").read_text()
+
+
+async def test_a_work_with_no_other_repository_gets_no_copy_and_no_note() -> None:
+    sources, agents = FakeContextSources(), FakeAgents()
+    await replace(steps(agents), context_sources=sources).run(NEED, RunStep(Phase.INTAKE, 0, ""))
+    assert sources.copied == []
+    assert "Reference material" not in agents.tasks[0].prompt
+
+
+async def test_a_repository_that_cannot_be_copied_stops_the_step_with_why() -> None:
+    work = replace(steps(), context_sources=FakeContextSources(fail="too large"))
+    with pytest.raises(RuntimeError, match="cannot read foo/bar as reference: too large"):
+        await work.run(on_context("foo/bar"), RunStep(Phase.INTAKE, 0, ""))
+
+
+async def test_a_work_that_reads_repositories_on_an_instance_that_cannot_stops_the_step() -> None:
+    with pytest.raises(RuntimeError, match="cannot read any"):
+        await steps().run(on_context("foo/bar"), RunStep(Phase.INTAKE, 0, ""))

@@ -50,6 +50,8 @@ class WorkRequest:
     """The need, or the provided document, depending on the entry point."""
     pull_request: int | None = None
     """The pull request to review, for that entry point."""
+    context: tuple[str, ...] = ()
+    """Other repositories the agents may read as reference, each as ``owner/name@ref:folder`` (see ``ContextRepo``)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,6 +68,8 @@ class WorkView:
     outcome: Outcome | None = None
     pull_request_url: str = ""
     title: str = ""
+    context: tuple[str, ...] = ()
+    """The other repositories this work reads as reference, each as ``owner/name@ref:folder``."""
     updated_at: str = ""
     """When the work last did anything (ISO, UTC); empty for work started before times were kept."""
     times: tuple[tuple[str, str], ...] = ()

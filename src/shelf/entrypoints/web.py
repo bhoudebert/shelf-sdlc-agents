@@ -53,6 +53,7 @@ async def build(settings: settings_module.Settings) -> FastAPI:
             inspector=services.inspector,
             conversations=services.conversations,
             references=services.references,
+            context_sources=services.context_sources,
         )
     )
 

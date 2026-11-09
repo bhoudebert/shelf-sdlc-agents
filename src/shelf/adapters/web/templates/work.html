@@ -5,7 +5,7 @@
   <p class="crumb"><a href="/board">Board</a></p>
   <div class="page-head work-head">
     <h1>{{ item.title or item.repo }}</h1>
-    <p class="meta">{% if item.title %}{{ item.repo }} · {% endif %}{% if item.pull_request_number %}PR {{ item.pull_request_number }} · {% endif %}{{ item.entry }} · requested by {{ item.requester }}{% if temporal_link %} · <a href="{{ temporal_link }}" target="_blank" rel="noopener noreferrer">Inspect in Temporal<span class="vh"> (opens in a new tab)</span></a>{% endif %}</p>
+    <p class="meta">{% if item.title %}{{ item.repo }} · {% endif %}{% if item.pull_request_number %}PR {{ item.pull_request_number }} · {% endif %}{{ item.entry }} · requested by {{ item.requester }}{% if item.context %} · reading {{ item.context|join(", ") }}{% endif %}{% if temporal_link %} · <a href="{{ temporal_link }}" target="_blank" rel="noopener noreferrer">Inspect in Temporal<span class="vh"> (opens in a new tab)</span></a>{% endif %}</p>
   </div>
   {% if can_close %}
   <form class="close-work" method="post" action="/work/{{ item.id }}/close">

@@ -21,6 +21,7 @@ from shelf.domain.model import WorkId, WorkView
 from shelf.domain.polling import Mode
 from shelf.ports.app_inspector import AppInspector
 from shelf.ports.configs import RepoConfigs
+from shelf.ports.context_sources import ContextSources
 from shelf.ports.conversation import Conversations
 from shelf.ports.documents import Documents
 from shelf.ports.forge import Forge
@@ -83,6 +84,8 @@ class WebDeps:
     """How the GitHub App is looked at, for the administrator's check; the page shows none without it."""
     references: References | None = None
     """Where existing material (an issue, a pull request, a file) is read from to start work; none without it."""
+    context_sources: ContextSources | None = None
+    """Where other repositories are read from to check what a person asks to be read; none without it."""
     conversations: Conversations | None = None
     """Where the pull request's conversation is read from; the page shows none without it."""
 

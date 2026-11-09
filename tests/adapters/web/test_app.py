@@ -4,6 +4,7 @@ import json
 import re
 from collections.abc import Callable, Mapping
 from dataclasses import replace
+from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import httpx
@@ -16,6 +17,7 @@ from shelf.adapters.web.sessions import SessionStore
 from shelf.domain.access import AccessRules
 from shelf.domain.app_check import REQUIRED_EVENTS, REQUIRED_PERMISSIONS, AppFacts
 from shelf.domain.config import RepoConfig, Role
+from shelf.domain.context_repo import ContextRepo
 from shelf.domain.model import Identity, RepoRef, WorkId, WorkView
 from shelf.domain.pipeline import EntryPoint, Phase
 from shelf.domain.reference import Imported, Reference
@@ -23,6 +25,7 @@ from shelf.domain.result import Err, Ok, Result
 from shelf.domain.story import Message, Voice
 from shelf.domain.work import DecisionKind, PersonDecided, Reason
 from shelf.ports.app_inspector import AppInspector
+from shelf.ports.context_sources import ContextSources
 from shelf.ports.conversation import Conversations
 from shelf.ports.documents import Documents
 from shelf.ports.references import References
@@ -53,6 +56,7 @@ class Fixture:
         inspector: AppInspector | None = None,
         conversations: Conversations | None = None,
         references: References | None = None,
+        context_sources: ContextSources | None = None,
     ) -> None:
         self.forge = FakeForge(identities={"token-code": ALICE}, repos={"token-code": (REPO,)})
         self.runner = FakeRunner()
@@ -67,6 +71,7 @@ class Fixture:
             documents,
             inspector,
             references,
+            context_sources,
             conversations,
         )
         self.client = TestClient(create_app(deps), base_url="https://shelf.example.org", follow_redirects=False)
@@ -727,4 +732,41 @@ def test_a_reference_that_cannot_be_used_is_said_on_the_form_and_nothing_starts(
     response = fixture.client.post("/start", data={"repo": "acme/shop", "entry": "spec", "reference": "docs/spec.md"})
     assert response.status_code == 422
     assert "has no file docs/spec.md" in response.text
+    assert fixture.runner.started == []
+
+
+class FakeContextSources:
+    async def check(self, item: ContextRepo) -> str:
+        return "" if item.repo.name != "private" else f"{item.spec} is private"
+
+    async def copy_into(self, item: ContextRepo, destination: Path) -> Ok[int]:
+        return Ok(1)
+
+
+def test_the_form_offers_other_repositories_and_says_a_link_in_the_request_is_enough() -> None:
+    fixture = Fixture(context_sources=FakeContextSources())
+    fixture.sign_in()
+    page = fixture.client.get("/start").text
+    assert 'name="context"' in page
+    assert "You do not have to fill this in" in page
+    assert "nothing in them is ever run" in page
+
+
+def test_a_link_in_the_request_starts_the_work_reading_that_repository() -> None:
+    fixture = Fixture(context_sources=FakeContextSources())
+    fixture.sign_in()
+    fixture.client.post(
+        "/start", data={"repo": "acme/shop", "entry": "need", "text": "CI like https://github.com/foo/bar"}
+    )
+    assert fixture.runner.started[0].context == ("foo/bar",)
+
+
+def test_a_listed_repository_that_cannot_be_read_is_said_on_the_form() -> None:
+    fixture = Fixture(context_sources=FakeContextSources())
+    fixture.sign_in()
+    response = fixture.client.post(
+        "/start", data={"repo": "acme/shop", "entry": "need", "text": "x", "context": "foo/private"}
+    )
+    assert response.status_code == 422
+    assert "foo/private is private" in response.text
     assert fixture.runner.started == []

@@ -183,6 +183,20 @@ The system SHALL read the latest hundred comments of a pull request and mark as 
 - **WHEN** no comment qualifies
 - **THEN** only the question is sent
 
+### Requirement: A public repository is downloaded as an archive and unpacked inertly
+
+The system SHALL read a public repository without any credential, by downloading its archive and unpacking it itself, never with git, so that no hook, submodule, filter or link can act. It SHALL write only regular files, skip links, devices and any name that leaves the destination, skip binary files and those over one megabyte, write every file read only without an execute bit, cap the download, the total size and the number of files, copy only a named folder when one is named, and keep a copy for an hour so that the steps of one work download once.
+
+#### Scenario: A hostile archive
+
+- **WHEN** the archive holds a symbolic link, a name with `..`, an absolute name and an executable script
+- **THEN** the links and escaping names are not written and the script is written read only without an execute bit
+
+#### Scenario: A repository that is too large
+
+- **WHEN** the download passes the cap
+- **THEN** it is refused and a folder is suggested
+
 ### Requirement: The CI of a pull request is read as the App
 
 The system SHALL read, as the App, the check runs of the head commit of a pull request (with the summary and the annotations of the ones that failed) and its commit statuses, and SHALL carry on without statuses when GitHub refuses them to the App.

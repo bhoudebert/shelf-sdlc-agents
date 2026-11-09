@@ -6,12 +6,14 @@ from dataclasses import replace
 from shelf.application.errors import Invalid, NotAllowed, NotFound, Refusal
 from shelf.domain.access import AccessRules, is_admin
 from shelf.domain.config import may_decide
+from shelf.domain.context_repo import MAX_REPOSITORIES, ContextRepo, mentioned, parse_contexts
 from shelf.domain.model import RepoRef, WorkId, WorkRequest, WorkView
 from shelf.domain.pipeline import EntryPoint
 from shelf.domain.reference import Imported, combine, parse_reference
 from shelf.domain.result import Err, Ok, Result
 from shelf.domain.work import DecisionKind, PersonDecided
 from shelf.ports.configs import RepoConfigs
+from shelf.ports.context_sources import ContextSources
 from shelf.ports.forge import Forge
 from shelf.ports.references import References
 from shelf.ports.runner import WorkRunner
@@ -26,11 +28,14 @@ async def start_work(  # noqa: PLR0913
     request: WorkRequest,
     references: References | None = None,
     reference: str = "",
+    context_sources: ContextSources | None = None,
+    context: str = "",
 ) -> Result[WorkId, Refusal]:
     """Start work on a repository the person can see, at an entry point the repository enables.
 
     ``reference`` is optional existing material (an issue, a pull request or a file of the repository): what it says
-    becomes the request, followed by what the person typed.
+    becomes the request, followed by what the person typed. ``context`` lists other public repositories to read as
+    reference; so are those the request links to.
     """
     visible = await forge.repositories(user_token)
     if request.repo not in visible:
@@ -42,14 +47,52 @@ async def start_work(  # noqa: PLR0913
         refusal = await _pull_request_refusal(forge, user_token, request)
         if refusal is not None:
             return Err(refusal)
-    if reference.strip():
-        imported = await _import(references, request.repo, reference)
-        if isinstance(imported, Err):
-            return Err(Invalid(imported.error))
-        request = replace(request, text=combine(imported.value, request.text))
+    enriched = await _enrich(request, references, reference, context_sources, context)
+    if isinstance(enriched, Err):
+        return Err(Invalid(enriched.error))
+    request = enriched.value
     if request.entry is not EntryPoint.PULL_REQUEST_REVIEW and not request.text.strip():
         return Err(Invalid("the request is empty"))
     return Ok(await runner.start(request))
+
+
+async def _enrich(
+    request: WorkRequest, references: References | None, reference: str, sources: ContextSources | None, context: str
+) -> Result[WorkRequest, str]:
+    """The request with the other repositories to read and the existing material it starts from, or why not."""
+    found = await _context(sources, context, request)
+    if isinstance(found, Err):
+        return found
+    request = replace(request, context=found.value)
+    if not reference.strip():
+        return Ok(request)
+    imported = await _import(references, request.repo, reference)
+    if isinstance(imported, Err):
+        return imported
+    return Ok(replace(request, text=combine(imported.value, request.text)))
+
+
+async def _context(sources: ContextSources | None, explicit: str, request: WorkRequest) -> Result[tuple[str, ...], str]:
+    """The other repositories to read.
+
+    Those the person listed are refused when one cannot be read. Those the request links to are read when public and
+    silently left out otherwise, since a link to a private repository is only a mention.
+    """
+    asked = parse_contexts(explicit)
+    if isinstance(asked, Err):
+        return asked
+    if sources is None:
+        return Err("reading other repositories is not available here") if asked.value else Ok(())
+    chosen: list[ContextRepo] = []
+    for item in asked.value:
+        problem = await sources.check(item)
+        if problem:
+            return Err(problem)
+        chosen.append(item)
+    for item in mentioned(request.text, request.repo):
+        if len(chosen) < MAX_REPOSITORIES and item not in chosen and not await sources.check(item):
+            chosen.append(item)
+    return Ok(tuple(item.spec for item in chosen))
 
 
 async def _import(references: References | None, repo: RepoRef, reference: str) -> Result[Imported, str]:
