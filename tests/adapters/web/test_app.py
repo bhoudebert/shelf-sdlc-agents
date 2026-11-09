@@ -137,6 +137,14 @@ def test_a_person_without_repositories_is_shown_how_to_install_the_app() -> None
     assert "https://github.com/apps/shelf/installations/new" in app.client.get("/board").text
 
 
+def test_a_person_with_repositories_can_still_add_one_from_the_board_and_the_start_form(app: Fixture) -> None:
+    app.sign_in()
+    for path in ("/board", "/start"):
+        page = app.client.get(path).text
+        assert "/apps/shelf/installations/new" in page
+        assert "Add a repository" in page
+
+
 def test_starting_work_creates_it_and_shows_its_page(app: Fixture) -> None:
     app.sign_in()
     response = app.client.post("/start", data={"repo": "acme/shop", "entry": "need", "text": "loyalty points"})

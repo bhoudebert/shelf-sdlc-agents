@@ -70,6 +70,11 @@ The system SHALL show every piece of work of the repositories the person can see
 - **WHEN** the App is installed on none of the person's repositories
 - **THEN** the board explains how to install it and links to GitHub
 
+#### Scenario: Adding another repository
+
+- **WHEN** a person who already has repositories opens the board or the start form
+- **THEN** a link to the App's installation page on GitHub, opening in a new tab, lets them add one more
+
 ### Requirement: The form offers to work on a pull request and says what that allows
 
 The system SHALL offer on the start form, beside the read-only review, an entry that changes an existing pull request, asking for its number and for what to do to it, and SHALL say beside it that the agents change that branch as asked, wait for its CI and may force-push it when a rebase needs it, only if nobody pushed to it meanwhile.
