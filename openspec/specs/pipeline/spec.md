@@ -72,7 +72,7 @@ The system SHALL publish a pull request for work that arrives without one, and S
 
 ### Requirement: A course carries the protocol its work started with
 
-The system SHALL build the course of a piece of work with the protocol version it starts under, defaulting to the original behaviour for work that has none recorded, and SHALL say whether that protocol opens the pull request early.
+The system SHALL build the course of a piece of work with the protocol version it starts under, defaulting to the original behaviour for work that has none recorded, and SHALL say whether that protocol opens the pull request early and whether its checks wait for the repository's CI (protocol 4 and later).
 
 #### Scenario: Original work
 
@@ -88,3 +88,9 @@ The system SHALL build the course of a piece of work with the protocol version i
 
 - **WHEN** a course is built for a review of an existing pull request under the current protocol
 - **THEN** it hands the reviewer's findings to a person, while the same course under protocol 2 or earlier does not
+
+#### Scenario: Waiting for the CI by protocol
+
+- **WHEN** courses are built under protocols 3 and 4
+- **THEN** only the one under protocol 4 waits for the repository's CI
+

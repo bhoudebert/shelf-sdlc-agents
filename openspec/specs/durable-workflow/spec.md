@@ -174,3 +174,18 @@ The system SHALL look at a waiting work's pull request every minute at first in 
 
 - **WHEN** a command is typed on a pull request and no webhook is delivered
 - **THEN** the next look finds it within about a minute
+
+### Requirement: A step result can say the CI has not finished
+
+The system SHALL carry, in the result of a step as recorded in the workflow's history, whether the checks are waiting for the repository's CI, and SHALL read a result recorded without that field as not waiting, so that histories recorded before it replay unchanged.
+
+#### Scenario: An older result
+
+- **WHEN** a recorded checks result has no waiting field
+- **THEN** it is read as a result that is not waiting
+
+#### Scenario: A waiting result
+
+- **WHEN** the checks report that the CI is running
+- **THEN** the recorded result says waiting, and the workflow runs the checks again in the same round
+
