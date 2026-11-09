@@ -13,6 +13,10 @@
   </form>
   {% endif %}
   {% include "_work_panel.html" %}
+  <section id="conversation" class="story" hx-get="/work/{{ item.id }}/conversation" hx-trigger="load, every 20s" hx-swap="outerHTML" aria-label="Conversation on the pull request">
+    <h2>Conversation</h2>
+    <p class="muted">Loading the conversation&hellip;</p>
+  </section>
   <section id="documents" class="docs" hx-get="/work/{{ item.id }}/documents" hx-trigger="load, every 20s" hx-swap="outerHTML" aria-label="Documents of this work">
     <h2>Documents</h2>
     <p class="muted">Loading the documents&hellip;</p>

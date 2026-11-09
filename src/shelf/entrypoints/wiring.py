@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 import httpx
 from temporalio.client import Client
 
+from shelf.adapters.caching.conversation import CachedConversations
 from shelf.adapters.caching.documents import CachedDocuments
 from shelf.adapters.claude_agent.backend import ClaudeBackend
 from shelf.adapters.claude_agent.prompts import load_prompt
@@ -16,6 +17,7 @@ from shelf.adapters.config.github import GitHubRepoConfigs
 from shelf.adapters.config.toml_files import parse_operator
 from shelf.adapters.git.workspace import GitWorkspaces
 from shelf.adapters.github_app.app_auth import installation_id, installation_token
+from shelf.adapters.github_app.conversation import GitHubConversations
 from shelf.adapters.github_app.documents import GitHubDocuments
 from shelf.adapters.github_app.forge import GitHubForge
 from shelf.adapters.github_app.inspector import GitHubAppInspector
@@ -75,6 +77,7 @@ class Services:
     operator: OperatorConfig
     documents: CachedDocuments
     inspector: GitHubAppInspector
+    conversations: CachedConversations
 
 
 async def connect(settings: Settings) -> Client:
@@ -121,5 +124,13 @@ def build_services(settings: Settings, github: GitHubApp, client: httpx.AsyncCli
     runner = TemporalRunner(temporal, settings.task_queue, configs, operator.mode, app.web_url)
     documents = CachedDocuments(GitHubDocuments(client, app, token_for))
     return Services(
-        GitHubForge(client, app), configs, pulls, steps, runner, operator, documents, GitHubAppInspector(client, app)
+        GitHubForge(client, app),
+        configs,
+        pulls,
+        steps,
+        runner,
+        operator,
+        documents,
+        GitHubAppInspector(client, app),
+        CachedConversations(GitHubConversations(client, app, token_for)),
     )

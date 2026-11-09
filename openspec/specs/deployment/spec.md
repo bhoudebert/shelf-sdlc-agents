@@ -203,6 +203,15 @@ The system SHALL log a warning when the worker starts without a model credential
 - **WHEN** the worker starts with none of them set
 - **THEN** it logs how to get a token and where to put it
 
+### Requirement: The web service reads a pull request's conversation through a short cache
+
+The system SHALL wire the web service to read a pull request's conversation through a cache of ten seconds, so that a page polling every twenty seconds costs GitHub little.
+
+#### Scenario: Two reads within the cache time
+
+- **WHEN** the same pull request's conversation is read twice within ten seconds
+- **THEN** GitHub is asked once
+
 ### Requirement: The web service wraps GitHub lookups in a short cache
 
 The system SHALL wire the web service's GitHub access through a cache of about a minute, so that a long-open interface does not spend GitHub's rate limit.

@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+import re
 from collections.abc import Callable, Mapping
 from dataclasses import replace
 from urllib.parse import parse_qs, urlparse
@@ -18,8 +19,10 @@ from shelf.domain.config import RepoConfig, Role
 from shelf.domain.model import Identity, RepoRef, WorkId, WorkView
 from shelf.domain.pipeline import EntryPoint, Phase
 from shelf.domain.result import Err, Ok, Result
+from shelf.domain.story import Message, Voice
 from shelf.domain.work import DecisionKind, PersonDecided, Reason
 from shelf.ports.app_inspector import AppInspector
+from shelf.ports.conversation import Conversations
 from shelf.ports.documents import Documents
 from shelf.ports.runner import UnreachableWorkError
 from tests.fakes import FakeConfigs, FakeForge, FakeRunner
@@ -46,6 +49,7 @@ class Fixture:
         transport: httpx.MockTransport | None = None,
         documents: Documents | None = None,
         inspector: AppInspector | None = None,
+        conversations: Conversations | None = None,
     ) -> None:
         self.forge = FakeForge(identities={"token-code": ALICE}, repos={"token-code": (REPO,)})
         self.runner = FakeRunner()
@@ -59,6 +63,7 @@ class Fixture:
             transport,
             documents,
             inspector,
+            conversations,
         )
         self.client = TestClient(create_app(deps), base_url="https://shelf.example.org", follow_redirects=False)
 
@@ -578,3 +583,80 @@ def test_work_without_a_kept_title_is_still_listed_under_its_repository(app: Fix
     page = app.client.get("/board").text
     assert "acme/shop" in page
     assert "PR #" not in page
+
+
+class FakeConversations:
+    def __init__(self, story: list[Message], *, fail: bool = False) -> None:
+        self.story, self.fail = story, fail
+        self.read_for: list[tuple[RepoRef, int]] = []
+
+    async def read(self, repo: RepoRef, pull_request: int) -> list[Message]:
+        self.read_for.append((repo, pull_request))
+        if self.fail:
+            message = "github down"
+            raise RuntimeError(message)
+        return self.story
+
+
+def with_conversation(conversations: FakeConversations, url: str = "https://github.com/acme/shop/pull/12") -> Fixture:
+    fixture = Fixture(conversations=conversations)
+    fixture.sign_in()
+    fixture.runner.views[WorkId("work-1")] = WorkView(
+        WorkId("work-1"), REPO, "alice", EntryPoint.NEED, Phase.DESIGN, pull_request_url=url
+    )
+    return fixture
+
+
+STORY = [
+    Message(Voice.AGENT, "Spec writer", "I wrote the **spec**.", "2026-11-09T09:12:00Z", "https://github.com/c/1"),
+    Message(Voice.SUMMARY, "Progress", "table", "2026-11-09T09:13:00Z", ""),
+    Message(
+        Voice.PERSON, "carol", "<script>alert(1)</script> looks good", "2026-11-09T09:20:00Z", "https://github.com/c/2"
+    ),
+]
+
+
+def test_the_work_page_loads_the_conversation_lazily() -> None:
+    page = with_conversation(FakeConversations([])).client.get("/work/work-1").text
+    assert 'hx-get="/work/work-1/conversation"' in page
+
+
+def test_the_conversation_shows_who_said_what_and_when_without_the_progress_table() -> None:
+    conversations = FakeConversations(STORY)
+    html = with_conversation(conversations).client.get("/work/work-1/conversation").text
+    assert conversations.read_for == [(REPO, 12)]
+    assert "Spec writer" in html
+    assert "<strong>spec</strong>" in html
+    assert "9 Nov 09:12 UTC" in html
+    assert "carol" in html
+    assert "table" not in html
+    assert "<script>" not in html  # a comment is text, never active content
+
+
+def test_the_conversation_waits_for_the_pull_request_to_open() -> None:
+    conversations = FakeConversations(STORY)
+    html = with_conversation(conversations, url="").client.get("/work/work-1/conversation").text
+    assert "starts when the pull request opens" in html
+    assert conversations.read_for == []
+
+
+def test_a_github_hiccup_is_said_not_shown_as_an_error() -> None:
+    html = with_conversation(FakeConversations(STORY, fail=True)).client.get("/work/work-1/conversation")
+    assert html.status_code == 200
+    assert "could not be loaded" in html.text
+
+
+def test_an_unchanged_conversation_leaves_the_page_alone() -> None:
+    fixture = with_conversation(FakeConversations(STORY))
+    version = re.search(r"conversation\?v=([0-9a-f]+)", fixture.client.get("/work/work-1/conversation").text)
+    assert version is not None
+    assert fixture.client.get("/work/work-1/conversation", params={"v": version.group(1)}).status_code == 204
+
+
+def test_a_person_cannot_read_the_conversation_of_a_repository_they_cannot_see() -> None:
+    fixture = Fixture(conversations=FakeConversations(STORY))
+    fixture.sign_in()
+    fixture.runner.views[WorkId("work-9")] = WorkView(
+        WorkId("work-9"), RepoRef("acme", "secret"), "x", EntryPoint.NEED, Phase.DESIGN
+    )
+    assert fixture.client.get("/work/work-9/conversation").status_code == 404

@@ -19,6 +19,7 @@ from shelf.domain.model import WorkId, WorkView
 from shelf.domain.polling import Mode
 from shelf.ports.app_inspector import AppInspector
 from shelf.ports.configs import RepoConfigs
+from shelf.ports.conversation import Conversations
 from shelf.ports.documents import Documents
 from shelf.ports.forge import Forge
 from shelf.ports.runner import WorkRunner
@@ -77,6 +78,8 @@ class WebDeps:
     """Where the work's documents are read from; the interface shows none without it."""
     inspector: AppInspector | None = None
     """How the GitHub App is looked at, for the administrator's check; the page shows none without it."""
+    conversations: Conversations | None = None
+    """Where the pull request's conversation is read from; the page shows none without it."""
 
 
 @dataclass(frozen=True, slots=True)
