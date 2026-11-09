@@ -25,6 +25,27 @@ if [ ! -f "$env_file" ]; then
   echo "Wrote $env_file. Add your model credentials (ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN) before the first run."
 fi
 
+# Preflight: the usual mistakes, caught before anything is built.
+value() { sed -n "s/^$1=//p" "$env_file" | tail -n 1 | sed -e 's/^"//' -e 's/"$//'; }
+if [ -f "$here/../.env" ]; then
+  echo "WARNING: there is a .env at the repository root. Docker Compose reads only $env_file: move what you need there." >&2
+fi
+for name in PUBLIC_URL SESSION_SECRET; do
+  [ -n "$(value $name)" ] || { echo "ERROR: $name is empty in $env_file." >&2; exit 1; }
+done
+web_port=$(value WEB_PORT); web_port=${web_port:-8080}
+if [ -z "$($compose ps -q web 2>/dev/null)" ] && command -v ss >/dev/null 2>&1 \
+  && ss -ltnH "sport = :$web_port" 2>/dev/null | grep -q .; then
+  echo "ERROR: port $web_port is already in use on this host by something that is not this service. WEB_PORT is the private" >&2
+  echo "       port your proxy forwards to (not your site's public port 80 or 443): set another in $env_file, such as 8081," >&2
+  echo "       and point your proxy at it." >&2
+  exit 1
+fi
+if [ -z "$(value WEB_BIND)" ]; then
+  echo "NOTE: the web port is published on every network interface. If your reverse proxy runs on this server, set" >&2
+  echo "      WEB_BIND=127.0.0.1 in $env_file so that the proxy is the only way in."
+fi
+
 # Your access file is yours: created once from the example, then never touched or committed.
 if [ ! -f "$here/shelf.toml" ]; then
   cp "$here/shelf.toml.example" "$here/shelf.toml"

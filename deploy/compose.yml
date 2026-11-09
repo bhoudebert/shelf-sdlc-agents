@@ -55,7 +55,8 @@ services:
     <<: *shelf
     command: ["shelf-web"]
     ports:
-      - "${WEB_PORT:-8080}:8080"
+      # Every interface unless WEB_BIND says otherwise (127.0.0.1 when your reverse proxy runs on this server).
+      - "${WEB_BIND:-0.0.0.0}:${WEB_PORT:-8080}:8080"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; urllib.request.urlopen('http://127.0.0.1:8080/healthz')"]
       interval: 10s
