@@ -5,6 +5,7 @@ from typing import Protocol
 
 from shelf.domain.ci import Ci
 from shelf.domain.model import PullInfo, WorkContext
+from shelf.domain.pipeline import Phase
 from shelf.domain.stage import Stage
 from shelf.domain.work import AskPerson, Event, RunStep, StepResult
 
@@ -46,6 +47,13 @@ class PullRequests(Protocol):
 
     async def comment(self, work: WorkContext, body: str) -> None:
         """Post ``body`` on the pull request (a review, for work that reviews an existing pull request)."""
+        ...
+
+    async def outdate(self, work: WorkContext, rerun_from: Phase | None) -> None:
+        """Mark as outdated what no longer belongs on the pull request.
+
+        That is the waits that are over, and the agents' comments from ``rerun_from`` on when the flow circled back.
+        """
         ...
 
     async def head(self, work: WorkContext) -> PullInfo:

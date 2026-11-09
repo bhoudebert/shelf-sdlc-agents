@@ -127,6 +127,7 @@ class Steps:
         repo = work.request.repo
         config = await self.configs.load(repo)
         token = await self.token_for(repo)
+        await self._straighten(work, step)
         reviewing = work.request.pull_request if step.phase is Phase.CODE_REVIEW else None
         branch, lease = await self._branch(work)
         checkout = Checkout(repo, token, branch, config.base_branch, reviewing, lease)
@@ -138,6 +139,20 @@ class Steps:
             if not _is_a_repeated_wait(step, result):
                 await self.pulls.comment(work, agent_comment(work.id, speaker, words))
             return result
+
+    async def _straighten(self, work: WorkContext, step: RunStep) -> None:
+        """Keep the pull request a straight line.
+
+        A step that starts means the wait is over, and one that starts again because the flow circled back makes what
+        came from that phase on outdated. Cosmetic: GitHub refusing it never stops the work.
+        """
+        if step.feedback == WAITING_FOR_CI:  # only another look at the CI: nothing moved
+            return
+        again = step.attempt > 0 or bool(step.feedback)
+        try:
+            await self.pulls.outdate(work, step.phase if again else None)
+        except Exception:  # noqa: BLE001 - a tidy pull request is never worth stopping the work for
+            return
 
     async def _branch(self, work: WorkContext) -> tuple[str, str]:
         """The branch a step works on, and for a pull request that is not ours where that branch is now.

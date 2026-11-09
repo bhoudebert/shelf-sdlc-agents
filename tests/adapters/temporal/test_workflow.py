@@ -76,6 +76,11 @@ class FakePulls:
     looked: int = 0
     pull: PullInfo = field(default_factory=lambda: PullInfo("feat/x", "abc", open=True, same_repository=True))
 
+    outdated: list[Phase | None] = field(default_factory=list[Phase | None])
+
+    async def outdate(self, work: WorkContext, rerun_from: Phase | None) -> None:
+        self.outdated.append(rerun_from)
+
     async def head(self, work: WorkContext) -> PullInfo:
         return self.pull
 

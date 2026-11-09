@@ -169,6 +169,20 @@ The system SHALL ask GitHub, with the person's own token and not the App's, whet
 - **WHEN** GitHub answers 404 to the person's token
 - **THEN** the pull request is treated as not existing for them
 
+### Requirement: Comments of a pull request can be marked outdated
+
+The system SHALL read the latest hundred comments of a pull request and mark as outdated, in one request, those the system decided no longer belong, never using an identifier that is not a node identifier, and SHALL do nothing when none qualifies.
+
+#### Scenario: Several to hide
+
+- **WHEN** two comments qualify and one is already hidden
+- **THEN** one request marks the two and leaves the hidden one
+
+#### Scenario: Nothing to hide
+
+- **WHEN** no comment qualifies
+- **THEN** only the question is sent
+
 ### Requirement: The CI of a pull request is read as the App
 
 The system SHALL read, as the App, the check runs of the head commit of a pull request (with the summary and the annotations of the ones that failed) and its commit statuses, and SHALL carry on without statuses when GitHub refuses them to the App.

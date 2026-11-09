@@ -168,6 +168,30 @@ The system SHALL keep exactly one progress comment, edited in place after every 
 - **WHEN** the checks report that the repository's CI has not finished
 - **THEN** the progress comment's row for the checks says it is waiting for CI, with a waiting symbol
 
+### Requirement: The pull request stays a straight line when the flow circles back
+
+The system SHALL, when a step starts, mark as outdated the announcements of waits that are over, and when it starts again because the flow circled back to its phase (a reviewer or a failed check sent the work back, or a person asked for changes), also mark as outdated what the agents said from that phase on, including its own earlier comment, while what the agents said before that phase still holds. It SHALL NOT touch the progress comment or anything a person wrote, SHALL NOT hide a comment of another work, and SHALL NOT change anything when a step only looks at the CI again. It SHALL leave the comments in place and readable, so that the interface still shows the whole conversation, and a failure to mark a comment SHALL NOT stop the work.
+
+#### Scenario: The reviewer sent the work back
+
+- **WHEN** the code review asked for changes and the developer starts again
+- **THEN** the developer's, the checks' and the reviewer's earlier comments are outdated, and the spec, design and plan comments are not
+
+#### Scenario: A wait that is over
+
+- **WHEN** a person answered a wait and the next step starts
+- **THEN** the announcement of that wait is outdated
+
+#### Scenario: Another look at the CI
+
+- **WHEN** a step starts only to look at the CI again
+- **THEN** nothing is marked
+
+#### Scenario: GitHub refuses
+
+- **WHEN** marking a comment fails
+- **THEN** the step runs anyway
+
 ### Requirement: A gate announcement links what to judge
 
 The system SHALL link, in the announcement of a wait, the document the person is asked to judge.
