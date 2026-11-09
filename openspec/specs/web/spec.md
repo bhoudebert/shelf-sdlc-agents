@@ -205,6 +205,20 @@ The system SHALL group the board by what is asked of the person (needs you, runn
 - **WHEN** one piece of work waits for a decision and another runs
 - **THEN** the waiting one is listed first, under its own heading
 
+### Requirement: The interface is light unless the person chose dark
+
+The system SHALL show the interface in its light theme by default, whatever the system's colour preference, and in the dark theme only after the person chose it with the toggle, which SHALL remember the choice in the browser.
+
+#### Scenario: A first visit on a dark system
+
+- **WHEN** a person with no remembered choice opens a page on a system set to dark
+- **THEN** the page is light
+
+#### Scenario: A chosen dark theme
+
+- **WHEN** the person has chosen dark with the toggle
+- **THEN** the next page is dark from the first paint
+
 ### Requirement: The pipeline timeline is readable without colour
 
 The system SHALL show every phase of the pipeline on the work page with a distinct glyph and word for done, in progress, waiting, stopped and not yet reached, and SHALL mark the current phase for assistive technology.
