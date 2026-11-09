@@ -14,13 +14,14 @@ def test_a_document_uses_the_whole_width_of_its_panel() -> None:
     assert re.search(r"\.prose p[^{]*\{\s*max-width:\s*none", css)
 
 
-def test_the_interface_is_light_whatever_the_system_prefers_and_dark_only_when_chosen() -> None:
+def test_the_interface_is_dark_whatever_the_system_prefers_and_light_only_when_chosen() -> None:
     css = CSS.read_text(encoding="utf-8")
     assert "prefers-color-scheme" not in css
     assert ':root[data-theme="dark"]' in css
     script = (CSS.parent / "app.js").read_text(encoding="utf-8")
     assert "prefers-color-scheme" not in script
-    assert 'return "light"' in script
+    assert 'return "dark"' in script
+    assert 'data-theme="dark"' in (CSS.parent.parent / "templates" / "base.html").read_text(encoding="utf-8")
 
 
 def test_the_start_preview_knows_every_entry_point_so_none_shows_everything_as_skipped() -> None:
@@ -42,3 +43,12 @@ def test_the_star_field_sits_behind_the_content_and_lets_clicks_through() -> Non
     assert stars is not None
     assert "z-index: -1" in stars.group(1)
     assert "pointer-events: none" in stars.group(1)
+
+
+def test_the_note_box_is_tall_and_keeps_a_draft() -> None:
+    panel = (CSS.parent.parent / "templates" / "_work_panel.html").read_text(encoding="utf-8")
+    assert 'class="roomy"' in panel
+    assert 'rows="9"' in panel
+    script = (CSS.parent / "app.js").read_text(encoding="utf-8")
+    assert "shelf-draft-" in script
+    assert "ctrlKey" in script

@@ -467,7 +467,7 @@ input:not([type="radio"]):focus-visible, select:focus-visible, textarea:focus-vi
 }
 
 .below { display: grid; gap: 24px; margin-top: 24px; }
-.below.has-decisions { grid-template-columns: minmax(0, 1fr) minmax(320px, 420px); align-items: start; }
+.below.has-decisions { grid-template-columns: minmax(0, 1fr) minmax(360px, 560px); align-items: start; }
 .below.has-decisions .detail { grid-column: 1; grid-row: 1; }
 .below.has-decisions .decide { grid-column: 2; grid-row: 1; }
 .detail h3 { margin-bottom: 10px; }
@@ -476,6 +476,8 @@ input:not([type="radio"]):focus-visible, select:focus-visible, textarea:focus-vi
 .decide .go { display: grid; gap: 8px; }
 .decide .go .btn { width: 100%; }
 .ask { display: grid; gap: 8px; }
+.ask .hint { margin: 0; color: var(--ink-2); font-size: .9rem; line-height: 1.5; }
+textarea.roomy { min-height: 14rem; max-height: 70vh; line-height: 1.6; font-size: 1.05rem; padding: 14px 16px; }
 .ask label { font-weight: 700; }
 .ask-actions { display: grid; }
 .ask-actions .btn-secondary { width: 100%; }

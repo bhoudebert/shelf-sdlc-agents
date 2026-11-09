@@ -3,12 +3,12 @@
 (function () {
   var root = document.documentElement;
 
-  // Theme toggle: remembers a manual choice, otherwise the system decides.
+  // Theme toggle: remembers a manual choice, otherwise the page is dark.
   var toggle = document.getElementById("theme");
   function currentTheme() {
     var t = root.getAttribute("data-theme");
     if (t) return t;
-    return "light";
+    return "dark";
   }
   if (toggle) {
     toggle.setAttribute("aria-pressed", String(currentTheme() === "dark"));
@@ -105,6 +105,36 @@
       if (window.htmx) window.htmx.ajax("GET", "/board/items", { target: "#board", swap: "innerHTML" });
     });
   }
+
+  // The box where a person says what should change: it grows with the text, keeps a draft in this browser, and sends
+  // with Ctrl+Enter (or Cmd+Enter), the way the first "ask" button would.
+  function roomy(box) {
+    var key = "shelf-draft-" + box.getAttribute("data-draft");
+    function fit() {
+      box.style.height = "auto";
+      box.style.height = Math.min(box.scrollHeight + 2, window.innerHeight * 0.7) + "px";
+    }
+    try { if (!box.value) box.value = localStorage.getItem(key) || ""; } catch (e) {}
+    fit();
+    box.addEventListener("input", function () {
+      fit();
+      try {
+        if (box.value) localStorage.setItem(key, box.value); else localStorage.removeItem(key);
+      } catch (e) {}
+    });
+    box.addEventListener("keydown", function (event) {
+      if (event.key !== "Enter" || !(event.ctrlKey || event.metaKey)) return;
+      var send = box.closest(".ask").querySelector(".ask-actions button");
+      if (send) { event.preventDefault(); send.click(); }
+    });
+    var form = box.closest("form");
+    if (form) form.addEventListener("htmx:afterRequest", function (event) {
+      if (event.detail.successful) { try { localStorage.removeItem(key); } catch (e) {} }
+    });
+  }
+  function roomies() { document.querySelectorAll("textarea.roomy").forEach(function (box) { if (!box.dataset.ready) { box.dataset.ready = "1"; roomy(box); } }); }
+  roomies();
+  document.body.addEventListener("htmx:afterSettle", roomies);
 
   var lastHtml = {};
   document.body.addEventListener("htmx:beforeSwap", function (event) {
