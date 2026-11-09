@@ -57,6 +57,7 @@ class Fixture:
         conversations: Conversations | None = None,
         references: References | None = None,
         context_sources: ContextSources | None = None,
+        access_source: Callable[[], AccessRules] | None = None,
     ) -> None:
         self.forge = FakeForge(identities={"token-code": ALICE}, repos={"token-code": (REPO,)})
         self.runner = FakeRunner()
@@ -73,6 +74,7 @@ class Fixture:
             references,
             context_sources,
             conversations,
+            access_source,
         )
         self.client = TestClient(create_app(deps), base_url="https://shelf.example.org", follow_redirects=False)
 
@@ -778,3 +780,13 @@ def test_a_listed_repository_that_cannot_be_read_is_said_on_the_form() -> None:
     assert response.status_code == 422
     assert "foo/private is private" in response.text
     assert fixture.runner.started == []
+
+
+def test_an_access_list_edited_while_the_service_runs_applies_to_the_next_sign_in() -> None:
+    current = [AccessRules(users=frozenset({"bob"}))]
+    app = Fixture(access_source=lambda: current[0])
+    app.sign_in()
+    assert app.client.get("/board").status_code == 303  # alice is not on the list yet
+    current[0] = AccessRules(users=frozenset({"alice"}))
+    app.sign_in()
+    assert app.client.get("/board").status_code == 200
