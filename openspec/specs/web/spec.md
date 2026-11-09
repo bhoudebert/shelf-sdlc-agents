@@ -70,6 +70,15 @@ The system SHALL show every piece of work of the repositories the person can see
 - **WHEN** the App is installed on none of the person's repositories
 - **THEN** the board explains how to install it and links to GitHub
 
+### Requirement: The form offers to work on a pull request and says what that allows
+
+The system SHALL offer on the start form, beside the read-only review, an entry that changes an existing pull request, asking for its number and for what to do to it, and SHALL say beside it that the agents change that branch as asked, wait for its CI and may force-push it when a rebase needs it, only if nobody pushed to it meanwhile.
+
+#### Scenario: The two pull request entries
+
+- **WHEN** the form is shown
+- **THEN** it offers to review a pull request, read only, and to work on one, each asking for its number
+
 ### Requirement: A review of a pull request that is not there is refused on the form
 
 The system SHALL answer a start form that asks to review a pull request the chosen repository does not have with the form again and a message naming the repository and the number, and SHALL NOT start anything.

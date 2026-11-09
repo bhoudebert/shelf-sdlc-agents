@@ -29,6 +29,25 @@ The system SHALL refuse a start request whose entry point the repository disable
 - **WHEN** a person starts a pull-request review with a pull request number and no text
 - **THEN** the work starts
 
+### Requirement: Work on a pull request starts only on one that can be changed
+
+The system SHALL, before starting work on an existing pull request, refuse a pull request that is closed, one that comes from a fork (whose branch the App cannot push to), and a request that says nothing to do, each with a message that says why.
+
+#### Scenario: A fork
+
+- **WHEN** a person asks to work on a pull request from a fork
+- **THEN** nothing starts and the message says the App cannot push to its branch
+
+#### Scenario: A closed pull request
+
+- **WHEN** the pull request is closed
+- **THEN** nothing starts and the message says it is closed
+
+#### Scenario: Nothing to do
+
+- **WHEN** the instruction is empty
+- **THEN** nothing starts
+
 ### Requirement: A review starts only on a pull request the repository has
 
 The system SHALL, before starting a review of a pull request, ask GitHub as the person whether the chosen repository has that pull request, and SHALL refuse the start with a message naming the repository and the number when it does not, so that a work is never started on the wrong repository and left to fail at its first step.
