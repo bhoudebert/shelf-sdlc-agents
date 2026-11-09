@@ -40,8 +40,10 @@ class FakeRunner:
     decisions: list[tuple[WorkId, PersonDecided]] = field(default_factory=list[tuple[WorkId, PersonDecided]])
     closed: list[tuple[WorkId, bool]] = field(default_factory=list[tuple[WorkId, bool]])
     terminated: list[tuple[WorkId, str]] = field(default_factory=list[tuple[WorkId, str]])
+    started: list[WorkRequest] = field(default_factory=list[WorkRequest])
 
     async def start(self, request: WorkRequest) -> WorkId:
+        self.started.append(request)
         work_id = WorkId(f"work-{len(self.views) + 1}")
         self.views[work_id] = WorkView(work_id, request.repo, request.requester, request.entry, Phase.INTAKE)
         return work_id

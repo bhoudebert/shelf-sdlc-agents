@@ -1,28 +1,37 @@
 """Starting work, deciding for it, and the board: the use cases behind the UI."""
 
 from collections.abc import Sequence
+from dataclasses import replace
 
 from shelf.application.errors import Invalid, NotAllowed, NotFound, Refusal
 from shelf.domain.access import AccessRules, is_admin
 from shelf.domain.config import may_decide
-from shelf.domain.model import WorkId, WorkRequest, WorkView
+from shelf.domain.model import RepoRef, WorkId, WorkRequest, WorkView
 from shelf.domain.pipeline import EntryPoint
+from shelf.domain.reference import Imported, combine, parse_reference
 from shelf.domain.result import Err, Ok, Result
 from shelf.domain.work import DecisionKind, PersonDecided
 from shelf.ports.configs import RepoConfigs
 from shelf.ports.forge import Forge
+from shelf.ports.references import References
 from shelf.ports.runner import WorkRunner
 
 
-async def start_work(
+async def start_work(  # noqa: PLR0913
     runner: WorkRunner,
     forge: Forge,
     configs: RepoConfigs,
     *,
     user_token: str,
     request: WorkRequest,
+    references: References | None = None,
+    reference: str = "",
 ) -> Result[WorkId, Refusal]:
-    """Start work on a repository the person can see, at an entry point the repository enables."""
+    """Start work on a repository the person can see, at an entry point the repository enables.
+
+    ``reference`` is optional existing material (an issue, a pull request or a file of the repository): what it says
+    becomes the request, followed by what the person typed.
+    """
     visible = await forge.repositories(user_token)
     if request.repo not in visible:
         return Err(NotFound(request.repo.full_name))
@@ -33,9 +42,24 @@ async def start_work(
         refusal = await _pull_request_refusal(forge, user_token, request)
         if refusal is not None:
             return Err(refusal)
+    if reference.strip():
+        imported = await _import(references, request.repo, reference)
+        if isinstance(imported, Err):
+            return Err(Invalid(imported.error))
+        request = replace(request, text=combine(imported.value, request.text))
     if request.entry is not EntryPoint.PULL_REQUEST_REVIEW and not request.text.strip():
         return Err(Invalid("the request is empty"))
     return Ok(await runner.start(request))
+
+
+async def _import(references: References | None, repo: RepoRef, reference: str) -> Result[Imported, str]:
+    """Read the reference a person gave, or say why it cannot be used."""
+    if references is None:
+        return Err("starting from existing material is not available here")
+    parsed = parse_reference(reference, repo)
+    if isinstance(parsed, Err):
+        return parsed
+    return await references.read(repo, parsed.value)
 
 
 async def _pull_request_refusal(forge: Forge, user_token: str, request: WorkRequest) -> Invalid | None:

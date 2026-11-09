@@ -24,6 +24,7 @@ from shelf.ports.configs import RepoConfigs
 from shelf.ports.conversation import Conversations
 from shelf.ports.documents import Documents
 from shelf.ports.forge import Forge
+from shelf.ports.references import References
 from shelf.ports.runner import WorkRunner
 
 SESSION_COOKIE = "shelf_session"
@@ -80,6 +81,8 @@ class WebDeps:
     """Where the work's documents are read from; the interface shows none without it."""
     inspector: AppInspector | None = None
     """How the GitHub App is looked at, for the administrator's check; the page shows none without it."""
+    references: References | None = None
+    """Where existing material (an issue, a pull request, a file) is read from to start work; none without it."""
     conversations: Conversations | None = None
     """Where the pull request's conversation is read from; the page shows none without it."""
 

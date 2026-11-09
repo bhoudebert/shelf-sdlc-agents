@@ -59,6 +59,7 @@ def router(web: Web) -> APIRouter:
         entry: Annotated[str, Form()],
         text: Annotated[str, Form()] = "",
         pull_request: Annotated[str, Form()] = "",
+        reference: Annotated[str, Form()] = "",
     ) -> Response:
         try:
             asked = WorkRequest(
@@ -72,7 +73,13 @@ def router(web: Web) -> APIRouter:
             return await start_form(request, session, error="Choose a repository and a starting point.", status=422)
         try:
             result = await start_work(
-                deps.runner, deps.forge, deps.configs, user_token=session.user_token, request=asked
+                deps.runner,
+                deps.forge,
+                deps.configs,
+                user_token=session.user_token,
+                request=asked,
+                references=deps.references,
+                reference=reference,
             )
         except InvalidConfigError as error:
             return await start_form(request, session, error=f"The repository's .shelf/config.toml: {error}", status=422)

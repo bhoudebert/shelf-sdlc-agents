@@ -22,6 +22,7 @@ from shelf.adapters.github_app.documents import GitHubDocuments
 from shelf.adapters.github_app.forge import GitHubForge
 from shelf.adapters.github_app.inspector import GitHubAppInspector
 from shelf.adapters.github_app.pulls import GitHubPullRequests
+from shelf.adapters.github_app.references import GitHubReferences
 from shelf.adapters.github_app.settings import GitHubAppSettings
 from shelf.adapters.temporal.runner import TemporalRunner
 from shelf.application.steps import Steps
@@ -78,6 +79,7 @@ class Services:
     documents: CachedDocuments
     inspector: GitHubAppInspector
     conversations: CachedConversations
+    references: GitHubReferences
 
 
 async def connect(settings: Settings) -> Client:
@@ -133,4 +135,5 @@ def build_services(settings: Settings, github: GitHubApp, client: httpx.AsyncCli
         documents,
         GitHubAppInspector(client, app),
         CachedConversations(GitHubConversations(client, app, token_for)),
+        GitHubReferences(client, app, token_for),
     )
