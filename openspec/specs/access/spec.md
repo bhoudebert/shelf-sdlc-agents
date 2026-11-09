@@ -20,6 +20,11 @@ The system SHALL be closed by default: only listed users, administrators and mem
 - **WHEN** the access list names users and organisations
 - **THEN** a listed user, an administrator or a member of a listed organisation is let in, and nobody else
 
+#### Scenario: Membership found per organisation
+
+- **WHEN** a person belongs to a listed organisation but GitHub lists no organisations for their sign-in token
+- **THEN** the organisation is asked about directly, and the person is let in when it says they are a member
+
 ### Requirement: GitHub commands obey the same list
 
 The system SHALL act on a `/shelf` command written on a pull request only when its author is a listed user or administrator, or a member or owner of a listed organisation that owns the repository, whether the command arrives by webhook or by polling.
