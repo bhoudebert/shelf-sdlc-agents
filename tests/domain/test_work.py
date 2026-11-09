@@ -202,6 +202,23 @@ def test_a_person_can_accept_an_escalated_review_as_it_is() -> None:
     assert state == Running(Phase.PLAN)
 
 
+def test_accepting_an_escalated_spec_review_also_approves_the_spec() -> None:
+    escalated = AwaitingPerson(Phase.SPEC_REVIEW, Reason.ESCALATION, "unsure")
+    state, commands = decide(
+        course_for(EntryPoint.NEED, Policy()), escalated, PersonDecided(PERSON, DecisionKind.APPROVE)
+    )
+    assert state == Running(Phase.DESIGN)
+    assert commands == (RunStep(Phase.DESIGN, 0, ""),)
+
+
+def test_work_on_an_earlier_protocol_still_asks_twice() -> None:
+    escalated = AwaitingPerson(Phase.SPEC_REVIEW, Reason.ESCALATION, "unsure")
+    state, _ = decide(
+        course_for(EntryPoint.NEED, Policy(), protocol=5), escalated, PersonDecided(PERSON, DecisionKind.APPROVE)
+    )
+    assert state == AwaitingPerson(Phase.SPEC_APPROVAL, Reason.GATE, "")
+
+
 def test_a_failure_cannot_be_approved_away() -> None:
     course = course_for(EntryPoint.NEED, Policy())
     waiting = AwaitingPerson(Phase.IMPLEMENT, Reason.FAILURE, "boom")

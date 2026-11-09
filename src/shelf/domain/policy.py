@@ -63,12 +63,17 @@ class Course:
         return not self.publishes_pull_request and not self.adopts_pull_request and self.protocol >= READ_ONLY_REVIEW
 
     @property
+    def approval_counts_for_the_gate(self) -> bool:
+        """Whether a person who accepts an escalated review has also approved the gate that follows it (protocol 6)."""
+        return self.protocol >= ONE_APPROVAL
+
+    @property
     def readies_pull_request(self) -> bool:
         """Whether the pull request leaves the draft state when the work asks for the merge: ours, or adopted."""
         return self.opens_early and (self.publishes_pull_request or self.adopts_pull_request)
 
 
-CURRENT_PROTOCOL = 5
+CURRENT_PROTOCOL = 6
 """The behaviour new work starts with. Raise it, and gate the new behaviour on it, whenever a change would alter what
 the workflow does for a history recorded before: protocol 1 is the original behaviour, which old work keeps."""
 
@@ -89,6 +94,10 @@ send red runs back to the implementer."""
 READ_ONLY_REVIEW = 5
 """The protocol from which a read-only review answers a request for changes with another review, and from which an
 existing pull request can be adopted."""
+
+ONE_APPROVAL = 6
+"""The protocol under which accepting an escalated review also approves the gate right after it, so that a person is
+not asked twice for the same decision."""
 
 
 def course_for(entry: EntryPoint, policy: Policy, protocol: int = CURRENT_PROTOCOL) -> Course:
