@@ -25,23 +25,7 @@
   --ease: cubic-bezier(.2, .7, .2, 1);
   color-scheme: light;
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --ground: #0c1411;
-    --raised: #15211c;
-    --surface: #1d2d26;
-    --sunk: #263a32;
-    --ink: #e8f0ea;
-    --ink-2: #aebfb5;
-    --line: #7f968a;
-    --accent: #ff7a59;
-    --on-accent: #1a0904;
-    --field: #123a2e;
-    --danger: #ff9b85;
-    --now: #4fb28c;
-    color-scheme: dark;
-  }
-}
+/* Light unless the person chose dark with the toggle: the system's preference is not followed. */
 :root[data-theme="dark"] {
   --ground: #0c1411;
   --raised: #15211c;
