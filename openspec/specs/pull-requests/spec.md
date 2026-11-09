@@ -177,6 +177,11 @@ The system SHALL link, in the announcement of a wait, the document the person is
 - **WHEN** the work waits at the spec approval
 - **THEN** the announcement links the spec file on the work's branch
 
+#### Scenario: Work on an existing pull request
+
+- **WHEN** work on a pull request that already exists waits at the merge
+- **THEN** the announcement links no document, because that work writes no spec, design or plan
+
 ### Requirement: The title is set at the first step and refreshed when the work reaches the merge
 
 The system SHALL give the pull request the title it is given when opening it, and retitle the existing one when asked to publish again with another, so that the title reflects what the work actually did.
