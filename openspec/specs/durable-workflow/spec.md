@@ -161,6 +161,20 @@ The system SHALL record, from the workflow's own deterministic clock, when the w
 - **WHEN** a history recorded before times were kept is replayed
 - **THEN** it replays without error
 
+### Requirement: Work whose workflow is over is shown as over, with the reason it gave
+
+The system SHALL show work whose workflow ended as failed, timed out or cancelled as finished work, not as a work that cannot be read, saying which way it ended and the innermost message of its failure when Temporal still has it, and that a finished workflow cannot be resumed and the work must be started again.
+
+#### Scenario: A workflow that failed on an older release
+
+- **WHEN** a workflow ended failed and can no longer be queried
+- **THEN** the board lists it as finished and its page says it failed with the message it gave
+
+#### Scenario: A running workflow that cannot be read
+
+- **WHEN** a workflow still running cannot be queried
+- **THEN** it is shown as needing a person, as before
+
 ### Requirement: Work that cannot be read is shown, not hidden
 
 The system SHALL show a piece of work that exists but whose state cannot be read as failed, with the reason, instead of leaving it off the board.
