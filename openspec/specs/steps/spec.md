@@ -397,3 +397,21 @@ The system SHALL blank, in each agent's environment, the worker's secrets the ag
 
 - **WHEN** an agent starts in a worker that holds the App's client secret
 - **THEN** that variable is empty in the agent's environment
+
+### Requirement: The repository's checks run without the worker's secrets
+
+The system SHALL run the repository's own commands (its `checks`, and the commands the system itself runs in the clone) with
+the worker's environment minus the worker's secrets and the model credential: the session and webhook secrets, every GitHub App
+setting, and the Claude token and API key. The ordinary variables a command needs (such as `PATH`) are kept.
+
+#### Scenario: A check that prints its environment
+
+- **WHEN** a repository's check prints its environment and the worker's environment holds the session secret, a GitHub App
+  setting and the model credential
+- **THEN** none of those appear in the output
+
+#### Scenario: An ordinary variable
+
+- **WHEN** a check reads `PATH`
+- **THEN** it has the worker's value
+
