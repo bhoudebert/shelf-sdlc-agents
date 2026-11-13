@@ -26,6 +26,15 @@
 # kind = "skills"
 # path = "skills/gdpr-compliant"
 
+# Starts or retrofits a repository with agent rules, hooks, CI and decision records. It interviews a person first, so bind it
+# only to a role that bootstraps repositories, never to the pipeline's roles.
+# [[source]]
+# name = "project-foundation"
+# git  = "https://github.com/bhoudebert/project-foundation"
+# ref  = "0560f9ff3bb5dcee53290d7260715e76ddb5b922"
+# kind = "skills"
+# path = "skills/project-foundation"
+
 # Design skills, for a role that builds interfaces.
 # [[source]]
 # name = "ui-ux-pro-max"
