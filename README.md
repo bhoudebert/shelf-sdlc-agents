@@ -65,6 +65,7 @@ uv run pytest                    # unit, property and Temporal tests
 - [Engineering](docs/ENGINEERING.md): how it is built.
 - [How it evolves](docs/EVOLVING.md): the path every change follows.
 - [Decision records](docs/adr/README.md): why it is shaped this way.
+- [Limits](docs/LIMITS.md): what is weak today and the plan to fix it.
 - [Roadmap](ROADMAP.md)
 - [Security](SECURITY.md) · [Support](SUPPORT.md) · [Code of conduct](CODE_OF_CONDUCT.md)
 
