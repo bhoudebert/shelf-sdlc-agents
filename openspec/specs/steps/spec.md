@@ -415,3 +415,30 @@ setting, and the Claude token and API key. The ordinary variables a command need
 - **WHEN** a check reads `PATH`
 - **THEN** it has the worker's value
 
+### Requirement: Agents run without telemetry or automatic memory
+
+The system SHALL start every agent with telemetry off and Claude Code's automatic memory off, so that nothing an agent learns in one step is carried into another, unless the step's own environment says otherwise.
+
+#### Scenario: An agent's environment
+
+- **WHEN** an agent starts
+- **THEN** its environment turns telemetry off and automatic memory off
+
+### Requirement: An agent loads the skill bundles bound to its role
+
+The system SHALL load into each agent the generated skill plugins that the operator bound to its role, taken from the synced catalog, and SHALL skip, with a warning, a bound name that the catalog does not have. Plugins registered for every agent are enabled by the managed policy, not here.
+
+#### Scenario: A bound role
+
+- **WHEN** the implementer is bound to a source the catalog has
+- **THEN** that source's plugin is loaded for the implementer and not for the spec critic
+
+#### Scenario: A name the catalog lacks
+
+- **WHEN** a role is bound to a name the catalog does not have
+- **THEN** the agent starts without it and the warning names it
+
+#### Scenario: No catalog
+
+- **WHEN** the instance has no synced catalog
+- **THEN** agents start with no extra plugin

@@ -485,3 +485,16 @@ The system SHALL build the first-run setup page from the same templates and the 
 - **WHEN** the setup page is served
 - **THEN** each stylesheet and script it links to carries a fingerprint and is served
 
+### Requirement: The catalog is synced when the instance is installed
+
+The system SHALL, when the install script runs, create the operator's `catalog.toml` from the example if it is absent and sync the catalog into volumes that the worker mounts read-only, for the skill plugins and for the managed policy, and SHALL stop with the reason when the sync fails, leaving the previous catalog in place.
+
+#### Scenario: A first install
+
+- **WHEN** the install script runs with no `catalog.toml`
+- **THEN** the example is copied and the catalog it lists is synced
+
+#### Scenario: A failing sync
+
+- **WHEN** a source cannot be fetched
+- **THEN** the install stops naming the source and the worker keeps the previous catalog

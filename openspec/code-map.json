@@ -172,6 +172,17 @@
         "tests/entrypoints/test_doctor.py",
         "tests/adapters/github_app/test_diagnose.py"
       ]
+    },
+    "catalog": {
+      "code": [
+        "src/shelf/domain/catalog.py",
+        "src/shelf/adapters/catalog/*.py",
+        "src/shelf/entrypoints/catalog.py"
+      ],
+      "tests": [
+        "tests/domain/test_catalog.py",
+        "tests/adapters/catalog/*.py"
+      ]
     }
   }
 }
