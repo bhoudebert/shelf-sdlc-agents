@@ -34,15 +34,15 @@ What this means for you:
   isolation below ships. We have not demonstrated that attack; the sandbox may stop part of it, and we cannot promise it does.
 - Install the App only on repositories, and let in only people and organisations, you would trust with the whole factory. Access
   is closed by default (`shelf.toml`), and the sign-in list is the first line of defence.
-- A repository's `checks` (the commands in `.shelf/config.toml`) run **outside any sandbox**, in the worker, through a shell,
-  with the worker's **complete** environment: the blanking above applies to agents, not to the checks. Only configure
-  repositories whose `checks` you trust.
+- A repository's `checks` (the commands in `.shelf/config.toml`) run **outside any sandbox**, in the worker, through a shell.
+  They no longer see the worker's secrets or the model credential in their environment, but they still run on the worker's
+  filesystem, where the App key file is mounted. Only configure repositories whose `checks` you trust.
 
 ### The plan
 
 Proposed in a [decision record](adr/) on running each agent step in its own container (not yet accepted). In order:
 
-1. Run the repository `checks` with a scrubbed environment. This is the most urgent, and needs no containers.
+1. Run the repository `checks` with a scrubbed environment. Done: the environment is scrubbed, the filesystem is not.
 2. Narrow the installation token to the work's repository.
 3. Run each agent step, and the `checks`, in its own short-lived container that mounts only its own clone. The worker stays the
    orchestrator and does the commit, the push and the pull request comments. Opt-in at first.

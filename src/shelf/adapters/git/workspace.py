@@ -2,13 +2,15 @@
 
 import asyncio
 import base64
+import os
 import shutil
 import tempfile
-from collections.abc import AsyncGenerator, Callable
+from collections.abc import AsyncGenerator, Callable, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
+from shelf.domain.secrets import for_commands
 from shelf.ports.workspace import Checkout, CheckResult
 
 BOT_NAME = "shelf-sdlc[bot]"
@@ -35,15 +37,17 @@ def secrets_of(checkout: Checkout) -> tuple[str, ...]:
     return (checkout.token, base64.b64encode(f"x-access-token:{checkout.token}".encode()).decode())
 
 
-async def _exec(args: list[str], cwd: Path | None, *, shell: bool = False) -> CheckResult:
+async def _exec(
+    args: list[str], cwd: Path | None, *, shell: bool = False, env: Mapping[str, str] | None = None
+) -> CheckResult:
     command = args[0] if shell else " ".join(args)
     if shell:
         process = await asyncio.create_subprocess_shell(
-            command, cwd=cwd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
+            command, cwd=cwd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT, env=env
         )
     else:
         process = await asyncio.create_subprocess_exec(
-            *args, cwd=cwd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
+            *args, cwd=cwd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT, env=env
         )
     output, _ = await process.communicate()
     return CheckResult(command, process.returncode or 0, output.decode(errors="replace"))
@@ -129,9 +133,9 @@ class GitWorkspace:
     """The commit the branch was at when it was cloned, for a branch that belongs to someone's pull request."""
 
     async def run(self, command: str) -> CheckResult:
-        """Run a shell command in the clone."""
+        """Run a shell command in the clone, without the worker's secrets or the model credential in its environment."""
         # The commands are the repository's own checks, from its reviewed .shelf/config.toml: a shell is the point.
-        return await _exec([command], self.path, shell=True)  # noqa: S604
+        return await _exec([command], self.path, shell=True, env=for_commands(os.environ))  # noqa: S604
 
     async def commit_and_push(self, message: str) -> bool:
         """Commit what changed and push the branch; ``False`` when nothing changed.

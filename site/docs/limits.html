@@ -29,12 +29,12 @@
 <ul>
 <li>Treat agents as able to read what the worker can read, including the App key file and the other works' clones, until the isolation below ships. We have not demonstrated that attack; the sandbox may stop part of it, and we cannot promise it does.</li>
 <li>Install the App only on repositories, and let in only people and organisations, you would trust with the whole factory. Access is closed by default (<code>shelf.toml</code>), and the sign-in list is the first line of defence.</li>
-<li>A repository's <code>checks</code> (the commands in <code>.shelf/config.toml</code>) run <strong>outside any sandbox</strong>, in the worker, through a shell, with the worker's <strong>complete</strong> environment: the blanking above applies to agents, not to the checks. Only configure repositories whose <code>checks</code> you trust.</li>
+<li>A repository's <code>checks</code> (the commands in <code>.shelf/config.toml</code>) run <strong>outside any sandbox</strong>, in the worker, through a shell. They no longer see the worker's secrets or the model credential in their environment, but they still run on the worker's filesystem, where the App key file is mounted. Only configure repositories whose <code>checks</code> you trust.</li>
 </ul>
 <h3 id="isolation-plan">The plan</h3>
 <p>Proposed in a <a href="https://github.com/bhoudebert/shelf-sdlc-agents/tree/main/docs/adr">decision record</a> on running each agent step in its own container (not yet accepted). In order:</p>
 <ol>
-<li>Run the repository <code>checks</code> with a scrubbed environment. This is the most urgent, and needs no containers.</li>
+<li>Run the repository <code>checks</code> with a scrubbed environment. Done: the environment is scrubbed, the filesystem is not.</li>
 <li>Narrow the installation token to the work's repository.</li>
 <li>Run each agent step, and the <code>checks</code>, in its own short-lived container that mounts only its own clone. The worker stays the orchestrator and does the commit, the push and the pull request comments. Opt-in at first.</li>
 <li>Move container start-up to a small runner service, so the worker no longer holds the Docker socket (which is root on the host).</li>
