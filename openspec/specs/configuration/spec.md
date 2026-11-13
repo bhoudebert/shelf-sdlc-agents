@@ -97,3 +97,17 @@ The system SHALL read from the environment how long one checks step looks at the
 
 - **WHEN** neither is set
 - **THEN** a step looks for 1800 seconds and waits 120 for the first run to appear
+
+### Requirement: The operator binds skill bundles to roles
+
+The system SHALL read from `shelf.toml` a `[roles.<name>]` table for any agent role, whose `use` lists the names of catalog skill sources that role loads, refuse a table for a role that does not exist, and apply an edit of it without a restart.
+
+#### Scenario: A binding
+
+- **WHEN** the file has `[roles.implementer]` with `use = ["superpowers"]`
+- **THEN** the implementer is bound to that source and the other roles to none
+
+#### Scenario: A role that does not exist
+
+- **WHEN** the file has `[roles.gardener]`
+- **THEN** the file is refused and the error names the roles that exist

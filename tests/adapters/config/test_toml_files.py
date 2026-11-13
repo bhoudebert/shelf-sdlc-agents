@@ -80,3 +80,29 @@ tech_lead = ["bob", "carol"]
 def test_a_bad_repository_file_is_refused(text: str) -> None:
     with pytest.raises(ConfigError):
         parse_repo_config(text)
+
+
+def test_the_operator_binds_skill_sources_to_roles() -> None:
+    config = parse_operator(
+        """
+[roles.implementer]
+use = ["superpowers", "gdpr"]
+
+[roles.code_reviewer]
+use = ["gdpr"]
+"""
+    )
+    assert config.roles == {"implementer": ("gdpr", "superpowers"), "code_reviewer": ("gdpr",)}
+    assert parse_operator("").roles == {}
+
+
+def test_a_binding_for_a_role_that_does_not_exist_names_the_roles_that_do() -> None:
+    with pytest.raises(ConfigError, match=r"\[roles.gardener\] is not an agent role; the roles are .*implementer"):
+        parse_operator('[roles.gardener]\nuse = ["x"]\n')
+
+
+def test_a_role_table_takes_only_a_use_list() -> None:
+    with pytest.raises(ConfigError, match="unknown keys: skills"):
+        parse_operator('[roles.implementer]\nskills = ["x"]\n')
+    with pytest.raises(ConfigError, match="use must be a list of strings"):
+        parse_operator('[roles.implementer]\nuse = "x"\n')

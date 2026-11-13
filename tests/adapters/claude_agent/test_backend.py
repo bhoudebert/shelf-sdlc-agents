@@ -1,8 +1,10 @@
+import json
+import logging
 from pathlib import Path
 
 import pytest
 
-from shelf.adapters.claude_agent.backend import AgentFailedError, options_for
+from shelf.adapters.claude_agent.backend import AgentFailedError, ClaudeBackend, options_for
 from shelf.adapters.claude_agent.prompts import load_prompt
 from shelf.domain.pipeline import Phase
 from shelf.domain.roles import ROLES
@@ -25,7 +27,7 @@ def test_every_role_gets_the_normal_toolset_and_the_sandbox() -> None:
 def test_the_budget_the_model_and_the_environment_are_passed_through() -> None:
     options = options_for(task(Phase.IMPLEMENT))
     assert (options.max_turns, options.max_budget_usd, options.model) == (7, 1.5, "m")
-    assert options.env == {"GH_TOKEN": "t"}
+    assert options.env["GH_TOKEN"] == "t"
     assert str(options.cwd) == "/clone"
     assert "Bash" in options.allowed_tools
 
@@ -111,3 +113,53 @@ def test_the_sandbox_may_reach_only_the_sites_it_is_given() -> None:
     options = options_for(task(Phase.IMPLEMENT), allowed_domains=("github.com", "repo.maven.apache.org"))
     assert options.sandbox is not None
     assert options.sandbox.get("network") == {"allowedDomains": ["github.com", "repo.maven.apache.org"]}
+
+
+def test_an_agent_starts_with_telemetry_and_automatic_memory_off() -> None:
+    env = options_for(task(Phase.IMPLEMENT)).env
+    assert env["DO_NOT_TRACK"] == "1"
+    assert env["CLAUDE_CODE_DISABLE_AUTO_MEMORY"] == "1"
+
+
+def test_a_steps_own_environment_may_override_the_defaults() -> None:
+    step = task(Phase.IMPLEMENT)
+    other = AgentTask(
+        step.role, "s", "p", Path("/clone"), {"DO_NOT_TRACK": "0"}, max_turns=1, max_budget_usd=None, model=None
+    )
+    assert options_for(other).env["DO_NOT_TRACK"] == "0"
+
+
+def catalog(tmp_path: Path, *names: str) -> Path:
+    for name in names:
+        (tmp_path / name / ".claude-plugin").mkdir(parents=True)
+        (tmp_path / name / ".claude-plugin" / "plugin.json").write_text(json.dumps({"name": name}))
+    return tmp_path
+
+
+def bound(tmp_path: Path, mapping: dict[str, tuple[str, ...]]) -> ClaudeBackend:
+    return ClaudeBackend(
+        catalog_dir=catalog(tmp_path, "superpowers", "gdpr"), bindings=lambda role: mapping.get(role, ())
+    )
+
+
+def test_a_role_loads_the_bundles_bound_to_it_and_other_roles_do_not(tmp_path: Path) -> None:
+    backend = bound(tmp_path, {"implementer": ("superpowers",)})
+    implementer = backend.options(task(Phase.IMPLEMENT))
+    critic = backend.options(task(Phase.SPEC_REVIEW))
+    assert implementer.plugins == [{"type": "local", "path": str(tmp_path / "superpowers")}]
+    assert critic.plugins == []
+
+
+def test_a_bound_name_the_catalog_lacks_is_skipped_and_named(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    backend = bound(tmp_path, {"implementer": ("superpowers", "ghost")})
+    with caplog.at_level(logging.WARNING):
+        options = backend.options(task(Phase.IMPLEMENT))
+    assert [plugin["path"] for plugin in options.plugins] == [str(tmp_path / "superpowers")]
+    assert "ghost" in caplog.text
+
+
+def test_without_a_catalog_or_bindings_agents_start_with_no_extra_plugin(tmp_path: Path) -> None:
+    assert ClaudeBackend().options(task(Phase.IMPLEMENT)).plugins == []
+    assert ClaudeBackend(catalog_dir=tmp_path).options(task(Phase.IMPLEMENT)).plugins == []
+    empty = ClaudeBackend(catalog_dir=tmp_path / "absent", bindings=lambda _role: ("superpowers",))
+    assert empty.options(task(Phase.IMPLEMENT)).plugins == []

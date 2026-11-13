@@ -1,14 +1,22 @@
 """``AgentBackend`` over the Claude Agent SDK: each role is a sandboxed Claude Code session in the step's clone."""
 
 import json
+import logging
 import os
+from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 
 from claude_agent_sdk import ClaudeAgentOptions, ResultMessage, query
 from claude_agent_sdk.types import SandboxSettings
 
 from shelf.domain.secrets import hidden_from_agents
 from shelf.ports.agents import AgentTask
+
+log = logging.getLogger(__name__)
+
+AGENT_ENVIRONMENT = {"DO_NOT_TRACK": "1", "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1"}
+"""Telemetry off, and no memory carried from one step to the next: an agent starts each step from the repository."""
 
 
 class AgentFailedError(RuntimeError):
@@ -26,13 +34,14 @@ class AgentFailedError(RuntimeError):
         super().__init__(f"{role} failed: {reason}{hint}")
 
 
-def options_for(
+def options_for(  # noqa: PLR0913 - one argument per setting the operator controls
     task: AgentTask,
     *,
     nested_sandbox: bool = False,
     sandbox: bool = True,
     cli_path: str | None = None,
     allowed_domains: tuple[str, ...] = (),
+    bundles: tuple[Path, ...] = (),
 ) -> ClaudeAgentOptions:
     """The SDK options for ``task``: its own tools only, the sandbox on, bounded in turns and money.
 
@@ -48,7 +57,9 @@ def options_for(
         max_budget_usd=task.max_budget_usd,
         model=task.model,
         cli_path=cli_path,
-        env={**hidden_from_agents(os.environ), **task.env},
+        env={**AGENT_ENVIRONMENT, **hidden_from_agents(os.environ), **task.env},
+        # The skill bundles the operator bound to this role. Plugins for every agent come from the managed policy.
+        plugins=[{"type": "local", "path": str(path)} for path in bundles],
         # The repository's own agent files (CLAUDE.md, skills, commands) are how it tells an agent its conventions.
         # Its hooks and MCP servers are code that would run in the worker: they are never loaded.
         setting_sources=["project"],
@@ -73,14 +84,32 @@ class ClaudeBackend:
     """A specific Claude Code executable to use instead of the one bundled with the SDK."""
     allowed_domains: tuple[str, ...] = ()
     """The sites a sandboxed command may reach: tool downloads and package registries."""
+    catalog_dir: Path | None = None
+    """Where the synced catalog is: one generated plugin per skill source."""
+    bindings: Callable[[str], tuple[str, ...]] | None = None
+    """The skill sources the operator bound to a role, read for every step so an edit applies at once."""
 
-    def _options(self, task: AgentTask) -> ClaudeAgentOptions:
+    def _bundles(self, role: str) -> tuple[Path, ...]:
+        if self.catalog_dir is None or self.bindings is None:
+            return ()
+        found: list[Path] = []
+        for name in self.bindings(role):
+            path = self.catalog_dir / name
+            if (path / ".claude-plugin" / "plugin.json").is_file():
+                found.append(path)
+            else:
+                log.warning("role %s is bound to %s, which the catalog does not have: starting without it", role, name)
+        return tuple(found)
+
+    def options(self, task: AgentTask) -> ClaudeAgentOptions:
+        """The SDK options for ``task``, with the bundles bound to its role."""
         return options_for(
             task,
             nested_sandbox=self.nested_sandbox,
             sandbox=self.sandbox,
             cli_path=self.cli_path,
             allowed_domains=self.allowed_domains,
+            bundles=self._bundles(task.role.name),
         )
 
     async def run(self, task: AgentTask) -> str:
@@ -88,7 +117,7 @@ class ClaudeBackend:
         answer = ""
         async for message in query(
             prompt=task.prompt,
-            options=self._options(task),
+            options=self.options(task),
         ):
             if isinstance(message, ResultMessage):
                 if message.is_error:

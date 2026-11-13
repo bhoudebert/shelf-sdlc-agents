@@ -116,3 +116,8 @@ def test_the_time_given_to_the_ci_has_defaults_and_can_be_changed() -> None:
     assert (from_environ(BASE).ci_wait, from_environ(BASE).ci_grace) == (1800.0, 120.0)
     settings = from_environ({**BASE, "SHELF_CI_WAIT": "600", "SHELF_CI_GRACE": "0"})
     assert (settings.ci_wait, settings.ci_grace) == (600.0, 0.0)
+
+
+def test_the_catalog_is_where_the_worker_mounts_it_unless_told_otherwise() -> None:
+    assert from_environ(BASE).catalog_dir == Path("/opt/shelf/catalog")
+    assert from_environ({**BASE, "SHELF_CATALOG_DIR": "/srv/catalog"}).catalog_dir == Path("/srv/catalog")

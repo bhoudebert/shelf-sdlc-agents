@@ -10,6 +10,7 @@ from shelf.domain.operator import OperatorConfig
 from shelf.domain.pipeline import EntryPoint
 from shelf.domain.policy import Policy
 from shelf.domain.polling import Mode
+from shelf.domain.roles import ROLES, TITLER
 
 ConfigError = InvalidConfigError
 """The name this module's callers know."""
@@ -38,10 +39,26 @@ def _load(text: str) -> dict[str, Any]:
         raise ConfigError(message) from error
 
 
+def _bindings(roles: Mapping[str, Any]) -> dict[str, tuple[str, ...]]:
+    """``[roles.<name>] use = [...]``: the catalog sources each existing agent role loads."""
+    known = sorted({role.name for role in ROLES.values()} | {TITLER.name})
+    bound: dict[str, tuple[str, ...]] = {}
+    for name, table in roles.items():
+        if name not in known:
+            message = f"[roles.{name}] is not an agent role; the roles are {', '.join(known)}"
+            raise ConfigError(message)
+        if not isinstance(table, dict):
+            message = f"[roles.{name}] must be a table with a use list"
+            raise ConfigError(message)
+        _only(f"roles.{name}", table, {"use"})  # pyright: ignore[reportUnknownArgumentType]
+        bound[name] = tuple(sorted(_names(table, "use")))  # pyright: ignore[reportUnknownArgumentType]
+    return bound
+
+
 def parse_operator(text: str) -> OperatorConfig:
-    """Read ``shelf.toml``: ``mode`` and the ``[access]`` section."""
+    """Read ``shelf.toml``: ``mode``, the ``[access]`` section and the ``[roles.<name>]`` bindings."""
     document = _load(text)
-    _only("shelf", document, {"mode", "access"})
+    _only("shelf", document, {"mode", "access", "roles"})
     access = document.get("access", {})
     _only("access", access, {"orgs", "users", "admins"})
     try:
@@ -52,6 +69,7 @@ def parse_operator(text: str) -> OperatorConfig:
     return OperatorConfig(
         AccessRules(_names(access, "orgs"), _names(access, "users"), _names(access, "admins")),
         mode,
+        _bindings(document.get("roles", {})),
     )
 
 

@@ -57,6 +57,13 @@ if [ ! -f "$here/config/shelf.toml" ]; then
   echo "Created $here/config/shelf.toml from the example. Edit it to say who may sign in (it ships open to any GitHub account)."
 fi
 
+# The catalog of corporate skills and plugins is yours too: created once from the example (which fetches nothing until you
+# uncomment a source), then never touched or committed.
+if [ ! -f "$here/config/catalog.toml" ]; then
+  cp "$here/catalog.toml.example" "$here/config/catalog.toml"
+  echo "Created $here/config/catalog.toml from the example. Uncomment the sources you want agents to have, then run this script again."
+fi
+
 # If the GitHub App is configured, its private key must be there: a file in deploy/secrets (or inline in the env file).
 if grep -q '^GITHUB_APP_ID=.\+' "$env_file" && ! grep -q '^GITHUB_APP_PRIVATE_KEY=.\+' "$env_file" && [ ! -s "$here/secrets/github-app.pem" ]; then
   echo "WARNING: GITHUB_APP_ID is set but there is no private key. Put the .pem you downloaded at $here/secrets/github-app.pem" >&2
@@ -89,6 +96,14 @@ echo "Building revision $SHELF_REVISION"
 
 # Always replace the web and worker containers, so a rebuilt image is the one that serves.
 $compose up -d --build --force-recreate
+
+# Fetch the catalog at its pinned commits into the volumes the worker reads. It runs nothing it fetches, and a failure leaves
+# the previous catalog in place.
+echo "Syncing the catalog ($here/config/catalog.toml)..."
+$compose --profile tools run --rm --no-deps catalog || {
+  echo "ERROR: the catalog could not be synced (see above). The worker keeps the previous catalog. Fix config/catalog.toml and run this script again." >&2
+  exit 1
+}
 
 port=$(sed -n 's/^WEB_PORT=//p' "$env_file")
 port=${port:-8080}

@@ -23,6 +23,7 @@ shelf-web = "shelf.entrypoints.web:main"
 shelf-worker = "shelf.entrypoints.worker:main"
 shelf-doctor = "shelf.entrypoints.doctor:main"
 shelf-diagnose = "shelf.entrypoints.diagnose:main"
+shelf-catalog = "shelf.entrypoints.catalog:main"
 
 [dependency-groups]
 dev = [

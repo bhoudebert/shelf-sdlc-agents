@@ -24,6 +24,31 @@ users  = [&quot;alice&quot;, &quot;bob&quot;]  # these users may sign in
 admins = [&quot;alice&quot;]         # may sign in, and may decide at any gate</code></pre>
 <p>Access is closed by default. A person signs in only if they are in <code>users</code> or <code>admins</code>, or belong to an organisation in <code>orgs</code>; everyone else is refused. With all three empty nobody can sign in, you included, so name yourself first. The same list governs <code>/shelf</code> commands written on a pull request: someone outside it is ignored, whatever their rights on the repository.</p>
 <p><strong>Repositories follow the same list.</strong> Anyone can install the GitHub App on an account or organisation of their own, so being able to reach a repository proves nothing. Shell only shows, starts work on and obeys <code>/shelf</code> commands for repositories owned by a listed organisation, a listed user or administrator, or the signed-in person themself. Repositories of any other owner are ignored, even where the App is installed.</p>
+<h2 id="catalog">Skills and plugins for agents (catalog.toml)</h2>
+<p>Agents already read what a repository tells them (<code>CLAUDE.md</code>, <code>AGENTS.md</code>, its skills and rules). The operator can give every agent more, such as test-driven-development or GDPR skills, in <code>deploy/config/catalog.toml</code>. Each source is a git repository pinned to a full commit, never a branch or a tag, so a change is a change you review. <code>sh deploy/install.sh</code> fetches them. Nothing a source contains is run while it is fetched, and a failed fetch keeps the previous catalog.</p>
+<pre><code># deploy/config/catalog.toml
+[[source]]
+name   = &quot;superpowers&quot;
+git    = &quot;https://github.com/obra/superpowers&quot;
+ref    = &quot;22f0b463e7a5e579904dd6211a520321035526f7&quot;   # a full commit
+kind   = &quot;skills&quot;
+skills = [&quot;test-driven-development&quot;, &quot;systematic-debugging&quot;]
+
+[[source]]
+name = &quot;gdpr&quot;
+git  = &quot;https://github.com/github/awesome-copilot&quot;
+ref  = &quot;8ecd5b17f02fe5fbebf35eccd1867265eded811f&quot;
+kind = &quot;skills&quot;
+path = &quot;skills/gdpr-compliant&quot;                    # one folder of a larger repository</code></pre>
+<p>There are two kinds. <code>skills</code> takes only the skill folders, as a plugin without hooks, and loads them for the roles you bind it to in <code>shelf.toml</code>. <code>plugin</code> takes the whole plugin, hooks included, and enables it for <strong>every</strong> agent through a managed policy that also stops a repository's own hooks. A plugin's hooks run commands, so the sync lists them in <code>catalog.lock.json</code> for you to review, and many need <code>node</code>, which the image does not ship yet.</p>
+<pre><code># shelf.toml
+[roles.implementer]
+use = [&quot;superpowers&quot;]
+
+[roles.code_reviewer]
+use = [&quot;superpowers&quot;, &quot;gdpr&quot;]</code></pre>
+<p>The roles are <code>intake</code>, <code>spec_critic</code>, <code>architect</code>, <code>design_reviewer</code>, <code>planner</code>, <code>implementer</code>, <code>code_reviewer</code> and <code>titler</code>. An edit of the bindings applies without a restart. A name the catalog does not have is skipped with a warning in the worker's log.</p>
+<p>Every agent also starts with telemetry and Claude Code's automatic memory off, so nothing one step learns is carried into another.</p>
 <h2 id="repo">.shelf/config.toml (per repository)</h2>
 <p>Lives in the repository, so changes to who may do what are reviewed like any other change. Every key is optional.</p>
 <pre><code># .shelf/config.toml
