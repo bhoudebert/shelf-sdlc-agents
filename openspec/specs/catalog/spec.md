@@ -85,3 +85,17 @@ The system SHALL write a lock file listing, for each source, its commit, its kin
 
 - **WHEN** a `plugin` source declares a session-start command
 - **THEN** the lock lists that command under the source
+
+### Requirement: The operator can declare managed hooks
+
+The system SHALL read `[[hook]]` entries from `catalog.toml`, each with an event, an optional matcher and a command the operator writes, refuse an entry without an event or a command, and put them in the managed policy, so that they run for every agent next to the hooks of the corporate plugins and no repository's own hooks do. A command is the operator's own and is never fetched.
+
+#### Scenario: A hook before every shell command
+
+- **WHEN** the catalog declares a `PreToolUse` hook with the matcher `Bash` and a command
+- **THEN** the managed policy runs that command before each shell command of every agent
+
+#### Scenario: An entry without a command
+
+- **WHEN** a `[[hook]]` has an event and no command
+- **THEN** the catalog is refused and the error says which entry

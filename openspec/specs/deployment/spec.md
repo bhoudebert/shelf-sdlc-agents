@@ -498,3 +498,12 @@ The system SHALL, when the install script runs, create the operator's `catalog.t
 
 - **WHEN** a source cannot be fetched
 - **THEN** the install stops naming the source and the worker keeps the previous catalog
+
+### Requirement: The image carries the tools the corporate plugins need
+
+The system SHALL ship in the worker image the tools that the corporate plugins and managed hooks rely on (Node for plugin hooks, and the open-source edition of `rtk` for shell output), each pinned to a release and verified against its published checksum when the image is built.
+
+#### Scenario: Building the image
+
+- **WHEN** the image is built
+- **THEN** Node and `rtk` are installed from pinned releases and the build fails if a checksum does not match
