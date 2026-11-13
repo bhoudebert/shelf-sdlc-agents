@@ -1,3 +1,4 @@
+import os
 import subprocess
 from pathlib import Path
 
@@ -251,3 +252,19 @@ async def test_a_repository_that_cannot_be_reached_reports_git_s_own_error(tmp_p
     with pytest.raises(RuntimeError, match="git clone failed"):
         async with workspaces(tmp_path / "nowhere.git", tmp_path).open(checkout()):
             pass
+
+
+async def test_a_check_does_not_see_the_workers_secrets_or_the_model_credential(
+    origin: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SESSION_SECRET", "session-secret-value")
+    monkeypatch.setenv("GITHUB_APP_PRIVATE_KEY_PATH", "/run/secrets/github-app.pem")
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "model-token-value")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "api-key-value")
+    async with workspaces(origin, tmp_path).open(checkout()) as workspace:
+        printed = await workspace.run("env")
+        path = await workspace.run("echo $PATH")
+    assert printed.exit_code == 0
+    for leaked in ("session-secret-value", "github-app.pem", "model-token-value", "api-key-value"):
+        assert leaked not in printed.output
+    assert path.output.strip() == os.environ["PATH"]
