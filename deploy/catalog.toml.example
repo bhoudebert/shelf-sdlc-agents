@@ -5,7 +5,7 @@
 #   kind = "skills"   only the skill folders of the repository, as a plugin without hooks, loaded for the roles you bind it
 #                     to in shelf.toml:   [roles.implementer]  use = ["superpowers"]
 #   kind = "plugin"   the whole plugin, hooks included, enabled for EVERY agent. Its hooks run commands (the lock file lists
-#                     them), so review them; many need `node`, which the image does not ship yet.
+#                     them), so review them. The image has node for plugins whose hooks need it.
 #
 # ref is a full 40-character commit, never a branch or a tag: a change of commit is a change you review. Nothing a source
 # contains is run while it is fetched. Find a commit with: git ls-remote <repository> HEAD
@@ -34,9 +34,24 @@
 # kind = "skills"
 # path = ".claude/skills"
 
-# A whole plugin for every agent (needs node in the image):
+# A whole plugin for every agent:
 # [[source]]
 # name = "ponytail"
 # git  = "https://github.com/DietrichGebert/ponytail"
 # ref  = "96608e078b2d5ea607c5c3b8b5a54d1c1fba6846"
 # kind = "plugin"
+
+# Terse replies save tokens on every step. It adds its own telemetry unless DO_NOT_TRACK is set, which every agent has.
+# [[source]]
+# name = "caveman"
+# git  = "https://github.com/JuliusBrussee/caveman"
+# ref  = "b4ee71d557d96e3cbc14f88fa6e953a1362865f5"
+# kind = "plugin"
+
+# A command of your own that runs for every agent, written by you and never fetched. rtk is in the image: this shortens
+# the output of shell commands before an agent reads it.
+# [[hook]]
+# event   = "PreToolUse"
+# matcher = "Bash"
+# command = "rtk hook claude"
+

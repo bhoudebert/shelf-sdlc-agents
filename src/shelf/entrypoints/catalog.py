@@ -14,8 +14,8 @@ RUNTIME_DIR = "/opt/shelf/catalog"
 def run(config: Path, plugins_out: Path, policy_out: Path, runtime_dir: str) -> int:
     """Sync and report; the exit code is zero only when the whole catalog was fetched and valid."""
     try:
-        sources = parse_catalog(config.read_text(encoding="utf-8") if config.exists() else "")
-        synced = sync(sources, plugins_out, policy_out, runtime_dir)
+        catalog = parse_catalog(config.read_text(encoding="utf-8") if config.exists() else "")
+        synced = sync(catalog, plugins_out, policy_out, runtime_dir)
     except CatalogError as error:
         print(f"catalog: {error}", file=sys.stderr)  # noqa: T201
         return 1
@@ -24,6 +24,8 @@ def run(config: Path, plugins_out: Path, policy_out: Path, runtime_dir: str) -> 
         print(f"catalog: {item.source.name} ({kind}) at {item.source.ref[:12]}: {', '.join(item.produced)}")  # noqa: T201
         for command in item.hooks:
             print(f"catalog:   its hooks run: {command}")  # noqa: T201
+    for hook in catalog.hooks:
+        print(f"catalog: operator hook on {hook.event}: {hook.command}")  # noqa: T201
     print(f"catalog: {len(synced)} source(s) synced; the lock is {plugins_out / LOCK}")  # noqa: T201
     return 0
 

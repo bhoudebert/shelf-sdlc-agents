@@ -40,7 +40,8 @@ git  = &quot;https://github.com/github/awesome-copilot&quot;
 ref  = &quot;8ecd5b17f02fe5fbebf35eccd1867265eded811f&quot;
 kind = &quot;skills&quot;
 path = &quot;skills/gdpr-compliant&quot;                    # one folder of a larger repository</code></pre>
-<p>There are two kinds. <code>skills</code> takes only the skill folders, as a plugin without hooks, and loads them for the roles you bind it to in <code>shelf.toml</code>. <code>plugin</code> takes the whole plugin, hooks included, and enables it for <strong>every</strong> agent through a managed policy that also stops a repository's own hooks. A plugin's hooks run commands, so the sync lists them in <code>catalog.lock.json</code> for you to review, and many need <code>node</code>, which the image does not ship yet.</p>
+<p>There are two kinds. <code>skills</code> takes only the skill folders, as a plugin without hooks, and loads them for the roles you bind it to in <code>shelf.toml</code>. <code>plugin</code> takes the whole plugin, hooks included, and enables it for <strong>every</strong> agent through a managed policy that also stops a repository's own hooks. A plugin's hooks run commands, so the sync lists them in <code>catalog.lock.json</code> for you to review, and the image ships <code>node</code> for the ones that need it.</p>
+<p>A <code>[[hook]]</code> entry runs a command of your own for every agent, for example <code>rtk hook claude</code> before each shell command (the image carries <code>rtk</code>, the open-source edition): <code>event</code>, optional <code>matcher</code> and <code>command</code>. It is written by you and never fetched.</p>
 <pre><code># shelf.toml
 [roles.implementer]
 use = [&quot;superpowers&quot;]
