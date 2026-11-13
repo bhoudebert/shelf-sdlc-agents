@@ -8,43 +8,52 @@ attacking it. Last reviewed 2026-11-13.
 
 ## 1. Agents are not isolated from each other or from the worker
 
-How it works today:
+How it works today (read from `main` on 2026-11-13):
 
 - Every agent runs as a Claude Code process **inside the `worker` container**. There is no container per agent or per work item.
 - The only barrier is Claude Code's own sandbox (bubblewrap). Inside Docker it runs in its weaker nested mode, which is why the
-  `worker` service needs `seccomp=unconfined`.
-- All agents of all works and all repositories share that container's filesystem and environment. The container also mounts the
-  GitHub App's private key and receives the credentials from `.env`.
-- The installation token an agent receives (`GH_TOKEN`) is valid for one hour but covers **every repository the App is installed
-  on**, not only the work's repository.
+  `worker` service needs `seccomp=unconfined` and, on Ubuntu hosts, `apparmor=unconfined`.
+- All agents of all works and all repositories share that container's filesystem. The container mounts the GitHub App's private
+  key (`deploy/secrets`).
+- An agent starts with the worker's environment, minus what shelf blanks for it: the session and webhook secrets and every
+  `GITHUB_APP_*` setting. The model credential stays, because the agent needs it. Blanking hides the key's path from the agent; it
+  does not stop an agent that finds the file.
+- Every role has the full toolset, including `Bash`. A reviewer's changes are discarded because only producers' work is
+  committed, but a reviewer runs commands like anyone.
+- Only the implementer gets a GitHub token (`GH_TOKEN`). It is valid for one hour but covers **every repository the App is
+  installed on**, with the App's permissions, not only the work's repository.
+- Commands run by the agent in the sandbox may reach only an allowlist of sites: GitHub, the common package registries and the
+  tool downloads, plus whatever the operator adds in `SHELF_ALLOWED_DOMAINS`. There is no log of what was reached, no admin
+  page, and no way to ask for a site. `SHELF_SANDBOX_DISABLED` turns the sandbox, and so the allowlist, off.
 - Each step works in a fresh clone, and the worker does the commit and the push. That keeps a step's files apart, but it is a
   convention, not a wall.
 
 What this means for you:
 
-- Treat agents as able to read what the worker can read, including the App key and the other works' clones, until the isolation
-  below ships. We have not demonstrated that attack; the sandbox may stop part of it, and we cannot promise it does.
+- Treat agents as able to read what the worker can read, including the App key file and the other works' clones, until the
+  isolation below ships. We have not demonstrated that attack; the sandbox may stop part of it, and we cannot promise it does.
 - Install the App only on repositories, and let in only people and organisations, you would trust with the whole factory. Access
   is closed by default (`shelf.toml`), and the sign-in list is the first line of defence.
-- A repository's `checks` (the commands in `.shelf/config.toml`) run **outside any sandbox**, in the worker, with the worker's
-  full environment. Only configure repositories whose `checks` you trust.
+- A repository's `checks` (the commands in `.shelf/config.toml`) run **outside any sandbox**, in the worker, through a shell,
+  with the worker's **complete** environment: the blanking above applies to agents, not to the checks. Only configure
+  repositories whose `checks` you trust.
 
 ### The plan
 
 Proposed in a [decision record](adr/) on running each agent step in its own container (not yet accepted). In order:
 
-1. Run the repository `checks` with a scrubbed environment.
+1. Run the repository `checks` with a scrubbed environment. This is the most urgent, and needs no containers.
 2. Narrow the installation token to the work's repository.
 3. Run each agent step, and the `checks`, in its own short-lived container that mounts only its own clone. The worker stays the
    orchestrator and does the commit, the push and the pull request comments. Opt-in at first.
 4. Move container start-up to a small runner service, so the worker no longer holds the Docker socket (which is root on the host).
-5. Control the network: an egress proxy that logs every outbound request per work and repository, an admin pane of allowed
-   domains, and a waiting state in the workflow when an agent needs a domain nobody has allowed yet.
+5. Build on today's site allowlist: log every outbound request per work and repository, add an admin pane of allowed sites, and
+   a waiting state in the workflow when an agent needs a site nobody has allowed yet.
 
 What will stay true even then:
 
-- The Claude credential and a repository-scoped token are inside the step container. A network allowlist reduces ways to send
-  them out but cannot close all of them: an allowed host such as a code host or a package registry can still receive data.
+- The Claude credential and a repository-scoped token are inside the step container. A site allowlist reduces ways to send them
+  out but cannot close all of them: an allowed host such as a code host or a package registry can still receive data.
 - The network layer sees host names, not URLs, because it does not decrypt traffic.
 - A step container costs about a second or two to start, and a first step on a repository starts with a cold dependency cache.
   These are estimates until stage 3 is measured.
