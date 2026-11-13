@@ -6,15 +6,19 @@
 ## Context
 
 Today every agent runs as a Claude Code process inside the `worker` container, under Claude's own sandbox (bubblewrap). Inside
-Docker that sandbox runs in its weaker nested mode, which is why the worker needs `seccomp=unconfined`. All agents of all works
-and all repositories therefore share one filesystem, one environment and the worker's mounts, which include the GitHub App's
-private key and the `.env` credentials. The repository's `checks` run through `workspace.run` (`shell=True`) with the worker's
-full environment, outside any sandbox. The installation token an agent receives (`GH_TOKEN`) covers every repository the App is
-installed on.
+Docker that sandbox runs in its weaker nested mode, which is why the worker needs `seccomp=unconfined` (and `apparmor=unconfined`
+on Ubuntu hosts). All agents of all works and all repositories therefore share one filesystem and the worker's mounts, which
+include the GitHub App's private key. An agent starts with the worker's environment minus what shelf blanks for it (the session
+and webhook secrets and every `GITHUB_APP_*` setting); the model credential stays. Every role has the full toolset, `Bash`
+included. Only the implementer receives a GitHub token (`GH_TOKEN`); it covers every repository the App is installed on. The
+repository's `checks` run through `workspace.run` (a shell) with the worker's **complete** environment, outside any sandbox:
+the blanking applies to agents, not to the checks. The sandbox already restricts the sites a command may reach to an allowlist
+(a default set for GitHub, package registries and tool downloads, plus `SHELF_ALLOWED_DOMAINS`), with no log and no way to ask
+for a site.
 
 What agents really need, from `application/steps.py` and `domain/roles.py`: the clone of one repository with its history, the
-repository's own agent files, a shell for the coding roles (`git log`, `git diff`, tests, `gh`), and network access to GitHub, the
-Claude API and the package registries of the repository. The worker already does the commit, the push, the pull request comments
+repository's own agent files, a shell (`git log`, `git diff`, tests, and `gh` for the implementer), and network access to
+GitHub, the Claude API and the package registries of the repository. The worker already does the commit, the push, the pull request comments
 and the `checks`. Nothing needs the App key, the other clones, or other repositories.
 
 The goal is a closed perimeter: an agent cannot reach the host, the operator's secrets, or another repository. This record
@@ -33,7 +37,7 @@ A step container has:
 - **Environment:** the Claude credential, and an installation token narrowed to the work's repository
   (`repositories: [name]`) with the permissions the step needs, valid for one hour.
 - **Limits:** CPU, memory, process count and wall time per step; removed when it ends.
-- **Network:** an `internal` Docker network whose only exit is an egress proxy.
+- **Network:** an `internal` Docker network whose only exit is an egress proxy, starting from the allowlist that exists today.
 
 The container runs the same Claude Agent SDK call as today, through a small entrypoint that reads the `AgentTask` on standard
 input and prints the answer. Prompts, roles, tools and turn limits do not change. The unit is the step: it matches the fresh
@@ -47,14 +51,18 @@ privileged mode chosen by the caller) comes next. Rootless Podman or sysbox stay
 
 ### The egress proxy and the admin pane
 
+Today's allowlist (the defaults plus `SHELF_ALLOWED_DOMAINS`, enforced by Claude's sandbox) is the starting point, not something
+to replace. It has no log, no admin page and no way to ask, and it stops applying when the sandbox is turned off. In a container
+the sandbox is no longer the boundary, so the proxy takes over the enforcement and the rest of this section adds what is missing.
+
 The proxy identifies each step by a random credential in the proxy URL, registered by the runner for the step's lifetime
 (`HTTPS_PROXY=http://<step>:<secret>@proxy`), so it knows the work, the repository and the requester without the Docker API. The
 `internal` network leaves no other route: a tool that ignores the proxy simply has no connection.
 
 Domains are decided in an admin pane:
 
-- a built-in baseline of ecosystem presets (npm, PyPI, Maven Central, GitHub release hosts, the Claude API) the operator may switch
-  off;
+- the built-in baseline that exists today (GitHub, npm, PyPI, Maven Central and the tool downloads), which the operator may
+  switch off or extend;
 - allowlists per repository and global, where the operator's list caps what a repository may ask for in `.shelf/config.toml`;
 - a mode per repository: **open and log** (learn), **ask**, or **strict**.
 
@@ -73,7 +81,7 @@ Each stage is its own pull request with spec, tests and a status update here.
 1. Run the repository's `checks` with a scrubbed environment.
 2. Narrow the installation token to the work's repository.
 3. `ContainerBackend`, opt-in with `SHELF_ISOLATION=container` (the current mode stays the default), Docker socket mounted in the
-   worker, open egress. The worker then drops `seccomp=unconfined` and the nested sandbox when the mode is on.
+   worker, egress as today. The worker then drops `seccomp=unconfined` and the nested sandbox when the mode is on.
 4. The runner service; the worker loses the socket.
 5. Network: (a) proxy with logging and the outbound dashboard, (b) allowlists, admin pane and the per-repository mode, (c) the
    blocking workflow state.
@@ -108,8 +116,9 @@ Each stage is its own pull request with spec, tests and a status update here.
   unit.
 - **Docker socket behind a filtering proxy.** Filters endpoints, not request bodies, so a caller can still ask for a privileged
   container with the host mounted. Rejected in favour of the runner service.
-- **A static list of allowed domains.** Every repository needs different hosts, so a global list is either too tight or
-  meaningless. Replaced by presets, per-repository lists and the ask flow.
+- **The static list alone (what exists today).** Every repository needs different hosts, so a global list is either too tight or
+  meaningless, and nobody sees what was refused. Kept as the baseline, and extended with per-repository lists, a log and the ask
+  flow.
 - **A pre-scan phase that guesses the hosts from `package.json` or `pom.xml`.** Misses transitive dependencies and install
   scripts. Learning from the actual refusal is accurate.
 - **A package mirror as the only exit.** The cleanest answer where one exists, but a service to run. Left as an option behind the
