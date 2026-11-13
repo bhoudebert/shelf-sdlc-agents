@@ -31,7 +31,7 @@ What this means for you:
 
 ### The plan
 
-Decided in [ADR 0012](adr/) (proposed), refining [ADR 0011](adr/):
+Proposed in a [decision record](adr/) on running each agent step in its own container (not yet accepted). In order:
 
 1. Run the repository `checks` with a scrubbed environment.
 2. Narrow the installation token to the work's repository.

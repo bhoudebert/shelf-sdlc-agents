@@ -29,7 +29,7 @@
 <li>A repository's <code>checks</code> (the commands in <code>.shelf/config.toml</code>) run <strong>outside any sandbox</strong>, in the worker, with the worker's full environment. Only configure repositories whose <code>checks</code> you trust.</li>
 </ul>
 <h3 id="isolation-plan">The plan</h3>
-<p>Decided in <a href="https://github.com/bhoudebert/shelf-sdlc-agents/tree/main/docs/adr">ADR 0012</a> (proposed), refining ADR 0011. In order:</p>
+<p>Proposed in a <a href="https://github.com/bhoudebert/shelf-sdlc-agents/tree/main/docs/adr">decision record</a> on running each agent step in its own container (not yet accepted). In order:</p>
 <ol>
 <li>Run the repository <code>checks</code> with a scrubbed environment.</li>
 <li>Narrow the installation token to the work's repository.</li>
