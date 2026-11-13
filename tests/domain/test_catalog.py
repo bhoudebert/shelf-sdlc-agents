@@ -1,6 +1,15 @@
 import pytest
 
-from shelf.domain.catalog import MARKETPLACE, CatalogError, Kind, Source, managed_policy, marketplace, parse_catalog
+from shelf.domain.catalog import (
+    MARKETPLACE,
+    CatalogError,
+    Hook,
+    Kind,
+    Source,
+    managed_policy,
+    marketplace,
+    parse_catalog,
+)
 
 SHA = "22f0b463e7a5e579904dd6211a520321035526f7"
 
@@ -12,13 +21,14 @@ def entry(**changes: str) -> str:
 
 def test_a_valid_catalog_keeps_its_sources_in_the_order_written() -> None:
     text = entry(name="b") + entry(name="a", kind="plugin", path="sub/dir")
-    first, second = parse_catalog(text)
+    first, second = parse_catalog(text).sources
     assert (first.name, first.kind, first.path) == ("b", Kind.SKILLS, "")
     assert (second.name, second.kind, second.path) == ("a", Kind.PLUGIN, "sub/dir")
 
 
 def test_an_empty_catalog_has_no_sources() -> None:
-    assert parse_catalog("") == ()
+    assert parse_catalog("").sources == ()
+    assert parse_catalog("").hooks == ()
 
 
 @pytest.mark.parametrize("ref", ["main", "v1.2.0", SHA[:7], SHA.upper(), ""])
@@ -49,7 +59,7 @@ def test_a_source_needs_a_repository_and_a_list_of_skill_folders() -> None:
         parse_catalog(entry(git=""))
     with pytest.raises(CatalogError, match="skills must be a list"):
         parse_catalog(entry() + 'skills = "one"\n')
-    assert parse_catalog(entry() + 'skills = ["a", "b"]\n')[0].skills == ("a", "b")
+    assert parse_catalog(entry() + 'skills = ["a", "b"]\n').sources[0].skills == ("a", "b")
 
 
 def test_text_that_is_not_toml_or_has_stray_keys_is_refused() -> None:
@@ -66,7 +76,7 @@ def plugin(name: str) -> Source:
 def test_plugins_are_listed_in_the_marketplace_and_enabled_by_the_policy() -> None:
     plugins = [plugin("caveman"), plugin("ponytail")]
     assert [p["name"] for p in marketplace(plugins)["plugins"]] == ["caveman", "ponytail"]
-    policy = managed_policy(plugins, "/opt/shelf/catalog")
+    policy = managed_policy(plugins, [], "/opt/shelf/catalog")
     assert policy["allowManagedHooksOnly"] is True
     assert policy["enabledPlugins"] == {f"caveman@{MARKETPLACE}": True, f"ponytail@{MARKETPLACE}": True}
     assert policy["extraKnownMarketplaces"][MARKETPLACE]["source"] == {
@@ -76,4 +86,34 @@ def test_plugins_are_listed_in_the_marketplace_and_enabled_by_the_policy() -> No
 
 
 def test_without_plugins_the_policy_still_allows_managed_hooks_only() -> None:
-    assert managed_policy([], "/opt/shelf/catalog") == {"allowManagedHooksOnly": True}
+    assert managed_policy([], [], "/opt/shelf/catalog") == {"allowManagedHooksOnly": True}
+
+
+def test_hooks_are_read_in_the_order_written() -> None:
+    text = (
+        '[[hook]]\nevent = "PreToolUse"\nmatcher = "Bash"\ncommand = "rtk hook claude"\n\n'
+        '[[hook]]\nevent = "SessionStart"\ncommand = "echo hi"\n'
+    )
+    assert parse_catalog(text).hooks == (Hook("PreToolUse", "rtk hook claude", "Bash"), Hook("SessionStart", "echo hi"))
+
+
+@pytest.mark.parametrize(
+    "entry",
+    ['event = "Stop"', 'command = "x"', 'event = "Stop"\ncommand = 1', 'event = "Stop"\ncommand = "x"\nrun = "y"'],
+)
+def test_a_hook_needs_an_event_and_a_command_and_nothing_else(entry: str) -> None:
+    with pytest.raises(CatalogError, match="hook 1"):
+        parse_catalog(f"[[hook]]\n{entry}\n")
+
+
+def test_operator_hooks_go_in_the_policy_grouped_by_event_with_their_matcher() -> None:
+    hooks = [Hook("PreToolUse", "rtk hook claude", "Bash"), Hook("PreToolUse", "audit"), Hook("Stop", "bye")]
+    policy = managed_policy([], hooks, "/opt/shelf/catalog")
+    assert policy["allowManagedHooksOnly"] is True
+    assert policy["hooks"] == {
+        "PreToolUse": [
+            {"hooks": [{"type": "command", "command": "rtk hook claude"}], "matcher": "Bash"},
+            {"hooks": [{"type": "command", "command": "audit"}]},
+        ],
+        "Stop": [{"hooks": [{"type": "command", "command": "bye"}]}],
+    }

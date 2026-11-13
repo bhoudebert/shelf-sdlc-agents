@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from shelf.domain.catalog import CatalogError, Kind, Source, managed_policy, marketplace
+from shelf.domain.catalog import Catalog, CatalogError, Kind, Source, managed_policy, marketplace
 
 LOCK = "catalog.lock.json"
 POLICY = "managed-settings.json"
@@ -153,7 +153,7 @@ def _replace(target: Path, staged: Path) -> None:
     shutil.copytree(staged, target, dirs_exist_ok=True)
 
 
-def sync(sources: tuple[Source, ...], plugins_out: Path, policy_out: Path, runtime_dir: str) -> list[Synced]:
+def sync(catalog: Catalog, plugins_out: Path, policy_out: Path, runtime_dir: str) -> list[Synced]:
     """Fetch every source and replace the catalog; any failure raises before the catalog on disk is touched."""
     with tempfile.TemporaryDirectory(prefix="shelf-catalog-") as scratch:
         base = Path(scratch)
@@ -161,7 +161,7 @@ def sync(sources: tuple[Source, ...], plugins_out: Path, policy_out: Path, runti
         stage.mkdir()
         policy.mkdir()
         synced: list[Synced] = []
-        for source in sources:
+        for source in catalog.sources:
             root = _fetch(source, base / "fetched" / source.name)
             synced.append(_plugin(source, root, stage) if source.kind is Kind.PLUGIN else _skills(source, root, stage))
         corporate = [item.source for item in synced if item.source.kind is Kind.PLUGIN]
@@ -171,7 +171,7 @@ def sync(sources: tuple[Source, ...], plugins_out: Path, policy_out: Path, runti
         )
         (stage / LOCK).write_text(json.dumps(_lock(synced), indent=2) + "\n", encoding="utf-8")
         (policy / POLICY).write_text(
-            json.dumps(managed_policy(corporate, runtime_dir), indent=2) + "\n", encoding="utf-8"
+            json.dumps(managed_policy(corporate, catalog.hooks, runtime_dir), indent=2) + "\n", encoding="utf-8"
         )
         _replace(plugins_out, stage)
         _replace(policy_out, policy)

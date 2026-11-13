@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from shelf.adapters.catalog.sync import LOCK, POLICY, hook_commands, sync
-from shelf.domain.catalog import CatalogError, Kind, Source
+from shelf.adapters.catalog.sync import LOCK, POLICY, Synced, hook_commands, sync
+from shelf.domain.catalog import Catalog, CatalogError, Hook, Kind, Source
 
 
 def git(directory: Path, *args: str) -> str:
@@ -63,6 +63,10 @@ def plugin_repo(tmp_path: Path) -> tuple[str, str]:
     )
 
 
+def sync_sources(sources: tuple[Source, ...], plugins: Path, policy: Path, runtime: str) -> list[Synced]:
+    return sync(Catalog(sources), plugins, policy, runtime)
+
+
 def outputs(tmp_path: Path) -> tuple[Path, Path]:
     return tmp_path / "out" / "plugins", tmp_path / "out" / "policy"
 
@@ -73,7 +77,7 @@ def source(name: str, location: tuple[str, str], kind: Kind, **changes: object) 
 
 def test_a_skills_source_becomes_a_plugin_with_only_its_skill_folders_and_no_hook(tmp_path: Path) -> None:
     plugins, policy = outputs(tmp_path)
-    sync((source("superpowers", skills_repo(tmp_path), Kind.SKILLS),), plugins, policy, "/opt/shelf/catalog")
+    sync_sources((source("superpowers", skills_repo(tmp_path), Kind.SKILLS),), plugins, policy, "/opt/shelf/catalog")
     generated = plugins / "superpowers"
     assert sorted(p.name for p in (generated / "skills").iterdir()) == ["debugging", "tdd"]
     assert (generated / "skills" / "tdd" / "extra.md").is_file()
@@ -84,19 +88,19 @@ def test_a_skills_source_becomes_a_plugin_with_only_its_skill_folders_and_no_hoo
 
 def test_a_selection_of_skills_takes_only_those(tmp_path: Path) -> None:
     plugins, policy = outputs(tmp_path)
-    sync((source("sp", skills_repo(tmp_path), Kind.SKILLS, skills=("tdd",)),), plugins, policy, "/opt")
+    sync_sources((source("sp", skills_repo(tmp_path), Kind.SKILLS, skills=("tdd",)),), plugins, policy, "/opt")
     assert [p.name for p in (plugins / "sp" / "skills").iterdir()] == ["tdd"]
 
 
 def test_a_skill_that_is_not_there_is_named(tmp_path: Path) -> None:
     plugins, policy = outputs(tmp_path)
     with pytest.raises(CatalogError, match=r"sp: no skill named missing \(found: debugging, tdd\)"):
-        sync((source("sp", skills_repo(tmp_path), Kind.SKILLS, skills=("missing",)),), plugins, policy, "/opt")
+        sync_sources((source("sp", skills_repo(tmp_path), Kind.SKILLS, skills=("missing",)),), plugins, policy, "/opt")
 
 
 def test_a_plugin_source_is_registered_enabled_and_its_hooks_are_locked(tmp_path: Path) -> None:
     plugins, policy = outputs(tmp_path)
-    sync((source("caveman", plugin_repo(tmp_path), Kind.PLUGIN),), plugins, policy, "/opt/shelf/catalog")
+    sync_sources((source("caveman", plugin_repo(tmp_path), Kind.PLUGIN),), plugins, policy, "/opt/shelf/catalog")
     assert (plugins / "caveman" / "a.js").is_file()
     listed = json.loads((plugins / ".claude-plugin" / "marketplace.json").read_text())
     assert [p["name"] for p in listed["plugins"]] == ["caveman"]
@@ -108,13 +112,22 @@ def test_a_plugin_source_is_registered_enabled_and_its_hooks_are_locked(tmp_path
 
 def test_only_skill_sources_enable_no_plugin_and_still_lock_hooks_to_managed(tmp_path: Path) -> None:
     plugins, policy = outputs(tmp_path)
-    sync((source("sp", skills_repo(tmp_path), Kind.SKILLS),), plugins, policy, "/opt")
+    sync_sources((source("sp", skills_repo(tmp_path), Kind.SKILLS),), plugins, policy, "/opt")
     assert json.loads((policy / POLICY).read_text()) == {"allowManagedHooksOnly": True}
+
+
+def test_operator_hooks_reach_the_managed_policy(tmp_path: Path) -> None:
+    plugins, policy = outputs(tmp_path)
+    catalog = Catalog((), (Hook("PreToolUse", "rtk hook claude", "Bash"),))
+    sync(catalog, plugins, policy, "/opt/shelf/catalog")
+    managed = json.loads((policy / POLICY).read_text())
+    assert managed["hooks"]["PreToolUse"][0]["matcher"] == "Bash"
+    assert managed["hooks"]["PreToolUse"][0]["hooks"][0]["command"] == "rtk hook claude"
 
 
 def test_nothing_a_source_contains_is_run(tmp_path: Path) -> None:
     plugins, policy = outputs(tmp_path)
-    sync(
+    sync_sources(
         (source("sp", skills_repo(tmp_path), Kind.SKILLS), source("caveman", plugin_repo(tmp_path), Kind.PLUGIN)),
         plugins,
         policy,
@@ -126,11 +139,11 @@ def test_nothing_a_source_contains_is_run(tmp_path: Path) -> None:
 def test_a_plugin_without_its_manifest_fails_and_leaves_the_catalog_alone(tmp_path: Path) -> None:
     plugins, policy = outputs(tmp_path)
     skills = skills_repo(tmp_path)
-    sync((source("sp", skills, Kind.SKILLS),), plugins, policy, "/opt/shelf/catalog")
+    sync_sources((source("sp", skills, Kind.SKILLS),), plugins, policy, "/opt/shelf/catalog")
     before = sorted(str(p.relative_to(plugins)) for p in plugins.rglob("*"))
     bare = repo(tmp_path, "bare", {"README.md": "no plugin here"})
     with pytest.raises(CatalogError, match=r"bare: a plugin needs \.claude-plugin/plugin\.json"):
-        sync(
+        sync_sources(
             (source("sp", skills, Kind.SKILLS), source("bare", bare, Kind.PLUGIN)),
             plugins,
             policy,
@@ -142,7 +155,9 @@ def test_a_plugin_without_its_manifest_fails_and_leaves_the_catalog_alone(tmp_pa
 def test_a_skills_source_without_skills_is_refused(tmp_path: Path) -> None:
     plugins, policy = outputs(tmp_path)
     with pytest.raises(CatalogError, match=r"empty: no folder with a SKILL\.md"):
-        sync((source("empty", repo(tmp_path, "empty", {"README.md": "x"}), Kind.SKILLS),), plugins, policy, "/opt")
+        sync_sources(
+            (source("empty", repo(tmp_path, "empty", {"README.md": "x"}), Kind.SKILLS),), plugins, policy, "/opt"
+        )
 
 
 def test_a_commit_the_repository_does_not_have_names_the_source_and_the_commit(tmp_path: Path) -> None:
@@ -150,16 +165,16 @@ def test_a_commit_the_repository_does_not_have_names_the_source_and_the_commit(t
     location = skills_repo(tmp_path)
     bogus = Source("ghost", location[0], "0" * 40, Kind.SKILLS)
     with pytest.raises(CatalogError, match=r"ghost: cannot fetch commit 0{40}"):
-        sync((bogus,), plugins, policy, "/opt")
+        sync_sources((bogus,), plugins, policy, "/opt")
 
 
 def test_a_path_inside_the_repository_roots_the_source(tmp_path: Path) -> None:
     plugins, policy = outputs(tmp_path)
     skills = skills_repo(tmp_path)
-    sync((source("only", skills, Kind.SKILLS, path="skills/tdd"),), plugins, policy, "/opt")
+    sync_sources((source("only", skills, Kind.SKILLS, path="skills/tdd"),), plugins, policy, "/opt")
     assert [p.name for p in (plugins / "only" / "skills").iterdir()] == ["tdd"]
     with pytest.raises(CatalogError, match="not a folder of the repository"):
-        sync((source("nope", skills, Kind.SKILLS, path="absent"),), plugins, policy, "/opt")
+        sync_sources((source("nope", skills, Kind.SKILLS, path="absent"),), plugins, policy, "/opt")
 
 
 def test_hook_commands_are_read_from_the_manifest_and_the_hooks_file_without_running_them(tmp_path: Path) -> None:
