@@ -82,6 +82,9 @@ services:
       - ./config:/etc/shelf:ro
       - ./secrets:/run/secrets:ro
       - worker-cache:/cache
+      # The synced catalog of skills and plugins, and the managed policy that enables the plugins (see catalog.toml).
+      - catalog-plugins:/opt/shelf/catalog:ro
+      - claude-policy:/etc/claude-code:ro
     # The agents' sandbox (bubblewrap) needs user namespaces, which the default seccomp profile blocks. This is the only
     # service that relaxes it, and the agents it runs only ever see a clone of the repository and a one-hour token.
     security_opt:
@@ -89,6 +92,20 @@ services:
       # Ubuntu 23.10+ hosts restrict unprivileged user namespaces with AppArmor, which the sandbox needs too.
       - apparmor=unconfined
 
+  # Fetches the catalog (config/catalog.toml) at its pinned commits into the two volumes the worker reads. It holds no
+  # credential and runs nothing it fetches: `docker compose --profile tools run --rm catalog`, which install.sh does.
+  catalog:
+    profiles: ["tools"]
+    build:
+      context: ..
+    command: ["shelf-catalog", "sync"]
+    volumes:
+      - ./config:/etc/shelf:ro
+      - catalog-plugins:/opt/shelf/catalog
+      - claude-policy:/etc/claude-code
+
 volumes:
   temporal-data:
   worker-cache:
+  catalog-plugins:
+  claude-policy:

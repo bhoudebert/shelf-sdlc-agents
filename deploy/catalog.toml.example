@@ -1,0 +1,42 @@
+# The skills and plugins every agent can have, pinned to a commit. Copy to deploy/config/catalog.toml (install.sh does it);
+# `sh deploy/install.sh` then fetches what is listed here. Nothing is fetched until you uncomment a source.
+#
+# Two kinds:
+#   kind = "skills"   only the skill folders of the repository, as a plugin without hooks, loaded for the roles you bind it
+#                     to in shelf.toml:   [roles.implementer]  use = ["superpowers"]
+#   kind = "plugin"   the whole plugin, hooks included, enabled for EVERY agent. Its hooks run commands (the lock file lists
+#                     them), so review them; many need `node`, which the image does not ship yet.
+#
+# ref is a full 40-character commit, never a branch or a tag: a change of commit is a change you review. Nothing a source
+# contains is run while it is fetched. Find a commit with: git ls-remote <repository> HEAD
+
+# Test-driven development, debugging and verification skills, without superpowers' session hook or its interview skills.
+# [[source]]
+# name   = "superpowers"
+# git    = "https://github.com/obra/superpowers"
+# ref    = "22f0b463e7a5e579904dd6211a520321035526f7"
+# kind   = "skills"
+# skills = ["test-driven-development", "systematic-debugging", "verification-before-completion"]
+
+# One skill of a larger repository: a path roots the source inside it.
+# [[source]]
+# name = "gdpr"
+# git  = "https://github.com/github/awesome-copilot"
+# ref  = "8ecd5b17f02fe5fbebf35eccd1867265eded811f"
+# kind = "skills"
+# path = "skills/gdpr-compliant"
+
+# Design skills, for a role that builds interfaces.
+# [[source]]
+# name = "ui-ux-pro-max"
+# git  = "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill"
+# ref  = "6ae86f61f520d6ca229d2f40e070410638c908c5"
+# kind = "skills"
+# path = ".claude/skills"
+
+# A whole plugin for every agent (needs node in the image):
+# [[source]]
+# name = "ponytail"
+# git  = "https://github.com/DietrichGebert/ponytail"
+# ref  = "96608e078b2d5ea607c5c3b8b5a54d1c1fba6846"
+# kind = "plugin"

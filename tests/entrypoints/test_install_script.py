@@ -15,7 +15,7 @@ def server(tmp_path: Path) -> Path:
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     for name, body in {
-        "docker": "exit 0",
+        "docker": 'echo "$@" >> "${DOCKER_LOG:-/dev/null}"; exit 0',
         "ss": 'cat "$SS_OUTPUT" 2>/dev/null; exit 0',
         "curl": 'echo \'{"status": "ok", "revision": "unknown"}\'',
         "git": "exit 1",
@@ -32,7 +32,12 @@ def write_env(server: Path, **values: str) -> None:
 
 def run(server: Path, busy: str = "") -> subprocess.CompletedProcess[str]:
     (server / "ss.out").write_text(busy)
-    env = {**os.environ, "PATH": f"{server / 'bin'}:{os.environ['PATH']}", "SS_OUTPUT": str(server / "ss.out")}
+    env = {
+        **os.environ,
+        "PATH": f"{server / 'bin'}:{os.environ['PATH']}",
+        "SS_OUTPUT": str(server / "ss.out"),
+        "DOCKER_LOG": str(server / "docker.log"),
+    }
     return subprocess.run(  # noqa: S603
         ["sh", str(server / "deploy" / "install.sh")],  # noqa: S607
         capture_output=True,
@@ -98,3 +103,25 @@ def test_a_first_install_creates_the_access_file_in_the_mounted_folder(server: P
     write_env(server)
     run(server)
     assert (server / "deploy" / "config" / "shelf.toml").exists()
+
+
+def test_the_catalog_is_created_from_the_example_and_synced_after_the_containers_are_up(server: Path) -> None:
+    write_env(server)
+    done = run(server)
+    assert done.returncode == 0
+    assert (server / "deploy" / "config" / "catalog.toml").read_text() == (
+        server / "deploy" / "catalog.toml.example"
+    ).read_text()
+    calls = (server / "docker.log").read_text().splitlines()
+    up = next(i for i, line in enumerate(calls) if " up " in f" {line} ")
+    sync = next(i for i, line in enumerate(calls) if "run" in line.split() and "catalog" in line.split())
+    assert sync > up
+
+
+def test_a_catalog_the_operator_edited_is_never_overwritten(server: Path) -> None:
+    write_env(server)
+    config = server / "deploy" / "config"
+    config.mkdir(parents=True, exist_ok=True)
+    (config / "catalog.toml").write_text("# mine\n")
+    run(server)
+    assert (config / "catalog.toml").read_text() == "# mine\n"

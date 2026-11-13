@@ -39,6 +39,7 @@ class Settings:
     nested_sandbox: bool
     sandbox: bool
     claude_cli: str | None
+    catalog_dir: Path
     cache_dir: str
     allowed_domains: tuple[str, ...]
     ci_wait: float
@@ -126,6 +127,7 @@ def from_environ(environ: Mapping[str, str]) -> Settings:
         max_budget_usd=float(budget) if budget else None,
         nested_sandbox=environ.get("SHELF_NESTED_SANDBOX", "").strip().lower() in {"1", "true", "yes"},
         claude_cli=environ.get("SHELF_CLAUDE_CLI", "").strip() or None,
+        catalog_dir=Path(environ.get("SHELF_CATALOG_DIR", "/opt/shelf/catalog")),
         cache_dir=environ.get("SHELF_CACHE_DIR", "").strip(),
         allowed_domains=tuple(
             domain.strip() for domain in environ.get("SHELF_ALLOWED_DOMAINS", "").split(",") if domain.strip()

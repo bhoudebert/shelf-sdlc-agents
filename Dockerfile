@@ -40,6 +40,8 @@ RUN case "$TARGETARCH" in \
  && tar -xzf /tmp/gh.tgz -C /tmp "gh_${GH_VERSION}_linux_${arch}/bin/gh" \
  && install -m 0755 "/tmp/gh_${GH_VERSION}_linux_${arch}/bin/gh" /usr/local/bin/gh \
  && rm -rf /tmp/gh.tgz "/tmp/gh_${GH_VERSION}_linux_${arch}"
+# Where the synced catalog and the managed policy are mounted: owned by the agent user, so a new volume is writable by the sync.
+RUN mkdir -p /opt/shelf/catalog /etc/claude-code && chown shelf:shelf /opt/shelf/catalog /etc/claude-code
 COPY --from=build --chown=shelf:shelf /app /app
 ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1
 # The git revision this image was built from, shown by /healthz. Declared last so it never invalidates the layers above.
