@@ -78,17 +78,34 @@ pub fn run(agent: &str, event: &str, stdin: &str, setting: &Setting) -> Rendered
         home: setting.home.clone(),
         cwd: if call.cwd.is_empty() { setting.cwd.clone() } else { PathBuf::from(&call.cwd) },
     };
+    if policy.audit.enabled {
+        move_spooled_records(&policy, setting, &call.session, &ctx);
+    }
     let path = session_path(&setting.session_dir, &call.session);
     let mut session = Session::open(&path).unwrap_or_default();
     let mut decided = Decided::default();
     let answer = decide(&policy, &ctx, &call, &redactor, &mut session, setting, &mut decided);
     if let Err(error) = session.save() {
-        eprintln!("warden: cannot save the session tokens: {error}");
+        crate::spool::note(&format!("cannot save the session tokens: {error}"));
     }
     if policy.audit.enabled && decided.worth_logging(&call) {
         log(&policy, &ctx, setting, &call, &redactor, &decided, &answer);
     }
     adapter.render(&call, &answer)
+}
+
+/// Put the audit records that `warden run` left for this session, inside the sandbox, into the log.
+fn move_spooled_records(policy: &Policy, setting: &Setting, session: &str, ctx: &Context) {
+    let records = crate::spool::drain(&setting.session_dir, session);
+    if records.is_empty() {
+        return;
+    }
+    let log = AuditLog::new(crate::audit_dir(ctx, policy));
+    for record in records {
+        if let Err(error) = log.append(&record) {
+            crate::spool::note(&format!("cannot write the audit log: {error}"));
+        }
+    }
 }
 
 /// What the judging found, for the log.
@@ -409,7 +426,7 @@ fn log(
     let dir = std::env::var_os("WARDEN_STATE_DIR")
         .map_or_else(|| PathBuf::from(ctx.expand(&policy.audit.dir)), |base| Path::new(&base).join("audit"));
     if let Err(error) = AuditLog::new(dir).append(&entry) {
-        eprintln!("warden: cannot write the audit log: {error}");
+        crate::spool::note(&format!("cannot write the audit log: {error}"));
     }
     let _ = setting;
 }
