@@ -130,6 +130,16 @@ pub struct ToolsSpec {
     pub ask: Vec<String>,
 }
 
+/// Where the audit log goes, and whether there is one.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AuditSpec {
+    /// Whether decisions are logged.
+    pub enabled: Option<bool>,
+    /// The directory of the log; `~` is expanded.
+    pub dir: Option<String>,
+}
+
 /// One policy file.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -161,6 +171,8 @@ pub struct Layer {
     pub network: Option<NetworkSpec>,
     /// Tool lists.
     pub tools: Option<ToolsSpec>,
+    /// The audit log.
+    pub audit: Option<AuditSpec>,
 }
 
 impl Layer {

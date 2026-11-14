@@ -220,3 +220,17 @@ fn the_sources_say_which_layers_contributed() {
     let policy = resolve(&[("global", "profile = \"strict\""), ("repo", "")]);
     assert_eq!(policy.sources, ["preset:common", "preset:strict", "global", "repo"]);
 }
+
+#[test]
+fn the_audit_log_is_on_by_default_and_a_repository_cannot_turn_off_a_locked_one() {
+    let policy = resolve(&[]);
+    assert!(policy.audit.enabled);
+    assert_eq!(policy.audit.dir, "~/.local/share/warden/audit");
+    let policy = resolve(&[
+        ("operator", "locked = true\n[audit]\ndir = \"/var/log/warden\""),
+        ("repo", "[audit]\nenabled = false\ndir = \"/tmp/elsewhere\""),
+    ]);
+    assert!(policy.audit.enabled);
+    assert_eq!(policy.audit.dir, "/var/log/warden");
+    assert_eq!(policy.warnings.len(), 2, "{:?}", policy.warnings);
+}

@@ -33,5 +33,9 @@ protected = [
 ]
 pii = ["**/fixtures/**", "**/seeds/**", "**/*.csv", "**/*.sql", "**/*dump*", "**/*.sqlite", "**/*.db"]
 
+[audit]
+enabled = true
+dir = "~/.local/share/warden/audit"
+
 [network]
 deny_domains = ["pastebin.com", "transfer.sh", "file.io", "ngrok.io", "requestbin.com", "webhook.site"]

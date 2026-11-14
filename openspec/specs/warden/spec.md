@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Guard the agents Shelf runs, and the agents of anyone who installs it, with a policy engine that sees each tool call before it runs: it gates commands, keeps secrets and personal data off the model and records every decision. This capability is built in stages (decision 0014); the requirements below are the ones that hold so far: the policy, the judging of commands and files, and the commands that show a decision.
+Guard the agents Shelf runs, and the agents of anyone who installs it, with a policy engine that sees each tool call before it runs: it gates commands, keeps secrets and personal data off the model and records every decision. This capability is built in stages (decision 0014); the requirements below are the ones that hold so far: the policy, the judging of commands and files, the commands that show a decision, and the audit log.
 
 ## Requirements
 
@@ -248,3 +248,87 @@ The system SHALL print the merged policy: the profile, the mode, whether an ask 
 
 - **WHEN** a person runs `warden policy --profile shelf`
 - **THEN** it shows the profile `shelf` and that nobody can be asked
+
+### Requirement: Every decision is a record in a log that cannot be changed unnoticed
+
+The system SHALL append one JSON line per decision to a file per day in the audit directory, each record carrying its time (UTC, to the millisecond), the agent, the session, the event, the tool, the working directory, a short digest of the input, a one-line summary of at most 200 characters, the categories found, what happened and what the policy had decided when that differs, the reason, the layers of the policy and the mode, the number of values redacted per kind, and the hash of the record before it, so that each hash covers the record and the previous hash; and SHALL keep the files readable by their owner only and never write into them a redacted value, a prompt or the content of a file.
+
+#### Scenario: Records chain
+
+- **WHEN** two decisions are logged
+- **THEN** the second record carries the hash of the first, and the chain verifies
+
+#### Scenario: A day, a file
+
+- **WHEN** decisions are logged on two days
+- **THEN** each day has its own file and the chain runs across them
+
+#### Scenario: Private files
+
+- **WHEN** a record is written
+- **THEN** the log files and the chain file are readable and writable by their owner only
+
+### Requirement: A changed or removed record is named
+
+The system SHALL, when asked to verify the log, walk every record and name the file and line of the first one that does not follow the one before it, that was changed after it was written, or that is not a record, and SHALL name the chain file when records were removed from the end.
+
+#### Scenario: A changed line
+
+- **WHEN** a decision in the middle of the log is edited
+- **THEN** verification fails and names that line
+
+#### Scenario: A removed line
+
+- **WHEN** a record is removed from the middle, or the last one is removed
+- **THEN** verification fails, naming the line after the gap or the chain file
+
+#### Scenario: An empty log
+
+- **WHEN** there is no log yet
+- **THEN** verification passes with no record
+
+### Requirement: Several processes can write the log at once
+
+The system SHALL extend the chain under a lock, so that agents running hooks in parallel never fork it.
+
+#### Scenario: Four writers
+
+- **WHEN** four threads each log ten decisions at the same time
+- **THEN** the log holds forty records and its chain verifies
+
+### Requirement: `warden status` shows what the log holds
+
+The system SHALL print the number of records with the count of each decision (a decision that audit mode let through is counted as `allow(audit)`), the redactions per kind, and the records that were not a plain allow, the latest twenty by default, or every record with `--all`, for the log in the policy's audit directory, `$WARDEN_STATE_DIR/audit` or `--dir`, and for one session with `--session`.
+
+#### Scenario: Only the interventions
+
+- **WHEN** the log holds two allows, a deny and an ask
+- **THEN** the counts include all four and the listing shows the deny and the ask
+
+#### Scenario: Every record
+
+- **WHEN** a person runs `warden status --all`
+- **THEN** the allows are listed too
+
+#### Scenario: A moved state directory
+
+- **WHEN** `WARDEN_STATE_DIR` is set
+- **THEN** the log is read from its `audit` folder
+
+### Requirement: `warden audit verify` exits with the verdict
+
+The system SHALL print that the chain is intact with its record and file counts and exit successfully, or print where it is broken and exit with status 1.
+
+#### Scenario: Tampering
+
+- **WHEN** a decision in the log is changed from deny to allow
+- **THEN** the command prints that the chain is broken and exits with status 1
+
+### Requirement: A policy says where the log goes and a locked one cannot be silenced
+
+The system SHALL log by default to `~/.local/share/warden/audit`, let a policy turn the log off or move it, and ignore, with a warning, an attempt after a locked layer to turn the log off or to move it.
+
+#### Scenario: A repository tries to turn the log off
+
+- **WHEN** a repository file sets `audit.enabled = false` and `audit.dir` after a locked layer
+- **THEN** the log stays on in the locked layer's directory and two warnings name the repository file

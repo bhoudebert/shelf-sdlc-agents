@@ -160,6 +160,15 @@ impl Network {
     }
 }
 
+/// The audit log of a policy.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Audit {
+    /// Whether decisions are logged.
+    pub enabled: bool,
+    /// The directory of the log, `~` not yet expanded.
+    pub dir: String,
+}
+
 /// The policy a tool call is judged against.
 #[derive(Debug, Clone)]
 pub struct Policy {
@@ -187,13 +196,16 @@ pub struct Policy {
     pub tools_deny: Vec<Regex>,
     /// Tool names to ask about.
     pub tools_ask: Vec<Regex>,
+    /// The audit log.
+    pub audit: Audit,
     /// The layers that contributed, lowest first.
     pub sources: Vec<String>,
     /// Things a layer tried that a locked layer or a fixed rule did not allow, and so were ignored.
     pub warnings: Vec<String>,
 }
 
-/// What a locked layer fixes for the layers above it.
+/// What a locked layer fixes for the layers above it: a snapshot, so each flag is its own fact.
+#[allow(clippy::struct_excessive_bools)]
 struct Floor {
     categories: BTreeMap<Category, Decision>,
     mode: Mode,
@@ -201,6 +213,7 @@ struct Floor {
     on_error: OnError,
     scope_set: bool,
     allow_domains_set: bool,
+    audit_enabled: bool,
 }
 
 #[derive(Default)]
@@ -313,6 +326,8 @@ struct Fold {
     deny_domains: Vec<String>,
     tools_deny: Vec<String>,
     tools_ask: Vec<String>,
+    audit_enabled: bool,
+    audit_dir: String,
     locked: bool,
     floor: Option<Floor>,
     warnings: Vec<String>,
@@ -338,6 +353,8 @@ impl Fold {
             deny_domains: Vec::new(),
             tools_deny: Vec::new(),
             tools_ask: Vec::new(),
+            audit_enabled: true,
+            audit_dir: "~/.local/share/warden/audit".to_owned(),
             locked: false,
             floor: None,
             warnings,
@@ -374,6 +391,7 @@ impl Fold {
             });
         }
         self.lists_and_domains(name, layer);
+        self.audit(name, layer);
         if layer.locked == Some(true) {
             self.locked = true;
             self.floor = Some(Floor {
@@ -383,6 +401,7 @@ impl Fold {
                 on_error: self.on_error,
                 scope_set: self.scope.is_some(),
                 allow_domains_set: self.allow_domains.is_some(),
+                audit_enabled: self.audit_enabled,
             });
         }
         Ok(())
@@ -427,6 +446,24 @@ impl Fold {
                 continue;
             }
             self.categories.insert(*category, *decision);
+        }
+    }
+
+    fn audit(&mut self, name: &str, layer: &Layer) {
+        let Some(spec) = &layer.audit else { return };
+        if let Some(enabled) = spec.enabled {
+            if !enabled && self.floor.as_ref().is_some_and(|f| f.audit_enabled) {
+                self.warnings.push(format!("{name}: audit.enabled = false ignored: a locked layer keeps the log on"));
+            } else {
+                self.audit_enabled = enabled;
+            }
+        }
+        if let Some(dir) = &spec.dir {
+            if self.floor.is_some() {
+                self.warnings.push(format!("{name}: audit.dir ignored: a locked layer fixed where the log goes"));
+            } else {
+                self.audit_dir.clone_from(dir);
+            }
         }
     }
 
@@ -485,6 +522,7 @@ impl Fold {
             network: Network { allow_domains: self.allow_domains, deny_domains: self.deny_domains },
             tools_deny: tools(&self.tools_deny)?,
             tools_ask: tools(&self.tools_ask)?,
+            audit: Audit { enabled: self.audit_enabled, dir: self.audit_dir },
             sources: stack.iter().map(|(name, _)| name.clone()).collect(),
             warnings: self.warnings,
         })
