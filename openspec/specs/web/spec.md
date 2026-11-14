@@ -301,6 +301,20 @@ The system SHALL show on each row of the board and at the head of the work's pag
 - **WHEN** work has no kept title
 - **THEN** its row is headed by its repository
 
+### Requirement: The board and the work page say which stops a run does without
+
+The system SHALL keep, when work starts, which stops its run does without a person (the spec approval, the design review, the wait at a deadlock), and SHALL show them in words on the work's row of the board and on its page, as `Unattended: spec, design`, for work that removes any; work that keeps every stop, and work started before this was kept, SHALL show nothing.
+
+#### Scenario: A run that skips two stops
+
+- **WHEN** work was started with the spec approval and the design review removed
+- **THEN** its row on the board and its page say `Unattended: spec, design`
+
+#### Scenario: A run that keeps every stop
+
+- **WHEN** work was started with every stop kept
+- **THEN** nothing about it is said
+
 ### Requirement: The board and the work page say when things happened
 
 The system SHALL show on each row of the board how long ago the work last did anything, with the exact date and time in UTC as its tooltip, and on the work page's timeline when something last happened at each step, and SHALL show nothing for work that predates times.
