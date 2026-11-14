@@ -163,6 +163,16 @@ pub fn judge_web(policy: &Policy, url: &str) -> Verdict {
     conclude(policy, url.to_owned(), None, findings, None, false)
 }
 
+/// Judge text that is about to be written, sent or typed: a credential in it is a finding of `category`
+/// (`secret_write` for a file or a tool argument, `secret_prompt` for a person's prompt).
+#[must_use]
+pub fn judge_text(policy: &Policy, subject: &str, text: &str, category: Category) -> Verdict {
+    let findings = credential_in(text)
+        .map(|kind| vec![Finding { category, detail: format!("{subject} contains {kind}") }])
+        .unwrap_or_default();
+    conclude(policy, subject.to_owned(), None, findings, None, false)
+}
+
 /// What the policy says about an agent tool by name (`tools.deny` and `tools.ask`), if anything.
 #[must_use]
 pub fn judge_tool(policy: &Policy, tool: &str) -> Option<Verdict> {
