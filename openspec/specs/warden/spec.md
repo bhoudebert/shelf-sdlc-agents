@@ -622,3 +622,22 @@ The system SHALL ship a skill that tells the model what tokens mean and that the
 
 - **WHEN** `warden init` runs for a user or a repository
 - **THEN** the skill is written to the `.claude/skills/warden` folder of that scope
+
+### Requirement: An operator's policy file binds every agent and cannot be loosened
+
+The system SHALL load the file named by `WARDEN_OPERATOR_POLICY` as a locked layer after the global file and before the repository's, whether or not the file says `locked`, and read the preset named by `WARDEN_PROFILE` (or `--profile`) beneath all of them, so that an organisation can fix a profile and rules for every agent it runs and a repository can only tighten them.
+
+#### Scenario: A repository tries to loosen the operator
+
+- **WHEN** the operator's file denies exfiltration and a rule for `make`, and the repository's file allows exfiltration and allows `make`
+- **THEN** exfiltration and `make` stay denied, the repository's attempt is a warning, and a decision the repository tightens takes effect
+
+#### Scenario: The operator's rule reaches the hook
+
+- **WHEN** the hook is called in a repository whose own policy allows `make build` and the operator's file denies it
+- **THEN** the answer is a deny with the operator's reason
+
+#### Scenario: A profile from the environment
+
+- **WHEN** `WARDEN_PROFILE` is `shelf`
+- **THEN** every command that loads a policy starts from the `shelf` preset
