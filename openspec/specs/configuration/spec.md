@@ -41,12 +41,17 @@ The system SHALL read from a repository's `.shelf/config.toml` the enabled entry
 #### Scenario: Defaults
 
 - **WHEN** a repository has no file
-- **THEN** every entry point is enabled, three rounds are allowed and no role restricts anyone
+- **THEN** every entry point is enabled, three rounds are allowed, the spec approval and the design review are on, work waits at a deadlock and no role restricts anyone
 
 #### Scenario: Roles and policy
 
 - **WHEN** the file lists roles and turns the design review off
 - **THEN** the policy has no design review and the roles hold the listed logins
+
+#### Scenario: Proceeding on deadlock
+
+- **WHEN** the file sets `proceed_on_deadlock = true` in its policy
+- **THEN** the policy lets work go on past a spec or design review that cannot settle, and without the key it does not
 
 ### Requirement: Mistakes in configuration are reported, not ignored
 

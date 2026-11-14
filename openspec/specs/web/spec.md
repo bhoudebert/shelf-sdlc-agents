@@ -164,6 +164,30 @@ The system SHALL let a person pick a visible repository, an entry point and the 
 - **WHEN** a person submits a repository they cannot see
 - **THEN** it is answered as not found
 
+### Requirement: The start form says how much the run may do without a person
+
+The system SHALL show on the start form three choices (wait for approval of the spec, review the design, go on when a spec or design review cannot settle) preset from the chosen repository's policy, SHALL change the preset when another repository is chosen, SHALL say beside them that fewer stops mean more autonomy, less control and potentially less quality, and SHALL warn visibly when a choice removes a stop, and SHALL start the work with what the form shows, not with the repository's file.
+
+#### Scenario: The repository's defaults
+
+- **WHEN** a person opens the form for a repository whose policy turns the spec approval off
+- **THEN** the spec approval choice is unchecked and the others show the repository's values
+
+#### Scenario: Another repository
+
+- **WHEN** the person picks another repository
+- **THEN** the three choices take that repository's values
+
+#### Scenario: A stop removed
+
+- **WHEN** any choice removes a stop
+- **THEN** a warning says what is no longer asked and that the code review, the checks and the merge remain
+
+#### Scenario: What the form shows is what runs
+
+- **WHEN** a person unchecks the spec approval and checks the deadlock choice, then starts
+- **THEN** the work has no spec approval and goes on past a deadlock, whatever the repository's file says
+
 ### Requirement: The work page shows the timeline and takes decisions
 
 The system SHALL show where the work stands in the pipeline and offer only the decisions that fit what it waits for, and SHALL refuse a decision from someone whose role does not allow it.

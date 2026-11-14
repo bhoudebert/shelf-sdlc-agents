@@ -24,6 +24,20 @@ The system SHALL start work only on a repository that the app is installed on an
 - **WHEN** a person starts work on a repository outside their visible repositories
 - **THEN** the request is refused as not found, revealing nothing about the repository
 
+### Requirement: A start request may choose how much the run does without a person
+
+The system SHALL start work with the spec approval, the design review and the going on past a deadlock exactly as the request chose, and with the repository's policy for what the request left unsaid, and SHALL keep the choice with the work so that a later change of the repository's file does not alter work already running.
+
+#### Scenario: The request chooses
+
+- **WHEN** a request turns the spec approval off and the deadlock choice on for a repository whose policy says the opposite
+- **THEN** the work runs without the spec approval and goes on past a deadlock
+
+#### Scenario: The request is silent
+
+- **WHEN** a request carries no choice
+- **THEN** the work follows the repository's policy
+
 ### Requirement: A start request must match the entry point
 
 The system SHALL refuse a start request whose entry point the repository disabled, whose text is empty (except for a pull-request review), or that reviews a pull request without its number.

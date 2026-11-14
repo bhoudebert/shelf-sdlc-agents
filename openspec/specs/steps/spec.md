@@ -248,6 +248,20 @@ The system SHALL, when the checkout of a pull request for a review cannot fetch 
 - **WHEN** a review checkout asks for a pull request the remote does not have
 - **THEN** the error names the pull request and the repository and suggests checking the repository
 
+### Requirement: Agents of a run that goes on past a deadlock are told nobody will answer
+
+The system SHALL tell every agent of work whose policy proceeds on deadlock that nobody is available to answer, SHALL ask it to choose the most reasonable reading of an open point instead of stopping, and to write each such choice under an `Assumptions` heading of its document, and SHALL NOT say so to the agents of other work.
+
+#### Scenario: Unattended work
+
+- **WHEN** a step of work that proceeds on deadlock is prompted
+- **THEN** the prompt says nobody will answer and asks for an `Assumptions` heading
+
+#### Scenario: Attended work
+
+- **WHEN** a step of work that does not proceed on deadlock is prompted
+- **THEN** the prompt has no such note
+
 ### Requirement: Secrets never appear in errors
 
 The system SHALL NOT include the installation token in an error raised by a failed git command.
