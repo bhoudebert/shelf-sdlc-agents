@@ -36,8 +36,11 @@ impl Cx<'_> {
 
 static URL_HOST: LazyLock<Regex> =
     LazyLock::new(|| literal(r"(?i)\b[a-z][a-z0-9+.-]*://(?:[^/@\s'\x22]*@)?([^/:\s?#'\x22]+)"));
-static SQL_DESTRUCTIVE: LazyLock<Regex> =
-    LazyLock::new(|| literal(r"(?i)\b(?:drop\s+(?:table|database|schema|index|view)|truncate(?:\s+table)?\s+\w)"));
+static SQL_DESTRUCTIVE: LazyLock<Regex> = LazyLock::new(|| {
+    literal(
+        r"(?i)\b(?:drop\s+(?:table|database|schema|index|view)|truncate(?:\s+table)?\s+\w|flush(?:all|db)\b|dropdatabase\b)",
+    )
+});
 static SPAWNS_SHELL: LazyLock<Regex> = LazyLock::new(|| {
     literal(
         r"(?i)(os\.system|subprocess|child_process|popen|execSync|spawnSync|\bexec\(|\bsystem\(|Runtime\.getRuntime|pty\.spawn|`[^`]+`)",
@@ -54,10 +57,10 @@ const SHELLS: [&str; 7] = ["sh", "bash", "zsh", "dash", "ksh", "ash", "fish"];
 const INTERPRETERS: [&str; 7] = ["python", "node", "nodejs", "perl", "ruby", "php", "deno"];
 const FETCHERS: [&str; 5] = ["curl", "wget", "fetch", "aria2c", "http"];
 /// Commands that do not read the content of the files named in their arguments.
-const NON_READERS: [&str; 33] = [
-    "echo", "printf", "ls", "stat", "chmod", "chown", "chgrp", "rm", "rmdir", "unlink", "mv", "mkdir", "touch", "cd",
-    "pwd", "which", "type", "test", "true", "false", "ln", "truncate", "tee", "git", "npm", "yarn", "pnpm", "pip",
-    "pip3", "cargo", "make", "docker", "kubectl",
+const NON_READERS: [&str; 31] = [
+    "echo", "printf", "ls", "stat", "chmod", "chown", "chgrp", "rm", "rmdir", "unlink", "mkdir", "touch", "cd", "pwd",
+    "which", "type", "test", "true", "false", "truncate", "tee", "git", "npm", "yarn", "pnpm", "pip", "pip3", "cargo",
+    "make", "docker", "kubectl",
 ];
 const KEY_OPTION_COMMANDS: [&str; 6] = ["ssh", "scp", "sftp", "ssh-add", "ssh-keygen", "rsync"];
 
@@ -180,6 +183,12 @@ fn assignments(cx: &mut Cx<'_>, inv: &Invocation) {
 
 fn redirects(cx: &mut Cx<'_>, inv: &Invocation, name: &str) {
     for redirect in &inv.redirects {
+        let target = redirect.target.text();
+        if target.starts_with("/dev/tcp/") || target.starts_with("/dev/udp/") {
+            cx.add(Category::Exfil, "a redirect to /dev/tcp opens a raw network connection");
+            cx.add(Category::Network, "/dev/tcp");
+            continue;
+        }
         match redirect.kind {
             RedirectKind::Read => read_path(cx, name, &redirect.target),
             RedirectKind::Write | RedirectKind::Append => write_path(cx, name, &redirect.target, "redirects output to"),
@@ -280,7 +289,9 @@ fn by_command(cx: &mut Cx<'_>, inv: &Invocation, name: &str, args: &[String]) {
     let first = operands.first().map(|w| w.text().to_owned()).unwrap_or_default();
     match name {
         "rm" => remove(cx, inv, args),
-        "find" if has_any(args, &["-delete"]) => cx.add(Category::Delete, "find -delete removes the files it finds"),
+        "find" if has_any(args, &["-delete"]) => find_delete(cx, inv),
+        "shred" => cx.add(Category::Delete, "shred overwrites and removes files"),
+        "dropdb" | "dropuser" => cx.add(Category::Destructive, format!("{name} drops a database object")),
         "dd" if args.iter().any(|a| a.starts_with("of=/dev/")) => {
             cx.add(Category::Destructive, "dd writes straight to a device");
         }
@@ -289,7 +300,14 @@ fn by_command(cx: &mut Cx<'_>, inv: &Invocation, name: &str, args: &[String]) {
         }
         "crontab" if has_short(args, 'r') => cx.add(Category::Destructive, "crontab -r removes every scheduled job"),
         "chmod" | "chown" | "chgrp" => permissions(cx, inv, name, args),
-        "git" => git(cx, args),
+        "git" => {
+            if first == "add" {
+                for word in operands.iter().skip(1) {
+                    read_path(cx, "git add", word);
+                }
+            }
+            git(cx, args);
+        }
         "curl" => curl(cx, args),
         "wget" => wget(cx, args),
         "nc" | "ncat" | "netcat" | "socat" | "telnet" => {
@@ -300,6 +318,9 @@ fn by_command(cx: &mut Cx<'_>, inv: &Invocation, name: &str, args: &[String]) {
         "ssh" | "ping" | "dig" | "nslookup" | "host" | "traceroute" | "gh" | "gcloud" | "az" | "helm" | "heroku"
         | "vercel" | "fly" | "flyctl" | "terraform" | "kubectl" | "docker" => {
             cx.add(Category::Network, name);
+            if name == "ssh" && (has_short(args, 'R') || has_short(args, 'D')) {
+                cx.add(Category::Exfil, "ssh -R or -D opens a tunnel out of this machine");
+            }
             cloud_and_tools(cx, name, args, &first);
         }
         "aws" => {
@@ -344,6 +365,30 @@ fn by_command(cx: &mut Cx<'_>, inv: &Invocation, name: &str, args: &[String]) {
         && SQL_DESTRUCTIVE.is_match(&text)
     {
         cx.add(Category::Destructive, format!("{name} runs SQL that drops or empties data"));
+    }
+}
+
+/// Whether a `git push` operand names the default branch: `main`, `HEAD:main`, `topic:refs/heads/master`.
+fn pushes_to_default_branch(operand: &str) -> bool {
+    let target = operand.rsplit(':').next().unwrap_or(operand);
+    let name = target.strip_prefix("refs/heads/").unwrap_or(target);
+    matches!(name, "main" | "master" | "trunk")
+}
+
+fn find_delete(cx: &mut Cx<'_>, inv: &Invocation) {
+    let mut reaches_out = false;
+    for word in operands(inv).into_iter().take_while(|w| !w.text().starts_with('-')) {
+        let Some(resolved) = cx.ctx.resolved(word) else { continue };
+        let absolute = cx.ctx.absolute(resolved.trim_end_matches('*'));
+        if !is_temporary(&absolute) && (is_system_directory(&absolute, &cx.ctx.home) || !cx.ctx.in_workspace(&absolute))
+        {
+            reaches_out = true;
+        }
+    }
+    if reaches_out {
+        cx.add(Category::Destructive, "find -delete removes files outside the workspace");
+    } else {
+        cx.add(Category::Delete, "find -delete removes the files it finds");
     }
 }
 
@@ -414,12 +459,24 @@ fn git(cx: &mut Cx<'_>, args: &[String]) {
     match sub {
         "push" => {
             cx.add(Category::Network, "git push");
+            if operands
+                .iter()
+                .any(|a| ["http://", "https://", "ssh://", "git://", "git@"].iter().any(|p| a.starts_with(p)))
+            {
+                cx.add(
+                    Category::Exfil,
+                    "git push to an address instead of a named remote sends the repository elsewhere",
+                );
+            }
             let lease = has_long(rest, "force-with-lease") || has_long(rest, "force-if-includes");
             if (has_long(rest, "force") || has_short(rest, 'f')) && !lease {
                 cx.add(Category::VcsForce, "git push --force can overwrite the work of others");
             }
             if has_long(rest, "delete") || has_short(rest, 'd') || operands.iter().any(|a| a.starts_with(':')) {
                 cx.add(Category::VcsDestructive, "git push deletes a remote branch");
+            }
+            if operands.iter().skip(1).any(|a| pushes_to_default_branch(a)) {
+                cx.add(Category::DefaultBranch, "git push to the default branch skips the pull request");
             }
             if has_long(rest, "mirror") {
                 cx.add(Category::VcsDestructive, "git push --mirror overwrites the remote");
@@ -512,6 +569,19 @@ fn transfer(cx: &mut Cx<'_>, name: &str, operands: &[&Word]) {
     }
 }
 
+/// `gh` commands that merge, approve or deploy on a person's behalf.
+fn gh_default_branch(cx: &mut Cx<'_>, args: &[String], first: &str, verb: &str) {
+    if matches!((first, verb), ("pr", "merge") | ("workflow", "run")) {
+        cx.add(Category::DefaultBranch, format!("gh {first} {verb} changes the default branch or runs a deployment"));
+    }
+    if (first, verb) == ("pr", "review") && has_long(args, "approve") {
+        cx.add(Category::DefaultBranch, "gh pr review --approve approves a change on a person's behalf");
+    }
+    if first == "api" && args.iter().any(|a| a.contains("/merge")) && !args.iter().any(|a| a == "GET") {
+        cx.add(Category::DefaultBranch, "gh api merges on GitHub");
+    }
+}
+
 fn cloud_and_tools(cx: &mut Cx<'_>, name: &str, args: &[String], first: &str) {
     let joined = args.join(" ");
     match name {
@@ -567,6 +637,20 @@ fn cloud_and_tools(cx: &mut Cx<'_>, name: &str, args: &[String], first: &str) {
             if first == "auth" && args.iter().any(|a| a == "token") {
                 cx.add(Category::SecretAccess, "gh auth token prints the GitHub token");
             }
+            let verb = args.iter().skip(1).find(|a| !a.starts_with('-')).map_or("", String::as_str);
+            gh_default_branch(cx, args, first, verb);
+            if matches!((first, verb), ("repo", "delete" | "archive") | ("release" | "secret", "delete")) {
+                cx.add(Category::Destructive, format!("gh {first} {verb} removes something on GitHub"));
+            }
+            if first == "secret" && verb == "set" {
+                cx.add(Category::Privilege, "gh secret set changes a repository secret");
+            }
+            let method_delete = args
+                .windows(2)
+                .any(|w| matches!(w[0].as_str(), "-X" | "--method") && w[1].eq_ignore_ascii_case("delete"));
+            if first == "api" && method_delete {
+                cx.add(Category::Destructive, "gh api sends a DELETE request to GitHub");
+            }
             if first == "gist" {
                 cx.add(Category::Exfil, "gh gist publishes text to a public place");
             }
@@ -594,6 +678,9 @@ fn cloud_and_tools(cx: &mut Cx<'_>, name: &str, args: &[String], first: &str) {
 fn node_packages(cx: &mut Cx<'_>, name: &str, args: &[String], first: &str, operands: &[&Word]) {
     match first {
         "publish" => cx.add(Category::Publish, format!("{name} publish releases a package")),
+        "unpublish" | "deprecate" | "dist-tag" => {
+            cx.add(Category::Publish, format!("{name} {first} changes a published package"));
+        }
         "install" | "i" | "add" if operands.len() > 1 => {
             cx.add(Category::PackageInstall, format!("{name} {first} adds a new dependency"));
         }

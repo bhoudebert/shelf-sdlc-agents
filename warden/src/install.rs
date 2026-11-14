@@ -420,8 +420,9 @@ fn copilot_hooks(base: &str) -> String {
 /// The Codex `config.toml` snippet: every event calls `warden hook codex <event>`.
 fn codex_snippet(base: &str) -> String {
     use std::fmt::Write as _;
-    let mut out =
-        String::from("# Add this to ~/.codex/config.toml, then review and trust the hooks with /hooks in Codex.\n");
+    let mut out = String::from(
+        "# Add this to ~/.codex/config.toml, then review and trust the hooks with /hooks in Codex: until they are trusted Codex runs nothing of this.\n",
+    );
     for event in EVENTS {
         let _ = write!(out, "\n[[hooks.{event}]]\n");
         if TOOL_EVENTS.contains(&event) {

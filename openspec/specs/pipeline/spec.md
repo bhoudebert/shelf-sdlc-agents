@@ -80,6 +80,15 @@ The system SHALL carry in the course whether the policy lets work go on past a s
 - **WHEN** a person chose no spec approval, no design review and going on past a deadlock for a repository allowing five rounds
 - **THEN** the course has none of those two phases, goes on past a deadlock and allows five rounds
 
+### Requirement: A policy names the stops it removes
+
+The system SHALL name, for a policy, the stops it removes from the course, in the order `spec`, `design`, `deadlock`: the spec approval when it is off, the design review when it is off, and the wait at a deadlock when work goes on past it.
+
+#### Scenario: Two stops removed
+
+- **WHEN** a policy turns off the spec approval and the design review
+- **THEN** it names `spec` and `design`
+
 ### Requirement: Only work without a pull request publishes one
 
 The system SHALL publish a pull request for work that arrives without one, and SHALL NOT for work that starts from an existing pull request, whether to review it or to change it.

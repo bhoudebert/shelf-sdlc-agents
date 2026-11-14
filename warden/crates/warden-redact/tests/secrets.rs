@@ -232,3 +232,61 @@ fn secrets_can_be_switched_off() {
     let r = warden_redact::Redactor::new(config).unwrap();
     assert!(r.find("AKIAIOSFODNN7EXAMPLE password=Sup3rS3cret!x").is_empty());
 }
+
+#[test]
+fn webhook_addresses() {
+    let r = redactor();
+    let slack = format!("https://hooks.slack.com/services/T0123ABCD/B0123ABCD/{}", fill(24));
+    assert_found(&r, &slack, "slack_webhook", &slack);
+    let discord = format!("https://discord.com/api/webhooks/123456789012345678/{}", fill(60));
+    assert_found(&r, &discord, "discord_webhook", &discord);
+    assert_not_found(&r, "https://hooks.slack.com/services/docs", "slack_webhook");
+}
+
+#[test]
+fn provider_tokens_with_a_fixed_prefix() {
+    let r = redactor();
+    let hex = |n: usize| "0123456789abcdef".chars().cycle().take(n).collect::<String>();
+    let cases = [
+        ("digitalocean_token", format!("dop_v1_{}", hex(64))),
+        ("shopify_token", format!("shpat_{}", hex(32))),
+        ("notion_token", format!("ntn_{}", fill(40))),
+        ("linear_key", format!("lin_api_{}", fill(40))),
+        ("supabase_token", format!("sbp_{}", hex(40))),
+        ("sentry_token", format!("sntrys_{}", fill(50))),
+        ("grafana_token", format!("glsa_{}_{}", fill(32), hex(8))),
+        ("postman_key", format!("PMAK-{}-{}", hex(24), hex(34))),
+        ("planetscale_token", format!("pscale_tkn_{}", fill(40))),
+        ("databricks_token", format!("dapi{}", hex(32))),
+        ("fly_token", format!("fo1_{}", fill(44))),
+        ("dockerhub_token", format!("dckr_pat_{}", fill(30))),
+        ("mailgun_key", format!("key-{}", hex(32))),
+        ("terraform_token", format!("{}.atlasv1.{}", fill(14), fill(70))),
+        (
+            "age_secret_key",
+            format!(
+                "AGE-SECRET-KEY-1{}",
+                "QPZRY9X8GF2TVDW0S3JN54KHCE6MUA7L".chars().cycle().take(58).collect::<String>()
+            ),
+        ),
+    ];
+    for (name, token) in cases {
+        assert_found(&r, &format!("use {token} here"), name, &token);
+    }
+}
+
+#[test]
+fn look_alikes_of_those_prefixes_are_left_alone() {
+    let r = redactor();
+    for text in ["dop_v1_short", "shpat_nothex", "ntn_short", "lin_api_x", "key-value", "dapi_client", "fo1_short"] {
+        assert!(found(&r, text).is_empty(), "{text}");
+    }
+}
+
+#[test]
+fn an_azure_storage_key_is_replaced_without_its_label() {
+    let r = redactor();
+    let key = format!("{}==", fill(86));
+    let text = format!("DefaultEndpointsProtocol=https;AccountName=x;AccountKey={key};EndpointSuffix=core.windows.net");
+    assert_found(&r, &text, "azure_storage_key", &key);
+}

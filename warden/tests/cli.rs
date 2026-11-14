@@ -86,7 +86,7 @@ fn explain_says_when_an_ask_became_a_deny() {
 
 #[test]
 fn test_passes_the_shipped_corpora() {
-    for file in ["guarded.toml", "unattended.toml"] {
+    for file in ["guarded.toml", "unattended.toml", "shelf.toml", "evasion.toml"] {
         let output = warden(&["test", &corpus(file)]);
         assert!(output.status.success(), "{file}: {}{}", stdout(&output), stderr(&output));
         assert!(stdout(&output).contains("cases as expected"), "{}", stdout(&output));
@@ -205,6 +205,41 @@ fn report_json_is_one_object_a_program_can_read() {
     assert_eq!(value["would_stop"], 0);
     let _ = std::fs::remove_dir_all(dir);
     let _ = std::fs::remove_dir_all(empty);
+}
+
+#[test]
+fn since_reads_only_the_recent_period() {
+    let dir = temp_dir("since");
+    let log = warden_audit::AuditLog::new(&dir);
+    let entry = |summary: &str| warden_audit::Entry {
+        agent: "claude".into(),
+        session: "s1".into(),
+        kind: "bash".into(),
+        summary: summary.into(),
+        decision: "allow".into(),
+        mode: "enforce".into(),
+        ..warden_audit::Entry::default()
+    };
+    let now = std::time::SystemTime::now();
+    log.append_at(&entry("old"), now - std::time::Duration::from_secs(3 * 86_400)).expect("append");
+    log.append_at(&entry("new"), now - std::time::Duration::from_secs(60)).expect("append");
+    let recent = stdout(&warden(&["report", "--json", "--since", "12h", "--dir", &dir.display().to_string()]));
+    let value: serde_json::Value = serde_json::from_str(recent.trim()).expect("json");
+    assert_eq!(value["calls"], 1, "{recent}");
+    let all = stdout(&warden(&["report", "--json", "--since", "7d", "--dir", &dir.display().to_string()]));
+    let value: serde_json::Value = serde_json::from_str(all.trim()).expect("json");
+    assert_eq!(value["calls"], 2, "{all}");
+    let status = stdout(&warden(&["status", "--all", "--since", "30m", "--dir", &dir.display().to_string()]));
+    assert!(status.contains("new") && !status.contains("old"), "{status}");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn a_period_that_cannot_be_read_is_refused_with_examples() {
+    let output = warden(&["status", "--since", "tomorrow"]);
+    assert_eq!(output.status.code(), Some(2));
+    let text = stderr(&output);
+    assert!(text.contains("30m") && text.contains("12h") && text.contains("7d"), "{text}");
 }
 
 #[test]
@@ -403,4 +438,11 @@ fn a_session_that_cannot_be_saved_still_redacts() {
     assert!(!stdout(&output).contains("marie.curie"));
     assert!(output.status.success());
     let _ = std::fs::remove_dir_all(state);
+}
+
+#[test]
+fn routine_work_is_never_refused_under_the_shelf_profile() {
+    let output = warden(&["test", &corpus("routine.toml")]);
+    assert!(output.status.success(), "{}{}", stdout(&output), stderr(&output));
+    assert!(stdout(&output).contains("cases as expected"), "{}", stdout(&output));
 }

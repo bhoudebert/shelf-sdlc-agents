@@ -135,6 +135,8 @@ class ItemView:
     """The same moment in full, for a tooltip."""
     pull_request_number: str
     """``#12``, from the pull request's address; empty while there is none."""
+    unattended: str = ""
+    """``spec, design``: the stops this run does without a person; empty when it keeps them all."""
 
 
 def entry_options(allowed: frozenset[EntryPoint]) -> list[EntryOption]:
@@ -274,6 +276,7 @@ def item_view(work: WorkView, now: datetime | None = None) -> ItemView:
         updated=elapsed(work.updated_at, now or datetime.now(UTC)),
         updated_at=clock(work.updated_at),
         pull_request_number=_number_of(work.pull_request_url),
+        unattended=", ".join(work.unattended),
     )
 
 

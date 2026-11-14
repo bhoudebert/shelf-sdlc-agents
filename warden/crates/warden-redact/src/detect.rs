@@ -123,6 +123,24 @@ pub(crate) static SECRETS: LazyLock<Vec<Detector>> = LazyLock::new(|| {
         plain("pypi_token", r"\bpypi-[A-Za-z0-9_-]{50,}"),
         plain("huggingface_token", r"\bhf_[A-Za-z]{30,}"),
         plain("doppler_token", r"\bdp\.pt\.[A-Za-z0-9]{30,}"),
+        plain("slack_webhook", r"https://hooks\.slack\.com/services/T[A-Z0-9]+/B[A-Z0-9]+/[A-Za-z0-9]{16,}"),
+        plain("discord_webhook", r"https://(?:discord|discordapp)\.com/api/webhooks/\d+/[A-Za-z0-9_-]{30,}"),
+        plain("digitalocean_token", r"\bdo[opr]_v1_[0-9a-f]{64}\b"),
+        plain("shopify_token", r"\bshp(?:at|ca|pa|ss)_[0-9a-fA-F]{32}\b"),
+        plain("notion_token", r"\b(?:secret|ntn)_[A-Za-z0-9]{36,}\b"),
+        plain("linear_key", r"\blin_api_[A-Za-z0-9]{40}\b"),
+        plain("supabase_token", r"\bsbp_[0-9a-f]{40}\b"),
+        plain("sentry_token", r"\bsntrys_[A-Za-z0-9+/=_-]{40,}"),
+        plain("grafana_token", r"\bglsa_[A-Za-z0-9]{32}_[0-9a-f]{8}\b"),
+        plain("postman_key", r"\bPMAK-[0-9a-f]{24}-[0-9a-f]{34}\b"),
+        plain("planetscale_token", r"\bpscale_(?:tkn|pw|oauth)_[A-Za-z0-9_.-]{32,}"),
+        plain("databricks_token", r"\bdapi[0-9a-f]{32}\b"),
+        plain("fly_token", r"\bfo1_[A-Za-z0-9_-]{40,}"),
+        plain("dockerhub_token", r"\bdckr_pat_[A-Za-z0-9_-]{20,}"),
+        plain("mailgun_key", r"\bkey-[0-9a-f]{32}\b"),
+        plain("terraform_token", r"\b[A-Za-z0-9]{14}\.atlasv1\.[A-Za-z0-9_-]{60,}"),
+        plain("age_secret_key", r"\bAGE-SECRET-KEY-1[0-9A-Z]{58}\b"),
+        secret("azure_storage_key", r"(?i)\bAccountKey=([A-Za-z0-9+/]{86}==)", &[1], Check::None),
         plain("jwt", r"\beyJ[A-Za-z0-9_-]{5,}\.eyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]+"),
         secret("bearer_token", r"(?i)\bBearer +([A-Za-z0-9._~+/=-]{20,})", &[1], Check::None),
         secret("basic_auth", r"(?i)\bAuthorization:\s*Basic\s+([A-Za-z0-9+/]{8,}={0,2})", &[1], Check::None),
@@ -401,7 +419,7 @@ mod tests {
     #[test]
     fn every_builtin_pattern_compiles() {
         let names: Vec<&str> = SECRETS.iter().chain(PII.iter()).map(|d| d.name.as_str()).collect();
-        assert_eq!(names.len(), 28);
+        assert_eq!(names.len(), 46);
         for regex in [&*TOKEN, &*PRIVATE_KEY_BLOCK, &*PRIVATE_KEY_BEGIN, &*PRIVATE_KEY_END] {
             assert_ne!(regex.as_str(), "");
         }

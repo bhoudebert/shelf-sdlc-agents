@@ -134,6 +134,16 @@ elif [ -n "$running" ]; then
 else
   echo "The web service did not answer on port $port yet. Check: $compose logs web" >&2
 fi
+# Say now whether the guard is in force, rather than after a run that found nothing.
+if [ "$(value SHELF_WARDEN)" != "off" ]; then
+  doctor=$($compose exec -T worker warden doctor 2>&1) || true
+  if printf '%s\n' "$doctor" | grep -qE '^(warn|fail|error)'; then
+    echo "WARNING: the guard (Warden) is not fully in force:" >&2
+    printf '%s\n' "$doctor" | grep -E '^(warn|fail|error)' | sed 's/^/  /' >&2
+  elif printf '%s\n' "$doctor" | grep -q '^ok'; then
+    echo "Guard: Warden is wired into the agents (docker compose exec worker warden status shows what it saw)."
+  fi
+fi
 echo "Open $(sed -n 's/^PUBLIC_URL=//p' "$env_file"): if the GitHub App is not registered yet, you will be guided."
 echo "Logs: $compose logs -f"
 
