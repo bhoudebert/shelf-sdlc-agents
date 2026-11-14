@@ -11,6 +11,7 @@ for a work id, what each failed attempt of its workflow said. The output is safe
 """
 
 import asyncio
+import json
 import os
 import re
 import sys
@@ -247,6 +248,46 @@ async def git_probe(repo: RepoRef, token: str, number: int | None) -> list[str]:
     return out
 
 
+def guard_findings(doctor: str | None, report: str | None) -> list[Line]:
+    """What ``warden doctor`` and ``warden report --json`` said, as findings; ``None`` means the guard is not installed.
+
+    A warning counts as a failure: an agent that runs unguarded is what this system must not do.
+    """
+    if doctor is None:
+        return [Line(NOTE, "the guard (warden) is not installed here")]
+    marks = {"ok": OK, "warn": BAD, "fail": BAD, "error": BAD}
+    lines: list[Line] = []
+    for raw in doctor.splitlines():
+        status, _, text = raw.strip().partition(" ")
+        if status in marks and text.strip():
+            lines.append(Line(marks[status], f"guard: {text.strip()}"))
+    try:
+        counts = json.loads(report or "")
+        lines.append(
+            Line(
+                NOTE,
+                f"guard: {counts['calls']} calls recorded, {counts['would_stop']} stopped or would be stopped",
+            )
+        )
+    except (ValueError, KeyError, TypeError):
+        lines.append(Line(NOTE, "guard: its report could not be read"))
+    return lines
+
+
+async def _warden(*args: str) -> str | None:
+    """What a ``warden`` command printed, or ``None`` when there is no such program."""
+    try:
+        process = await asyncio.create_subprocess_exec(
+            "warden", *args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL
+        )
+        out, _ = await asyncio.wait_for(process.communicate(), 20)
+    except FileNotFoundError:
+        return None
+    except (TimeoutError, OSError):
+        return ""
+    return out.decode()
+
+
 def _headers(bearer: str) -> dict[str, str]:
     return {
         "Authorization": f"Bearer {bearer}",
@@ -286,6 +327,7 @@ async def run(target: str) -> int:
     if repo is not None:
         async with httpx.AsyncClient(timeout=30) as client:
             lines += await diagnose_repository(client, github, repo, number, git_probe, datetime.now(UTC))
+    lines += guard_findings(await _warden("doctor"), await _warden("report", "--json"))
     print(render(lines))  # noqa: T201
     return 0 if all(line.mark != BAD for line in lines) else 1
 
