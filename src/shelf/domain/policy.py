@@ -18,6 +18,18 @@ class Policy:
     proceed_on_deadlock: bool = False
     """Whether work goes on, open issues posted, when the spec or design review cannot settle (ADR 0013)."""
 
+    def removed_stops(self) -> tuple[str, ...]:
+        """The stops a person is not asked at, by name: ``spec``, ``design`` and ``deadlock``."""
+        return tuple(
+            name
+            for name, removed in (
+                ("spec", not self.spec_approval),
+                ("design", not self.design_review),
+                ("deadlock", self.proceed_on_deadlock),
+            )
+            if removed
+        )
+
     def __post_init__(self) -> None:
         """Reject a policy that would never allow a loop."""
         if self.max_rounds < 1:
