@@ -31,6 +31,16 @@
 <li>Install the App only on repositories, and let in only people and organisations, you would trust with the whole factory. Access is closed by default (<code>shelf.toml</code>), and the sign-in list is the first line of defence.</li>
 <li>A repository's <code>checks</code> (the commands in <code>.shelf/config.toml</code>) run <strong>outside any sandbox</strong>, in the worker, through a shell. They no longer see the worker's secrets or the model credential in their environment, but they still run on the worker's filesystem, where the App key file is mounted. Only configure repositories whose <code>checks</code> you trust.</li>
 </ul>
+<h3 id="warden">Warden checks every call, and is not a wall</h3>
+<p>Every agent now runs under Warden, a guard that is called before each command, file access and fetch (through Claude Code&rsquo;s managed hooks, which a repository cannot override). It refuses what the active profile refuses (<code>shelf</code> by default: running downloaded or decoded text, sending data away, reading credentials, tampering with the agents&rsquo; own configuration, <code>sudo</code>, destructive commands outside the clone, a credential on a command line), runs allowed commands so that secrets and personal data in their output become tokens, and logs every decision in a hash chain you can verify (<code>warden audit verify</code>). The operator&rsquo;s <code>config/warden.toml</code> is a locked layer: a repository can tighten it with its own <code>.warden/policy.toml</code> and never loosen it.</p>
+<p>What it does not do, and you should not assume:</p>
+<ul>
+<li>It reads text. A program an agent writes and then runs can open any socket or read any file the worker can; Warden does not see inside it. The container, the sandbox and the allowlist above stay the perimeter, and the isolation plan below stays needed.</li>
+<li>A repository&rsquo;s <code>checks</code> run through the worker, outside any agent hook.</li>
+<li>Redaction is pattern-based. A short password, a key in a format nobody has seen and a name nobody listed go through; the operator&rsquo;s names and patterns in <code>config/warden.toml</code> are how you cover your own data.</li>
+<li>Whether Claude Code&rsquo;s sandbox lets a sandboxed command remember its tokens between commands (<code>WARDEN_SESSION_DIR</code>) has not been verified on a real worker. If it cannot, redaction still works but a token is not restored when an agent writes it into a file.</li>
+<li>Warden has not yet run inside a real Claude Code session against a real model. The tests run its hook with real payloads; the first real task is the test. Set <code>SHELF_WARDEN_PROFILE=observe</code> for a first week to see what it would refuse without refusing anything.</li>
+</ul>
 <h3 id="isolation-plan">The plan</h3>
 <p>Proposed in a <a href="https://github.com/bhoudebert/shelf-sdlc-agents/tree/main/docs/adr">decision record</a> on running each agent step in its own container (not yet accepted). In order:</p>
 <ol>
