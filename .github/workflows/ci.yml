@@ -54,6 +54,20 @@ jobs:
       - name: Quality gate
         run: cargo fmt --check && cargo clippy --workspace --all-targets --locked -- -D warnings && cargo test --workspace --locked
 
+  image:
+    name: Docker image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      # The base images are bumped by Dependabot, and only a build shows whether the bump still works.
+      - name: Build the image
+        run: docker build --build-arg SHELF_REVISION=ci -t shelf-ci .
+      - name: The guard and the application are in it
+        run: |
+          docker run --rm --entrypoint warden shelf-ci --version
+          docker run --rm --entrypoint python shelf-ci -c "import shelf"
+
   commits:
     name: Conventional commits
     if: github.event_name == 'pull_request'
@@ -68,7 +82,7 @@ jobs:
   quality:
     name: Quality gate
     if: always()
-    needs: [commits, quality-shelf-sdlc-agents, quality-warden]
+    needs: [commits, quality-shelf-sdlc-agents, quality-warden, image]
     runs-on: ubuntu-latest
     steps:
       - name: Every job passed or was skipped
