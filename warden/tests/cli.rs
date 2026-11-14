@@ -156,6 +156,47 @@ fn status_shows_the_counts_and_only_the_interventions() {
 }
 
 #[test]
+fn report_counts_what_audit_mode_let_through() {
+    let dir = temp_dir("report");
+    let log = warden_audit::AuditLog::new(&dir);
+    for (decision, intended, summary) in [
+        ("allow", "", "ls"),
+        ("allow", "", "cargo test"),
+        ("allow", "deny", "rm -rf /"),
+        ("allow", "deny", "rm -rf /"),
+        ("allow", "ask", "git push --force"),
+    ] {
+        let entry = warden_audit::Entry {
+            agent: "claude".into(),
+            session: "s1".into(),
+            kind: "bash".into(),
+            summary: summary.into(),
+            categories: if intended.is_empty() { vec![] } else { vec!["destructive".into()] },
+            decision: decision.into(),
+            intended: intended.into(),
+            mode: "audit".into(),
+            ..warden_audit::Entry::default()
+        };
+        log.append(&entry).expect("append");
+    }
+    let text = stdout(&warden(&["report", "--dir", &dir.display().to_string()]));
+    assert!(text.contains("calls: 5   would be stopped: 3"), "{text}");
+    assert!(text.contains("destructive"), "{text}");
+    assert!(text.contains("2x deny  rm -rf /"), "{text}");
+    assert!(text.contains("3 of 5 calls (60%)"), "{text}");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn report_on_an_empty_log_says_so() {
+    let dir = temp_dir("report-empty");
+    let output = warden(&["report", "--dir", &dir.display().to_string()]);
+    assert!(output.status.success());
+    assert!(stdout(&output).contains("nothing to report yet"), "{}", stdout(&output));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
 fn audit_verify_passes_a_good_log_and_fails_a_tampered_one() {
     let dir = temp_dir("verify");
     log_with(&dir, &["allow", "deny", "allow"]);

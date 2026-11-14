@@ -315,6 +315,20 @@ The system SHALL print the number of records with the count of each decision (a 
 - **WHEN** `WARDEN_STATE_DIR` is set
 - **THEN** the log is read from its `audit` folder
 
+### Requirement: `warden report` says what a stricter profile would have stopped
+
+The system SHALL print, for the log in the policy's audit directory, `$WARDEN_STATE_DIR/audit` or `--dir`, and for one session with `--session`: how many calls were recorded, how many of them the policy intended to ask about or deny but audit mode let through, those counts per risk category, the commands that were stopped most often, and one closing line that says what share of the calls would have been stopped. It SHALL print nothing but that line, and exit successfully, for an empty log.
+
+#### Scenario: Observing before enforcing
+
+- **WHEN** the log holds ten calls in audit mode, two of which the policy intended to deny for `destructive`
+- **THEN** the report says two of ten would have been stopped and lists `destructive` with a count of two
+
+#### Scenario: An empty log
+
+- **WHEN** the log holds no record
+- **THEN** the report says there is nothing to report yet
+
 ### Requirement: `warden audit verify` exits with the verdict
 
 The system SHALL print that the chain is intact with its record and file counts and exit successfully, or print where it is broken and exit with status 1.
