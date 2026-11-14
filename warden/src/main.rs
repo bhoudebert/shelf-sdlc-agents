@@ -3,6 +3,7 @@
 
 mod load;
 mod report;
+mod run;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -81,6 +82,17 @@ enum Command {
         #[command(flatten)]
         from: Where,
     },
+    /// Run a command and redact what it prints (the agents' hooks call this).
+    Run {
+        /// The session whose tokens to use, so the same value gets the same token.
+        #[arg(long, default_value = "default")]
+        session: String,
+        /// The command, run through `bash -c`.
+        #[arg(last = true, required = true)]
+        command: Vec<String>,
+        #[command(flatten)]
+        from: Where,
+    },
     /// Work with the audit log.
     Audit {
         #[command(subcommand)]
@@ -129,14 +141,56 @@ fn sources(from: &Where, ctx: &Context, default_profile: Option<Profile>) -> Sou
     }
 }
 
+/// Where Warden keeps its state: `$WARDEN_STATE_DIR`, or `~/.local/share/warden`.
+fn state_dir(ctx: &Context) -> PathBuf {
+    std::env::var_os("WARDEN_STATE_DIR").map_or_else(|| ctx.home.join(".local/share/warden"), PathBuf::from)
+}
+
 /// The audit log's directory: the flag, `$WARDEN_STATE_DIR/audit`, or what the policy says.
 fn audit_log(from: &Where, dir: Option<PathBuf>) -> Result<warden_audit::AuditLog, String> {
     let ctx = context(from);
     let policy = load::policy(&Sources { files: true, ..sources(from, &ctx, None) })?;
-    let dir = dir
-        .or_else(|| std::env::var_os("WARDEN_STATE_DIR").map(|base| PathBuf::from(base).join("audit")))
-        .unwrap_or_else(|| PathBuf::from(ctx.expand(&policy.audit.dir)));
-    Ok(warden_audit::AuditLog::new(dir))
+    Ok(warden_audit::AuditLog::new(dir.unwrap_or_else(|| audit_dir(&ctx, &policy))))
+}
+
+/// `$WARDEN_STATE_DIR/audit` when that is set, or the directory the policy names.
+fn audit_dir(ctx: &Context, policy: &warden_policy::Policy) -> PathBuf {
+    std::env::var_os("WARDEN_STATE_DIR")
+        .map_or_else(|| PathBuf::from(ctx.expand(&policy.audit.dir)), |base| PathBuf::from(base).join("audit"))
+}
+
+/// The audit record of a command whose output was redacted: counts only, and the command line with its own secrets
+/// replaced.
+fn record_run(
+    policy: &warden_policy::Policy,
+    redactor: &warden_redact::Redactor,
+    ctx: &Context,
+    session: &str,
+    line: &str,
+    counts: &warden_redact::Counts,
+) {
+    let mut scratch = warden_redact::Session::in_memory();
+    let (summary, _) = redactor.redact(&mut scratch, line);
+    let entry = warden_audit::Entry {
+        agent: "run".to_owned(),
+        session: session.to_owned(),
+        event: "Run".to_owned(),
+        tool: "Bash".to_owned(),
+        kind: "bash".to_owned(),
+        cwd: ctx.cwd.display().to_string(),
+        input_sha256: warden_audit::digest_of(line),
+        summary: warden_audit::shorten(&summary),
+        decision: "redacted".to_owned(),
+        reason: "the output of the command was redacted".to_owned(),
+        policy: policy.sources.join(","),
+        mode: if policy.mode == warden_policy::Mode::Enforce { "enforce" } else { "audit" }.to_owned(),
+        redactions: counts.iter().map(|(kind, count)| (kind.to_owned(), count)).collect(),
+        ..warden_audit::Entry::default()
+    };
+    let log = warden_audit::AuditLog::new(audit_dir(ctx, policy));
+    if let Err(error) = log.append(&entry) {
+        eprintln!("warden: cannot write the audit log: {error}");
+    }
 }
 
 fn run(cli: Cli) -> Result<ExitCode, String> {
@@ -169,6 +223,25 @@ fn run(cli: Cli) -> Result<ExitCode, String> {
                 .map_err(|error| format!("{}: {error}", log.dir().display()))?;
             print!("{}", report::status(&records, all, n));
             Ok(ExitCode::SUCCESS)
+        }
+        Some(Command::Run { session, command, from }) => {
+            let ctx = context(&from);
+            let policy = load::policy(&Sources { files: true, ..sources(&from, &ctx, None) })?;
+            let redactor = run::redactor_for(&policy)?;
+            let path = run::session_path(&state_dir(&ctx), &session);
+            let tokens = warden_redact::Session::open(&path).unwrap_or_else(|error| {
+                eprintln!("warden: starting the session over: {error}");
+                warden_redact::Session::default()
+            });
+            let line = command.join(" ");
+            let (outcome, tokens) = run::run(&policy, &redactor, tokens, &line);
+            if let Err(error) = tokens.save() {
+                eprintln!("warden: cannot save the session tokens: {error}");
+            }
+            if !outcome.counts.is_empty() && policy.audit.enabled {
+                record_run(&policy, &redactor, &ctx, &session, &line, &outcome.counts);
+            }
+            Ok(ExitCode::from(u8::try_from(outcome.code.clamp(0, 255)).unwrap_or(1)))
         }
         Some(Command::Audit { action: AuditAction::Verify { dir, from } }) => {
             let log = audit_log(&from, dir)?;

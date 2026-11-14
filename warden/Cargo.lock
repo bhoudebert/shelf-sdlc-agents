@@ -1121,6 +1121,7 @@ dependencies = [
  "warden-audit",
  "warden-engine",
  "warden-policy",
+ "warden-redact",
  "warden-shell",
 ]
 
@@ -1152,6 +1153,16 @@ dependencies = [
  "regex",
  "serde",
  "toml",
+]
+
+[[package]]
+name = "warden-redact"
+version = "0.0.0"
+dependencies = [
+ "globset",
+ "regex",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

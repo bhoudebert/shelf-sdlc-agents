@@ -189,3 +189,121 @@ fn the_state_directory_variable_moves_the_log() {
     assert!(stdout(&output).contains("deny=1"), "{}", stdout(&output));
     let _ = std::fs::remove_dir_all(base);
 }
+
+fn run_with(state: &Path, session: &str, command: &str, envs: &[(&str, &str)]) -> Output {
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_warden"));
+    cmd.args(["run", "--session", session, "--", command]).env("HOME", "/home/dev").env("WARDEN_STATE_DIR", state);
+    for (key, value) in envs {
+        cmd.env(key, value);
+    }
+    cmd.output().expect("runs")
+}
+
+#[test]
+fn run_redacts_secrets_and_personal_data_in_stdout_and_stderr_and_keeps_the_exit_code() {
+    let state = temp_dir("run-redact");
+    let output = run_with(
+        &state,
+        "s1",
+        "printf 'DB=postgres://app:hunter2secret@db:5432/x\\nowner=marie.curie@client.fr\\n'; \
+         echo 'AWS=AKIAIOSFODNN7EXAMPLE' >&2; exit 3",
+        &[],
+    );
+    assert_eq!(output.status.code(), Some(3));
+    let out = stdout(&output);
+    assert!(!out.contains("hunter2secret") && !out.contains("marie.curie@client.fr"), "{out}");
+    assert!(out.contains("postgres://app:<SECRET_") && out.contains("@db:5432/x"), "{out}");
+    assert!(out.contains("owner=<EMAIL_1>"), "{out}");
+    let err = stderr(&output);
+    assert!(err.contains("AWS=<SECRET_") && !err.contains("AKIAIOSFODNN7EXAMPLE"), "{err}");
+    // Standard output and error are redacted at the same time, so which secret is number 1 is not fixed: only that
+    // the two secrets got different tokens.
+    let token = |text: &str| text.split("<SECRET_").nth(1).and_then(|rest| rest.split('>').next()).map(str::to_owned);
+    assert_ne!(token(&out), token(&err));
+    let _ = std::fs::remove_dir_all(state);
+}
+
+#[test]
+fn run_gives_the_same_value_the_same_token_in_the_next_run_of_a_session() {
+    let state = temp_dir("run-stable");
+    let first = run_with(&state, "s1", "echo marie.curie@client.fr", &[]);
+    let second = run_with(&state, "s1", "echo pierre@client.fr; echo marie.curie@client.fr", &[]);
+    assert!(stdout(&first).contains("<EMAIL_1>"), "{}", stdout(&first));
+    assert!(stdout(&second).contains("<EMAIL_2>\n<EMAIL_1>"), "{}", stdout(&second));
+    let other = run_with(&state, "s2", "echo marie.curie@client.fr", &[]);
+    assert!(stdout(&other).contains("<EMAIL_1>"), "another session starts its own numbering");
+    let file = state.join("sessions/s1.json");
+    assert!(file.is_file(), "the token map is kept in the session file");
+    let _ = std::fs::remove_dir_all(state);
+}
+
+#[test]
+fn run_leaves_ordinary_output_alone_and_logs_only_when_it_redacted() {
+    let state = temp_dir("run-plain");
+    let output = run_with(&state, "s1", "echo hello; echo world >&2", &[]);
+    assert_eq!((stdout(&output).as_str(), stderr(&output).as_str()), ("hello\n", "world\n"));
+    assert!(!state.join("audit").exists(), "nothing was redacted, so nothing was logged");
+    let _ = run_with(&state, "s1", "echo a@client.fr", &[]);
+    let log = warden_audit::AuditLog::new(state.join("audit"));
+    let records = log.read(&warden_audit::Filter::default()).expect("reads");
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0].entry.decision, "redacted");
+    assert_eq!(records[0].entry.redactions["email"], 1);
+    assert!(
+        !records[0].entry.summary.contains("a@client.fr") || records[0].entry.summary.contains("<EMAIL"),
+        "{}",
+        records[0].entry.summary
+    );
+    let _ = std::fs::remove_dir_all(state);
+}
+
+#[test]
+fn run_keeps_a_private_key_off_the_output_even_across_lines() {
+    let state = temp_dir("run-key");
+    let output = run_with(
+        &state,
+        "s1",
+        "printf -- '-----BEGIN OPENSSH PRIVATE KEY-----\\nb3BlbnNzaC1rZXktdjEAAAAA\\n-----END OPENSSH PRIVATE KEY-----\\nafter\\n'",
+        &[],
+    );
+    let out = stdout(&output);
+    assert!(!out.contains("b3BlbnNzaC1rZXktdjEAAAAA"), "{out}");
+    assert!(out.contains("<SECRET_1>") && out.contains("after"), "{out}");
+    let _ = std::fs::remove_dir_all(state);
+}
+
+#[test]
+fn run_hides_the_variables_a_policy_names() {
+    let state = temp_dir("run-env");
+    let policy = state.join("policy.toml");
+    std::fs::create_dir_all(&state).expect("dir");
+    std::fs::write(&policy, "[env]\nhide = [\"*_TOKEN\"]").expect("policy");
+    let output = Command::new(env!("CARGO_BIN_EXE_warden"))
+        .args(["run", "--", "echo \"[$MY_TOKEN][$VISIBLE]\""])
+        .env("HOME", "/home/dev")
+        .env("WARDEN_STATE_DIR", &state)
+        .env("WARDEN_POLICY", &policy)
+        .env("MY_TOKEN", "plainvalue")
+        .env("VISIBLE", "yes")
+        .output()
+        .expect("runs");
+    assert_eq!(stdout(&output), "[][yes]\n", "{}", stderr(&output));
+    let _ = std::fs::remove_dir_all(state);
+}
+
+#[test]
+fn run_without_redaction_passes_output_through() {
+    let state = temp_dir("run-off");
+    std::fs::create_dir_all(&state).expect("dir");
+    let policy = state.join("policy.toml");
+    std::fs::write(&policy, "[redact]\noutputs = false").expect("policy");
+    let output = Command::new(env!("CARGO_BIN_EXE_warden"))
+        .args(["run", "--", "echo a@client.fr"])
+        .env("HOME", "/home/dev")
+        .env("WARDEN_STATE_DIR", &state)
+        .env("WARDEN_POLICY", &policy)
+        .output()
+        .expect("runs");
+    assert_eq!(stdout(&output), "a@client.fr\n");
+    let _ = std::fs::remove_dir_all(state);
+}

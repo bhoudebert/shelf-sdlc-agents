@@ -26,6 +26,7 @@ missing_errors_doc = "allow"
 missing_panics_doc = "allow"
 
 [dependencies]
+warden-redact = { path = "crates/warden-redact" }
 clap = { version = "4", features = ["derive"] }
 warden-shell = { path = "crates/warden-shell" }
 warden-policy = { path = "crates/warden-policy" }
