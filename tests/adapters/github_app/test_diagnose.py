@@ -4,7 +4,7 @@ import httpx
 
 from shelf.adapters.github_app.settings import GitHubAppSettings
 from shelf.domain.model import RepoRef
-from shelf.entrypoints.diagnose import BAD, NOTE, OK, Line, diagnose_repository, parse_target, render
+from shelf.entrypoints.diagnose import BAD, NOTE, OK, Line, diagnose_repository, guard_findings, parse_target, render
 
 REPO = RepoRef("acme", "shop")
 NOW = datetime(2026, 11, 9, 12, 0, tzinfo=UTC)
@@ -104,3 +104,28 @@ async def test_a_permission_the_installation_has_not_accepted_is_named(settings:
 
 def test_notes_are_not_failures() -> None:
     assert Line(NOTE, "x").mark != BAD
+
+
+DOCTOR = (
+    "ok    warden 0.1.0 at /usr/local/bin/warden\n"
+    "warn  Claude Code is not wired in any settings file: run warden init\n"
+    "ok    the audit log is intact (4 records)\n"
+)
+
+
+def test_a_guard_that_is_not_wired_is_a_failure() -> None:
+    lines = guard_findings(DOCTOR, '{"calls": 4, "would_stop": 1}')
+    assert Line(BAD, "guard: Claude Code is not wired in any settings file: run warden init") in lines
+    assert Line(OK, "guard: the audit log is intact (4 records)") in lines
+    assert Line(NOTE, "guard: 4 calls recorded, 1 stopped or would be stopped") in lines
+
+
+def test_a_missing_guard_is_only_a_note() -> None:
+    lines = guard_findings(None, None)
+    assert [line.mark for line in lines] == [NOTE]
+
+
+def test_a_report_that_cannot_be_read_does_not_hide_the_checks() -> None:
+    lines = guard_findings("ok    fine\n", "not json")
+    assert Line(OK, "guard: fine") in lines
+    assert Line(NOTE, "guard: its report could not be read") in lines
