@@ -1,77 +1,154 @@
 //! Warden: a policy engine for coding agents. See `docs/adr/0014-guard-agents-with-warden-a-policy-engine-in-rust.md`.
+#![cfg_attr(test, allow(clippy::expect_used, clippy::unwrap_used, clippy::indexing_slicing))]
 
+mod load;
+mod report;
+
+use std::path::PathBuf;
 use std::process::ExitCode;
+
+use clap::{Parser, Subcommand};
+use warden_engine::{Context, corpus, judge_command};
+use warden_policy::Profile;
+
+use crate::load::Sources;
 
 /// The version of this build, as `warden version` prints it.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// What the command line asked for.
-#[derive(Debug, PartialEq, Eq)]
-enum Command {
-    Version,
-    Help,
-    Unknown(String),
+#[derive(Parser)]
+#[command(name = "warden", about = "A policy engine for coding agents", disable_version_flag = true)]
+struct Cli {
+    #[command(subcommand)]
+    command: Option<Command>,
 }
 
-fn parse(args: &[String]) -> Command {
-    match args.first().map(String::as_str) {
-        Some("version" | "--version" | "-V") => Command::Version,
-        None | Some("help" | "--help" | "-h") => Command::Help,
-        Some(other) => Command::Unknown(other.to_owned()),
+/// Where the policy comes from, for the commands that judge or show it.
+#[derive(clap::Args)]
+struct Where {
+    /// Start from this preset: observe, guarded, strict, unattended or shelf.
+    #[arg(long, value_parser = parse_profile)]
+    profile: Option<Profile>,
+    /// Also read the global file and the repository's `.warden/policy.toml`.
+    #[arg(long)]
+    files: bool,
+    /// Read this file as the global policy.
+    #[arg(long)]
+    policy: Option<PathBuf>,
+    /// The working directory commands are judged from.
+    #[arg(long)]
+    cwd: Option<PathBuf>,
+}
+
+#[derive(Subcommand)]
+enum Command {
+    /// Print the version.
+    #[command(visible_aliases = ["--version", "-V"])]
+    Version,
+    /// Show how one command line is judged, and why.
+    Explain {
+        /// The command line.
+        command: String,
+        #[command(flatten)]
+        from: Where,
+    },
+    /// Run a corpus of command lines against a policy and report what differs from what it expects.
+    Test {
+        /// A corpus file.
+        corpus: PathBuf,
+        #[command(flatten)]
+        from: Where,
+    },
+    /// Print the merged policy and the files it came from.
+    Policy {
+        #[command(flatten)]
+        from: Where,
+    },
+}
+
+fn parse_profile(text: &str) -> Result<Profile, String> {
+    match text {
+        "observe" => Ok(Profile::Observe),
+        "guarded" => Ok(Profile::Guarded),
+        "strict" => Ok(Profile::Strict),
+        "unattended" => Ok(Profile::Unattended),
+        "shelf" => Ok(Profile::Shelf),
+        other => Err(format!("unknown profile {other:?}: observe, guarded, strict, unattended or shelf")),
     }
 }
 
-const HELP: &str = "warden: a policy engine for coding agents\n\nUsage: warden <command>\n\nCommands:\n  version   print the version\n  help      print this help\n";
+fn context(from: &Where) -> Context {
+    let mut ctx = Context::from_env();
+    if let Some(cwd) = &from.cwd {
+        ctx.cwd.clone_from(cwd);
+    }
+    ctx
+}
+
+fn sources(from: &Where, ctx: &Context, default_profile: Option<Profile>) -> Sources {
+    Sources {
+        profile: from.profile.or(default_profile),
+        files: from.files || from.policy.is_some(),
+        global: from.policy.clone(),
+        cwd: ctx.cwd.clone(),
+        home: ctx.home.clone(),
+    }
+}
+
+fn run(cli: Cli) -> Result<ExitCode, String> {
+    match cli.command {
+        None => {
+            println!("{}", <Cli as clap::CommandFactory>::command().render_help());
+            Ok(ExitCode::SUCCESS)
+        }
+        Some(Command::Version) => {
+            println!("warden {VERSION}");
+            Ok(ExitCode::SUCCESS)
+        }
+        Some(Command::Explain { command, from }) => {
+            let ctx = context(&from);
+            let policy = load::policy(&sources(&from, &ctx, None))?;
+            let verdict = judge_command(&policy, &ctx, &command);
+            print!("{}", report::explain(&policy, &verdict));
+            Ok(ExitCode::SUCCESS)
+        }
+        Some(Command::Policy { from }) => {
+            let ctx = context(&from);
+            let policy = load::policy(&sources(&from, &ctx, None))?;
+            print!("{}", report::policy(&policy));
+            Ok(ExitCode::SUCCESS)
+        }
+        Some(Command::Test { corpus: path, from }) => {
+            let text = std::fs::read_to_string(&path).map_err(|error| format!("{}: {error}", path.display()))?;
+            let file = corpus::Corpus::parse(&text).map_err(|error| format!("{}: {error}", path.display()))?;
+            let ctx = Context { home: "/home/dev".into(), cwd: "/work/app".into() };
+            let policy = load::policy(&sources(&from, &ctx, file.profile))?;
+            let mismatches = corpus::run(&policy, &ctx, &file);
+            print!("{}", report::test(file.cases.len(), &mismatches));
+            Ok(if mismatches.is_empty() { ExitCode::SUCCESS } else { ExitCode::FAILURE })
+        }
+    }
+}
 
 fn main() -> ExitCode {
-    let args: Vec<String> = std::env::args().skip(1).collect();
-    match parse(&args) {
-        Command::Version => {
-            println!("warden {VERSION}");
-            ExitCode::SUCCESS
+    let args: Vec<String> = std::env::args().collect();
+    // `warden --version` and `warden -V` are the same as `warden version`.
+    let args = match args.get(1).map(String::as_str) {
+        Some("--version" | "-V") => vec![args[0].clone(), "version".to_owned()],
+        _ => args,
+    };
+    match Cli::try_parse_from(args) {
+        Ok(cli) => match run(cli) {
+            Ok(code) => code,
+            Err(message) => {
+                eprintln!("warden: {message}");
+                ExitCode::from(2)
+            }
+        },
+        Err(error) => {
+            let code = if error.use_stderr() { 2 } else { 0 };
+            let _ = error.print();
+            ExitCode::from(code)
         }
-        Command::Help => {
-            print!("{HELP}");
-            ExitCode::SUCCESS
-        }
-        Command::Unknown(name) => {
-            eprintln!("warden: unknown command {name:?}\n\n{HELP}");
-            ExitCode::from(2)
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn args(items: &[&str]) -> Vec<String> {
-        items.iter().map(|s| (*s).to_owned()).collect()
-    }
-
-    #[test]
-    fn version_is_asked_in_three_ways() {
-        for form in ["version", "--version", "-V"] {
-            assert_eq!(parse(&args(&[form])), Command::Version);
-        }
-    }
-
-    #[test]
-    fn no_arguments_print_the_help() {
-        assert_eq!(parse(&[]), Command::Help);
-        assert_eq!(parse(&args(&["--help"])), Command::Help);
-    }
-
-    #[test]
-    fn an_unknown_command_is_named() {
-        assert_eq!(
-            parse(&args(&["frobnicate"])),
-            Command::Unknown("frobnicate".into())
-        );
-    }
-
-    #[test]
-    fn the_version_is_the_package_version() {
-        assert_eq!(VERSION, env!("CARGO_PKG_VERSION"));
     }
 }

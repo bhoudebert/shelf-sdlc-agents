@@ -1,0 +1,16 @@
+[package]
+name = "warden-policy"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.85"
+publish = false
+description = "The policy of Warden: categories, decisions, layers and the presets."
+
+[dependencies]
+globset = "0.4"
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+toml = "1"
+
+[lints]
+workspace = true

@@ -1,0 +1,33 @@
+# Shelf: what Shelf runs. The unattended decisions; the operator's locked file adds the rest.
+version = 1
+mode = "enforce"
+interactive = false
+on_error = "closed"
+
+[categories]
+destructive = "deny"
+delete = "allow"
+vcs_destructive = "allow"
+vcs_force = "allow"
+bypass_checks = "deny"
+exfil = "deny"
+network = "allow"
+blocked_domain = "deny"
+privilege = "deny"
+remote_exec = "deny"
+package_install = "allow"
+publish = "deny"
+secret_access = "deny"
+env_dump = "deny"
+obfuscation = "deny"
+eval = "deny"
+dynamic_exec = "allow"
+interpreter_exec = "allow"
+interpreter_shell = "allow"
+out_of_scope = "deny"
+tamper = "deny"
+secret_write = "deny"
+supply_chain = "allow"
+
+[paths]
+scope = ["."]

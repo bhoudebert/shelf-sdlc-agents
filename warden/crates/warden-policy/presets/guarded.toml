@@ -1,0 +1,30 @@
+# Guarded: dangerous actions ask, exfiltration, remote execution and tampering are denied, routine work flows.
+version = 1
+mode = "enforce"
+interactive = true
+on_error = "open"
+
+[categories]
+destructive = "ask"
+delete = "allow"
+vcs_destructive = "ask"
+vcs_force = "ask"
+bypass_checks = "ask"
+exfil = "deny"
+network = "allow"
+blocked_domain = "deny"
+privilege = "ask"
+remote_exec = "deny"
+package_install = "allow"
+publish = "ask"
+secret_access = "ask"
+env_dump = "ask"
+obfuscation = "deny"
+eval = "ask"
+dynamic_exec = "allow"
+interpreter_exec = "allow"
+interpreter_shell = "ask"
+out_of_scope = "ask"
+tamper = "deny"
+secret_write = "ask"
+supply_chain = "allow"

@@ -1,0 +1,34 @@
+# Unattended: nobody answers, so nothing asks. Catastrophic actions, leaks and tampering are denied; routine work in a
+# disposable clone (installs, deletes, history rewrites on its own branch) is allowed and logged.
+version = 1
+mode = "enforce"
+interactive = false
+on_error = "closed"
+
+[categories]
+destructive = "deny"
+delete = "allow"
+vcs_destructive = "allow"
+vcs_force = "allow"
+bypass_checks = "deny"
+exfil = "deny"
+network = "allow"
+blocked_domain = "deny"
+privilege = "deny"
+remote_exec = "deny"
+package_install = "allow"
+publish = "deny"
+secret_access = "deny"
+env_dump = "deny"
+obfuscation = "deny"
+eval = "deny"
+dynamic_exec = "allow"
+interpreter_exec = "allow"
+interpreter_shell = "allow"
+out_of_scope = "deny"
+tamper = "deny"
+secret_write = "deny"
+supply_chain = "allow"
+
+[paths]
+scope = ["."]

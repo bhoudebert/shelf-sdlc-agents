@@ -1,0 +1,30 @@
+# Strict: for repositories that hold production credentials or customer data. Everything risky asks or is denied.
+version = 1
+mode = "enforce"
+interactive = true
+on_error = "closed"
+
+[categories]
+destructive = "deny"
+delete = "ask"
+vcs_destructive = "deny"
+vcs_force = "deny"
+bypass_checks = "deny"
+exfil = "deny"
+network = "ask"
+blocked_domain = "deny"
+privilege = "deny"
+remote_exec = "deny"
+package_install = "ask"
+publish = "deny"
+secret_access = "deny"
+env_dump = "deny"
+obfuscation = "deny"
+eval = "deny"
+dynamic_exec = "ask"
+interpreter_exec = "ask"
+interpreter_shell = "deny"
+out_of_scope = "deny"
+tamper = "deny"
+secret_write = "deny"
+supply_chain = "allow"
