@@ -1,0 +1,240 @@
+# Routine work under the shelf profile must keep flowing: an agent that is refused `npm install` or `git push` of its own
+# branch is an agent that cannot work. Every case here is ordinary development in a clone and must be allowed.
+# Run with: warden test corpus/routine.toml --profile shelf
+profile = "shelf"
+
+[[case]]
+cmd = "npm install"
+expect = "allow"
+
+[[case]]
+cmd = "npm ci"
+expect = "allow"
+
+[[case]]
+cmd = "npm install lodash"
+expect = "allow"
+
+[[case]]
+cmd = "npm run build"
+expect = "allow"
+
+[[case]]
+cmd = "npx tsc --noEmit"
+expect = "allow"
+
+[[case]]
+cmd = "yarn add react"
+expect = "allow"
+
+[[case]]
+cmd = "pnpm install"
+expect = "allow"
+
+[[case]]
+cmd = "pip install -r requirements.txt"
+expect = "allow"
+
+[[case]]
+cmd = "pip install requests"
+expect = "allow"
+
+[[case]]
+cmd = "uv sync"
+expect = "allow"
+
+[[case]]
+cmd = "uv add httpx"
+expect = "allow"
+
+[[case]]
+cmd = "uv run pytest"
+expect = "allow"
+
+[[case]]
+cmd = "poetry install"
+expect = "allow"
+
+[[case]]
+cmd = "cargo build"
+expect = "allow"
+
+[[case]]
+cmd = "cargo add serde"
+expect = "allow"
+
+[[case]]
+cmd = "cargo test --workspace"
+expect = "allow"
+
+[[case]]
+cmd = "mvn -B verify"
+expect = "allow"
+
+[[case]]
+cmd = "./mvnw test"
+expect = "allow"
+
+[[case]]
+cmd = "gradle build"
+expect = "allow"
+
+[[case]]
+cmd = "go mod download"
+expect = "allow"
+
+[[case]]
+cmd = "go test ./..."
+expect = "allow"
+
+[[case]]
+cmd = "bundle install"
+expect = "allow"
+
+[[case]]
+cmd = "docker build -t x ."
+expect = "allow"
+
+[[case]]
+cmd = "docker compose up -d"
+expect = "allow"
+
+[[case]]
+cmd = "make test"
+expect = "allow"
+
+[[case]]
+cmd = "git checkout -b feat/x"
+expect = "allow"
+
+[[case]]
+cmd = "git commit -m x"
+expect = "allow"
+
+[[case]]
+cmd = "git commit --amend --no-edit"
+expect = "allow"
+
+[[case]]
+cmd = "git push -u origin feat/x"
+expect = "allow"
+
+[[case]]
+cmd = "git pull --rebase"
+expect = "allow"
+
+[[case]]
+cmd = "git stash"
+expect = "allow"
+
+[[case]]
+cmd = "git diff origin/main"
+expect = "allow"
+
+[[case]]
+cmd = "git log --oneline -20"
+expect = "allow"
+
+[[case]]
+cmd = "gh pr create --fill"
+expect = "allow"
+
+[[case]]
+cmd = "gh pr view 3"
+expect = "allow"
+
+[[case]]
+cmd = "gh issue comment 3 -b hi"
+expect = "allow"
+
+[[case]]
+cmd = "gh api repos/a/b/pulls/3"
+expect = "allow"
+
+[[case]]
+cmd = "curl -s https://api.github.com/repos/a/b"
+expect = "allow"
+
+[[case]]
+cmd = "curl -fsSL https://registry.npmjs.org/left-pad"
+expect = "allow"
+
+[[case]]
+cmd = "wget https://example.com/file.tgz"
+expect = "allow"
+
+[[case]]
+cmd = "python -m pytest"
+expect = "allow"
+
+[[case]]
+cmd = "python script.py"
+expect = "allow"
+
+[[case]]
+cmd = "node index.js"
+expect = "allow"
+
+[[case]]
+cmd = "mise install"
+expect = "allow"
+
+[[case]]
+cmd = "rm -rf node_modules"
+expect = "allow"
+
+[[case]]
+cmd = "rm -rf build"
+expect = "allow"
+
+[[case]]
+cmd = "mkdir -p src/x && touch src/x/a.py"
+expect = "allow"
+
+[[case]]
+cmd = "cat package.json"
+expect = "allow"
+
+[[case]]
+cmd = "grep -r TODO src"
+expect = "allow"
+
+[[case]]
+cmd = "sed -i s/a/b/ src/a.py"
+expect = "allow"
+
+[[case]]
+cmd = "chmod +x scripts/run.sh"
+expect = "allow"
+
+[[case]]
+cmd = "./scripts/run.sh"
+expect = "allow"
+
+[[case]]
+cmd = "bash scripts/run.sh"
+expect = "allow"
+
+[[case]]
+cmd = "tar xzf a.tgz"
+expect = "allow"
+
+[[case]]
+cmd = "unzip a.zip"
+expect = "allow"
+
+[[case]]
+cmd = "cp -r a b"
+expect = "allow"
+
+[[case]]
+cmd = "echo $HOME"
+expect = "allow"
+
+[[case]]
+cmd = "cat ~/.gitconfig"
+expect = "allow"
+
+[[case]]
+cmd = "ssh-keyscan github.com"
+expect = "allow"

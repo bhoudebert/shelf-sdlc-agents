@@ -1,9 +1,12 @@
 //! OpenAI Codex CLI.
 //!
 //! Codex sends the same payload as Claude Code and understands the same `hookSpecificOutput`, with three differences that
-//! matter to a guard: a `PreToolUse` hook cannot ask (an `ask` marks the hook failed and the tool goes ahead, so a question
-//! is only passed on as context and Codex's own approval flow runs), file changes arrive as an `apply_patch` call whose
-//! patch text names the files, and hosted tools such as web search never reach a hook.
+//! matter to a guard: a `PreToolUse` hook cannot ask (an `ask` marks the hook failed and the tool goes ahead, and context
+//! alone does not stop it, so a question is answered with a refusal that carries it), file changes arrive as an
+//! `apply_patch` call whose patch text names the files, and hosted tools such as web search never reach a hook.
+//! Checked against the real Codex 0.167 by `warden/live/check_codex.py`. A hook only runs once Codex trusts it. A
+//! `PostToolUse` answer of `decision: block` replaces the output the model sees with its reason; Warden does not use it
+//! and wraps the command instead, which Codex honours through `updatedInput`.
 
 use serde_json::{Value, json};
 use warden_policy::Decision;
@@ -92,16 +95,17 @@ impl Adapter for Codex {
 fn pre_tool_use(answer: &Answer) -> Option<Value> {
     let (decision, reason) = match answer.decision {
         Some(Decision::Deny) => ("deny", Some(answer.reason.clone())),
-        // Codex cannot ask from a PreToolUse hook: say why and let its own approval flow decide.
+        // Codex cannot ask from a PreToolUse hook, and runs the tool when it gets an `ask` or only context: refuse, with the
+        // question as the reason, so the model sees why and can tell the person.
         Some(Decision::Ask) => {
-            let context = if answer.reason.is_empty() {
-                None
-            } else {
-                Some(format!("Warden would ask about this: {}", answer.reason))
-            };
-            return context.map(|context| {
-                json!({ "hookSpecificOutput": { "hookEventName": "PreToolUse", "additionalContext": context } })
-            });
+            let why =
+                if answer.reason.is_empty() { "this call needs a person's approval" } else { answer.reason.as_str() };
+            (
+                "deny",
+                Some(format!(
+                    "Warden would ask the person before this: {why}. Codex cannot ask from a hook, so it is refused: say what you wanted to do and let the person decide."
+                )),
+            )
         }
         Some(Decision::Allow) => ("allow", None),
         None if answer.updated_input.is_some() => ("allow", None),
@@ -174,17 +178,17 @@ mod tests {
     }
 
     #[test]
-    fn an_ask_is_never_sent_because_codex_would_fail_open_and_goes_as_context() {
+    fn an_ask_is_refused_because_codex_would_fail_open_on_it() {
         let call =
             parse("PreToolUse", &json!({ "tool_name": "Bash", "tool_input": { "command": "git reset --hard" } }));
         let ask =
             Answer { decision: Some(Decision::Ask), reason: "it throws changes away".into(), ..Answer::default() };
         let out: Value = serde_json::from_str(&Codex.render(&call, &ask).stdout).expect("json");
-        assert!(out["hookSpecificOutput"].get("permissionDecision").is_none(), "{out}");
+        assert_eq!(out["hookSpecificOutput"]["permissionDecision"], "deny", "{out}");
         assert!(
-            out["hookSpecificOutput"]["additionalContext"]
+            out["hookSpecificOutput"]["permissionDecisionReason"]
                 .as_str()
-                .expect("context")
+                .expect("reason")
                 .contains("it throws changes away")
         );
     }

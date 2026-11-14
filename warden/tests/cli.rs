@@ -86,7 +86,7 @@ fn explain_says_when_an_ask_became_a_deny() {
 
 #[test]
 fn test_passes_the_shipped_corpora() {
-    for file in ["guarded.toml", "unattended.toml"] {
+    for file in ["guarded.toml", "unattended.toml", "shelf.toml", "evasion.toml"] {
         let output = warden(&["test", &corpus(file)]);
         assert!(output.status.success(), "{file}: {}{}", stdout(&output), stderr(&output));
         assert!(stdout(&output).contains("cases as expected"), "{}", stdout(&output));
@@ -438,4 +438,11 @@ fn a_session_that_cannot_be_saved_still_redacts() {
     assert!(!stdout(&output).contains("marie.curie"));
     assert!(output.status.success());
     let _ = std::fs::remove_dir_all(state);
+}
+
+#[test]
+fn routine_work_is_never_refused_under_the_shelf_profile() {
+    let output = warden(&["test", &corpus("routine.toml")]);
+    assert!(output.status.success(), "{}{}", stdout(&output), stderr(&output));
+    assert!(stdout(&output).contains("cases as expected"), "{}", stdout(&output));
 }
