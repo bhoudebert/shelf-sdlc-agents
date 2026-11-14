@@ -151,3 +151,42 @@ def test_wardens_operator_policy_is_created_from_the_example_and_never_overwritt
 def test_the_operator_policy_example_is_valid_toml_with_every_line_commented() -> None:
     text = (DEPLOY / "warden.toml.example").read_text()
     assert tomllib.loads(text) == {}, "the example must change nothing until the operator uncomments a part"
+
+
+def with_doctor(server: Path, output: str) -> None:
+    """Make the fake docker answer ``warden doctor`` with ``output``."""
+    fake = server / "bin" / "docker"
+    fake.write_text(
+        '#!/bin/sh\necho "$@" >> "${DOCKER_LOG:-/dev/null}"\n'
+        f'case "$*" in *"warden doctor"*) cat <<\'EOF\'\n{output}\nEOF\n;; esac\nexit 0\n'
+    )
+
+
+def test_a_guard_that_is_wired_is_reported(server: Path) -> None:
+    write_env(server)
+    with_doctor(server, "ok    warden 0.1.0\nok    Claude Code is wired in the managed settings")
+    done = run(server)
+    assert "Guard: Warden is wired into the agents" in done.stdout
+    assert "not fully in force" not in done.stderr
+
+
+def test_a_guard_that_is_not_wired_is_a_warning_that_repeats_the_line(server: Path) -> None:
+    write_env(server)
+    with_doctor(server, "ok    warden 0.1.0\nwarn  Claude Code is not wired in any settings file")
+    done = run(server)
+    assert done.returncode == 0
+    assert "the guard (Warden) is not fully in force" in done.stderr
+    assert "Claude Code is not wired in any settings file" in done.stderr
+
+
+def test_the_guard_is_not_asked_when_it_is_switched_off(server: Path) -> None:
+    write_env(server, SHELF_WARDEN="off")
+    run(server)
+    assert "warden doctor" not in (server / "docker.log").read_text()
+
+
+def test_a_check_that_cannot_run_does_not_fail_the_script(server: Path) -> None:
+    write_env(server)
+    done = run(server)
+    assert done.returncode == 0
+    assert "Guard: Warden is wired" not in done.stdout
