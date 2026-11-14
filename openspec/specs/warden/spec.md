@@ -217,18 +217,18 @@ The system SHALL judge the reading of a credential file, the writing of a protec
 - **WHEN** an unattended policy judges a write to `/etc/claude-code/managed-settings.json`
 - **THEN** it is denied
 
-### Requirement: Under the shelf profile an agent does not merge, approve or push to the default branch
+### Requirement: Nobody watching, an agent does not merge, approve or push to the default branch
 
-The system SHALL classify as `default_branch` a `git push` whose target is `main`, `master` or `trunk` (in any form, `HEAD:main` and `refs/heads/master` included), `gh pr merge`, `gh workflow run`, `gh pr review --approve` and a `gh api` call to a merge endpoint; SHALL deny that category in the `shelf` profile, ask about it in `strict` and allow it in `observe`, `guarded` and `unattended`, which serve a person's own work; and SHALL leave the push of any other branch allowed everywhere.
+The system SHALL classify as `default_branch` a `git push` whose target is `main`, `master` or `trunk` (in any form, `HEAD:main` and `refs/heads/master` included), `gh pr merge`, `gh workflow run`, `gh pr review --approve` and a `gh api` call to a merge endpoint; SHALL deny that category in the `unattended` and `shelf` profiles, where nobody watches, ask about it in `strict` and allow it in `observe` and `guarded`, which serve a person at the keyboard; and SHALL leave the push of any other branch allowed everywhere.
 
-#### Scenario: Shelf pushing to main
+#### Scenario: Unattended pushing to main
 
-- **WHEN** an agent runs `git push origin HEAD:main` under the shelf profile
+- **WHEN** an agent runs `git push origin HEAD:main` under the shelf or unattended profile
 - **THEN** the call is denied
 
-#### Scenario: Shelf pushing a topic branch
+#### Scenario: Pushing a topic branch
 
-- **WHEN** an agent runs `git push -u origin feat/maintenance` under the shelf profile
+- **WHEN** an agent runs `git push -u origin feat/maintenance` under the shelf or unattended profile
 - **THEN** the call is allowed
 
 #### Scenario: A person's own session
