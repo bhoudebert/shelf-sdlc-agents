@@ -193,7 +193,8 @@
       "tests": [
         "warden/src/**",
         "warden/crates/**",
-        "warden/tests/**"
+        "warden/tests/**",
+        "warden/corpus/**"
       ]
     }
   }
