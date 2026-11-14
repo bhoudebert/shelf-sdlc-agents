@@ -364,12 +364,22 @@ The system SHALL replace credentials and personal data in text by tokens of the 
 
 ### Requirement: A session keeps its tokens in a private file
 
-The system SHALL keep the tokens of a session in a JSON file in the state directory (`$WARDEN_STATE_DIR`, or `~/.local/share/warden`), readable by its owner only, so that a later command of the same session gets the same tokens, and SHALL start another session's numbering afresh.
+The system SHALL keep the tokens of a session in a JSON file in the state directory (`$WARDEN_STATE_DIR`, or `~/.local/share/warden`), readable by its owner only, so that a later command of the same session gets the same tokens, and SHALL start another session's numbering afresh; the folder of the token files SHALL be settable apart from the state directory (`$WARDEN_SESSION_DIR`), because a command in an agent's sandbox may be allowed to write in one place only, and a session that cannot be saved SHALL still be redacted.
 
 #### Scenario: The next command
 
 - **WHEN** a second command of a session prints a value the first one printed
 - **THEN** it gets the token the first one got
+
+#### Scenario: Another folder
+
+- **WHEN** `WARDEN_SESSION_DIR` names a folder
+- **THEN** the token file is written there and not under the state directory
+
+#### Scenario: A folder that cannot be written
+
+- **WHEN** the token file cannot be saved
+- **THEN** the output is still redacted and the command still succeeds
 
 ### Requirement: `warden run` redacts what a command prints
 
