@@ -286,3 +286,12 @@ fn hidden_variables_add_up() {
     let policy = resolve(&[("a", "[env]\nhide = [\"*_TOKEN\"]"), ("b", "[env]\nhide = [\"*_SECRET\", \"*_TOKEN\"]")]);
     assert_eq!(policy.env_hide, ["*_TOKEN", "*_SECRET"]);
 }
+
+#[test]
+fn a_credential_in_a_prompt_and_a_personal_data_read_are_decided_by_every_profile() {
+    for profile in ["observe", "guarded", "strict", "unattended", "shelf"] {
+        let policy = preset(profile);
+        assert_eq!(policy.decision(Category::SecretPrompt), Decision::Deny, "{profile}");
+        assert_eq!(policy.decision(Category::PiiRead), Decision::Deny, "{profile}");
+    }
+}
