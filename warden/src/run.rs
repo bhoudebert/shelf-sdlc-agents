@@ -52,8 +52,8 @@ fn safe_id(id: &str) -> String {
 }
 
 /// Where the token map of a session lives.
-pub fn session_path(state_dir: &std::path::Path, id: &str) -> PathBuf {
-    state_dir.join("sessions").join(format!("{}.json", safe_id(id)))
+pub fn session_path(session_dir: &std::path::Path, id: &str) -> PathBuf {
+    session_dir.join(format!("{}.json", safe_id(id)))
 }
 
 /// Whether `name` matches `pattern`, where `*` stands for any run of characters.

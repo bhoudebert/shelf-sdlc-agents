@@ -213,6 +213,14 @@ fn state_dir(ctx: &Context) -> PathBuf {
     std::env::var_os("WARDEN_STATE_DIR").map_or_else(|| ctx.home.join(".local/share/warden"), PathBuf::from)
 }
 
+/// Where the token maps of sessions live: `$WARDEN_SESSION_DIR`, or the `sessions` folder of the state directory.
+///
+/// It can be set apart from the state directory because a command that runs in an agent's sandbox may be allowed to
+/// write in one place only, and `warden run` must be able to save its tokens there.
+fn session_dir(ctx: &Context) -> PathBuf {
+    std::env::var_os("WARDEN_SESSION_DIR").map_or_else(|| state_dir(ctx).join("sessions"), PathBuf::from)
+}
+
 /// The audit log's directory: the flag, `$WARDEN_STATE_DIR/audit`, or what the policy says.
 fn audit_log(from: &Where, dir: Option<PathBuf>) -> Result<warden_audit::AuditLog, String> {
     let ctx = context(from);
@@ -330,7 +338,7 @@ fn hook_command(agent: &str, event: &str) -> Outcome {
     std::io::Read::read_to_string(&mut std::io::stdin(), &mut stdin).map_err(|error| error.to_string())?;
     let ctx = Context::from_env();
     let setting = hook::Setting {
-        state_dir: state_dir(&ctx),
+        session_dir: session_dir(&ctx),
         exe: std::env::current_exe().unwrap_or_else(|_| PathBuf::from("warden")),
         profile: std::env::var("WARDEN_PROFILE").ok().and_then(|name| parse_profile(&name).ok()),
         home: ctx.home,
@@ -346,7 +354,7 @@ fn run_command(session: &str, command: &[String], from: &Where) -> Outcome {
     let ctx = context(from);
     let policy = load::policy(&Sources { files: true, ..sources(from, &ctx, None) })?;
     let redactor = run::redactor_for(&policy)?;
-    let path = run::session_path(&state_dir(&ctx), session);
+    let path = run::session_path(&session_dir(&ctx), session);
     let tokens = warden_redact::Session::open(&path).unwrap_or_else(|error| {
         eprintln!("warden: starting the session over: {error}");
         warden_redact::Session::default()

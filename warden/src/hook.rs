@@ -23,8 +23,8 @@ pub struct Setting {
     pub home: PathBuf,
     /// The working directory when the payload names none.
     pub cwd: PathBuf,
-    /// Where Warden keeps its state.
-    pub state_dir: PathBuf,
+    /// Where the token maps of sessions are kept.
+    pub session_dir: PathBuf,
     /// This binary, which wrapped commands call back.
     pub exe: PathBuf,
     /// A preset to start from, below the files.
@@ -78,7 +78,7 @@ pub fn run(agent: &str, event: &str, stdin: &str, setting: &Setting) -> Rendered
         home: setting.home.clone(),
         cwd: if call.cwd.is_empty() { setting.cwd.clone() } else { PathBuf::from(&call.cwd) },
     };
-    let path = session_path(&setting.state_dir, &call.session);
+    let path = session_path(&setting.session_dir, &call.session);
     let mut session = Session::open(&path).unwrap_or_default();
     let mut decided = Decided::default();
     let answer = decide(&policy, &ctx, &call, &redactor, &mut session, setting, &mut decided);

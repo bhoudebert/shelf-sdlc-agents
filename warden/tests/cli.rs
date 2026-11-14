@@ -307,3 +307,39 @@ fn run_without_redaction_passes_output_through() {
     assert_eq!(stdout(&output), "a@client.fr\n");
     let _ = std::fs::remove_dir_all(state);
 }
+
+#[test]
+fn the_session_directory_can_be_set_apart_from_the_state_directory() {
+    let state = temp_dir("session-dir");
+    let sessions = state.join("elsewhere");
+    let output = Command::new(env!("CARGO_BIN_EXE_warden"))
+        .args(["run", "--session", "s5", "--", "echo marie.curie@client.fr"])
+        .env("HOME", "/home/dev")
+        .env("WARDEN_STATE_DIR", &state)
+        .env("WARDEN_SESSION_DIR", &sessions)
+        .output()
+        .expect("runs");
+    assert!(stdout(&output).contains("<EMAIL_1>"), "{}", stdout(&output));
+    assert!(sessions.join("s5.json").is_file());
+    assert!(!state.join("sessions").exists());
+    let _ = std::fs::remove_dir_all(state);
+}
+
+#[test]
+fn a_session_that_cannot_be_saved_still_redacts() {
+    let state = temp_dir("session-unwritable");
+    std::fs::create_dir_all(&state).expect("dir");
+    let blocker = state.join("not-a-directory");
+    std::fs::write(&blocker, "x").expect("file");
+    let output = Command::new(env!("CARGO_BIN_EXE_warden"))
+        .args(["run", "--session", "s6", "--", "echo marie.curie@client.fr"])
+        .env("HOME", "/home/dev")
+        .env("WARDEN_STATE_DIR", &state)
+        .env("WARDEN_SESSION_DIR", blocker.join("sessions"))
+        .output()
+        .expect("runs");
+    assert!(stdout(&output).contains("<EMAIL_1>"), "redaction does not depend on saving: {}", stdout(&output));
+    assert!(!stdout(&output).contains("marie.curie"));
+    assert!(output.status.success());
+    let _ = std::fs::remove_dir_all(state);
+}
