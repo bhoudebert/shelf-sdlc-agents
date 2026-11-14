@@ -19,6 +19,16 @@ AGENT_ENVIRONMENT = {"DO_NOT_TRACK": "1", "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1"
 """Telemetry off, and no memory carried from one step to the next: an agent starts each step from the repository."""
 
 
+def step_summary(role: str, message: ResultMessage) -> str:
+    """One line about a finished step: turns, time, cost. Never the prompt, the answer or a secret."""
+    cost = f"${message.total_cost_usd:.4f}" if message.total_cost_usd is not None else "unknown"
+    refused = len(message.permission_denials or [])
+    return (
+        f"agent step finished: role={role} turns={message.num_turns} seconds={round(message.duration_ms / 1000)} "
+        f"cost={cost}" + (f" refused_tool_calls={refused}" if refused else "")
+    )
+
+
 class AgentFailedError(RuntimeError):
     """The agent run ended in error."""
 
@@ -120,6 +130,7 @@ class ClaudeBackend:
             options=self.options(task),
         ):
             if isinstance(message, ResultMessage):
+                log.info(step_summary(task.role.name, message))
                 if message.is_error:
                     raise AgentFailedError(task.role.name, message.result or message.subtype)
                 answer = message.result or ""

@@ -647,3 +647,23 @@ The system SHALL give administrators, and only them, a page listing the recent w
 
 - **WHEN** an ordinary person asks for the page
 - **THEN** it is refused and the navigation does not offer it
+
+### Requirement: The admin page shows what the guard has seen
+
+The system SHALL show administrators, on the admin page, a section "Guard" with the number of recorded agent calls, how many the guard stopped or would have stopped, the redactions it made, whether the audit log's chain is intact, and the risk categories that were found most often. The section SHALL say so plainly when the guard is not installed or its log cannot be read, and SHALL NOT stop the rest of the page from showing.
+
+#### Scenario: The guard has recorded calls
+
+- **WHEN** an administrator opens the admin page and the guard reports twelve calls, three of which it would have stopped
+- **THEN** the Guard section shows twelve calls and three stopped, and the categories found
+
+#### Scenario: The chain is broken
+
+- **WHEN** the guard reports that the audit log's chain is broken
+- **THEN** the section says so as a fault to fix
+
+#### Scenario: No guard
+
+- **WHEN** the guard is not installed or cannot be read
+- **THEN** the Guard section says it is not available and the rest of the page is unchanged
+
