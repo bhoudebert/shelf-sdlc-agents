@@ -329,6 +329,20 @@ The system SHALL print, for the log in the policy's audit directory, `$WARDEN_ST
 - **WHEN** the log holds no record
 - **THEN** the report says there is nothing to report yet
 
+### Requirement: `warden report --json` gives the report to a program
+
+The system SHALL, with `--json`, print the report as one JSON object with the keys `records`, `calls`, `would_stop`, `by_category` (a map of category to count), `by_decision` (a map of the labels `status` shows to count) and `redactions` (a map of kind to count), and nothing else, also for an empty log, where every number is zero.
+
+#### Scenario: A program reads the report
+
+- **WHEN** the log holds five calls, three of which the policy intended to stop for `destructive`
+- **THEN** the object says `calls` is 5, `would_stop` is 3 and `by_category` has `destructive` at 3
+
+#### Scenario: An empty log
+
+- **WHEN** the log holds no record
+- **THEN** the object has every count at zero
+
 ### Requirement: `warden audit verify` exits with the verdict
 
 The system SHALL print that the chain is intact with its record and file counts and exit successfully, or print where it is broken and exit with status 1.
