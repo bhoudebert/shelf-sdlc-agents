@@ -936,3 +936,16 @@ def test_leaving_all_three_boxes_checked_is_the_fully_attended_choice(app: Fixtu
     data |= {"spec_approval": "1", "design_review": "1", "stop_on_deadlock": "1"}
     assert app.client.post("/start", data=data).status_code == 303
     assert app.runner.started[-1].autonomy == Autonomy.strictest()
+
+
+def test_the_board_and_the_work_page_say_which_stops_a_run_does_without() -> None:
+    fixture = Fixture()
+    fixture.sign_in()
+    fixture.runner.views[WorkId("work-1")] = WorkView(
+        WorkId("work-1"), REPO, "alice", EntryPoint.NEED, Phase.DESIGN, unattended=("spec", "design")
+    )
+    fixture.runner.views[WorkId("work-2")] = WorkView(WorkId("work-2"), REPO, "alice", EntryPoint.NEED, Phase.DESIGN)
+    board = fixture.client.get("/board/items").text
+    assert board.count("Unattended: spec, design") == 1
+    assert "Unattended: spec, design" in fixture.client.get("/work/work-1").text
+    assert "Unattended" not in fixture.client.get("/work/work-2").text
