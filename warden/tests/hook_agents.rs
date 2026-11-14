@@ -63,10 +63,12 @@ fn codex_gets_a_denied_dangerous_command_and_a_wrapped_routine_one() {
 }
 
 #[test]
-fn codex_cannot_ask_so_the_question_goes_as_context_and_its_own_approval_runs() {
+fn codex_cannot_ask_so_the_question_is_a_refusal_that_carries_it() {
     let out = codex_bash("guarded", "codex-ask", "git reset --hard HEAD~1");
-    assert!(out["hookSpecificOutput"].get("permissionDecision").is_none(), "{out}");
-    assert!(out["hookSpecificOutput"]["additionalContext"].as_str().expect("context").contains("Warden would ask"));
+    assert_eq!(out["hookSpecificOutput"]["permissionDecision"], "deny", "{out}");
+    assert!(
+        out["hookSpecificOutput"]["permissionDecisionReason"].as_str().expect("reason").contains("Warden would ask")
+    );
 }
 
 #[test]

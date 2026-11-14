@@ -77,6 +77,8 @@ class WorkView:
     """When the work last did anything (ISO, UTC); empty for work started before times were kept."""
     times: tuple[tuple[str, str], ...] = ()
     """For each phase (by name), when something last happened there."""
+    unattended: tuple[str, ...] = ()
+    """The stops this run does without a person (``spec``, ``design``, ``deadlock``); none for older work."""
     """A line of the request, to tell this work from another on the board; empty for work started before it was kept."""
 
 

@@ -107,7 +107,7 @@ The system SHALL turn an ask into a deny, with a note saying nobody is there to 
 
 ### Requirement: A command line is read as bash, every command inside it found
 
-The system SHALL read a shell command line with a complete bash parser and judge every simple command in it: those behind pipes, lists, subshells, blocks, loops and conditions; those inside `$(...)`, backticks and `<(...)`; those in the string of `bash -c`, `sh -c` and the like, and in the arguments of `eval`; and those behind `sudo`, `doas`, `env`, `nohup`, `nice`, `timeout`, `xargs`, `command`, `exec` and `find -exec`.
+The system SHALL read a shell command line with a complete bash parser and judge every simple command in it: those behind pipes, lists, subshells, blocks, loops and conditions; those inside `$(...)`, backticks and `<(...)`; those in the string of `bash -c`, `sh -c` and the like, and in the arguments of `eval`; and those behind `sudo`, `doas`, `env`, `nohup`, `nice`, `timeout`, `xargs`, `command`, `exec`, `flock`, `watch`, `strace`, `ltrace`, `unshare`, `chroot`, `busybox` and `find -exec`.
 
 #### Scenario: Nested commands
 
@@ -118,6 +118,11 @@ The system SHALL read a shell command line with a complete bash parser and judge
 
 - **WHEN** the line is `sudo -u root rm -rf /tmp/x`
 - **THEN** both `sudo` and `rm` are judged
+
+#### Scenario: Behind a lock
+
+- **WHEN** the line is `flock -w 5 /tmp/l kubectl delete ns prod`
+- **THEN** both `flock` and `kubectl` are judged and the call needs a person's approval
 
 #### Scenario: A name that is only known later
 
@@ -216,6 +221,42 @@ The system SHALL judge the reading of a credential file, the writing of a protec
 
 - **WHEN** an unattended policy judges a write to `/etc/claude-code/managed-settings.json`
 - **THEN** it is denied
+
+### Requirement: Nobody watching, an agent does not merge, approve or push to the default branch
+
+The system SHALL classify as `default_branch` a `git push` whose target is `main`, `master` or `trunk` (in any form, `HEAD:main` and `refs/heads/master` included), `gh pr merge`, `gh workflow run`, `gh pr review --approve` and a `gh api` call to a merge endpoint; SHALL deny that category in the `unattended` and `shelf` profiles, where nobody watches, ask about it in `strict` and allow it in `observe` and `guarded`, which serve a person at the keyboard; and SHALL leave the push of any other branch allowed everywhere.
+
+#### Scenario: Unattended pushing to main
+
+- **WHEN** an agent runs `git push origin HEAD:main` under the shelf or unattended profile
+- **THEN** the call is denied
+
+#### Scenario: Pushing a topic branch
+
+- **WHEN** an agent runs `git push -u origin feat/maintenance` under the shelf or unattended profile
+- **THEN** the call is allowed
+
+#### Scenario: A person's own session
+
+- **WHEN** a person runs `git push origin main` under the guarded profile
+
+### Requirement: Routes that carry data out of the machine are risky
+
+The system SHALL treat as exfiltration a `git push` to an address instead of a named remote, `ssh` with `-R` or `-D`, staging a credential file with `git add`, and moving or linking a credential file with `mv` or `ln`; and SHALL always deny a request to a cloud metadata address (`169.254.169.254`, `metadata.google.internal`, `metadata.azure.com`) or to a public request-capture or tunnelling service (`requestbin.net`, `pipedream.net`, `interact.sh`, `oast.fun`, `oast.pro`, `burpcollaborator.net`, beside those already listed).
+
+#### Scenario: Instance credentials
+
+- **WHEN** an agent runs `curl http://169.254.169.254/latest/meta-data/`
+- **THEN** the call is denied
+
+#### Scenario: A credential file is staged
+
+- **WHEN** an agent runs `git add .env`
+- **THEN** the call needs a person's approval
+
+#### Scenario: Ordinary git
+
+- **WHEN** an agent runs `git push origin main` or `git add src/main.rs`
 
 ### Requirement: Commands that destroy hosted or shared state, and reverse shells, are risky
 
@@ -757,12 +798,12 @@ The system SHALL publish, when a Warden release is made, a static binary for Lin
 
 ### Requirement: Codex, Copilot and OpenCode are guarded through their own adapters
 
-The system SHALL provide an adapter for the Codex CLI (the Claude Code payload, `apply_patch` read by the files its patch names whichever field holds the patch, and a question that Codex cannot ask passed on as context so that Codex's own approval flow runs, never as an `ask` that Codex would fail open on), for GitHub Copilot (both the camelCase payload whose `toolArgs` is a JSON string and the PascalCase payload, the decision as a top-level `permissionDecision`, an allow never sent so as not to approve what the person's own settings ask about, a prompt that cannot be blocked left unanswered) and for OpenCode (the events of a plugin Warden ships, answered in JSON the plugin acts on); and the hook SHALL use each agent as far as it lets a hook go: wrap a command and put token values back only where the agent accepts changed arguments, turn a rewrite the policy wants into a refusal that says what to run where it does not, redact the result after the tool ran where the agent lets a hook replace it, and refuse an MCP call that holds personal data where it cannot be replaced by tokens.
+The system SHALL provide an adapter for the Codex CLI (the Claude Code payload, `apply_patch` read by the files its patch names whichever field holds the patch, and a question that Codex cannot ask refused with the question as the reason, never sent as an `ask` that Codex would fail open on and never passed on as context that lets the call run), for GitHub Copilot (both the camelCase payload whose `toolArgs` is a JSON string and the PascalCase payload, the decision as a top-level `permissionDecision`, an allow never sent so as not to approve what the person's own settings ask about, a prompt that cannot be blocked left unanswered) and for OpenCode (the events of a plugin Warden ships, answered in JSON the plugin acts on); and the hook SHALL use each agent as far as it lets a hook go: wrap a command and put token values back only where the agent accepts changed arguments, turn a rewrite the policy wants into a refusal that says what to run where it does not, redact the result after the tool ran where the agent lets a hook replace it, and refuse an MCP call that holds personal data where it cannot be replaced by tokens.
 
 #### Scenario: Codex cannot ask
 
 - **WHEN** a command that `guarded` would ask about reaches the Codex hook
-- **THEN** the answer has no permission decision and carries the question as context
+- **THEN** the answer is a deny whose reason carries the question, the model sees that reason, and the command does not run
 
 #### Scenario: A Codex patch
 
