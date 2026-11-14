@@ -166,7 +166,7 @@ The system SHALL let a person pick a visible repository, an entry point and the 
 
 ### Requirement: The start form says how much the run may do without a person
 
-The system SHALL show on the start form three choices (wait for approval of the spec, review the design, go on when a spec or design review cannot settle) preset from the chosen repository's policy, SHALL change the preset when another repository is chosen, SHALL say beside them that fewer stops mean more autonomy, less control and potentially less quality, and SHALL warn visibly when a choice removes a stop, and SHALL start the work with what the form shows, not with the repository's file.
+The system SHALL show on the start form three choices, each worded so that checked means a person is asked or a review is kept (wait for approval of the spec, review the design, stop and ask when a spec or design review cannot settle), preset from the chosen repository's policy, SHALL change the preset when another repository is chosen, SHALL say beside them that fewer stops mean more autonomy, less control and potentially less quality, and SHALL warn visibly when any of them is unchecked, and SHALL start the work with what the form shows, not with the repository's file.
 
 #### Scenario: The repository's defaults
 
@@ -176,11 +176,11 @@ The system SHALL show on the start form three choices (wait for approval of the 
 #### Scenario: Another repository
 
 - **WHEN** the person picks another repository
-- **THEN** the three choices take that repository's values
+- **THEN** the three choices take that repository's values, the deadlock choice checked unless the policy goes on past a deadlock
 
 #### Scenario: A stop removed
 
-- **WHEN** any choice removes a stop
+- **WHEN** any of the three choices is unchecked
 - **THEN** a warning says what is no longer asked and that the code review, the checks and the merge remain
 
 #### Scenario: Compact, grouped boxes
@@ -190,8 +190,13 @@ The system SHALL show on the start form three choices (wait for approval of the 
 
 #### Scenario: What the form shows is what runs
 
-- **WHEN** a person unchecks the spec approval and checks the deadlock choice, then starts
+- **WHEN** a person unchecks the spec approval and the stop at a deadlock, then starts
 - **THEN** the work has no spec approval and goes on past a deadlock, whatever the repository's file says
+
+#### Scenario: All checked is fully attended
+
+- **WHEN** a person leaves the three choices checked
+- **THEN** the work waits at the spec approval, has its design reviewed and waits at a deadlock
 
 ### Requirement: The work page shows the timeline and takes decisions
 

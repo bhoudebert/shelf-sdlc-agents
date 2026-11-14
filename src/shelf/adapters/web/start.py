@@ -29,17 +29,18 @@ def explain(refusal: Refusal) -> tuple[str, int]:
             return reason, 403
 
 
-def chosen_by(form: str, spec_approval: str, design_review: str, proceed_on_deadlock: str) -> Autonomy | None:
+def chosen_by(form: str, spec_approval: str, design_review: str, stop_on_deadlock: str) -> Autonomy | None:
     """What the form's three boxes say, or ``None`` when the form did not show them.
 
     A browser sends nothing for an unchecked box: the marker says the boxes were shown, so absent means unchecked.
+    Every box is worded so that checked means more control: the last one stops at a deadlock, so unchecked proceeds.
     """
     if not form:
         return None
     return Autonomy(
         spec_approval=bool(spec_approval),
         design_review=bool(design_review),
-        proceed_on_deadlock=bool(proceed_on_deadlock),
+        proceed_on_deadlock=not stop_on_deadlock,
     )
 
 
@@ -108,9 +109,9 @@ def router(web: Web) -> APIRouter:
         autonomy_form: Annotated[str, Form()] = "",
         spec_approval: Annotated[str, Form()] = "",
         design_review: Annotated[str, Form()] = "",
-        proceed_on_deadlock: Annotated[str, Form()] = "",
+        stop_on_deadlock: Annotated[str, Form()] = "",
     ) -> Response:
-        chosen = chosen_by(autonomy_form, spec_approval, design_review, proceed_on_deadlock)
+        chosen = chosen_by(autonomy_form, spec_approval, design_review, stop_on_deadlock)
         try:
             asked = WorkRequest(
                 RepoRef.parse(repo),
