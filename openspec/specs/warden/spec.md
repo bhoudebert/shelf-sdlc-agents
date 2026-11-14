@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Guard the agents Shelf runs, and the agents of anyone who installs it, with a policy engine that sees each tool call before it runs: it gates commands, keeps secrets and personal data off the model and records every decision. This capability is built in stages (decision 0014); the requirements below are the ones that hold so far: the policy, the judging of commands and files, the commands that show a decision, the audit log, redaction, and the hook that puts them in front of an agent.
+Guard the agents Shelf runs, and the agents of anyone who installs it, with a policy engine that sees each tool call before it runs: it gates commands, keeps secrets and personal data off the model and records every decision. This capability is built in stages (decision 0014); the requirements below are the ones that hold so far: the policy, the judging of commands and files, the commands that show a decision, the audit log, redaction, and the hook that puts them in front of an agent, and the commands that install it and check it.
 
 ## Requirements
 
@@ -531,3 +531,94 @@ The system SHALL append to the audit log the decision of every `PreToolUse`, pro
 
 - **WHEN** a command carries a bearer token and is judged
 - **THEN** the record's summary has a token in its place and the chain verifies
+
+### Requirement: `warden init` wires Claude Code, safely and repeatably
+
+The system SHALL, for `warden init`, write Warden's hooks for `PreToolUse` and `PostToolUse` (matcher `*`), `UserPromptSubmit`, `SessionStart` and `Stop` into a Claude Code settings file chosen by `--global` (the user's), `--repo` (the repository's, the default inside a repository, calling `warden` by name so teammates only need it on their `PATH`) or `--managed <file>` (an organisation's managed settings); SHALL put Warden's entries first in each event and replace any earlier Warden entry, keeping every other key and hook, so that running it again changes nothing; SHALL keep the original file once as a backup; SHALL set `onFailure: block` on the hooks when the profile fails closed; SHALL write the companion skill next to a user or repository settings file and, with `--profile`, a policy file when there is none, leaving an existing one as it is; SHALL refuse a settings file that is not JSON without touching it; and SHALL with `--dry-run` say what it would do and change nothing.
+
+#### Scenario: A user's settings
+
+- **WHEN** `warden init --global --profile guarded` runs on a settings file with another hook and other keys
+- **THEN** Warden's hooks come first in every event, the other hook and keys remain, a backup exists, the skill and a policy file with the profile are written, and the hooks do not block on failure
+
+#### Scenario: Twice
+
+- **WHEN** `init` runs a second time with the same options
+- **THEN** the settings file is unchanged and the policy file is reported as left as it is
+
+#### Scenario: A profile that fails closed
+
+- **WHEN** `warden init --global --profile unattended` runs
+- **THEN** every Warden hook has `onFailure` set to `block`
+
+#### Scenario: In a repository
+
+- **WHEN** `warden init --profile strict` runs inside a repository
+- **THEN** the repository's settings call `warden hook claude <Event>` by name, the policy is `.warden/policy.toml`, and the user's settings are untouched
+
+#### Scenario: Managed settings
+
+- **WHEN** `warden init --managed <file> --profile shelf` runs
+- **THEN** the file gets the hooks with `onFailure` set to `block`, and no skill or policy file is written
+
+#### Scenario: A dry run
+
+- **WHEN** `warden init --global --dry-run` runs
+- **THEN** it says what it would write and writes nothing
+
+#### Scenario: A file that is not JSON
+
+- **WHEN** the settings file is not valid JSON
+- **THEN** the command exits with status 2, says so, and leaves the file as it was
+
+### Requirement: `warden uninstall` takes Warden out and only Warden
+
+The system SHALL remove Warden's hook entries (and the lists and key left empty), the companion skill and, with `--purge`, the policy file and, for the user's scope, the state directory with the sessions and the audit log, leaving every other hook and key.
+
+#### Scenario: Uninstalling
+
+- **WHEN** `warden uninstall --global` runs after `init` on settings that had another hook
+- **THEN** only the other hook remains, the skill is gone and the policy file stays
+
+#### Scenario: Purging
+
+- **WHEN** `--purge` is added
+- **THEN** the policy file and the state directory are removed too
+
+### Requirement: `warden doctor` checks that Warden is wired and healthy
+
+The system SHALL report with `ok`, `warn` or `FAIL` the binary and its version, whether it is on the `PATH`, whether the policy loads (a policy that cannot load is a FAIL, since every call is then denied) with its warnings, whether the audit chain is intact, whether the state directory is writable, and for the user's, the repository's and the managed Claude Code settings which events are wired and whether a hook calls a program that does not exist, and exit with status 1 when any check fails.
+
+#### Scenario: Not wired
+
+- **WHEN** no settings file has Warden's hooks
+- **THEN** the report says Claude Code is not wired in any settings file
+
+#### Scenario: Wired
+
+- **WHEN** `init` has run and the policy and the log are sound
+- **THEN** the report says Claude Code is wired in the global settings and the audit log is intact, and the exit status is 0
+
+#### Scenario: A broken policy
+
+- **WHEN** the policy file has an unknown key
+- **THEN** the report says every call is denied and the exit status is 1
+
+#### Scenario: A hook that points nowhere
+
+- **WHEN** a settings file calls a Warden binary that does not exist
+- **THEN** the report names that path as a FAIL
+
+#### Scenario: A tampered log
+
+- **WHEN** a record of the audit log was changed
+- **THEN** the report says the chain is broken
+
+### Requirement: The companion skill tells the model how to work under Warden
+
+The system SHALL ship a skill that tells the model what tokens mean and that they are restored when written to a file, how to read a refusal and to choose a safer way or ask instead of retrying with a variant, that the agent's own configuration and Warden's are never to be edited, which `warden` commands it may run (`explain`, `status`, `doctor`), and never to type a credential.
+
+#### Scenario: Installed with init
+
+- **WHEN** `warden init` runs for a user or a repository
+- **THEN** the skill is written to the `.claude/skills/warden` folder of that scope
