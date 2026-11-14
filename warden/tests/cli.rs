@@ -188,6 +188,26 @@ fn report_counts_what_audit_mode_let_through() {
 }
 
 #[test]
+fn report_json_is_one_object_a_program_can_read() {
+    let dir = temp_dir("report-json");
+    log_with(&dir, &["allow", "deny", "ask"]);
+    let text = stdout(&warden(&["report", "--json", "--dir", &dir.display().to_string()]));
+    let value: serde_json::Value = serde_json::from_str(text.trim()).expect("one JSON object");
+    assert_eq!(value["records"], 3);
+    assert_eq!(value["calls"], 3);
+    assert_eq!(value["would_stop"], 2);
+    assert_eq!(value["by_category"]["exfil"], 2);
+    assert_eq!(value["by_decision"]["deny"], 1);
+    let empty = temp_dir("report-json-empty");
+    let none = stdout(&warden(&["report", "--json", "--dir", &empty.display().to_string()]));
+    let value: serde_json::Value = serde_json::from_str(none.trim()).expect("one JSON object");
+    assert_eq!(value["calls"], 0);
+    assert_eq!(value["would_stop"], 0);
+    let _ = std::fs::remove_dir_all(dir);
+    let _ = std::fs::remove_dir_all(empty);
+}
+
+#[test]
 fn report_on_an_empty_log_says_so() {
     let dir = temp_dir("report-empty");
     let output = warden(&["report", "--dir", &dir.display().to_string()]);

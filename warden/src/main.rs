@@ -87,6 +87,9 @@ enum Command {
     },
     /// Say what the policy would have stopped among the calls the log holds.
     Report {
+        /// Print one JSON object, for a program.
+        #[arg(long)]
+        json: bool,
         /// Only this session.
         #[arg(long)]
         session: Option<String>,
@@ -328,12 +331,12 @@ fn status_command(all: bool, n: usize, session: Option<String>, dir: Option<Path
     Ok(ExitCode::SUCCESS)
 }
 
-fn report_command(session: Option<String>, dir: Option<PathBuf>, from: &Where) -> Outcome {
+fn report_command(json: bool, session: Option<String>, dir: Option<PathBuf>, from: &Where) -> Outcome {
     let log = audit_log(from, dir)?;
     let records = log
         .read(&warden_audit::Filter { session, last: None })
         .map_err(|error| format!("{}: {error}", log.dir().display()))?;
-    print!("{}", report::adoption(&records));
+    print!("{}", if json { report::adoption_json(&records) } else { report::adoption(&records) });
     Ok(ExitCode::SUCCESS)
 }
 
@@ -458,7 +461,7 @@ fn run(cli: Cli) -> Outcome {
         Some(Command::Explain { command, from }) => explain_command(&command, &from),
         Some(Command::Policy { from }) => policy_command(&from),
         Some(Command::Status { all, n, session, dir, from }) => status_command(all, n, session, dir, &from),
-        Some(Command::Report { session, dir, from }) => report_command(session, dir, &from),
+        Some(Command::Report { json, session, dir, from }) => report_command(json, session, dir, &from),
         Some(Command::Init { global, repo, managed, profile, dry_run, agent }) => {
             init_command(global, repo, managed, profile, dry_run, agent)
         }

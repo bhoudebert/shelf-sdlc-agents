@@ -170,6 +170,34 @@ pub fn adoption(records: &[warden_audit::Record]) -> String {
     out
 }
 
+/// `warden report --json`: the same counts, for a program.
+pub fn adoption_json(records: &[warden_audit::Record]) -> String {
+    use std::collections::BTreeMap;
+    let calls: Vec<&warden_audit::Record> = records.iter().filter(|r| r.entry.kind != "run").collect();
+    let mut would_stop = 0_usize;
+    let mut by_category: BTreeMap<&str, usize> = BTreeMap::new();
+    for record in &calls {
+        let entry = &record.entry;
+        let intended = if entry.intended.is_empty() { entry.decision.as_str() } else { entry.intended.as_str() };
+        if intended == "ask" || intended == "deny" {
+            would_stop += 1;
+            for category in &entry.categories {
+                *by_category.entry(category.as_str()).or_default() += 1;
+            }
+        }
+    }
+    let summary = warden_audit::summarize(records);
+    let object = serde_json::json!({
+        "records": summary.total,
+        "calls": calls.len(),
+        "would_stop": would_stop,
+        "by_category": by_category,
+        "by_decision": summary.decisions,
+        "redactions": summary.redactions,
+    });
+    format!("{object}\n")
+}
+
 /// `warden audit verify`.
 pub fn verification(result: &warden_audit::Verification) -> String {
     match &result.problem {
