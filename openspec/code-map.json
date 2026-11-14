@@ -183,6 +183,18 @@
         "tests/domain/test_catalog.py",
         "tests/adapters/catalog/*.py"
       ]
+    },
+    "warden": {
+      "code": [
+        "warden/src/**",
+        "warden/Cargo.toml",
+        "warden/crates/**"
+      ],
+      "tests": [
+        "warden/src/**",
+        "warden/crates/**",
+        "warden/tests/**"
+      ]
     }
   }
 }
