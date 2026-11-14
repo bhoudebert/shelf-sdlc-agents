@@ -54,10 +54,11 @@ What it does not do, and you should not assume:
 - A repository's `checks` run through the worker, outside any agent hook.
 - Redaction is pattern-based. A short password, a key in a format nobody has seen and a name nobody listed go through; the
   operator's names and patterns in `config/warden.toml` are how you cover your own data.
-- Whether Claude Code's sandbox lets a sandboxed command remember its tokens between commands (`WARDEN_SESSION_DIR`) has not been
-  verified on a real worker. If it cannot, redaction still works but a token is not restored when an agent writes it into a file.
-- Warden has not yet run inside a real Claude Code session against a real model. The tests run its hook with real payloads; the first
-  real task is the test. Set `SHELF_WARDEN_PROFILE=observe` for a first week to see what it would refuse without refusing anything.
+- Warden has been run inside Shelf's image through the Agent SDK against a mock of the model API (not a real model): the managed
+  hook refused a dangerous command and the model was told why, and an allowed command's output reached the model redacted. The
+  sandbox lets a command write only in `$TMPDIR` and its working directory, so the token files and the pending audit records live
+  in `/tmp/claude-1000/warden` and the next hook moves the records into the log. The first real task is the real test: set
+  `SHELF_WARDEN_PROFILE=observe` for a first week to see what it would refuse without refusing anything.
 
 ### The plan
 

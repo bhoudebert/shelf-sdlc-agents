@@ -332,3 +332,65 @@ fn the_operators_policy_binds_the_hook_and_a_repository_cannot_loosen_it() {
             .contains("the operator says no")
     );
 }
+
+#[test]
+fn a_run_that_cannot_write_the_audit_log_leaves_its_record_and_the_next_hook_moves_it() {
+    // Inside an agent's sandbox the state directory is read-only and only the session folder can be written.
+    let root = temp_dir("spool");
+    let blocker = root.join("a-file");
+    std::fs::write(&blocker, "x").expect("file");
+    let sessions = root.join("sessions");
+    let run = Command::new(env!("CARGO_BIN_EXE_warden"))
+        .args(["run", "--session", "s7", "--", "echo marie.curie@client.fr"])
+        .env("HOME", "/home/dev")
+        .env("WARDEN_STATE_DIR", blocker.join("state"))
+        .env("WARDEN_SESSION_DIR", &sessions)
+        .output()
+        .expect("runs");
+    assert_eq!(String::from_utf8_lossy(&run.stdout), "<EMAIL_1>\n");
+    assert_eq!(String::from_utf8_lossy(&run.stderr), "", "nothing about Warden's own state reaches the model");
+    assert!(sessions.join("s7.spool").is_file(), "the record waits next to the session's tokens");
+
+    // The next hook, outside the sandbox, can write the log.
+    let state = root.join("state");
+    let mut child = Command::new(env!("CARGO_BIN_EXE_warden"))
+        .args(["hook", "claude", "Stop"])
+        .env("HOME", "/home/dev")
+        .env("WARDEN_STATE_DIR", &state)
+        .env("WARDEN_SESSION_DIR", &sessions)
+        .env("WARDEN_PROFILE", "guarded")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawns");
+    child.stdin.take().expect("stdin").write_all(json!({ "session_id": "s7" }).to_string().as_bytes()).expect("writes");
+    assert!(child.wait_with_output().expect("waits").status.success());
+    assert!(!sessions.join("s7.spool").exists());
+    let records =
+        warden_audit::AuditLog::new(state.join("audit")).read(&warden_audit::Filter::default()).expect("reads");
+    let redacted: Vec<_> = records.iter().filter(|r| r.entry.decision == "redacted").collect();
+    assert_eq!(redacted.len(), 1, "{records:?}");
+    assert_eq!(redacted[0].entry.redactions["email"], 1);
+    assert_eq!(redacted[0].entry.session, "s7");
+}
+
+#[test]
+fn warden_only_talks_about_its_own_trouble_when_asked_to() {
+    let root = temp_dir("quiet");
+    let blocker = root.join("a-file");
+    std::fs::write(&blocker, "x").expect("file");
+    let run = |debug: bool| {
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_warden"));
+        cmd.args(["run", "--session", "s8", "--", "echo marie.curie@client.fr"])
+            .env("HOME", "/home/dev")
+            .env("WARDEN_STATE_DIR", blocker.join("state"))
+            .env("WARDEN_SESSION_DIR", blocker.join("sessions"));
+        if debug {
+            cmd.env("WARDEN_DEBUG", "1");
+        }
+        cmd.output().expect("runs")
+    };
+    assert_eq!(String::from_utf8_lossy(&run(false).stderr), "");
+    assert!(String::from_utf8_lossy(&run(true).stderr).contains("warden: cannot"));
+}

@@ -6,6 +6,7 @@ mod install;
 mod load;
 mod report;
 mod run;
+mod spool;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -229,7 +230,7 @@ fn audit_log(from: &Where, dir: Option<PathBuf>) -> Result<warden_audit::AuditLo
 }
 
 /// `$WARDEN_STATE_DIR/audit` when that is set, or the directory the policy names.
-fn audit_dir(ctx: &Context, policy: &warden_policy::Policy) -> PathBuf {
+pub(crate) fn audit_dir(ctx: &Context, policy: &warden_policy::Policy) -> PathBuf {
     std::env::var_os("WARDEN_STATE_DIR")
         .map_or_else(|| PathBuf::from(ctx.expand(&policy.audit.dir)), |base| PathBuf::from(base).join("audit"))
 }
@@ -264,7 +265,11 @@ fn record_run(
     };
     let log = warden_audit::AuditLog::new(audit_dir(ctx, policy));
     if let Err(error) = log.append(&entry) {
-        eprintln!("warden: cannot write the audit log: {error}");
+        // Inside an agent's sandbox the log is read-only: keep the record where a hook can find it.
+        spool::note(&format!("cannot write the audit log ({error}): keeping the record for the next hook"));
+        if let Err(error) = spool::push(&session_dir(ctx), session, &entry) {
+            spool::note(&format!("cannot keep the audit record either: {error}"));
+        }
     }
 }
 
@@ -356,13 +361,13 @@ fn run_command(session: &str, command: &[String], from: &Where) -> Outcome {
     let redactor = run::redactor_for(&policy)?;
     let path = run::session_path(&session_dir(&ctx), session);
     let tokens = warden_redact::Session::open(&path).unwrap_or_else(|error| {
-        eprintln!("warden: starting the session over: {error}");
+        spool::note(&format!("starting the session over: {error}"));
         warden_redact::Session::default()
     });
     let line = command.join(" ");
     let (outcome, tokens) = run::run(&policy, &redactor, tokens, &line);
     if let Err(error) = tokens.save() {
-        eprintln!("warden: cannot save the session tokens: {error}");
+        spool::note(&format!("cannot save the session tokens: {error}"));
     }
     if !outcome.counts.is_empty() && policy.audit.enabled {
         record_run(&policy, &redactor, &ctx, session, &line, &outcome.counts);
