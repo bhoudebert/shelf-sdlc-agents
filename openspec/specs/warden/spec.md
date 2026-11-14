@@ -217,18 +217,23 @@ The system SHALL judge the reading of a credential file, the writing of a protec
 - **WHEN** an unattended policy judges a write to `/etc/claude-code/managed-settings.json`
 - **THEN** it is denied
 
-### Requirement: An agent does not merge, approve or publish to the default branch
+### Requirement: Under the shelf profile an agent does not merge, approve or push to the default branch
 
-The system SHALL treat as publishing a `git push` whose target is `main`, `master` or `trunk` (in any form, `HEAD:main` and `refs/heads/master` included), `gh pr merge`, `gh workflow run`, `gh pr review --approve` and a `gh api` call to a merge endpoint, so that the work reaches the default branch only through a pull request a person merges; a push of any other branch SHALL stay allowed.
+The system SHALL classify as `default_branch` a `git push` whose target is `main`, `master` or `trunk` (in any form, `HEAD:main` and `refs/heads/master` included), `gh pr merge`, `gh workflow run`, `gh pr review --approve` and a `gh api` call to a merge endpoint; SHALL deny that category in the `shelf` profile, ask about it in `strict` and allow it in `observe`, `guarded` and `unattended`, which serve a person's own work; and SHALL leave the push of any other branch allowed everywhere.
 
-#### Scenario: Pushing to main
+#### Scenario: Shelf pushing to main
 
-- **WHEN** an agent runs `git push origin HEAD:main`
-- **THEN** the call is treated as publishing and, with nobody to ask, denied
+- **WHEN** an agent runs `git push origin HEAD:main` under the shelf profile
+- **THEN** the call is denied
 
-#### Scenario: Pushing a topic branch
+#### Scenario: Shelf pushing a topic branch
 
-- **WHEN** an agent runs `git push -u origin feat/maintenance`
+- **WHEN** an agent runs `git push -u origin feat/maintenance` under the shelf profile
+- **THEN** the call is allowed
+
+#### Scenario: A person's own session
+
+- **WHEN** a person runs `git push origin main` under the guarded profile
 - **THEN** the call is allowed
 
 ### Requirement: `warden explain` shows how a command is judged
