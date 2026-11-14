@@ -2,6 +2,7 @@
   <legend>How much may this run do without you?</legend>
   <p class="hint">Fewer stops mean more autonomy, less control and potentially less quality. The pull request is never merged without you, and the code review and the repository's checks always run. The boxes show this repository's defaults: change them for this work only.</p>
   <input type="hidden" name="autonomy_form" value="1">
+  <div class="choices">
   <label class="choice">
     <input type="checkbox" name="spec_approval" value="1"{% if autonomy.spec_approval %} checked{% endif %}>
     <span class="choice-body"><span class="choice-label">Wait for my approval of the spec</span>
@@ -17,5 +18,6 @@
     <span class="choice-body"><span class="choice-label">Go on when a spec or design review cannot settle</span>
     <span class="choice-help">Checked: the work does not wait for you when the writer and the reviewer disagree for good. What stayed open is posted on the pull request, and the agents write their assumptions down. A failing check or a code review that cannot decide still waits for you.</span></span>
   </label>
+  </div>
   <p class="autonomy-warning" role="note"><strong>Less control.</strong> Nobody will be asked at the stops you removed, so the spec or design can reach the pull request with open points or unchecked assumptions. Read them on the pull request before you merge.</p>
 </fieldset>

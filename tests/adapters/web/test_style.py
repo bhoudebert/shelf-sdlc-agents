@@ -52,3 +52,15 @@ def test_the_note_box_is_tall_and_keeps_a_draft() -> None:
     script = (CSS.parent / "app.js").read_text(encoding="utf-8")
     assert "shelf-draft-" in script
     assert "ctrlKey" in script
+
+
+def test_a_checkbox_is_never_given_the_size_of_a_text_field() -> None:
+    css = CSS.read_text(encoding="utf-8")
+    field = re.search(r'^input:not\(\[type="radio"\]\)([^{]*)\{([^}]*)\}', css, re.MULTILINE)
+    assert field is not None
+    assert ':not([type="checkbox"])' in field.group(0), "the text-field rule must leave checkboxes alone"
+    choice = re.search(r"^\.choice input \{([^}]*)\}", css, re.MULTILINE)
+    assert choice is not None
+    assert "appearance: none" in choice.group(1)
+    assert "width: 20px" in choice.group(1)
+    assert re.search(r"\.autonomy-warning \{[^}]*max-width: none", css)
