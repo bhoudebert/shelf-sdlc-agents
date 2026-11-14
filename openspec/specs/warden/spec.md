@@ -696,12 +696,12 @@ The system SHALL publish, when a Warden release is made, a static binary for Lin
 
 ### Requirement: Codex, Copilot and OpenCode are guarded through their own adapters
 
-The system SHALL provide an adapter for the Codex CLI (the Claude Code payload, `apply_patch` read by the files its patch names whichever field holds the patch, and a question that Codex cannot ask passed on as context so that Codex's own approval flow runs, never as an `ask` that Codex would fail open on), for GitHub Copilot (both the camelCase payload whose `toolArgs` is a JSON string and the PascalCase payload, the decision as a top-level `permissionDecision`, an allow never sent so as not to approve what the person's own settings ask about, a prompt that cannot be blocked left unanswered) and for OpenCode (the events of a plugin Warden ships, answered in JSON the plugin acts on); and the hook SHALL use each agent as far as it lets a hook go: wrap a command and put token values back only where the agent accepts changed arguments, turn a rewrite the policy wants into a refusal that says what to run where it does not, redact the result after the tool ran where the agent lets a hook replace it, and refuse an MCP call that holds personal data where it cannot be replaced by tokens.
+The system SHALL provide an adapter for the Codex CLI (the Claude Code payload, `apply_patch` read by the files its patch names whichever field holds the patch, and a question that Codex cannot ask refused with the question as the reason, never sent as an `ask` that Codex would fail open on and never passed on as context that lets the call run), for GitHub Copilot (both the camelCase payload whose `toolArgs` is a JSON string and the PascalCase payload, the decision as a top-level `permissionDecision`, an allow never sent so as not to approve what the person's own settings ask about, a prompt that cannot be blocked left unanswered) and for OpenCode (the events of a plugin Warden ships, answered in JSON the plugin acts on); and the hook SHALL use each agent as far as it lets a hook go: wrap a command and put token values back only where the agent accepts changed arguments, turn a rewrite the policy wants into a refusal that says what to run where it does not, redact the result after the tool ran where the agent lets a hook replace it, and refuse an MCP call that holds personal data where it cannot be replaced by tokens.
 
 #### Scenario: Codex cannot ask
 
 - **WHEN** a command that `guarded` would ask about reaches the Codex hook
-- **THEN** the answer has no permission decision and carries the question as context
+- **THEN** the answer is a deny whose reason carries the question, the model sees that reason, and the command does not run
 
 #### Scenario: A Codex patch
 
