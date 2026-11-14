@@ -182,7 +182,7 @@ The system SHALL deny, in every profile that has no ask, text downloaded with `c
 
 ### Requirement: Credential files, secrets and the working scope are protected
 
-The system SHALL treat reading a credential file (the dotenv files but not their templates, `~/.ssh`, `~/.aws`, keys and certificates), a secret printed by a tool, the environment dumped, a secret variable expanded into a command and a credential typed into a command line as findings; and SHALL, when a policy sets a scope, treat a write outside it and outside `/tmp` as out of scope.
+The system SHALL treat reading a credential file (the dotenv files but not their templates, `~/.ssh`, `~/.aws`, keys and certificates, the system's password and sudo files, a process's environment under `/proc`, the credential files of PostgreSQL, Terraform, Vault, rclone, Cargo, Maven, Gradle and DigitalOcean, shell history, the saved logins of browsers, and Terraform state), a secret printed by a tool, the environment dumped, a secret variable expanded into a command and a credential typed into a command line as findings; and SHALL, when a policy sets a scope, treat a write outside it and outside `/tmp` as out of scope.
 
 #### Scenario: A template is readable
 
