@@ -99,3 +99,38 @@ pub fn test(total: usize, mismatches: &[Mismatch]) -> String {
         writeln!(out, "{passed} of {total} cases as expected{}", if mismatches.is_empty() { "" } else { ": FAILED" });
     out
 }
+
+/// `warden status`: the counts, then the records worth a look.
+pub fn status(records: &[warden_audit::Record], all: bool, last: usize) -> String {
+    use warden_audit::{label, summarize};
+    let mut out = String::new();
+    let summary = summarize(records);
+    let decisions: Vec<String> = summary.decisions.iter().map(|(name, count)| format!("{name}={count}")).collect();
+    let _ = writeln!(out, "records: {}   {}", summary.total, decisions.join(" "));
+    if !summary.redactions.is_empty() {
+        let kinds: Vec<String> = summary.redactions.iter().map(|(kind, count)| format!("{kind}={count}")).collect();
+        let _ = writeln!(out, "redactions: {}", kinds.join(" "));
+    }
+    let shown: Vec<&warden_audit::Record> = records.iter().filter(|r| all || label(r) != "allow").collect();
+    let skip = shown.len().saturating_sub(last);
+    let _ = writeln!(out);
+    for record in shown.into_iter().skip(skip) {
+        let entry = &record.entry;
+        let when = record.ts.get(..19).unwrap_or(&record.ts);
+        let _ = writeln!(out, "{when}  {:<12}  {:<7} {:<6} {}", label(record), entry.agent, entry.kind, entry.summary);
+        let categories = entry.categories.join(",");
+        let _ = writeln!(out, "      {categories} {}", entry.reason);
+    }
+    out
+}
+
+/// `warden audit verify`.
+pub fn verification(result: &warden_audit::Verification) -> String {
+    match &result.problem {
+        None => format!("the chain is intact: {} records in {} files\n", result.records, result.files),
+        Some(problem) => format!(
+            "the chain is BROKEN at {} line {}: {}\n({} records were read before it)\n",
+            problem.file, problem.line, problem.what, result.records
+        ),
+    }
+}

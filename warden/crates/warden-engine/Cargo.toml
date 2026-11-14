@@ -2,7 +2,7 @@
 name = "warden-engine"
 version = "0.0.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.89"
 publish = false
 description = "Judges a tool call: classifies what a command would do and decides against the policy."
 

@@ -2,7 +2,7 @@
 name = "warden"
 version = "0.0.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.89"
 description = "A policy engine for coding agents: gates commands, keeps secrets off the model, logs every decision."
 license = "Apache-2.0"
 repository = "https://github.com/bhoudebert/shelf-sdlc-agents"
@@ -30,6 +30,10 @@ clap = { version = "4", features = ["derive"] }
 warden-shell = { path = "crates/warden-shell" }
 warden-policy = { path = "crates/warden-policy" }
 warden-engine = { path = "crates/warden-engine" }
+warden-audit = { path = "crates/warden-audit" }
+
+[dev-dependencies]
+warden-audit = { path = "crates/warden-audit" }
 
 [lints]
 workspace = true

@@ -2,7 +2,7 @@
 name = "warden-policy"
 version = "0.0.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.89"
 publish = false
 description = "The policy of Warden: categories, decisions, layers and the presets."
 

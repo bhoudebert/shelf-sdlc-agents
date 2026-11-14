@@ -64,6 +64,40 @@ enum Command {
         #[command(flatten)]
         from: Where,
     },
+    /// Show what the audit log holds: the interventions and the redactions.
+    Status {
+        /// Show every record, not only the interventions.
+        #[arg(long)]
+        all: bool,
+        /// How many records to show.
+        #[arg(short, default_value_t = 20)]
+        n: usize,
+        /// Only this session.
+        #[arg(long)]
+        session: Option<String>,
+        /// The log directory, in place of the policy's.
+        #[arg(long)]
+        dir: Option<PathBuf>,
+        #[command(flatten)]
+        from: Where,
+    },
+    /// Work with the audit log.
+    Audit {
+        #[command(subcommand)]
+        action: AuditAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum AuditAction {
+    /// Walk the hash chain and name the first record that was changed or removed.
+    Verify {
+        /// The log directory, in place of the policy's.
+        #[arg(long)]
+        dir: Option<PathBuf>,
+        #[command(flatten)]
+        from: Where,
+    },
 }
 
 fn parse_profile(text: &str) -> Result<Profile, String> {
@@ -95,6 +129,16 @@ fn sources(from: &Where, ctx: &Context, default_profile: Option<Profile>) -> Sou
     }
 }
 
+/// The audit log's directory: the flag, `$WARDEN_STATE_DIR/audit`, or what the policy says.
+fn audit_log(from: &Where, dir: Option<PathBuf>) -> Result<warden_audit::AuditLog, String> {
+    let ctx = context(from);
+    let policy = load::policy(&Sources { files: true, ..sources(from, &ctx, None) })?;
+    let dir = dir
+        .or_else(|| std::env::var_os("WARDEN_STATE_DIR").map(|base| PathBuf::from(base).join("audit")))
+        .unwrap_or_else(|| PathBuf::from(ctx.expand(&policy.audit.dir)));
+    Ok(warden_audit::AuditLog::new(dir))
+}
+
 fn run(cli: Cli) -> Result<ExitCode, String> {
     match cli.command {
         None => {
@@ -117,6 +161,20 @@ fn run(cli: Cli) -> Result<ExitCode, String> {
             let policy = load::policy(&sources(&from, &ctx, None))?;
             print!("{}", report::policy(&policy));
             Ok(ExitCode::SUCCESS)
+        }
+        Some(Command::Status { all, n, session, dir, from }) => {
+            let log = audit_log(&from, dir)?;
+            let records = log
+                .read(&warden_audit::Filter { session, last: None })
+                .map_err(|error| format!("{}: {error}", log.dir().display()))?;
+            print!("{}", report::status(&records, all, n));
+            Ok(ExitCode::SUCCESS)
+        }
+        Some(Command::Audit { action: AuditAction::Verify { dir, from } }) => {
+            let log = audit_log(&from, dir)?;
+            let verification = log.verify().map_err(|error| format!("{}: {error}", log.dir().display()))?;
+            print!("{}", report::verification(&verification));
+            Ok(if verification.problem.is_none() { ExitCode::SUCCESS } else { ExitCode::FAILURE })
         }
         Some(Command::Test { corpus: path, from }) => {
             let text = std::fs::read_to_string(&path).map_err(|error| format!("{}: {error}", path.display()))?;
