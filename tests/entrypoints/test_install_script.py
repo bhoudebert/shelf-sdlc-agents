@@ -119,6 +119,15 @@ def test_the_catalog_is_created_from_the_example_and_synced_after_the_containers
     assert sync > up
 
 
+def test_the_catalog_image_is_rebuilt_before_it_syncs_so_it_never_runs_an_older_one(server: Path) -> None:
+    write_env(server)
+    assert run(server).returncode == 0
+    calls = (server / "docker.log").read_text().splitlines()
+    build = next(i for i, line in enumerate(calls) if "build" in line.split() and "catalog" in line.split())
+    sync = next(i for i, line in enumerate(calls) if "run" in line.split() and "catalog" in line.split())
+    assert build < sync
+
+
 def test_a_catalog_the_operator_edited_is_never_overwritten(server: Path) -> None:
     write_env(server)
     config = server / "deploy" / "config"
