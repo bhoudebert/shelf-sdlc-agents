@@ -1,6 +1,7 @@
 //! Warden: a policy engine for coding agents. See `docs/adr/0014-guard-agents-with-warden-a-policy-engine-in-rust.md`.
 #![cfg_attr(test, allow(clippy::expect_used, clippy::unwrap_used, clippy::indexing_slicing))]
 
+mod hook;
 mod load;
 mod report;
 mod run;
@@ -92,6 +93,14 @@ enum Command {
         command: Vec<String>,
         #[command(flatten)]
         from: Where,
+    },
+    /// What an agent calls before it uses a tool: reads its payload on standard input, answers on standard output.
+    #[command(hide = true)]
+    Hook {
+        /// The agent: `claude`.
+        agent: String,
+        /// The event: `PreToolUse`, `PostToolUse`, `UserPromptSubmit`, `SessionStart`, `Stop`.
+        event: String,
     },
     /// Work with the audit log.
     Audit {
@@ -223,6 +232,22 @@ fn run(cli: Cli) -> Result<ExitCode, String> {
                 .map_err(|error| format!("{}: {error}", log.dir().display()))?;
             print!("{}", report::status(&records, all, n));
             Ok(ExitCode::SUCCESS)
+        }
+        Some(Command::Hook { agent, event }) => {
+            let mut stdin = String::new();
+            std::io::Read::read_to_string(&mut std::io::stdin(), &mut stdin).map_err(|error| error.to_string())?;
+            let ctx = Context::from_env();
+            let setting = hook::Setting {
+                state_dir: state_dir(&ctx),
+                exe: std::env::current_exe().unwrap_or_else(|_| PathBuf::from("warden")),
+                profile: std::env::var("WARDEN_PROFILE").ok().and_then(|name| parse_profile(&name).ok()),
+                home: ctx.home,
+                cwd: ctx.cwd,
+            };
+            let rendered = hook::run(&agent, &event, &stdin, &setting);
+            print!("{}", rendered.stdout);
+            eprint!("{}", rendered.stderr);
+            Ok(ExitCode::from(u8::try_from(rendered.code).unwrap_or(2)))
         }
         Some(Command::Run { session, command, from }) => {
             let ctx = context(&from);

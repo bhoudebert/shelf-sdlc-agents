@@ -133,3 +133,15 @@ fn tools_are_judged_by_name() {
     assert_eq!(judge_tool(&p, "WebFetch").expect("asks").decision, Decision::Ask);
     assert!(judge_tool(&p, "Bash").is_none());
 }
+
+#[test]
+fn a_credential_in_text_is_judged_by_the_category_the_caller_names() {
+    use warden_engine::judge_text;
+    let p = policy(&[]);
+    let leaky = judge_text(&p, "notes.md", "key ghp_abcdefghijklmnopqrstuvwxyz0123456789", Category::SecretWrite);
+    assert_eq!(leaky.decision, Decision::Ask);
+    assert!(leaky.reason.contains("a GitHub token"), "{}", leaky.reason);
+    let prompt = judge_text(&p, "the prompt", "use AKIAIOSFODNN7EXAMPLE", Category::SecretPrompt);
+    assert_eq!(prompt.decision, Decision::Deny);
+    assert_eq!(judge_text(&p, "notes.md", "nothing secret here", Category::SecretWrite).decision, Decision::Allow);
+}

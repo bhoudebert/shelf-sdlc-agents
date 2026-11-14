@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Guard the agents Shelf runs, and the agents of anyone who installs it, with a policy engine that sees each tool call before it runs: it gates commands, keeps secrets and personal data off the model and records every decision. This capability is built in stages (decision 0014); the requirements below are the ones that hold so far: the policy, the judging of commands and files, the commands that show a decision, the audit log, and redaction.
+Guard the agents Shelf runs, and the agents of anyone who installs it, with a policy engine that sees each tool call before it runs: it gates commands, keeps secrets and personal data off the model and records every decision. This capability is built in stages (decision 0014); the requirements below are the ones that hold so far: the policy, the judging of commands and files, the commands that show a decision, the audit log, redaction, and the hook that puts them in front of an agent.
 
 ## Requirements
 
@@ -412,3 +412,122 @@ The system SHALL read from a policy `redact.outputs`, `redact.secrets`, `redact.
 
 - **WHEN** a repository file lists the name `Acme Corp` and a `customer_id` pattern
 - **THEN** both are detected, and the pattern's tokens read `<CUSTOMER_ID_1>`
+
+### Requirement: An agent adapter turns the agent's hook payload into one call and the verdict back
+
+The system SHALL provide one adapter per agent that reads the payload the agent sends on standard input into a call (the event, the session, the working directory, the tool and what it does: a shell command, a file read, a write or edit, a fetch, an MCP tool with all the strings of its arguments, a subagent; the tool's output; the person's prompt) and writes the verdict in the agent's own format; for Claude Code, SHALL print nothing and exit 0 when there is no decision, so that the agent's own permission flow goes on, `permissionDecision` of `deny` or `ask` with the reason, `updatedInput` (which replaces the tool's arguments) with `allow`, `additionalContext` after a tool or at the start of a session, and a top-level `block` for a prompt.
+
+#### Scenario: A shell command
+
+- **WHEN** Claude Code sends a `PreToolUse` payload for `Bash` with a command
+- **THEN** the call is a shell command with that line, the session and the directory the payload named
+
+#### Scenario: No decision
+
+- **WHEN** the verdict says nothing
+- **THEN** the hook prints nothing and exits 0
+
+#### Scenario: A refusal
+
+- **WHEN** the verdict is a deny with a reason
+- **THEN** the hook prints a `PreToolUse` answer whose decision is `deny` and whose reason is that text
+
+### Requirement: `warden hook` judges what an agent is about to do and answers in the agent's format
+
+The system SHALL, for `warden hook <agent> <event>`, load the policy (the preset named by `WARDEN_PROFILE`, then the global file and the repository's file), judge the call, log the decision and answer; SHALL wrap an allowed shell command so that it runs as `warden run --session <id> -- <command>` whenever the policy redacts outputs, keeping the other fields of the tool's arguments, and leave unwrapped the commands that change the shell (`cd`, `export`, `source`); SHALL send the rewritten line when a rewrite changed it; SHALL deny with the reason and a hint not to work around the refusal; SHALL turn an ask into a deny when nobody can be asked.
+
+#### Scenario: An allowed command is wrapped
+
+- **WHEN** `npm test` is judged by `guarded`
+- **THEN** the answer allows it with the command `warden run --session <id> -- 'npm test'` and the other fields unchanged
+
+#### Scenario: A force push
+
+- **WHEN** `git push -f origin main` is judged
+- **THEN** the wrapped command carries `--force-with-lease`
+
+#### Scenario: The shell's own state
+
+- **WHEN** `cd src && ls` is judged
+- **THEN** the hook prints nothing
+
+#### Scenario: A dangerous pipeline
+
+- **WHEN** a credentials file is piped to `curl -d`
+- **THEN** the answer is a deny whose reason names the exfiltration and tells the agent how to see how a command is judged
+
+#### Scenario: Asking, and not asking
+
+- **WHEN** `git reset --hard HEAD~1` is judged by `guarded`, and `sudo ls` by `unattended`
+- **THEN** the first asks and the second is denied
+
+### Requirement: Files, fetches and MCP calls are judged by the hook
+
+The system SHALL, in the hook, ask before the Read tool opens a credential file, refuse the Read tool on a personal-data file with a hint to read it through the shell where output is redacted (unless the policy lets the Read tool open it), deny a write to protected configuration, ask when the content of a write, an edit or an MCP call holds a credential, put back the real value of every token the agent writes into a file, replace personal data in the arguments of an MCP call by tokens, and judge a fetch by its host.
+
+#### Scenario: A credential file
+
+- **WHEN** the Read tool opens `~/.ssh/id_rsa`
+- **THEN** the hook asks
+
+#### Scenario: A personal-data file
+
+- **WHEN** the Read tool opens `fixtures/users.json`
+- **THEN** the hook denies and tells the agent to read it through the shell
+
+#### Scenario: Agent configuration
+
+- **WHEN** the Write tool targets `.claude/settings.json`
+- **THEN** the hook denies
+
+#### Scenario: Tokens restored
+
+- **WHEN** the agent writes `Contact <EMAIL_1> today` to a file and the session knows that token
+- **THEN** the content sent on has the real address
+
+#### Scenario: An MCP call
+
+- **WHEN** an MCP call carries an email address and then a GitHub token
+- **THEN** the first is sent with `<EMAIL_1>` in place of the address and the second is asked about
+
+### Requirement: Prompts, session starts and tool output are watched
+
+The system SHALL block a prompt that holds a credential, warn about or block (as the policy says) a prompt that holds personal data, tell the model at the start of a session which profile guards it, whether anyone can be asked, that tokens stand for values it is not shown and that a refusal is not to be worked around, and, after a tool ran, tell the model not to repeat values that still look like credentials or personal data in its output, or remind it what tokens mean when the output has some.
+
+#### Scenario: A credential in a prompt
+
+- **WHEN** a person's prompt holds an AWS access key
+- **THEN** the prompt is blocked with a reason
+
+#### Scenario: Personal data in a prompt
+
+- **WHEN** a prompt holds an email address
+- **THEN** `guarded` lets it through with a warning to the model and `unattended` blocks it
+
+#### Scenario: A leak after the tool
+
+- **WHEN** a tool's output still holds an AWS access key
+- **THEN** the hook adds a note telling the model not to repeat it
+
+### Requirement: The hook fails safe
+
+The system SHALL deny every call when the policy cannot be loaded, and when the hook input cannot be read let the call through with a message on the error output if the policy fails open (`observe`, `guarded`) and refuse it in the agent's own way if it fails closed (`strict`, `unattended`, `shelf`).
+
+#### Scenario: A broken policy
+
+- **WHEN** a policy file has an unknown key and the hook is called
+- **THEN** the call is denied and the reason says the policy cannot be loaded
+
+#### Scenario: Unreadable input
+
+- **WHEN** the hook input is not JSON
+- **THEN** `guarded` exits 0 with a message and `unattended` denies
+
+### Requirement: Every hook decision is logged without the secrets it judged
+
+The system SHALL append to the audit log the decision of every `PreToolUse`, prompt, session start and stop, with a summary in which credentials and personal data are replaced by tokens, and log `PostToolUse` only when values reached the model.
+
+#### Scenario: A secret in a command
+
+- **WHEN** a command carries a bearer token and is judged
+- **THEN** the record's summary has a token in its place and the chain verifies
