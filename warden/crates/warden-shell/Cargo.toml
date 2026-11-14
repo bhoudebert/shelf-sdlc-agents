@@ -1,0 +1,13 @@
+[package]
+name = "warden-shell"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.85"
+publish = false
+description = "Reads a bash command line into the simple commands it would run."
+
+[dependencies]
+brush-parser = "0.4.0"
+
+[lints]
+workspace = true

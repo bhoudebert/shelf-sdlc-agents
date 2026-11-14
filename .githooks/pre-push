@@ -23,8 +23,8 @@ uv run ruff check . && uv run ruff format --check . && uv run pyright && uv run 
 status=$?
 # Warden (Rust), when this checkout has it and a toolchain is there.
 if [ "$status" -eq 0 ] && [ -f warden/Cargo.toml ] && command -v cargo >/dev/null 2>&1; then
-  echo "pre-push: cd warden && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test" >&2
-  (cd warden && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test)
+  echo "pre-push: cd warden && cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace" >&2
+  (cd warden && cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace)
   status=$?
 fi
 if [ "$status" -ne 0 ]; then

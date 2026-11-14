@@ -1,0 +1,37 @@
+# What every profile shares: the lists of credentials, protected files, personal data and bad hosts, and the rewrites.
+version = 1
+
+[[rewrites]]
+id = "force-with-lease"
+match = '(git\s+push\b[^|;&]*?)\s(--force|-f)(\s|$)'
+replace = '${1} --force-with-lease${3}'
+
+[[rules]]
+id = "rm-build-dirs"
+match = '^rm -rf? (\./)?(node_modules|dist|build|target|\.next|coverage|\.cache|tmp)/?$'
+decision = "allow"
+reason = "routine build cleanup"
+
+[paths]
+deny_read = [
+  "**/.env", "**/.env.local", "**/.env.*.local", "**/.env.development", "**/.env.dev", "**/.env.test",
+  "**/.env.staging", "**/.env.production", "**/.env.prod",
+  "~/.ssh/**", "~/.aws/**", "~/.gnupg/**", "~/.netrc", "~/.docker/config.json", "~/.kube/**", "~/.config/gh/**",
+  "~/.config/gcloud/**", "~/.azure/**", "~/.npmrc", "~/.pypirc", "~/.git-credentials", "~/Library/Keychains/**",
+  "**/id_rsa*", "**/id_ed25519*", "**/*.pem", "**/*.p12", "**/*.pfx",
+]
+protected = [
+  "~/.claude/settings.json", "~/.claude/settings.local.json", "**/.claude/settings.json",
+  "**/.claude/settings.local.json", "/etc/claude-code", "/etc/claude-code/**",
+  "~/.codex/config.toml", "~/.codex/hooks.json", "**/.codex", "**/.codex/**",
+  "~/.config/opencode", "~/.config/opencode/**", "**/.opencode", "**/.opencode/**", "**/opencode.json", "**/opencode.jsonc",
+  "**/.github/copilot/**", "**/.github/hooks/**",
+  "**/.warden", "**/.warden/**", "~/.config/warden", "~/.config/warden/**", "~/.local/share/warden",
+  "~/.local/share/warden/**", "~/.local/bin/warden", "/etc/warden", "/etc/warden/**",
+  "**/.git/hooks/**",
+  "~/.zshrc", "~/.bashrc", "~/.bash_profile", "~/.profile", "~/.zprofile",
+]
+pii = ["**/fixtures/**", "**/seeds/**", "**/*.csv", "**/*.sql", "**/*dump*", "**/*.sqlite", "**/*.db"]
+
+[network]
+deny_domains = ["pastebin.com", "transfer.sh", "file.io", "ngrok.io", "requestbin.com", "webhook.site"]

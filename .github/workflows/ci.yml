@@ -52,7 +52,7 @@ jobs:
             warden/target
           key: warden-${{ runner.os }}-${{ hashFiles('warden/Cargo.lock') }}
       - name: Quality gate
-        run: cargo fmt --check && cargo clippy --all-targets --locked -- -D warnings && cargo test --locked
+        run: cargo fmt --check && cargo clippy --workspace --all-targets --locked -- -D warnings && cargo test --workspace --locked
 
   commits:
     name: Conventional commits

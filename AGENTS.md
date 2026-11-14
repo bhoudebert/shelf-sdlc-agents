@@ -36,7 +36,7 @@ Behaviour is specified in `openspec/specs/<capability>/spec.md`
 4. **Tests with the code.** Deterministic logic gets unit tests; tests never call
    a paid or external service for real.
 5. **Quality gate before pushing:** `uv run ruff check . && uv run ruff format --check . && uv run pyright && uv run lint-imports && uv run pytest` must pass.
-   When you change `warden/` (the Rust guard, decision 0014), `cd warden && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test` must pass too.
+   When you change `warden/` (the Rust guard, decision 0014), `cd warden && cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` must pass too.
 6. **Docs with the change.** The README when the overview changes,
    `docs/ENGINEERING.md` when the architecture changes, `ROADMAP.md` when an
    idea is done or added, a decision record in `docs/adr/` for a significant
@@ -120,7 +120,7 @@ uv run ruff check . && uv run ruff format --check . && uv run pyright && uv run 
 uv run pytest       # tests only
 uv run ruff check .       # lint
 uv run ruff format .     # format
-(cd warden && cargo test)   # the Rust guard's tests
+(cd warden && cargo test --workspace)   # the Rust guard's tests
 sh scripts/setup-hooks.sh   # install the git hooks (once per clone)
 nix develop              # the toolchains of every component (or direnv allow)
 ```
