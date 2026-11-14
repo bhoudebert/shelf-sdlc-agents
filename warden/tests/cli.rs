@@ -86,7 +86,7 @@ fn explain_says_when_an_ask_became_a_deny() {
 
 #[test]
 fn test_passes_the_shipped_corpora() {
-    for file in ["guarded.toml", "unattended.toml"] {
+    for file in ["guarded.toml", "unattended.toml", "evasion.toml"] {
         let output = warden(&["test", &corpus(file)]);
         assert!(output.status.success(), "{file}: {}{}", stdout(&output), stderr(&output));
         assert!(stdout(&output).contains("cases as expected"), "{}", stdout(&output));

@@ -107,7 +107,7 @@ The system SHALL turn an ask into a deny, with a note saying nobody is there to 
 
 ### Requirement: A command line is read as bash, every command inside it found
 
-The system SHALL read a shell command line with a complete bash parser and judge every simple command in it: those behind pipes, lists, subshells, blocks, loops and conditions; those inside `$(...)`, backticks and `<(...)`; those in the string of `bash -c`, `sh -c` and the like, and in the arguments of `eval`; and those behind `sudo`, `doas`, `env`, `nohup`, `nice`, `timeout`, `xargs`, `command`, `exec` and `find -exec`.
+The system SHALL read a shell command line with a complete bash parser and judge every simple command in it: those behind pipes, lists, subshells, blocks, loops and conditions; those inside `$(...)`, backticks and `<(...)`; those in the string of `bash -c`, `sh -c` and the like, and in the arguments of `eval`; and those behind `sudo`, `doas`, `env`, `nohup`, `nice`, `timeout`, `xargs`, `command`, `exec`, `flock`, `watch`, `strace`, `ltrace`, `unshare`, `chroot`, `busybox` and `find -exec`.
 
 #### Scenario: Nested commands
 
@@ -118,6 +118,11 @@ The system SHALL read a shell command line with a complete bash parser and judge
 
 - **WHEN** the line is `sudo -u root rm -rf /tmp/x`
 - **THEN** both `sudo` and `rm` are judged
+
+#### Scenario: Behind a lock
+
+- **WHEN** the line is `flock -w 5 /tmp/l kubectl delete ns prod`
+- **THEN** both `flock` and `kubectl` are judged and the call needs a person's approval
 
 #### Scenario: A name that is only known later
 
