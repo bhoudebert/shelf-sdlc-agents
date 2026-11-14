@@ -190,3 +190,10 @@ def test_a_check_that_cannot_run_does_not_fail_the_script(server: Path) -> None:
     done = run(server)
     assert done.returncode == 0
     assert "Guard: Warden is wired" not in done.stdout
+
+
+def test_the_web_service_reads_the_guards_log_but_cannot_change_it() -> None:
+    compose = (Path(__file__).parents[2] / "deploy" / "compose.yml").read_text()
+    web = compose.split("\n  web:\n", 1)[1].split("\n  worker:\n", 1)[0]
+    assert "WARDEN_STATE_DIR: /var/lib/warden" in web
+    assert "- warden-state:/var/lib/warden:ro" in web

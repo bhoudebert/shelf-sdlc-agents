@@ -1,0 +1,59 @@
+# What the shelf profile decides: an agent delivers by a pull request that a person merges.
+# Run with: warden test corpus/shelf.toml --profile shelf
+profile = "shelf"
+
+[[case]]
+cmd = "git push origin main"
+expect = "deny"
+
+[[case]]
+cmd = "git push origin HEAD:main"
+expect = "deny"
+
+[[case]]
+cmd = "git push origin feat/x:refs/heads/master"
+expect = "deny"
+
+[[case]]
+cmd = "git push -f origin main"
+expect = "deny"
+
+[[case]]
+cmd = "git push -u origin feat/maintenance"
+expect = "allow"
+
+[[case]]
+cmd = "git push origin feat/x"
+expect = "allow"
+
+[[case]]
+cmd = "gh pr merge 3 --squash"
+expect = "deny"
+
+[[case]]
+cmd = "gh pr review 3 --approve"
+expect = "deny"
+
+[[case]]
+cmd = "gh pr review 3 --comment -b ok"
+expect = "allow"
+
+[[case]]
+cmd = "gh workflow run deploy.yml"
+expect = "deny"
+
+[[case]]
+cmd = "gh api -X PUT repos/a/b/pulls/3/merge"
+expect = "deny"
+
+[[case]]
+cmd = "gh api repos/a/b/pulls/3"
+expect = "allow"
+
+[[case]]
+cmd = "gh pr create --fill"
+expect = "allow"
+
+[[case]]
+cmd = "git commit -m x"
+expect = "allow"
