@@ -217,6 +217,20 @@ The system SHALL judge the reading of a credential file, the writing of a protec
 - **WHEN** an unattended policy judges a write to `/etc/claude-code/managed-settings.json`
 - **THEN** it is denied
 
+### Requirement: An agent does not merge, approve or publish to the default branch
+
+The system SHALL treat as publishing a `git push` whose target is `main`, `master` or `trunk` (in any form, `HEAD:main` and `refs/heads/master` included), `gh pr merge`, `gh workflow run`, `gh pr review --approve` and a `gh api` call to a merge endpoint, so that the work reaches the default branch only through a pull request a person merges; a push of any other branch SHALL stay allowed.
+
+#### Scenario: Pushing to main
+
+- **WHEN** an agent runs `git push origin HEAD:main`
+- **THEN** the call is treated as publishing and, with nobody to ask, denied
+
+#### Scenario: Pushing a topic branch
+
+- **WHEN** an agent runs `git push -u origin feat/maintenance`
+- **THEN** the call is allowed
+
 ### Requirement: `warden explain` shows how a command is judged
 
 The system SHALL print, for a command line, the line, the rewrite if any, the profile, the mode and whether an ask is possible, each finding with its category and decision, the rule that decided, the notes, the decision and its reason, and whether the output would run through the redactor.
