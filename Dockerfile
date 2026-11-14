@@ -8,6 +8,14 @@ RUN uv sync --frozen --no-dev --no-install-project
 COPY src ./src
 RUN uv sync --frozen --no-dev
 
+# Warden, the guard around every agent (decision 0014), built from the same commit as the rest of the image.
+FROM rust:1.89-slim-bookworm AS warden
+WORKDIR /w
+COPY warden ./warden
+RUN --mount=type=cache,target=/usr/local/cargo/registry --mount=type=cache,target=/w/warden/target \
+    cargo build --release --locked --manifest-path warden/Cargo.toml \
+ && install -m 0755 warden/target/release/warden /usr/local/bin/warden
+
 FROM python:3.13-slim
 # git clones and pushes as the App; bubblewrap, socat and ripgrep are what Claude Code's sandbox needs.
 RUN apt-get update \
@@ -64,6 +72,9 @@ RUN case "$TARGETARCH" in \
  && tar -xzf /tmp/rtk.tgz -C /tmp rtk \
  && install -m 0755 /tmp/rtk /usr/local/bin/rtk \
  && rm -f /tmp/rtk.tgz /tmp/rtk
+COPY --from=warden /usr/local/bin/warden /usr/local/bin/warden
+# Warden keeps its audit log and its session tokens here; a volume mounted on it inherits the agent user's ownership.
+RUN mkdir -p /var/lib/warden && chown shelf:shelf /var/lib/warden
 # Where the synced catalog and the managed policy are mounted: owned by the agent user, so a new volume is writable by the sync.
 RUN mkdir -p /opt/shelf/catalog /etc/claude-code && chown shelf:shelf /opt/shelf/catalog /etc/claude-code
 COPY --from=build --chown=shelf:shelf /app /app

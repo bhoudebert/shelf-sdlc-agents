@@ -9,3 +9,4 @@ tests
 .env
 deploy/.env
 deploy/secrets
+warden/target

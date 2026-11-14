@@ -14,6 +14,8 @@
 <main id="main" class="doc"><h1>Security model</h1><p class="lead">What the system is designed to guarantee, and where the limits are.</p>
 <h2 id="tokens">Installation tokens</h2>
 <p>Access to a repository uses short-lived GitHub App installation tokens. A token is minted for each step and never stored.</p>
+<h2 id="warden">A guard around every agent</h2>
+<p>Every agent runs under Warden, which checks each command, file access and fetch before it runs, keeps secrets and personal data off the model and logs every decision in a hash chain. The operator&rsquo;s policy is locked: a repository can only tighten it. It reads text and is not a sandbox: <a href="limits.html#warden">Limits</a> says what it does not cover. <a href="configuration.html#warden">Configuration</a> shows how to tune it.</p>
 <h2 id="clones">Each step has its own clone</h2>
 <p>Each step runs in a fresh clone of the repository, and the worker does the commit and the push. Agents are not yet isolated from the worker or from each other, so a clone is a convention and not a wall. <a href="limits.html#isolation">Limits</a> says what that means and how it will be closed.</p>
 <h2 id="access">Access list</h2>

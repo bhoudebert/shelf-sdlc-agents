@@ -38,6 +38,27 @@ What this means for you:
   They no longer see the worker's secrets or the model credential in their environment, but they still run on the worker's
   filesystem, where the App key file is mounted. Only configure repositories whose `checks` you trust.
 
+### Warden checks every call, and is not a wall
+
+Every agent now runs under Warden, a guard that is called before each command, file access and fetch (through Claude Code's
+managed hooks, which a repository cannot override). It refuses what the active profile refuses (`shelf` by default: running
+downloaded or decoded text, sending data away, reading credentials, tampering with the agents' own configuration, `sudo`,
+destructive commands outside the clone, a credential on a command line), runs allowed commands so that secrets and personal data
+in their output become tokens, and logs every decision in a hash chain you can verify (`warden audit verify`). The operator's
+`config/warden.toml` is a locked layer: a repository can tighten it with its own `.warden/policy.toml` and never loosen it.
+
+What it does not do, and you should not assume:
+
+- It reads text. A program an agent writes and then runs can open any socket or read any file the worker can; Warden does not see
+  inside it. The container, the sandbox and the allowlist above stay the perimeter, and the isolation plan below stays needed.
+- A repository's `checks` run through the worker, outside any agent hook.
+- Redaction is pattern-based. A short password, a key in a format nobody has seen and a name nobody listed go through; the
+  operator's names and patterns in `config/warden.toml` are how you cover your own data.
+- Whether Claude Code's sandbox lets a sandboxed command remember its tokens between commands (`WARDEN_SESSION_DIR`) has not been
+  verified on a real worker. If it cannot, redaction still works but a token is not restored when an agent writes it into a file.
+- Warden has not yet run inside a real Claude Code session against a real model. The tests run its hook with real payloads; the first
+  real task is the test. Set `SHELF_WARDEN_PROFILE=observe` for a first week to see what it would refuse without refusing anything.
+
 ### The plan
 
 Proposed in a [decision record](adr/) on running each agent step in its own container (not yet accepted). In order:

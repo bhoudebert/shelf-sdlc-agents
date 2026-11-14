@@ -50,6 +50,22 @@ use = [&quot;superpowers&quot;]
 use = [&quot;superpowers&quot;, &quot;gdpr&quot;]</code></pre>
 <p>The roles are <code>intake</code>, <code>spec_critic</code>, <code>architect</code>, <code>design_reviewer</code>, <code>planner</code>, <code>implementer</code>, <code>code_reviewer</code> and <code>titler</code>. An edit of the bindings applies without a restart. A name the catalog does not have is skipped with a warning in the worker's log.</p>
 <p>Every agent also starts with telemetry and Claude Code's automatic memory off, so nothing one step learns is carried into another.</p>
+<h2 id="warden">Warden: the guard around every agent</h2>
+<p>Every agent runs under <strong>Warden</strong>, which the image builds from the same commit. It is called before each command, file access and fetch, through the managed policy that <code>shelf-catalog sync</code> writes (so a repository&rsquo;s own settings cannot remove it). It denies what the profile denies, runs allowed commands through a redactor (secrets and personal data become tokens such as <code>&lt;EMAIL_1&gt;</code>, restored when an agent writes them into a file) and logs every decision. If Warden itself fails, the call is refused.</p>
+<pre><code># deploy/.env
+SHELF_WARDEN_PROFILE=shelf     # shelf (default), strict, or observe: log only, block nothing
+SHELF_WARDEN=on                # off: no guard (then run install.sh again)</code></pre>
+<p><code>deploy/config/warden.toml</code> (created from <code>warden.toml.example</code>, every line commented) is your policy. It is loaded as a <strong>locked</strong> layer: a repository can add rules and protect more files in its own <code>.warden/policy.toml</code>, and can never loosen yours.</p>
+<pre><code>[[rules]]
+id = &quot;no-prod&quot;
+match = 'kubectl .*--context[= ]prod'
+decision = &quot;deny&quot;
+reason = &quot;production is hands-off for agents&quot;
+
+[redact.pii]
+names = [&quot;Acme Corp&quot;]
+custom = [{ name = &quot;customer_id&quot;, pattern = 'CUST-\d{6}' }]</code></pre>
+<p>To see it work, from <code>deploy/</code>: <code>docker compose exec worker warden policy</code> (what is in force), <code>warden explain '&lt;command&gt;'</code> (how one command is judged), <code>warden status</code> (what it refused and redacted) and <code>warden audit verify</code> (the log has not been changed). Start with <code>observe</code> for a week: it logs what it would have refused and refuses nothing. What Warden is not, in <a href="limits.html#warden">Limits</a>.</p>
 <h2 id="repo">.shelf/config.toml (per repository)</h2>
 <p>Lives in the repository, so changes to who may do what are reviewed like any other change. Every key is optional.</p>
 <pre><code># .shelf/config.toml

@@ -49,6 +49,10 @@ class Hook:
     event: str
     command: str
     matcher: str = ""
+    timeout: int | None = None
+    """Seconds the agent waits for the command; unset leaves the agent's default."""
+    on_failure: str = ""
+    """``block`` makes a failing command refuse the call it guards; empty lets the call through."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -162,13 +166,42 @@ def marketplace(plugins: Sequence[Source]) -> dict[str, Any]:
     }
 
 
+GUARD_EVENTS = ("PreToolUse", "PostToolUse", "UserPromptSubmit", "SessionStart", "Stop")
+"""The events Warden listens to."""
+
+GUARD_TOOL_EVENTS = frozenset({"PreToolUse", "PostToolUse"})
+"""The events that name a tool, and so take a matcher."""
+
+GUARD_TIMEOUT = 20
+"""Seconds an agent waits for one Warden hook."""
+
+
+def guard_hooks(binary: str) -> tuple[Hook, ...]:
+    """Warden's hooks for every agent: they block the call when Warden itself fails, and the operator's come after."""
+    return tuple(
+        Hook(
+            event,
+            f"{binary} hook claude {event}",
+            "*" if event in GUARD_TOOL_EVENTS else "",
+            timeout=GUARD_TIMEOUT,
+            on_failure="block",
+        )
+        for event in GUARD_EVENTS
+    )
+
+
 def managed_policy(plugins: Sequence[Source], hooks: Sequence[Hook], runtime_dir: str) -> dict[str, Any]:
     """The managed policy: only managed hooks run (the operator's and the plugins'), plugins from the marketplace."""
     policy: dict[str, Any] = {"allowManagedHooksOnly": True}
     if hooks:
         events: dict[str, list[dict[str, Any]]] = {}
         for hook in hooks:
-            group: dict[str, Any] = {"hooks": [{"type": "command", "command": hook.command}]}
+            entry: dict[str, Any] = {"type": "command", "command": hook.command}
+            if hook.timeout is not None:
+                entry["timeout"] = hook.timeout
+            if hook.on_failure:
+                entry["onFailure"] = hook.on_failure
+            group: dict[str, Any] = {"hooks": [entry]}
             if hook.matcher:
                 group["matcher"] = hook.matcher
             events.setdefault(hook.event, []).append(group)
