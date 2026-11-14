@@ -46,7 +46,7 @@ packages = ["src/shelf"]
 [tool.ruff]
 line-length = 120
 src = ["src", "tests"]
-extend-exclude = [".claude"]
+extend-exclude = [".claude", "warden"]
 target-version = "py313"
 
 [tool.ruff.lint]

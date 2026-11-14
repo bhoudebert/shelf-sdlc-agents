@@ -194,7 +194,8 @@
         "warden/src/**",
         "warden/crates/**",
         "warden/tests/**",
-        "warden/corpus/**"
+        "warden/corpus/**",
+        "warden/live/**"
       ]
     }
   }
