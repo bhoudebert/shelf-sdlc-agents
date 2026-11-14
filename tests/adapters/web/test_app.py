@@ -862,7 +862,7 @@ def test_the_start_form_shows_the_stops_of_the_repository_and_says_what_removing
     page = app.client.get("/start").text
     for name in ("spec_approval", "design_review"):
         assert "checked" in box(page, name)
-    assert "checked" not in box(page, "proceed_on_deadlock")
+    assert "checked" in box(page, "stop_on_deadlock")
     assert "less control and potentially less quality" in page
     assert "autonomy-warning" in page
     assert "never merged without you" in page
@@ -875,7 +875,7 @@ def test_the_boxes_start_from_the_policy_of_the_repository() -> None:
     page = app.client.get("/start").text
     assert "checked" not in box(page, "spec_approval")
     assert "checked" in box(page, "design_review")
-    assert "checked" in box(page, "proceed_on_deadlock")
+    assert "checked" not in box(page, "stop_on_deadlock")
 
 
 def test_picking_another_repository_reloads_the_boxes_with_its_values() -> None:
@@ -890,7 +890,7 @@ def test_a_repository_the_person_cannot_see_gets_the_strictest_boxes_from_the_fr
     app.sign_in()
     fragment = app.client.get("/start/autonomy", params={"repo": "acme/secret"}).text
     assert "checked" in box(fragment, "spec_approval")
-    assert "checked" not in box(fragment, "proceed_on_deadlock")
+    assert "checked" in box(fragment, "stop_on_deadlock")
 
 
 def test_the_fragment_needs_a_signed_in_person(app: Fixture) -> None:
@@ -902,7 +902,7 @@ def test_the_fragment_needs_a_signed_in_person(app: Fixture) -> None:
 
 def test_what_the_form_shows_is_what_the_work_starts_with(app: Fixture) -> None:
     app.sign_in()
-    data = {"repo": "acme/shop", "entry": "need", "text": "x", "autonomy_form": "1", "proceed_on_deadlock": "1"}
+    data = {"repo": "acme/shop", "entry": "need", "text": "x", "autonomy_form": "1"}
     assert app.client.post("/start", data=data).status_code == 303
     assert app.runner.started[-1].autonomy == Autonomy(
         spec_approval=False, design_review=False, proceed_on_deadlock=True
@@ -917,7 +917,22 @@ def test_a_start_that_does_not_show_the_boxes_leaves_the_repositorys_policy(app:
 
 def test_a_refused_start_keeps_the_repository_and_the_choices(app: Fixture) -> None:
     app.sign_in()
-    data = {"repo": "acme/shop", "entry": "need", "text": " ", "autonomy_form": "1", "proceed_on_deadlock": "1"}
+    data = {"repo": "acme/shop", "entry": "need", "text": " ", "autonomy_form": "1"}
     page = app.client.post("/start", data=data).text
-    assert "checked" in box(page, "proceed_on_deadlock")
+    assert "checked" not in box(page, "stop_on_deadlock")
     assert "checked" not in box(page, "spec_approval")
+
+
+def test_every_box_is_worded_so_that_checked_means_more_control(app: Fixture) -> None:
+    app.sign_in()
+    page = app.client.get("/start").text
+    assert "Stop and ask me when a spec or design review cannot settle" in page
+    assert "proceed_on_deadlock" not in page
+
+
+def test_leaving_all_three_boxes_checked_is_the_fully_attended_choice(app: Fixture) -> None:
+    app.sign_in()
+    data = {"repo": "acme/shop", "entry": "need", "text": "x", "autonomy_form": "1"}
+    data |= {"spec_approval": "1", "design_review": "1", "stop_on_deadlock": "1"}
+    assert app.client.post("/start", data=data).status_code == 303
+    assert app.runner.started[-1].autonomy == Autonomy.strictest()

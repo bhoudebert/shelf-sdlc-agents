@@ -14,9 +14,9 @@
     <span class="choice-help">Unchecked: an agent no longer checks the design before the plan.</span></span>
   </label>
   <label class="choice">
-    <input type="checkbox" name="proceed_on_deadlock" value="1"{% if autonomy.proceed_on_deadlock %} checked{% endif %}>
-    <span class="choice-body"><span class="choice-label">Go on when a spec or design review cannot settle</span>
-    <span class="choice-help">Checked: the work does not wait for you when the writer and the reviewer disagree for good. What stayed open is posted on the pull request, and the agents write their assumptions down. A failing check or a code review that cannot decide still waits for you.</span></span>
+    <input type="checkbox" name="stop_on_deadlock" value="1"{% if not autonomy.proceed_on_deadlock %} checked{% endif %}>
+    <span class="choice-body"><span class="choice-label">Stop and ask me when a spec or design review cannot settle</span>
+    <span class="choice-help">Unchecked: the work does not wait for you when the writer and the reviewer disagree for good. What stayed open is posted on the pull request, and the agents write their assumptions down. A failing check or a code review that cannot decide still waits for you.</span></span>
   </label>
   </div>
   <p class="autonomy-warning" role="note"><strong>Less control.</strong> Nobody will be asked at the stops you removed, so the spec or design can reach the pull request with open points or unchecked assumptions. Read them on the pull request before you merge.</p>
