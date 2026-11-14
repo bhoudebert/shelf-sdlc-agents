@@ -79,6 +79,9 @@ enum Command {
         /// Only this session.
         #[arg(long)]
         session: Option<String>,
+        /// Only the records of this period before now: `30m`, `12h` or `7d`.
+        #[arg(long, value_parser = parse_since)]
+        since: Option<std::time::Duration>,
         /// The log directory, in place of the policy's.
         #[arg(long)]
         dir: Option<PathBuf>,
@@ -93,6 +96,9 @@ enum Command {
         /// Only this session.
         #[arg(long)]
         session: Option<String>,
+        /// Only the records of this period before now: `30m`, `12h` or `7d`.
+        #[arg(long, value_parser = parse_since)]
+        since: Option<std::time::Duration>,
         /// The log directory, in place of the policy's.
         #[arg(long)]
         dir: Option<PathBuf>,
@@ -189,6 +195,26 @@ fn parse_agent(text: &str) -> Result<install::Agent, String> {
         "codex" => Ok(install::Agent::Codex),
         other => Err(format!("unknown agent {other:?}: claude, opencode, copilot or codex")),
     }
+}
+
+/// `30m`, `12h`, `7d`.
+fn parse_since(text: &str) -> Result<std::time::Duration, String> {
+    let refused = || format!("{text:?} is not a period: write a whole number and m, h or d, such as 30m, 12h or 7d");
+    let unit = text.chars().last().ok_or_else(refused)?;
+    let seconds = match unit {
+        'm' => 60,
+        'h' => 3_600,
+        'd' => 86_400,
+        _ => return Err(refused()),
+    };
+    let number: u64 = text[..text.len() - 1].parse().map_err(|_| refused())?;
+    number.checked_mul(seconds).map(std::time::Duration::from_secs).ok_or_else(refused)
+}
+
+/// The time `period` before now, as the log writes it.
+fn since_of(period: Option<std::time::Duration>) -> Option<String> {
+    let period = period?;
+    Some(warden_audit::rfc3339(std::time::SystemTime::now().checked_sub(period).unwrap_or(std::time::UNIX_EPOCH)))
 }
 
 fn parse_profile(text: &str) -> Result<Profile, String> {
@@ -322,19 +348,32 @@ fn policy_command(from: &Where) -> Outcome {
     Ok(ExitCode::SUCCESS)
 }
 
-fn status_command(all: bool, n: usize, session: Option<String>, dir: Option<PathBuf>, from: &Where) -> Outcome {
+fn status_command(
+    all: bool,
+    n: usize,
+    session: Option<String>,
+    since: Option<std::time::Duration>,
+    dir: Option<PathBuf>,
+    from: &Where,
+) -> Outcome {
     let log = audit_log(from, dir)?;
     let records = log
-        .read(&warden_audit::Filter { session, last: None })
+        .read(&warden_audit::Filter { session, since: since_of(since), ..warden_audit::Filter::default() })
         .map_err(|error| format!("{}: {error}", log.dir().display()))?;
     print!("{}", report::status(&records, all, n));
     Ok(ExitCode::SUCCESS)
 }
 
-fn report_command(json: bool, session: Option<String>, dir: Option<PathBuf>, from: &Where) -> Outcome {
+fn report_command(
+    json: bool,
+    session: Option<String>,
+    since: Option<std::time::Duration>,
+    dir: Option<PathBuf>,
+    from: &Where,
+) -> Outcome {
     let log = audit_log(from, dir)?;
     let records = log
-        .read(&warden_audit::Filter { session, last: None })
+        .read(&warden_audit::Filter { session, since: since_of(since), ..warden_audit::Filter::default() })
         .map_err(|error| format!("{}: {error}", log.dir().display()))?;
     print!("{}", if json { report::adoption_json(&records) } else { report::adoption(&records) });
     Ok(ExitCode::SUCCESS)
@@ -460,8 +499,10 @@ fn run(cli: Cli) -> Outcome {
         }
         Some(Command::Explain { command, from }) => explain_command(&command, &from),
         Some(Command::Policy { from }) => policy_command(&from),
-        Some(Command::Status { all, n, session, dir, from }) => status_command(all, n, session, dir, &from),
-        Some(Command::Report { json, session, dir, from }) => report_command(json, session, dir, &from),
+        Some(Command::Status { all, n, session, since, dir, from }) => {
+            status_command(all, n, session, since, dir, &from)
+        }
+        Some(Command::Report { json, session, since, dir, from }) => report_command(json, session, since, dir, &from),
         Some(Command::Init { global, repo, managed, profile, dry_run, agent }) => {
             init_command(global, repo, managed, profile, dry_run, agent)
         }

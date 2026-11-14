@@ -329,6 +329,20 @@ The system SHALL print, for the log in the policy's audit directory, `$WARDEN_ST
 - **WHEN** the log holds no record
 - **THEN** the report says there is nothing to report yet
 
+### Requirement: `status` and `report` can look at a recent period
+
+The system SHALL accept `--since <duration>` on `warden status` and `warden report`, a whole number followed by `m` (minutes), `h` (hours) or `d` (days), and then read only the records written in that period before now; and SHALL refuse any other form with a message that shows the accepted ones and exit with status 2.
+
+#### Scenario: Overnight
+
+- **WHEN** the log holds a record from three days ago and one from a minute ago and a person runs `warden report --since 12h`
+- **THEN** the report counts one call
+
+#### Scenario: A duration that cannot be read
+
+- **WHEN** a person runs `warden status --since tomorrow`
+- **THEN** the command refuses it, shows `30m`, `12h` and `7d` as examples and exits with status 2
+
 ### Requirement: `warden report --json` gives the report to a program
 
 The system SHALL, with `--json`, print the report as one JSON object with the keys `records`, `calls`, `would_stop`, `by_category` (a map of category to count), `by_decision` (a map of the labels `status` shows to count) and `redactions` (a map of kind to count), and nothing else, also for an empty log, where every number is zero.
