@@ -66,6 +66,20 @@ The system SHALL let a policy turn off the spec approval and the design review, 
 - **WHEN** a policy allows fewer than one round
 - **THEN** it is refused
 
+### Requirement: A policy may let work go on past a review that cannot settle
+
+The system SHALL carry in the course whether the policy lets work go on past a spec or design review that cannot settle, SHALL let a person's choices for one piece of work replace the policy's spec approval, design review and that choice while keeping the policy's round limit, and SHALL default to waiting.
+
+#### Scenario: The default
+
+- **WHEN** a course is built from a policy that says nothing about it
+- **THEN** the course waits at a deadlock
+
+#### Scenario: A person's choices replace three of the policy
+
+- **WHEN** a person chose no spec approval, no design review and going on past a deadlock for a repository allowing five rounds
+- **THEN** the course has none of those two phases, goes on past a deadlock and allows five rounds
+
 ### Requirement: Only work without a pull request publishes one
 
 The system SHALL publish a pull request for work that arrives without one, and SHALL NOT for work that starts from an existing pull request, whether to review it or to change it.
