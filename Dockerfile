@@ -9,7 +9,7 @@ COPY src ./src
 RUN uv sync --frozen --no-dev
 
 # Warden, the guard around every agent (decision 0014), built from the same commit as the rest of the image.
-FROM rust:1.89-slim-bookworm AS warden
+FROM rust:1.99-slim-bookworm AS warden
 WORKDIR /w
 COPY warden ./warden
 RUN --mount=type=cache,target=/usr/local/cargo/registry --mount=type=cache,target=/w/warden/target \
