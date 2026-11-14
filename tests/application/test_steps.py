@@ -12,6 +12,7 @@ from shelf.domain.config import RepoConfig
 from shelf.domain.context_repo import ContextRepo
 from shelf.domain.model import PullInfo, RepoRef, WorkContext, WorkId, WorkRequest
 from shelf.domain.pipeline import EntryPoint, Phase
+from shelf.domain.policy import Autonomy
 from shelf.domain.result import Err, Ok
 from shelf.domain.story import agent_comment
 from shelf.domain.work import WAITING_FOR_CI, Produced, Reviewed, RunStep, Verdict, Verified
@@ -571,3 +572,16 @@ async def test_a_repository_that_cannot_be_copied_stops_the_step_with_why() -> N
 async def test_a_work_that_reads_repositories_on_an_instance_that_cannot_stops_the_step() -> None:
     with pytest.raises(RuntimeError, match="cannot read any"):
         await steps().run(on_context("foo/bar"), RunStep(Phase.INTAKE, 0, ""))
+
+
+def test_agents_of_work_that_goes_on_past_a_deadlock_are_told_nobody_will_answer() -> None:
+    request = WorkRequest(REPO, "alice", EntryPoint.NEED, "loyalty points", autonomy=Autonomy(True, True, True))
+    prompt = task_prompt(WorkContext(WorkId("work-1"), request), RunStep(Phase.INTAKE, 0, ""))
+    assert "Nobody is available to answer" in prompt
+    assert "`Assumptions` heading" in prompt
+
+
+def test_other_agents_get_no_such_note() -> None:
+    assert "Nobody is available" not in task_prompt(NEED, RunStep(Phase.INTAKE, 0, ""))
+    asked = WorkRequest(REPO, "alice", EntryPoint.NEED, "x", autonomy=Autonomy.strictest())
+    assert "Nobody is available" not in task_prompt(WorkContext(WorkId("w"), asked), RunStep(Phase.INTAKE, 0, ""))

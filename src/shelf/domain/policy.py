@@ -1,6 +1,6 @@
 """How a piece of work is configured to run, and the course that results for an entry point."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from shelf.domain.pipeline import FIRST_PHASE, PIPELINE, EntryPoint, Phase
 
@@ -15,12 +15,47 @@ class Policy:
     """Whether a person must approve the spec before the design starts."""
     design_review: bool = True
     """Whether a reviewer checks the design before the plan."""
+    proceed_on_deadlock: bool = False
+    """Whether work goes on, open issues posted, when the spec or design review cannot settle (ADR 0013)."""
 
     def __post_init__(self) -> None:
         """Reject a policy that would never allow a loop."""
         if self.max_rounds < 1:
             message = "max_rounds must be at least 1"
             raise ValueError(message)
+
+
+@dataclass(frozen=True, slots=True)
+class Autonomy:
+    """How much one piece of work does without a person: what a person chose when starting it."""
+
+    spec_approval: bool
+    design_review: bool
+    proceed_on_deadlock: bool
+
+    @classmethod
+    def strictest(cls) -> "Autonomy":
+        """The choice that asks a person the most: the approval, the design review, and a wait at every deadlock."""
+        return cls(spec_approval=True, design_review=True, proceed_on_deadlock=False)
+
+    @classmethod
+    def of(cls, policy: Policy) -> "Autonomy":
+        """What a repository's policy says."""
+        return cls(policy.spec_approval, policy.design_review, policy.proceed_on_deadlock)
+
+    def over(self, policy: Policy) -> Policy:
+        """``policy`` with these three choices in place of its own; the round limit stays the repository's."""
+        return replace(
+            policy,
+            spec_approval=self.spec_approval,
+            design_review=self.design_review,
+            proceed_on_deadlock=self.proceed_on_deadlock,
+        )
+
+    @property
+    def removes_a_stop(self) -> bool:
+        """Whether this asks a person less than the strictest choice does."""
+        return not self.spec_approval or not self.design_review or self.proceed_on_deadlock
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,6 +68,8 @@ class Course:
     """False when the work arrived with a pull request of its own."""
     adopts_pull_request: bool = False
     """True when the work changes the branch of a pull request that already exists (protocol 5 and later)."""
+    proceeds_on_deadlock: bool = False
+    """True when a spec or design review that cannot settle lets the work go on, its open issues posted."""
     protocol: int = 1
     """How this piece of work behaves, fixed when it starts. Work already running keeps the behaviour it started with,
     so a new release never changes what a replayed history does: see ``CURRENT_PROTOCOL``."""
@@ -116,5 +153,6 @@ def course_for(entry: EntryPoint, policy: Policy, protocol: int = CURRENT_PROTOC
         max_rounds=policy.max_rounds,
         publishes_pull_request=entry not in (EntryPoint.PULL_REQUEST_REVIEW, EntryPoint.PULL_REQUEST_WORK),
         adopts_pull_request=entry is EntryPoint.PULL_REQUEST_WORK,
+        proceeds_on_deadlock=policy.proceed_on_deadlock,
         protocol=protocol,
     )

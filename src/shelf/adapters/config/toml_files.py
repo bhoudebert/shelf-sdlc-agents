@@ -78,7 +78,7 @@ def parse_repo_config(text: str) -> RepoConfig:
     document = _load(text)
     _only("shelf", document, {"entries", "base_branch", "checks", "policy", "roles"})
     policy = document.get("policy", {})
-    _only("policy", policy, {"max_rounds", "spec_approval", "design_review"})
+    _only("policy", policy, {"max_rounds", "spec_approval", "design_review", "proceed_on_deadlock"})
     roles = document.get("roles", {})
     try:
         entries = frozenset(EntryPoint(name) for name in document.get("entries", [e.value for e in EntryPoint]))
