@@ -3,8 +3,9 @@ import logging
 from pathlib import Path
 
 import pytest
+from claude_agent_sdk import ResultMessage
 
-from shelf.adapters.claude_agent.backend import AgentFailedError, ClaudeBackend, options_for
+from shelf.adapters.claude_agent.backend import AgentFailedError, ClaudeBackend, options_for, step_summary
 from shelf.adapters.claude_agent.prompts import load_prompt
 from shelf.domain.pipeline import Phase
 from shelf.domain.roles import ROLES
@@ -163,3 +164,32 @@ def test_without_a_catalog_or_bindings_agents_start_with_no_extra_plugin(tmp_pat
     assert ClaudeBackend(catalog_dir=tmp_path).options(task(Phase.IMPLEMENT)).plugins == []
     empty = ClaudeBackend(catalog_dir=tmp_path / "absent", bindings=lambda _role: ("superpowers",))
     assert empty.options(task(Phase.IMPLEMENT)).plugins == []
+
+
+def _result(**changes: object) -> ResultMessage:
+    fields: dict[str, object] = {
+        "subtype": "success",
+        "duration_ms": 94_000,
+        "duration_api_ms": 80_000,
+        "is_error": False,
+        "num_turns": 12,
+        "session_id": "s",
+        "total_cost_usd": 0.4213,
+        "result": "the secret answer",
+    }
+    return ResultMessage(**{**fields, **changes})  # pyright: ignore[reportArgumentType]
+
+
+def test_a_finished_step_is_summarised_in_one_line_without_its_answer() -> None:
+    line = step_summary("code_reviewer", _result())
+    assert line == "agent step finished: role=code_reviewer turns=12 seconds=94 cost=$0.4213"
+    assert "secret" not in line
+
+
+def test_a_missing_cost_is_unknown_not_zero() -> None:
+    assert "cost=unknown" in step_summary("planner", _result(total_cost_usd=None))
+
+
+def test_refused_tool_calls_are_counted_when_there_are_any() -> None:
+    line = step_summary("implementer", _result(permission_denials=[{"tool_name": "Bash"}, {"tool_name": "Bash"}]))
+    assert line.endswith("refused_tool_calls=2")

@@ -50,3 +50,9 @@ def test_only_the_strictest_choice_removes_no_stop() -> None:
     assert Autonomy(False, True, False).removes_a_stop
     assert Autonomy(True, False, False).removes_a_stop
     assert Autonomy(True, True, True).removes_a_stop
+
+
+def test_the_stops_a_policy_removes_are_named_in_a_fixed_order() -> None:
+    assert Policy().removed_stops() == ()
+    assert Policy(design_review=False, spec_approval=False).removed_stops() == ("spec", "design")
+    assert Policy(proceed_on_deadlock=True).removed_stops() == ("deadlock",)

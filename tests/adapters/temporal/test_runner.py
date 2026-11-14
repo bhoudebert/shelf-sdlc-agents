@@ -218,3 +218,15 @@ async def test_what_the_person_chose_at_the_start_beats_the_repositorys_file(env
         await _until(runner, work_id, lambda v: v.waiting_for is Reason.MERGE)
     assert Phase.DESIGN_REVIEW not in {step.phase for step in steps.ran}
     assert Phase.PLAN in {step.phase for step in steps.ran}
+
+
+async def test_the_board_says_which_stops_a_run_does_without(env: WorkflowEnvironment) -> None:
+    runner = runner_for(env, FakeConfigs({REPO: RepoConfig(policy=Policy())}))
+    chosen = Autonomy(spec_approval=False, design_review=True, proceed_on_deadlock=True)
+    async with worker(env, FakeSteps(), FakePulls()):
+        work_id = await runner.start(WorkRequest(REPO, "alice", EntryPoint.NEED, "x", autonomy=chosen))
+        board = await _until(runner, work_id, lambda v: v.waiting_for is not None)
+        kept = await runner.start(WorkRequest(REPO, "alice", EntryPoint.NEED, "y", autonomy=Autonomy.strictest()))
+        plain = await _until(runner, kept, lambda v: v.waiting_for is not None)
+    assert board.unattended == ("spec", "deadlock")
+    assert plain.unattended == ()
