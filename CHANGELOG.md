@@ -1,5 +1,72 @@
 # Changelog
 
+## [0.2.0](https://github.com/bhoudebert/shelf-sdlc-agents/compare/v0.1.0...v0.2.0) (2026-11-14)
+
+
+### Features
+
+* **agents:** log what each agent step cost ([#116](https://github.com/bhoudebert/shelf-sdlc-agents/issues/116)) ([ecb8278](https://github.com/bhoudebert/shelf-sdlc-agents/commit/ecb82784ec2083ff372623d6be85c2e513eb95d9))
+* **catalog:** give agents the operator's pinned skills and plugins ([#84](https://github.com/bhoudebert/shelf-sdlc-agents/issues/84)) ([b56d36f](https://github.com/bhoudebert/shelf-sdlc-agents/commit/b56d36fc2065384de8289d3ef2ed5f9f2287cec1))
+* **catalog:** guard every agent with Warden ([#98](https://github.com/bhoudebert/shelf-sdlc-agents/issues/98)) ([a442649](https://github.com/bhoudebert/shelf-sdlc-agents/commit/a442649664d9c7fb0cd75ee76ea65177178b0a4a))
+* **catalog:** ship node and rtk in the image and let the operator declare hooks ([#85](https://github.com/bhoudebert/shelf-sdlc-agents/issues/85)) ([91158ce](https://github.com/bhoudebert/shelf-sdlc-agents/commit/91158ceae15d7ac905edf6b9db1b78844852b81a))
+* **configuration:** pick up an edit of shelf.toml without a restart ([#73](https://github.com/bhoudebert/shelf-sdlc-agents/issues/73)) ([493e618](https://github.com/bhoudebert/shelf-sdlc-agents/commit/493e61837003c32ba0efa59c7e39f315d9acb7ed))
+* **deploy:** report the guard in shelf-diagnose ([#110](https://github.com/bhoudebert/shelf-sdlc-agents/issues/110)) ([bfb96d8](https://github.com/bhoudebert/shelf-sdlc-agents/commit/bfb96d880cf82f4264cc9ede39ca74fa4046b2d9))
+* **deploy:** say after the install whether the guard is wired ([#117](https://github.com/bhoudebert/shelf-sdlc-agents/issues/117)) ([5c01816](https://github.com/bhoudebert/shelf-sdlc-agents/commit/5c018161d188dbb40fa438fb289cb6fbdc3cb5a0))
+* **warden:** an operator's locked policy and a settable session folder ([#97](https://github.com/bhoudebert/shelf-sdlc-agents/issues/97)) ([39ccecb](https://github.com/bhoudebert/shelf-sdlc-agents/commit/39ccecb519df406c7e527df3b10e1f77ddc2fa7c))
+* **warden:** guard Codex, Copilot and OpenCode as well as Claude Code ([#103](https://github.com/bhoudebert/shelf-sdlc-agents/issues/103)) ([eff3a4e](https://github.com/bhoudebert/shelf-sdlc-agents/commit/eff3a4e86410485cb2706ed0c13b81b4d11dd480))
+* **warden:** install from a release with a verified checksum ([#102](https://github.com/bhoudebert/shelf-sdlc-agents/issues/102)) ([427f34f](https://github.com/bhoudebert/shelf-sdlc-agents/commit/427f34f64ed2cf55209ce8939dcb0cf837bcb768))
+* **warden:** judge Claude Code's tool calls with warden hook ([#95](https://github.com/bhoudebert/shelf-sdlc-agents/issues/95)) ([7701c32](https://github.com/bhoudebert/shelf-sdlc-agents/commit/7701c322642390c6bff2c340054221ca77d59a24))
+* **warden:** judge shell commands against a layered policy ([#92](https://github.com/bhoudebert/shelf-sdlc-agents/issues/92)) ([4eca8c1](https://github.com/bhoudebert/shelf-sdlc-agents/commit/4eca8c1caddb6d3ee6d28f1bbff0954d3ce85e26))
+* **warden:** keep a hash-chained audit log and show it ([#93](https://github.com/bhoudebert/shelf-sdlc-agents/issues/93)) ([35007a6](https://github.com/bhoudebert/shelf-sdlc-agents/commit/35007a620b5738d07601824eebb2d70b0fc6fdc3))
+* **warden:** look at a recent period with --since ([#119](https://github.com/bhoudebert/shelf-sdlc-agents/issues/119)) ([0ddd632](https://github.com/bhoudebert/shelf-sdlc-agents/commit/0ddd632d8b5dbf2ba39bb7141762e06d81888f34))
+* **warden:** print the report as JSON for a program ([#107](https://github.com/bhoudebert/shelf-sdlc-agents/issues/107)) ([794c0b9](https://github.com/bhoudebert/shelf-sdlc-agents/commit/794c0b9425ef8a5f1b2ab69609149135d5ad3e84))
+* **warden:** recognise eighteen more provider credentials ([#109](https://github.com/bhoudebert/shelf-sdlc-agents/issues/109)) ([622356d](https://github.com/bhoudebert/shelf-sdlc-agents/commit/622356d2375ab7d163a33e96e2662d4606d032a4))
+* **warden:** redact secrets and personal data, and run commands through it ([#94](https://github.com/bhoudebert/shelf-sdlc-agents/issues/94)) ([ed97928](https://github.com/bhoudebert/shelf-sdlc-agents/commit/ed97928d20e5574bbcc88f41286516285b87c614))
+* **warden:** report what a stricter profile would have stopped ([#105](https://github.com/bhoudebert/shelf-sdlc-agents/issues/105)) ([bfd97ad](https://github.com/bhoudebert/shelf-sdlc-agents/commit/bfd97ad703241cd0fe3e55a6a469934e04d3d112))
+* **warden:** wire Claude Code with init, take it out and check it ([#96](https://github.com/bhoudebert/shelf-sdlc-agents/issues/96)) ([9a79cb8](https://github.com/bhoudebert/shelf-sdlc-agents/commit/9a79cb89a971b9f3f7b4fa4165bb9069ba56ce9a))
+* **web:** say on the board which stops a run does without ([#121](https://github.com/bhoudebert/shelf-sdlc-agents/issues/121)) ([5929801](https://github.com/bhoudebert/shelf-sdlc-agents/commit/5929801177efd9a2c372c7e9030d61b8b5fb1706))
+* **web:** show the request above the conversation on the work page ([#78](https://github.com/bhoudebert/shelf-sdlc-agents/issues/78)) ([f44cb44](https://github.com/bhoudebert/shelf-sdlc-agents/commit/f44cb4453aa7595eeb023da69c1a0bf0b9db360a))
+* **web:** show what the guard has seen on the admin page ([#108](https://github.com/bhoudebert/shelf-sdlc-agents/issues/108)) ([42ad0ee](https://github.com/bhoudebert/shelf-sdlc-agents/commit/42ad0eef3551ea6181975d9c9d92f3eaa8c02ca5))
+* **web:** tell a refused person how an organisation membership becomes visible ([#76](https://github.com/bhoudebert/shelf-sdlc-agents/issues/76)) ([fb4644e](https://github.com/bhoudebert/shelf-sdlc-agents/commit/fb4644e1b33e206d88b03fbe89323f86a0eb787f))
+* **work-item:** let a run go on without a person, chosen on the start form ([#88](https://github.com/bhoudebert/shelf-sdlc-agents/issues/88)) ([a8df878](https://github.com/bhoudebert/shelf-sdlc-agents/commit/a8df8780ae677b59beec63564b6ca6f85c650700))
+
+
+### Bug fixes
+
+* **access:** serve only repositories of a listed owner or of the signed-in person ([#77](https://github.com/bhoudebert/shelf-sdlc-agents/issues/77)) ([ce41432](https://github.com/bhoudebert/shelf-sdlc-agents/commit/ce41432fee8e9f5e5bca52f9af1fe8f905b32c39))
+* **deploy:** rebuild the catalog image before the sync ([#104](https://github.com/bhoudebert/shelf-sdlc-agents/issues/104)) ([76cf476](https://github.com/bhoudebert/shelf-sdlc-agents/commit/76cf4767e3394c32bb64915704598d9547d6e369))
+* **sign-in:** find a person's organisations per organisation, not from their App token ([#75](https://github.com/bhoudebert/shelf-sdlc-agents/issues/75)) ([6f954c1](https://github.com/bhoudebert/shelf-sdlc-agents/commit/6f954c1cee6dbc7b911c7684237afa4c4733edfd))
+* **steps:** run the repository's checks without the worker's secrets ([#83](https://github.com/bhoudebert/shelf-sdlc-agents/issues/83)) ([6ebaa5f](https://github.com/bhoudebert/shelf-sdlc-agents/commit/6ebaa5f378df8ac1610afbd1bfce704500191bc9))
+* **steps:** work on a repository that is empty or lacks the base branch ([#79](https://github.com/bhoudebert/shelf-sdlc-agents/issues/79)) ([7c96d89](https://github.com/bhoudebert/shelf-sdlc-agents/commit/7c96d893316680df17dfee4cc2fc44b6fd041d22))
+* **warden:** check the Codex guard against the real Codex and refuse what it cannot ask ([#124](https://github.com/bhoudebert/shelf-sdlc-agents/issues/124)) ([f41b663](https://github.com/bhoudebert/shelf-sdlc-agents/commit/f41b663ca6529cc02b17cf4129ec6a22f0bddeca))
+* **warden:** classify hosted deletions, database drops and reverse shells ([#106](https://github.com/bhoudebert/shelf-sdlc-agents/issues/106)) ([a1c5ee0](https://github.com/bhoudebert/shelf-sdlc-agents/commit/a1c5ee02d8cba11b6265473aa207a4728629bc18))
+* **warden:** guard more credential files from being read ([#111](https://github.com/bhoudebert/shelf-sdlc-agents/issues/111)) ([bfd64ea](https://github.com/bhoudebert/shelf-sdlc-agents/commit/bfd64ead3927bda428ac130b28a022fa80870142))
+* **warden:** keep unattended agents off the default branch ([#115](https://github.com/bhoudebert/shelf-sdlc-agents/issues/115)) ([26c2c24](https://github.com/bhoudebert/shelf-sdlc-agents/commit/26c2c244ea0b2ffb0736f4b746911cbcdbe53ff7))
+* **warden:** spool audit records from the sandbox and stay quiet about its own trouble ([#100](https://github.com/bhoudebert/shelf-sdlc-agents/issues/100)) ([ddc375b](https://github.com/bhoudebert/shelf-sdlc-agents/commit/ddc375b977242b04427ea57396bb75f911e714f3))
+* **warden:** treat tunnels, address pushes and metadata endpoints as exfiltration ([#112](https://github.com/bhoudebert/shelf-sdlc-agents/issues/112)) ([e792c83](https://github.com/bhoudebert/shelf-sdlc-agents/commit/e792c83b97236d9c77f02eb6c4b727961449c38d))
+* **web:** give the start form's checkboxes their own compact look ([#89](https://github.com/bhoudebert/shelf-sdlc-agents/issues/89)) ([ae00224](https://github.com/bhoudebert/shelf-sdlc-agents/commit/ae002247f422e4f38f1eac47ce411fb3038ac270))
+* **web:** word the deadlock box so that checked means more control ([#90](https://github.com/bhoudebert/shelf-sdlc-agents/issues/90)) ([cb6b892](https://github.com/bhoudebert/shelf-sdlc-agents/commit/cb6b892a703f506164d6667dcc6f9627601870eb))
+
+
+### Documentation
+
+* **adr:** propose reading the guard through its binary ([#118](https://github.com/bhoudebert/shelf-sdlc-agents/issues/118)) ([0f933d9](https://github.com/bhoudebert/shelf-sdlc-agents/commit/0f933d9fef77273010b1aa2dcc6a1aee84abc5a8))
+* **catalog:** add project-foundation to the example catalog, commented ([#86](https://github.com/bhoudebert/shelf-sdlc-agents/issues/86)) ([3a9273a](https://github.com/bhoudebert/shelf-sdlc-agents/commit/3a9273af37690649c76510e7a6ef1506f9edec34))
+* **catalog:** show how to bind skills to roles in the example shelf.toml ([#87](https://github.com/bhoudebert/shelf-sdlc-agents/issues/87)) ([7e7cd60](https://github.com/bhoudebert/shelf-sdlc-agents/commit/7e7cd60beb04e93b1bb935cc654d14588834fc94))
+* **roadmap:** add what the guard work showed is missing ([#120](https://github.com/bhoudebert/shelf-sdlc-agents/issues/120)) ([f68d0e4](https://github.com/bhoudebert/shelf-sdlc-agents/commit/f68d0e46fdd0bd73edff6397061bd1ac1e51731b))
+* **site:** add a Limits page and correct the claim about agent isolation ([#81](https://github.com/bhoudebert/shelf-sdlc-agents/issues/81)) ([7ee0c7f](https://github.com/bhoudebert/shelf-sdlc-agents/commit/7ee0c7f7c2424157fdb38de7e8c7fce97fb91d88))
+* **site:** correct the Limits page against what main does ([#82](https://github.com/bhoudebert/shelf-sdlc-agents/issues/82)) ([ad5f7ae](https://github.com/bhoudebert/shelf-sdlc-agents/commit/ad5f7aee09d9cef536fb847aa6d661e2ab0a62cc))
+* **site:** say how to move from observe to the shelf profile ([#114](https://github.com/bhoudebert/shelf-sdlc-agents/issues/114)) ([42f851f](https://github.com/bhoudebert/shelf-sdlc-agents/commit/42f851f5d7af7f0298d065a1dc7590c6ae2353e5))
+* **warden:** bring the readme up to date and list what each profile decides ([#123](https://github.com/bhoudebert/shelf-sdlc-agents/issues/123)) ([c800e58](https://github.com/bhoudebert/shelf-sdlc-agents/commit/c800e58d8ee0df85e674ec8898134a62d3365c6e))
+
+
+### Build and tooling
+
+* **deps:** bump python from 3.13-slim to 3.15-slim ([#130](https://github.com/bhoudebert/shelf-sdlc-agents/issues/130)) ([1c257fa](https://github.com/bhoudebert/shelf-sdlc-agents/commit/1c257fac6bc4ea1b841b9bf685f0f7ca1b94cc79))
+* **deps:** bump rust from 1.89-slim-bookworm to 1.99-slim-bookworm ([#127](https://github.com/bhoudebert/shelf-sdlc-agents/issues/127)) ([f929b49](https://github.com/bhoudebert/shelf-sdlc-agents/commit/f929b4933e32102156fdbfae169d01a2de9b26ae))
+* **deps:** bump sha2 from 0.10.9 to 0.11.0 in /warden ([#129](https://github.com/bhoudebert/shelf-sdlc-agents/issues/129)) ([5bb8374](https://github.com/bhoudebert/shelf-sdlc-agents/commit/5bb8374a023e42cf3f928083c9d0ab9d1ef54c2d))
+* **warden:** decide on a Rust guard for agents and scaffold it ([#91](https://github.com/bhoudebert/shelf-sdlc-agents/issues/91)) ([9304abe](https://github.com/bhoudebert/shelf-sdlc-agents/commit/9304abed36ed5872dced8b65bb6aabfbea286990))
+
 ## 0.1.0 (2026-11-09)
 
 
