@@ -500,6 +500,11 @@ fn wrapped_command(name: &str, args: &[Word]) -> Option<(usize, usize)> {
             skip_options(&texts, &[])
         }
         "nice" => skip_options(&texts, &["-n"]),
+        "flock" => skip_options(&texts, &["-w", "-E"]) + 1,
+        "watch" => skip_options(&texts, &["-n", "-d"]),
+        "strace" | "ltrace" => skip_options(&texts, &["-o", "-e", "-p", "-s", "-u", "-E", "-a"]),
+        "unshare" | "busybox" => skip_options(&texts, &[]),
+        "chroot" => skip_options(&texts, &[]) + 1,
         "timeout" => {
             let after = skip_options(&texts, &["-k", "-s"]);
             after + 1
@@ -592,6 +597,13 @@ mod tests {
         assert_eq!(names("env FOO=1 BAR=2 node app.js"), ["env", "node"]);
         assert_eq!(names("xargs -n1 rm < list"), ["xargs", "rm"]);
         assert_eq!(names("timeout 5 curl x"), ["timeout", "curl"]);
+        assert_eq!(names("flock /tmp/l curl x"), ["flock", "curl"]);
+        assert_eq!(names("flock -w 5 /tmp/l curl x"), ["flock", "curl"]);
+        assert_eq!(names("watch -n1 curl x"), ["watch", "curl"]);
+        assert_eq!(names("strace -o out curl x"), ["strace", "curl"]);
+        assert_eq!(names("unshare -r curl x"), ["unshare", "curl"]);
+        assert_eq!(names("busybox wget x"), ["busybox", "wget"]);
+        assert_eq!(names("chroot /jail curl x"), ["chroot", "curl"]);
         assert_eq!(names("nohup sleep 1 &"), ["nohup", "sleep"]);
         assert_eq!(names("find . -name '*.log' -exec rm {} ;"), ["find", "rm"]);
     }

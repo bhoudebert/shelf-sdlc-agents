@@ -273,3 +273,12 @@ The system SHALL carry the list of other repositories a work reads in the workfl
 - **WHEN** a history recorded without the list is replayed
 - **THEN** it replays and the work reads no other repository
 
+### Requirement: The workflow's memo says which stops a run does without
+
+The system SHALL keep, with the workflow's memo and not in its history, the names of the stops the run does without a person (`spec`, `design`, `deadlock`), only when there is at least one, and SHALL read work whose memo has none as keeping every stop, so that histories recorded before it replay unchanged.
+
+#### Scenario: A run that proceeds at a deadlock
+
+- **WHEN** work starts with the wait at a deadlock removed
+- **THEN** its memo names `deadlock` and its history is the same as without the memo
+

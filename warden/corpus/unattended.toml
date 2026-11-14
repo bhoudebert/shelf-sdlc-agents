@@ -13,7 +13,8 @@ expect = "allow"
 
 [[case]]
 cmd = "git push origin main"
-expect = "allow"
+expect = "deny"
+why = "nobody is watching: the work goes by a pull request"
 
 [[case]]
 cmd = "npm install lodash"
@@ -208,4 +209,5 @@ expect = "deny"
 [[case]]
 cmd = "chmod 777 build"
 expect = "deny"
+
 

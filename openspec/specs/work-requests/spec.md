@@ -174,3 +174,12 @@ The system SHALL give the view of a piece of work, in addition to its repository
 - **WHEN** a work was started with a request
 - **THEN** its view carries the request's first line
 
+### Requirement: The board's view of a work carries the stops it does without
+
+The system SHALL give the board's view of a work the names of the stops its run does without a person, empty for work that keeps them all and for work started before they were kept.
+
+#### Scenario: A run without the spec approval
+
+- **WHEN** the board reads a work started with the spec approval removed
+- **THEN** its view carries `spec`
+
