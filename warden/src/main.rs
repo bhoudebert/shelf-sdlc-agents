@@ -121,6 +121,9 @@ enum Command {
         /// Say what would change and change nothing.
         #[arg(long)]
         dry_run: bool,
+        /// The agent: claude (default), opencode, copilot, or codex (prints a snippet to paste).
+        #[arg(long, default_value = "claude", value_parser = parse_agent)]
+        agent: install::Agent,
     },
     /// Take Warden out of Claude Code.
     Uninstall {
@@ -136,6 +139,9 @@ enum Command {
         /// Also delete the policy file, the sessions and the audit log.
         #[arg(long)]
         purge: bool,
+        /// The agent: claude (default), opencode or copilot.
+        #[arg(long, default_value = "claude", value_parser = parse_agent)]
+        agent: install::Agent,
     },
     /// Check that Warden is wired and healthy.
     Doctor {
@@ -159,6 +165,16 @@ enum AuditAction {
         #[command(flatten)]
         from: Where,
     },
+}
+
+fn parse_agent(text: &str) -> Result<install::Agent, String> {
+    match text {
+        "claude" => Ok(install::Agent::Claude),
+        "opencode" => Ok(install::Agent::OpenCode),
+        "copilot" => Ok(install::Agent::Copilot),
+        "codex" => Ok(install::Agent::Codex),
+        other => Err(format!("unknown agent {other:?}: claude, opencode, copilot or codex")),
+    }
 }
 
 fn parse_profile(text: &str) -> Result<Profile, String> {
@@ -307,20 +323,37 @@ fn init_command(
     managed: Option<PathBuf>,
     profile: Option<Profile>,
     dry_run: bool,
+    agent: install::Agent,
 ) -> Outcome {
     let places = places();
     let scope = scope_of(global, repo, managed, &places);
-    for line in install::init(&install::Init { scope, profile, dry_run }, &places)? {
+    let lines = if agent == install::Agent::Claude {
+        install::init(&install::Init { scope, profile, dry_run }, &places)?
+    } else {
+        install::init_other(agent, &scope, dry_run, &places)?
+    };
+    for line in lines {
         println!("{line}");
     }
     Ok(ExitCode::SUCCESS)
 }
 
-fn uninstall_command(global: bool, repo: bool, managed: Option<PathBuf>, purge: bool) -> Outcome {
+fn uninstall_command(
+    global: bool,
+    repo: bool,
+    managed: Option<PathBuf>,
+    purge: bool,
+    agent: install::Agent,
+) -> Outcome {
     let places = places();
     let scope = scope_of(global, repo, managed, &places);
     let state = state_dir(&Context::from_env());
-    for line in install::uninstall(&scope, purge, &state, &places)? {
+    let lines = if agent == install::Agent::Claude {
+        install::uninstall(&scope, purge, &state, &places)?
+    } else {
+        install::uninstall_other(agent, &scope, &places)?
+    };
+    for line in lines {
         println!("{line}");
     }
     Ok(ExitCode::SUCCESS)
@@ -405,10 +438,12 @@ fn run(cli: Cli) -> Outcome {
         Some(Command::Explain { command, from }) => explain_command(&command, &from),
         Some(Command::Policy { from }) => policy_command(&from),
         Some(Command::Status { all, n, session, dir, from }) => status_command(all, n, session, dir, &from),
-        Some(Command::Init { global, repo, managed, profile, dry_run }) => {
-            init_command(global, repo, managed, profile, dry_run)
+        Some(Command::Init { global, repo, managed, profile, dry_run, agent }) => {
+            init_command(global, repo, managed, profile, dry_run, agent)
         }
-        Some(Command::Uninstall { global, repo, managed, purge }) => uninstall_command(global, repo, managed, purge),
+        Some(Command::Uninstall { global, repo, managed, purge, agent }) => {
+            uninstall_command(global, repo, managed, purge, agent)
+        }
         Some(Command::Doctor { from }) => Ok(doctor_command(&from)),
         Some(Command::Hook { agent, event }) => hook_command(&agent, &event),
         Some(Command::Run { session, command, from }) => run_command(&session, &command, &from),

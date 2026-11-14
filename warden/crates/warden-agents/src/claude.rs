@@ -14,11 +14,11 @@ use crate::{Adapter, Answer, Call, Event, Rendered, Tool};
 #[derive(Debug, Clone, Copy)]
 pub struct Claude;
 
-fn text<'a>(input: &'a Value, key: &str) -> Option<&'a str> {
+pub(crate) fn text<'a>(input: &'a Value, key: &str) -> Option<&'a str> {
     input.get(key)?.as_str()
 }
 
-fn strings(value: &Value, into: &mut Vec<String>) {
+pub(crate) fn strings(value: &Value, into: &mut Vec<String>) {
     match value {
         Value::String(s) => into.push(s.clone()),
         Value::Array(items) => items.iter().for_each(|item| strings(item, into)),
@@ -27,11 +27,11 @@ fn strings(value: &Value, into: &mut Vec<String>) {
     }
 }
 
-fn path_of(input: &Value) -> Option<String> {
+pub(crate) fn path_of(input: &Value) -> Option<String> {
     ["file_path", "notebook_path", "path"].iter().find_map(|key| text(input, key)).map(str::to_owned)
 }
 
-fn tool_of(name: &str, input: &Value) -> Option<Tool> {
+pub(crate) fn tool_of(name: &str, input: &Value) -> Option<Tool> {
     match name {
         "Bash" => text(input, "command").map(|command| Tool::Bash { command: command.to_owned() }),
         "Read" | "NotebookRead" | "Glob" | "Grep" | "LS" => path_of(input).map(|path| Tool::Read { path }),
@@ -64,7 +64,7 @@ fn tool_of(name: &str, input: &Value) -> Option<Tool> {
 }
 
 /// The text a tool printed, from the `tool_response` of a `PostToolUse` payload.
-fn output_of(response: &Value) -> Option<String> {
+pub(crate) fn output_of(response: &Value) -> Option<String> {
     match response {
         Value::String(text) => Some(text.clone()),
         Value::Object(map) => {

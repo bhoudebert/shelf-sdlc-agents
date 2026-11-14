@@ -31,6 +31,15 @@ pub struct Setting {
     pub profile: Option<warden_policy::Profile>,
 }
 
+/// What an agent lets a hook do to a call.
+#[derive(Clone, Copy)]
+struct Caps {
+    /// Replace the arguments of a tool: wrap a command, put a token's value back, rewrite a command.
+    rewrite_input: bool,
+    /// Replace what a tool printed before the model sees it.
+    rewrite_output: bool,
+}
+
 /// Quote text as one word for a POSIX shell.
 fn quote(text: &str) -> String {
     format!("'{}'", text.replace('\'', "'\\''"))
@@ -84,7 +93,8 @@ pub fn run(agent: &str, event: &str, stdin: &str, setting: &Setting) -> Rendered
     let path = session_path(&setting.session_dir, &call.session);
     let mut session = Session::open(&path).unwrap_or_default();
     let mut decided = Decided::default();
-    let answer = decide(&policy, &ctx, &call, &redactor, &mut session, setting, &mut decided);
+    let caps = Caps { rewrite_input: adapter.can_rewrite_input(), rewrite_output: adapter.can_rewrite_output() };
+    let answer = decide(&policy, &ctx, &call, &redactor, &mut session, (setting, caps), &mut decided);
     if let Err(error) = session.save() {
         crate::spool::note(&format!("cannot save the session tokens: {error}"));
     }
@@ -150,12 +160,12 @@ fn decide(
     call: &Call,
     redactor: &Redactor,
     session: &mut Session,
-    setting: &Setting,
+    (setting, caps): (&Setting, Caps),
     decided: &mut Decided,
 ) -> Answer {
     match call.event {
-        Event::PreToolUse => pre_tool(policy, ctx, call, redactor, session, setting, decided),
-        Event::PostToolUse => post_tool(call, redactor, decided),
+        Event::PreToolUse => pre_tool(policy, ctx, call, redactor, session, (setting, caps), decided),
+        Event::PostToolUse => post_tool(policy, call, redactor, session, caps, decided),
         Event::UserPromptSubmit => prompt(policy, call, redactor, decided),
         Event::SessionStart => Answer { context: Some(house_rules(policy)), ..Answer::default() },
         _ => Answer::default(),
@@ -180,7 +190,7 @@ fn pre_tool(
     call: &Call,
     redactor: &Redactor,
     session: &mut Session,
-    setting: &Setting,
+    (setting, caps): (&Setting, Caps),
     decided: &mut Decided,
 ) -> Answer {
     let mut verdict = judge_tool(policy, &call.tool_name);
@@ -188,7 +198,7 @@ fn pre_tool(
     match &call.tool {
         Some(Tool::Bash { command }) => {
             let judged = judge_command(policy, ctx, command);
-            answer = bash_answer(policy, call, &judged, setting);
+            answer = bash_answer(policy, call, &judged, (setting, caps));
             verdict = Some(strictest(verdict, judged));
         }
         Some(Tool::Read { path }) => {
@@ -201,22 +211,34 @@ fn pre_tool(
         Some(Tool::Write { path, content }) => {
             let (judged, updated) =
                 file_content(policy, ctx, redactor, session, call, path, content, "content", decided);
-            answer.updated_input = updated;
+            answer.updated_input = updated.filter(|_| caps.rewrite_input);
             verdict = Some(strictest(verdict, judged));
         }
         Some(Tool::Edit { path, new_text }) => {
             let (judged, updated) =
                 file_content(policy, ctx, redactor, session, call, path, new_text, "new_string", decided);
-            answer.updated_input = updated;
+            answer.updated_input = updated.filter(|_| caps.rewrite_input);
             verdict = Some(strictest(verdict, judged));
         }
         Some(Tool::Web { url }) => verdict = Some(strictest(verdict, judge_web(policy, url))),
         Some(Tool::Mcp { strings, .. }) if policy.redact.mcp => {
-            let (judged, updated) = mcp_arguments(policy, redactor, session, call, strings, decided);
-            answer.updated_input = updated;
+            let (mut judged, updated) = mcp_arguments(policy, redactor, session, call, strings, decided);
+            if updated.is_some() && !caps.rewrite_input {
+                // The agent cannot take the tokens in place of the values, and sending the values is what redaction is for.
+                judged = personal_data_in_mcp(policy, call);
+            } else {
+                answer.updated_input = updated;
+            }
             verdict = Some(strictest(verdict, judged));
         }
-        Some(Tool::Patch { .. } | Tool::Agent | Tool::Mcp { .. }) | None => {}
+        Some(Tool::Patch { paths, content }) => {
+            let mut judged = judge_text(policy, "the patch", content, Category::SecretWrite);
+            for path in paths {
+                judged = strictest(Some(judged), judge_write(policy, ctx, path));
+            }
+            verdict = Some(strictest(verdict, judged));
+        }
+        Some(Tool::Agent | Tool::Mcp { .. }) | None => {}
     }
     if let Some(verdict) = verdict.as_ref().filter(|v| v.decision != Decision::Allow) {
         answer = Answer { updated_input: None, ..from_verdict(verdict, call) };
@@ -226,9 +248,20 @@ fn pre_tool(
 }
 
 /// The answer for a shell command: refused, or allowed with its line rewritten and its output wrapped.
-fn bash_answer(policy: &Policy, call: &Call, verdict: &Verdict, setting: &Setting) -> Answer {
+fn bash_answer(policy: &Policy, call: &Call, verdict: &Verdict, (setting, caps): (&Setting, Caps)) -> Answer {
     if verdict.decision != Decision::Allow {
         return Answer::default();
+    }
+    if !caps.rewrite_input {
+        // The agent cannot take a changed command: a rewrite the policy wants becomes a refusal that says what to run.
+        return match &verdict.rewritten {
+            Some(rewritten) => Answer {
+                decision: Some(Decision::Deny),
+                reason: format!("The policy wants this command changed to `{}`: run that instead.", rewritten.line),
+                ..Answer::default()
+            },
+            None => Answer::default(),
+        };
     }
     let wrapped = verdict.wrap_output && policy.redact.outputs;
     if !wrapped && verdict.rewritten.is_none() {
@@ -249,6 +282,17 @@ fn bash_answer(policy: &Policy, call: &Call, verdict: &Verdict, setting: &Settin
         map.insert("command".to_owned(), Value::String(line));
     }
     Answer { updated_input: Some(input), ..Answer::default() }
+}
+
+fn personal_data_in_mcp(policy: &Policy, call: &Call) -> Verdict {
+    let mut verdict = judge_text(policy, &call.tool_name, "", Category::PiiOutbound);
+    verdict.decision = Decision::Deny;
+    verdict.intended = Decision::Deny;
+    verdict.reason = format!(
+        "The arguments of {} hold personal data, and this agent cannot let Warden replace it with tokens.",
+        call.tool_name
+    );
+    verdict
 }
 
 fn personal_data(policy: &Policy, ctx: &Context, path: &str) -> bool {
@@ -332,8 +376,27 @@ fn map_strings(value: &Value, f: &mut dyn FnMut(&str) -> String) -> Value {
     }
 }
 
-fn post_tool(call: &Call, redactor: &Redactor, decided: &mut Decided) -> Answer {
+fn post_tool(
+    policy: &Policy,
+    call: &Call,
+    redactor: &Redactor,
+    session: &mut Session,
+    caps: Caps,
+    decided: &mut Decided,
+) -> Answer {
     let Some(output) = &call.output else { return Answer::default() };
+    // A shell command was wrapped when the agent allows it, so its output is already redacted; everything else is
+    // redacted here, when the agent lets a hook replace the result.
+    let wrapped = matches!(call.tool, Some(Tool::Bash { .. })) && caps.rewrite_input && policy.redact.outputs;
+    if caps.rewrite_output && policy.redact.outputs && !wrapped {
+        let (clean, found) = redactor.redact(session, output);
+        if !found.is_empty() {
+            decided.redactions.merge(&found);
+            decided.note = Some(format!("{} value(s) in the output were replaced by tokens", found.total()));
+            let note = "Warden: values in this output were replaced by tokens such as <EMAIL_1>; use them as they are.";
+            return Answer { updated_output: Some(clean), context: Some(note.to_owned()), ..Answer::default() };
+        }
+    }
     let leaked = redactor.find(output).len();
     let has_tokens = output.contains("<SECRET_") || output.contains("<EMAIL_") || output.contains("_1>");
     let mut notes = Vec::new();

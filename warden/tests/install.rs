@@ -202,3 +202,47 @@ fn doctor_fails_on_a_hook_that_calls_a_program_that_is_gone_and_on_a_tampered_lo
     std::fs::write(&file, content.replacen("\"deny\"", "\"allow\"", 1)).expect("tamper");
     assert!(out(&m.warden(&["doctor"])).contains("the audit chain is broken"));
 }
+
+#[test]
+fn init_writes_the_opencode_plugin_and_uninstall_removes_it() {
+    let m = Machine::new("opencode");
+    let output = m.warden(&["init", "--global", "--agent", "opencode"]);
+    assert!(output.status.success(), "{}", out(&output));
+    let plugin = m.home.join(".config/opencode/plugins/warden.js");
+    let text = std::fs::read_to_string(&plugin).expect("plugin");
+    assert!(text.contains("tool.execute.before") && text.contains("hook\", \"opencode\""), "{text}");
+    assert!(out(&output).contains("batch tool skip plugin hooks"), "{}", out(&output));
+    assert!(m.warden(&["uninstall", "--global", "--agent", "opencode"]).status.success());
+    assert!(!plugin.exists());
+}
+
+#[test]
+fn init_writes_the_copilot_hooks_file_for_the_repository() {
+    let m = Machine::new("copilot");
+    let output = m.warden(&["init", "--repo", "--agent", "copilot"]);
+    assert!(output.status.success(), "{}", out(&output));
+    let written = json(&m.repo.join(".github/hooks/warden.json"));
+    assert_eq!(written["version"], 1);
+    assert_eq!(written["hooks"]["preToolUse"][0]["bash"], "warden hook copilot preToolUse");
+    assert_eq!(written["hooks"]["preToolUse"][0]["type"], "command");
+    assert!(written["hooks"]["agentStop"].is_array());
+    assert!(out(&output).contains("cannot block a prompt"), "{}", out(&output));
+}
+
+#[test]
+fn init_prints_the_codex_snippet_and_writes_nothing() {
+    let m = Machine::new("codex");
+    let output = m.warden(&["init", "--global", "--agent", "codex"]);
+    let text = out(&output);
+    assert!(output.status.success(), "{text}");
+    assert!(text.contains("[[hooks.PreToolUse]]") && text.contains("matcher = \".*\""), "{text}");
+    assert!(text.contains("hook codex PreToolUse"), "{text}");
+    assert!(text.contains("/hooks"), "{text}");
+    assert!(!m.home.join(".codex").exists());
+}
+
+#[test]
+fn an_unknown_agent_is_refused() {
+    let m = Machine::new("agent-bad");
+    assert_eq!(m.warden(&["init", "--agent", "nonesuch"]).status.code(), Some(2));
+}

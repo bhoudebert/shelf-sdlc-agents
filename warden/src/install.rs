@@ -19,6 +19,22 @@ const TOOL_EVENTS: [&str; 2] = ["PreToolUse", "PostToolUse"];
 /// The companion skill, written next to the settings.
 const SKILL: &str = include_str!("../skill/SKILL.md");
 
+/// The OpenCode plugin that calls Warden.
+const OPENCODE_PLUGIN: &str = include_str!("../skill/opencode-plugin.js");
+
+/// The agents Warden can be wired into.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Agent {
+    /// Claude Code: hooks in a `settings.json`.
+    Claude,
+    /// OpenCode: a plugin file.
+    OpenCode,
+    /// GitHub Copilot: a hooks file in `.github/hooks`.
+    Copilot,
+    /// Codex CLI: a snippet to put in `config.toml`.
+    Codex,
+}
+
 /// Where Warden is wired.
 #[derive(Debug, Clone)]
 pub enum Scope {
@@ -384,6 +400,101 @@ pub fn doctor(
         checks.push(check("warn", "Claude Code is not wired in any settings file: run warden init"));
     }
     checks
+}
+
+/// The Copilot hooks file: every event calls `warden hook copilot <event>`.
+fn copilot_hooks(base: &str) -> String {
+    let events = ["preToolUse", "postToolUse", "userPromptSubmitted", "sessionStart", "agentStop"];
+    let hooks: Map<String, Value> = events
+        .iter()
+        .map(|event| {
+            (
+                (*event).to_owned(),
+                json!([{ "type": "command", "bash": format!("{base} hook copilot {event}"), "timeoutSec": 20 }]),
+            )
+        })
+        .collect();
+    serde_json::to_string_pretty(&json!({ "version": 1, "hooks": hooks })).unwrap_or_default() + "\n"
+}
+
+/// The Codex `config.toml` snippet: every event calls `warden hook codex <event>`.
+fn codex_snippet(base: &str) -> String {
+    use std::fmt::Write as _;
+    let mut out =
+        String::from("# Add this to ~/.codex/config.toml, then review and trust the hooks with /hooks in Codex.\n");
+    for event in EVENTS {
+        let _ = write!(out, "\n[[hooks.{event}]]\n");
+        if TOOL_EVENTS.contains(&event) {
+            out.push_str("matcher = \".*\"\n");
+        }
+        let _ = write!(
+            out,
+            "\n[[hooks.{event}.hooks]]\ntype = \"command\"\ncommand = \"{base} hook codex {event}\"\ntimeout = 20\n"
+        );
+    }
+    out
+}
+
+/// Wire Warden into an agent other than Claude Code. Returns what was done, line by line.
+pub fn init_other(agent: Agent, scope: &Scope, dry_run: bool, places: &Places) -> Result<Vec<String>, String> {
+    let base = places.command(scope);
+    let verb = if dry_run { "would write" } else { "wrote" };
+    match agent {
+        Agent::OpenCode => {
+            let path = match scope {
+                Scope::Global => places.home.join(".config/opencode/plugins/warden.js"),
+                Scope::Repo => places.repo_root().join(".opencode/plugins/warden.js"),
+                Scope::Managed(_) => {
+                    return Err("OpenCode's managed configuration is not wired by warden init".to_owned());
+                }
+            };
+            if !dry_run {
+                write_file(&path, OPENCODE_PLUGIN)?;
+            }
+            Ok(vec![
+                format!("{verb} the OpenCode plugin {}", path.display()),
+                "  it calls `warden hook opencode` for every tool call, and refuses the call if warden cannot be run".to_owned(),
+                "  the plugin uses OpenCode's v1 plugin API; calls made through OpenCode's batch tool skip plugin hooks".to_owned(),
+            ])
+        }
+        Agent::Copilot => {
+            let path = match scope {
+                Scope::Global => places.home.join(".copilot/hooks/warden.json"),
+                Scope::Repo => places.repo_root().join(".github/hooks/warden.json"),
+                Scope::Managed(_) => {
+                    return Err(
+                        "Copilot's policy hooks are installed by an administrator, not by warden init".to_owned()
+                    );
+                }
+            };
+            if !dry_run {
+                write_file(&path, &copilot_hooks(&base))?;
+            }
+            Ok(vec![
+                format!("{verb} the Copilot hooks {}", path.display()),
+                "  Copilot cannot block a prompt, and an ask is a deny in its cloud agent; Warden redacts results after the tool ran".to_owned(),
+            ])
+        }
+        Agent::Codex => Ok(codex_snippet(&base).lines().map(str::to_owned).collect()),
+        Agent::Claude => Err("Claude Code is wired by init itself".to_owned()),
+    }
+}
+
+/// Take Warden out of an agent other than Claude Code.
+pub fn uninstall_other(agent: Agent, scope: &Scope, places: &Places) -> Result<Vec<String>, String> {
+    let path = match (agent, scope) {
+        (Agent::OpenCode, Scope::Global) => places.home.join(".config/opencode/plugins/warden.js"),
+        (Agent::OpenCode, Scope::Repo) => places.repo_root().join(".opencode/plugins/warden.js"),
+        (Agent::Copilot, Scope::Global) => places.home.join(".copilot/hooks/warden.json"),
+        (Agent::Copilot, Scope::Repo) => places.repo_root().join(".github/hooks/warden.json"),
+        _ => return Ok(vec!["nothing to remove: this agent's configuration is not written by warden init".to_owned()]),
+    };
+    if path.is_file() {
+        fs::remove_file(&path).map_err(|error| format!("{}: {error}", path.display()))?;
+        Ok(vec![format!("removed {}", path.display())])
+    } else {
+        Ok(vec![format!("{} does not exist: nothing to remove", path.display())])
+    }
 }
 
 #[cfg(test)]
