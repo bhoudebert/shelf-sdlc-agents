@@ -217,6 +217,25 @@ The system SHALL judge the reading of a credential file, the writing of a protec
 - **WHEN** an unattended policy judges a write to `/etc/claude-code/managed-settings.json`
 - **THEN** it is denied
 
+### Requirement: Routes that carry data out of the machine are risky
+
+The system SHALL treat as exfiltration a `git push` to an address instead of a named remote, `ssh` with `-R` or `-D`, staging a credential file with `git add`, and moving or linking a credential file with `mv` or `ln`; and SHALL always deny a request to a cloud metadata address (`169.254.169.254`, `metadata.google.internal`, `metadata.azure.com`) or to a public request-capture or tunnelling service (`requestbin.net`, `pipedream.net`, `interact.sh`, `oast.fun`, `oast.pro`, `burpcollaborator.net`, beside those already listed).
+
+#### Scenario: Instance credentials
+
+- **WHEN** an agent runs `curl http://169.254.169.254/latest/meta-data/`
+- **THEN** the call is denied
+
+#### Scenario: A credential file is staged
+
+- **WHEN** an agent runs `git add .env`
+- **THEN** the call needs a person's approval
+
+#### Scenario: Ordinary git
+
+- **WHEN** an agent runs `git push origin main` or `git add src/main.rs`
+- **THEN** the call is allowed
+
 ### Requirement: `warden explain` shows how a command is judged
 
 The system SHALL print, for a command line, the line, the rewrite if any, the profile, the mode and whether an ask is possible, each finding with its category and decision, the rule that decided, the notes, the decision and its reason, and whether the output would run through the redactor.
