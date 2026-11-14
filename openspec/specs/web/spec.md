@@ -183,6 +183,11 @@ The system SHALL show on the start form three choices (wait for approval of the 
 - **WHEN** any choice removes a stop
 - **THEN** a warning says what is no longer asked and that the code review, the checks and the merge remain
 
+#### Scenario: Compact, grouped boxes
+
+- **WHEN** the start form is shown at a phone, a tablet or a desktop width, in the light or the dark theme
+- **THEN** the three choices are small checkboxes in one grouped list, each beside its label and its help text, never stretched to the width of the form, and a removed stop shows its warning at the width of the list
+
 #### Scenario: What the form shows is what runs
 
 - **WHEN** a person unchecks the spec approval and checks the deadlock choice, then starts
