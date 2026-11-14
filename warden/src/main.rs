@@ -2,6 +2,7 @@
 #![cfg_attr(test, allow(clippy::expect_used, clippy::unwrap_used, clippy::indexing_slicing))]
 
 mod hook;
+mod install;
 mod load;
 mod report;
 mod run;
@@ -102,6 +103,44 @@ enum Command {
         /// The event: `PreToolUse`, `PostToolUse`, `UserPromptSubmit`, `SessionStart`, `Stop`.
         event: String,
     },
+    /// Wire Warden into Claude Code: the hooks, the companion skill and, with `--profile`, a policy file.
+    Init {
+        /// Wire the user's settings (every repository of this user).
+        #[arg(long)]
+        global: bool,
+        /// Wire the repository's settings, shared with the team through the repository (the default in a repository).
+        #[arg(long)]
+        repo: bool,
+        /// Wire a managed settings file an organisation controls, such as /etc/claude-code/managed-settings.json.
+        #[arg(long)]
+        managed: Option<PathBuf>,
+        /// Write a policy file with this profile, when there is none.
+        #[arg(long, value_parser = parse_profile)]
+        profile: Option<Profile>,
+        /// Say what would change and change nothing.
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Take Warden out of Claude Code.
+    Uninstall {
+        /// The user's settings.
+        #[arg(long)]
+        global: bool,
+        /// The repository's settings.
+        #[arg(long)]
+        repo: bool,
+        /// A managed settings file.
+        #[arg(long)]
+        managed: Option<PathBuf>,
+        /// Also delete the policy file, the sessions and the audit log.
+        #[arg(long)]
+        purge: bool,
+    },
+    /// Check that Warden is wired and healthy.
+    Doctor {
+        #[command(flatten)]
+        from: Where,
+    },
     /// Work with the audit log.
     Audit {
         #[command(subcommand)]
@@ -148,6 +187,24 @@ fn sources(from: &Where, ctx: &Context, default_profile: Option<Profile>) -> Sou
         cwd: ctx.cwd.clone(),
         home: ctx.home.clone(),
     }
+}
+
+fn places() -> install::Places {
+    let ctx = Context::from_env();
+    install::Places {
+        home: ctx.home,
+        cwd: ctx.cwd,
+        exe: std::env::current_exe().unwrap_or_else(|_| PathBuf::from("warden")),
+    }
+}
+
+/// The scope the flags name; in a repository `init` wires the repository, elsewhere the user.
+fn scope_of(global: bool, repo: bool, managed: Option<PathBuf>, places: &install::Places) -> install::Scope {
+    if let Some(path) = managed {
+        return install::Scope::Managed(path);
+    }
+    let in_repository = places.cwd.ancestors().any(|dir| dir.join(".git").exists());
+    if global || (!repo && !in_repository) { install::Scope::Global } else { install::Scope::Repo }
 }
 
 /// Where Warden keeps its state: `$WARDEN_STATE_DIR`, or `~/.local/share/warden`.
@@ -202,7 +259,126 @@ fn record_run(
     }
 }
 
-fn run(cli: Cli) -> Result<ExitCode, String> {
+type Outcome = Result<ExitCode, String>;
+
+fn exit(ok: bool) -> ExitCode {
+    if ok { ExitCode::SUCCESS } else { ExitCode::FAILURE }
+}
+
+fn explain_command(command: &str, from: &Where) -> Outcome {
+    let ctx = context(from);
+    let policy = load::policy(&sources(from, &ctx, None))?;
+    print!("{}", report::explain(&policy, &judge_command(&policy, &ctx, command)));
+    Ok(ExitCode::SUCCESS)
+}
+
+fn policy_command(from: &Where) -> Outcome {
+    let ctx = context(from);
+    print!("{}", report::policy(&load::policy(&sources(from, &ctx, None))?));
+    Ok(ExitCode::SUCCESS)
+}
+
+fn status_command(all: bool, n: usize, session: Option<String>, dir: Option<PathBuf>, from: &Where) -> Outcome {
+    let log = audit_log(from, dir)?;
+    let records = log
+        .read(&warden_audit::Filter { session, last: None })
+        .map_err(|error| format!("{}: {error}", log.dir().display()))?;
+    print!("{}", report::status(&records, all, n));
+    Ok(ExitCode::SUCCESS)
+}
+
+fn init_command(
+    global: bool,
+    repo: bool,
+    managed: Option<PathBuf>,
+    profile: Option<Profile>,
+    dry_run: bool,
+) -> Outcome {
+    let places = places();
+    let scope = scope_of(global, repo, managed, &places);
+    for line in install::init(&install::Init { scope, profile, dry_run }, &places)? {
+        println!("{line}");
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn uninstall_command(global: bool, repo: bool, managed: Option<PathBuf>, purge: bool) -> Outcome {
+    let places = places();
+    let scope = scope_of(global, repo, managed, &places);
+    let state = state_dir(&Context::from_env());
+    for line in install::uninstall(&scope, purge, &state, &places)? {
+        println!("{line}");
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn doctor_command(from: &Where) -> ExitCode {
+    let ctx = context(from);
+    let policy = load::policy(&Sources { files: true, ..sources(from, &ctx, None) });
+    let audit = policy.as_ref().map_or_else(|_| state_dir(&ctx).join("audit"), |p| audit_dir(&ctx, p));
+    let checks = install::doctor(&policy, &audit, &state_dir(&ctx), &places(), None);
+    let failed = checks.iter().any(|c| c.level == "FAIL");
+    for check in checks {
+        println!("{:<4}  {}", check.level, check.text);
+    }
+    exit(!failed)
+}
+
+fn hook_command(agent: &str, event: &str) -> Outcome {
+    let mut stdin = String::new();
+    std::io::Read::read_to_string(&mut std::io::stdin(), &mut stdin).map_err(|error| error.to_string())?;
+    let ctx = Context::from_env();
+    let setting = hook::Setting {
+        state_dir: state_dir(&ctx),
+        exe: std::env::current_exe().unwrap_or_else(|_| PathBuf::from("warden")),
+        profile: std::env::var("WARDEN_PROFILE").ok().and_then(|name| parse_profile(&name).ok()),
+        home: ctx.home,
+        cwd: ctx.cwd,
+    };
+    let rendered = hook::run(agent, event, &stdin, &setting);
+    print!("{}", rendered.stdout);
+    eprint!("{}", rendered.stderr);
+    Ok(ExitCode::from(u8::try_from(rendered.code).unwrap_or(2)))
+}
+
+fn run_command(session: &str, command: &[String], from: &Where) -> Outcome {
+    let ctx = context(from);
+    let policy = load::policy(&Sources { files: true, ..sources(from, &ctx, None) })?;
+    let redactor = run::redactor_for(&policy)?;
+    let path = run::session_path(&state_dir(&ctx), session);
+    let tokens = warden_redact::Session::open(&path).unwrap_or_else(|error| {
+        eprintln!("warden: starting the session over: {error}");
+        warden_redact::Session::default()
+    });
+    let line = command.join(" ");
+    let (outcome, tokens) = run::run(&policy, &redactor, tokens, &line);
+    if let Err(error) = tokens.save() {
+        eprintln!("warden: cannot save the session tokens: {error}");
+    }
+    if !outcome.counts.is_empty() && policy.audit.enabled {
+        record_run(&policy, &redactor, &ctx, session, &line, &outcome.counts);
+    }
+    Ok(ExitCode::from(u8::try_from(outcome.code.clamp(0, 255)).unwrap_or(1)))
+}
+
+fn verify_command(dir: Option<PathBuf>, from: &Where) -> Outcome {
+    let log = audit_log(from, dir)?;
+    let verification = log.verify().map_err(|error| format!("{}: {error}", log.dir().display()))?;
+    print!("{}", report::verification(&verification));
+    Ok(exit(verification.problem.is_none()))
+}
+
+fn test_command(path: &std::path::Path, from: &Where) -> Outcome {
+    let text = std::fs::read_to_string(path).map_err(|error| format!("{}: {error}", path.display()))?;
+    let file = corpus::Corpus::parse(&text).map_err(|error| format!("{}: {error}", path.display()))?;
+    let ctx = Context { home: "/home/dev".into(), cwd: "/work/app".into() };
+    let policy = load::policy(&sources(from, &ctx, file.profile))?;
+    let mismatches = corpus::run(&policy, &ctx, &file);
+    print!("{}", report::test(file.cases.len(), &mismatches));
+    Ok(exit(mismatches.is_empty()))
+}
+
+fn run(cli: Cli) -> Outcome {
     match cli.command {
         None => {
             println!("{}", <Cli as clap::CommandFactory>::command().render_help());
@@ -212,77 +388,18 @@ fn run(cli: Cli) -> Result<ExitCode, String> {
             println!("warden {VERSION}");
             Ok(ExitCode::SUCCESS)
         }
-        Some(Command::Explain { command, from }) => {
-            let ctx = context(&from);
-            let policy = load::policy(&sources(&from, &ctx, None))?;
-            let verdict = judge_command(&policy, &ctx, &command);
-            print!("{}", report::explain(&policy, &verdict));
-            Ok(ExitCode::SUCCESS)
+        Some(Command::Explain { command, from }) => explain_command(&command, &from),
+        Some(Command::Policy { from }) => policy_command(&from),
+        Some(Command::Status { all, n, session, dir, from }) => status_command(all, n, session, dir, &from),
+        Some(Command::Init { global, repo, managed, profile, dry_run }) => {
+            init_command(global, repo, managed, profile, dry_run)
         }
-        Some(Command::Policy { from }) => {
-            let ctx = context(&from);
-            let policy = load::policy(&sources(&from, &ctx, None))?;
-            print!("{}", report::policy(&policy));
-            Ok(ExitCode::SUCCESS)
-        }
-        Some(Command::Status { all, n, session, dir, from }) => {
-            let log = audit_log(&from, dir)?;
-            let records = log
-                .read(&warden_audit::Filter { session, last: None })
-                .map_err(|error| format!("{}: {error}", log.dir().display()))?;
-            print!("{}", report::status(&records, all, n));
-            Ok(ExitCode::SUCCESS)
-        }
-        Some(Command::Hook { agent, event }) => {
-            let mut stdin = String::new();
-            std::io::Read::read_to_string(&mut std::io::stdin(), &mut stdin).map_err(|error| error.to_string())?;
-            let ctx = Context::from_env();
-            let setting = hook::Setting {
-                state_dir: state_dir(&ctx),
-                exe: std::env::current_exe().unwrap_or_else(|_| PathBuf::from("warden")),
-                profile: std::env::var("WARDEN_PROFILE").ok().and_then(|name| parse_profile(&name).ok()),
-                home: ctx.home,
-                cwd: ctx.cwd,
-            };
-            let rendered = hook::run(&agent, &event, &stdin, &setting);
-            print!("{}", rendered.stdout);
-            eprint!("{}", rendered.stderr);
-            Ok(ExitCode::from(u8::try_from(rendered.code).unwrap_or(2)))
-        }
-        Some(Command::Run { session, command, from }) => {
-            let ctx = context(&from);
-            let policy = load::policy(&Sources { files: true, ..sources(&from, &ctx, None) })?;
-            let redactor = run::redactor_for(&policy)?;
-            let path = run::session_path(&state_dir(&ctx), &session);
-            let tokens = warden_redact::Session::open(&path).unwrap_or_else(|error| {
-                eprintln!("warden: starting the session over: {error}");
-                warden_redact::Session::default()
-            });
-            let line = command.join(" ");
-            let (outcome, tokens) = run::run(&policy, &redactor, tokens, &line);
-            if let Err(error) = tokens.save() {
-                eprintln!("warden: cannot save the session tokens: {error}");
-            }
-            if !outcome.counts.is_empty() && policy.audit.enabled {
-                record_run(&policy, &redactor, &ctx, &session, &line, &outcome.counts);
-            }
-            Ok(ExitCode::from(u8::try_from(outcome.code.clamp(0, 255)).unwrap_or(1)))
-        }
-        Some(Command::Audit { action: AuditAction::Verify { dir, from } }) => {
-            let log = audit_log(&from, dir)?;
-            let verification = log.verify().map_err(|error| format!("{}: {error}", log.dir().display()))?;
-            print!("{}", report::verification(&verification));
-            Ok(if verification.problem.is_none() { ExitCode::SUCCESS } else { ExitCode::FAILURE })
-        }
-        Some(Command::Test { corpus: path, from }) => {
-            let text = std::fs::read_to_string(&path).map_err(|error| format!("{}: {error}", path.display()))?;
-            let file = corpus::Corpus::parse(&text).map_err(|error| format!("{}: {error}", path.display()))?;
-            let ctx = Context { home: "/home/dev".into(), cwd: "/work/app".into() };
-            let policy = load::policy(&sources(&from, &ctx, file.profile))?;
-            let mismatches = corpus::run(&policy, &ctx, &file);
-            print!("{}", report::test(file.cases.len(), &mismatches));
-            Ok(if mismatches.is_empty() { ExitCode::SUCCESS } else { ExitCode::FAILURE })
-        }
+        Some(Command::Uninstall { global, repo, managed, purge }) => uninstall_command(global, repo, managed, purge),
+        Some(Command::Doctor { from }) => Ok(doctor_command(&from)),
+        Some(Command::Hook { agent, event }) => hook_command(&agent, &event),
+        Some(Command::Run { session, command, from }) => run_command(&session, &command, &from),
+        Some(Command::Audit { action: AuditAction::Verify { dir, from } }) => verify_command(dir, &from),
+        Some(Command::Test { corpus: path, from }) => test_command(&path, &from),
     }
 }
 

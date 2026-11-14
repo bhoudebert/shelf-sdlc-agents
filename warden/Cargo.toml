@@ -28,7 +28,7 @@ missing_panics_doc = "allow"
 [dependencies]
 warden-redact = { path = "crates/warden-redact" }
 warden-agents = { path = "crates/warden-agents" }
-serde_json = "1"
+serde_json = { version = "1", features = ["preserve_order"] }
 clap = { version = "4", features = ["derive"] }
 warden-shell = { path = "crates/warden-shell" }
 warden-policy = { path = "crates/warden-policy" }
