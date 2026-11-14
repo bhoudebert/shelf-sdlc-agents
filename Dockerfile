@@ -1,5 +1,5 @@
 # One image for both services: `shelf-web` (the product) and `shelf-worker` (workflows, agents, git, GitHub).
-FROM python:3.13-slim AS build
+FROM python:3.15-slim AS build
 COPY --from=ghcr.io/astral-sh/uv:0.13 /uv /usr/local/bin/uv
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never
 WORKDIR /app
@@ -16,7 +16,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry --mount=type=cache,targe
     cargo build --release --locked --manifest-path warden/Cargo.toml \
  && install -m 0755 warden/target/release/warden /usr/local/bin/warden
 
-FROM python:3.13-slim
+FROM python:3.15-slim
 # git clones and pushes as the App; bubblewrap, socat and ripgrep are what Claude Code's sandbox needs.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends git ca-certificates bubblewrap socat ripgrep curl unzip xz-utils \
