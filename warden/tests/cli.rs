@@ -439,3 +439,10 @@ fn a_session_that_cannot_be_saved_still_redacts() {
     assert!(output.status.success());
     let _ = std::fs::remove_dir_all(state);
 }
+
+#[test]
+fn routine_work_is_never_refused_under_the_shelf_profile() {
+    let output = warden(&["test", &corpus("routine.toml")]);
+    assert!(output.status.success(), "{}{}", stdout(&output), stderr(&output));
+    assert!(stdout(&output).contains("cases as expected"), "{}", stdout(&output));
+}
