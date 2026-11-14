@@ -151,3 +151,10 @@ def test_wardens_operator_policy_is_created_from_the_example_and_never_overwritt
 def test_the_operator_policy_example_is_valid_toml_with_every_line_commented() -> None:
     text = (DEPLOY / "warden.toml.example").read_text()
     assert tomllib.loads(text) == {}, "the example must change nothing until the operator uncomments a part"
+
+
+def test_the_web_service_reads_the_guards_log_but_cannot_change_it() -> None:
+    compose = (Path(__file__).parents[2] / "deploy" / "compose.yml").read_text()
+    web = compose.split("\n  web:\n", 1)[1].split("\n  worker:\n", 1)[0]
+    assert "WARDEN_STATE_DIR: /var/lib/warden" in web
+    assert "- warden-state:/var/lib/warden:ro" in web

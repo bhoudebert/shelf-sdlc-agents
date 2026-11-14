@@ -18,7 +18,13 @@ deny_read = [
   "**/.env.staging", "**/.env.production", "**/.env.prod",
   "~/.ssh/**", "~/.aws/**", "~/.gnupg/**", "~/.netrc", "~/.docker/config.json", "~/.kube/**", "~/.config/gh/**",
   "~/.config/gcloud/**", "~/.azure/**", "~/.npmrc", "~/.pypirc", "~/.git-credentials", "~/Library/Keychains/**",
-  "**/id_rsa*", "**/id_ed25519*", "**/*.pem", "**/*.p12", "**/*.pfx",
+  "**/id_rsa*", "**/id_ed25519*", "**/*.pem", "**/*.p12", "**/*.pfx", "**/*.key",
+  "/etc/shadow", "/etc/gshadow", "/etc/sudoers", "/etc/sudoers.d/**", "/proc/*/environ",
+  "~/.pgpass", "~/.terraform.d/credentials.tfrc.json", "~/.vault-token", "~/.config/rclone/**",
+  "~/.cargo/credentials", "~/.cargo/credentials.toml", "~/.m2/settings.xml", "~/.gradle/gradle.properties",
+  "~/.config/doctl/**", "~/.config/op/**", "~/.bash_history", "~/.zsh_history",
+  "~/.mozilla/**/logins.json", "~/.mozilla/**/cookies.sqlite", "~/.config/google-chrome/**/Login Data",
+  "~/.config/chromium/**/Login Data", "**/*.tfstate", "**/*.tfstate.backup",
 ]
 protected = [
   "~/.claude/settings.json", "~/.claude/settings.local.json", "**/.claude/settings.json",

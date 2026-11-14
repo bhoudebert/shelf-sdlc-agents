@@ -36,8 +36,11 @@ impl Cx<'_> {
 
 static URL_HOST: LazyLock<Regex> =
     LazyLock::new(|| literal(r"(?i)\b[a-z][a-z0-9+.-]*://(?:[^/@\s'\x22]*@)?([^/:\s?#'\x22]+)"));
-static SQL_DESTRUCTIVE: LazyLock<Regex> =
-    LazyLock::new(|| literal(r"(?i)\b(?:drop\s+(?:table|database|schema|index|view)|truncate(?:\s+table)?\s+\w)"));
+static SQL_DESTRUCTIVE: LazyLock<Regex> = LazyLock::new(|| {
+    literal(
+        r"(?i)\b(?:drop\s+(?:table|database|schema|index|view)|truncate(?:\s+table)?\s+\w|flush(?:all|db)\b|dropdatabase\b)",
+    )
+});
 static SPAWNS_SHELL: LazyLock<Regex> = LazyLock::new(|| {
     literal(
         r"(?i)(os\.system|subprocess|child_process|popen|execSync|spawnSync|\bexec\(|\bsystem\(|Runtime\.getRuntime|pty\.spawn|`[^`]+`)",
@@ -180,6 +183,12 @@ fn assignments(cx: &mut Cx<'_>, inv: &Invocation) {
 
 fn redirects(cx: &mut Cx<'_>, inv: &Invocation, name: &str) {
     for redirect in &inv.redirects {
+        let target = redirect.target.text();
+        if target.starts_with("/dev/tcp/") || target.starts_with("/dev/udp/") {
+            cx.add(Category::Exfil, "a redirect to /dev/tcp opens a raw network connection");
+            cx.add(Category::Network, "/dev/tcp");
+            continue;
+        }
         match redirect.kind {
             RedirectKind::Read => read_path(cx, name, &redirect.target),
             RedirectKind::Write | RedirectKind::Append => write_path(cx, name, &redirect.target, "redirects output to"),
@@ -280,7 +289,9 @@ fn by_command(cx: &mut Cx<'_>, inv: &Invocation, name: &str, args: &[String]) {
     let first = operands.first().map(|w| w.text().to_owned()).unwrap_or_default();
     match name {
         "rm" => remove(cx, inv, args),
-        "find" if has_any(args, &["-delete"]) => cx.add(Category::Delete, "find -delete removes the files it finds"),
+        "find" if has_any(args, &["-delete"]) => find_delete(cx, inv),
+        "shred" => cx.add(Category::Delete, "shred overwrites and removes files"),
+        "dropdb" | "dropuser" => cx.add(Category::Destructive, format!("{name} drops a database object")),
         "dd" if args.iter().any(|a| a.starts_with("of=/dev/")) => {
             cx.add(Category::Destructive, "dd writes straight to a device");
         }
@@ -354,6 +365,23 @@ fn by_command(cx: &mut Cx<'_>, inv: &Invocation, name: &str, args: &[String]) {
         && SQL_DESTRUCTIVE.is_match(&text)
     {
         cx.add(Category::Destructive, format!("{name} runs SQL that drops or empties data"));
+    }
+}
+
+fn find_delete(cx: &mut Cx<'_>, inv: &Invocation) {
+    let mut reaches_out = false;
+    for word in operands(inv).into_iter().take_while(|w| !w.text().starts_with('-')) {
+        let Some(resolved) = cx.ctx.resolved(word) else { continue };
+        let absolute = cx.ctx.absolute(resolved.trim_end_matches('*'));
+        if !is_temporary(&absolute) && (is_system_directory(&absolute, &cx.ctx.home) || !cx.ctx.in_workspace(&absolute))
+        {
+            reaches_out = true;
+        }
+    }
+    if reaches_out {
+        cx.add(Category::Destructive, "find -delete removes files outside the workspace");
+    } else {
+        cx.add(Category::Delete, "find -delete removes the files it finds");
     }
 }
 
@@ -586,6 +614,19 @@ fn cloud_and_tools(cx: &mut Cx<'_>, name: &str, args: &[String], first: &str) {
             if first == "auth" && args.iter().any(|a| a == "token") {
                 cx.add(Category::SecretAccess, "gh auth token prints the GitHub token");
             }
+            let verb = args.iter().skip(1).find(|a| !a.starts_with('-')).map_or("", String::as_str);
+            if matches!((first, verb), ("repo", "delete" | "archive") | ("release" | "secret", "delete")) {
+                cx.add(Category::Destructive, format!("gh {first} {verb} removes something on GitHub"));
+            }
+            if first == "secret" && verb == "set" {
+                cx.add(Category::Privilege, "gh secret set changes a repository secret");
+            }
+            let method_delete = args
+                .windows(2)
+                .any(|w| matches!(w[0].as_str(), "-X" | "--method") && w[1].eq_ignore_ascii_case("delete"));
+            if first == "api" && method_delete {
+                cx.add(Category::Destructive, "gh api sends a DELETE request to GitHub");
+            }
             if first == "gist" {
                 cx.add(Category::Exfil, "gh gist publishes text to a public place");
             }
@@ -613,6 +654,9 @@ fn cloud_and_tools(cx: &mut Cx<'_>, name: &str, args: &[String], first: &str) {
 fn node_packages(cx: &mut Cx<'_>, name: &str, args: &[String], first: &str, operands: &[&Word]) {
     match first {
         "publish" => cx.add(Category::Publish, format!("{name} publish releases a package")),
+        "unpublish" | "deprecate" | "dist-tag" => {
+            cx.add(Category::Publish, format!("{name} {first} changes a published package"));
+        }
         "install" | "i" | "add" if operands.len() > 1 => {
             cx.add(Category::PackageInstall, format!("{name} {first} adds a new dependency"));
         }
