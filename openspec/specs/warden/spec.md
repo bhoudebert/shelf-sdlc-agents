@@ -222,6 +222,24 @@ The system SHALL judge the reading of a credential file, the writing of a protec
 - **WHEN** an unattended policy judges a write to `/etc/claude-code/managed-settings.json`
 - **THEN** it is denied
 
+### Requirement: Routes that carry data out of the machine are risky
+
+The system SHALL treat as exfiltration a `git push` to an address instead of a named remote, `ssh` with `-R` or `-D`, staging a credential file with `git add`, and moving or linking a credential file with `mv` or `ln`; and SHALL always deny a request to a cloud metadata address (`169.254.169.254`, `metadata.google.internal`, `metadata.azure.com`) or to a public request-capture or tunnelling service (`requestbin.net`, `pipedream.net`, `interact.sh`, `oast.fun`, `oast.pro`, `burpcollaborator.net`, beside those already listed).
+
+#### Scenario: Instance credentials
+
+- **WHEN** an agent runs `curl http://169.254.169.254/latest/meta-data/`
+- **THEN** the call is denied
+
+#### Scenario: A credential file is staged
+
+- **WHEN** an agent runs `git add .env`
+- **THEN** the call needs a person's approval
+
+#### Scenario: Ordinary git
+
+- **WHEN** an agent runs `git push origin main` or `git add src/main.rs`
+
 ### Requirement: Commands that destroy hosted or shared state, and reverse shells, are risky
 
 The system SHALL classify as destructive `gh repo delete`, `gh repo archive`, `gh release delete`, `gh secret delete`, `gh api` with a DELETE method, `dropdb` and `dropuser`, `redis-cli` flushing and `mongosh` dropping a database, and `find -delete` over a path outside the workspace; as a change of privilege `gh secret set`; as a publish `npm unpublish`, `deprecate` and `dist-tag`; as a deletion `shred`; and as an exfiltration and a network access any redirect to `/dev/tcp` or `/dev/udp`, including the duplicating form `>& /dev/tcp/...`.

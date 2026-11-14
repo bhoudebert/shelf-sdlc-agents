@@ -57,10 +57,10 @@ const SHELLS: [&str; 7] = ["sh", "bash", "zsh", "dash", "ksh", "ash", "fish"];
 const INTERPRETERS: [&str; 7] = ["python", "node", "nodejs", "perl", "ruby", "php", "deno"];
 const FETCHERS: [&str; 5] = ["curl", "wget", "fetch", "aria2c", "http"];
 /// Commands that do not read the content of the files named in their arguments.
-const NON_READERS: [&str; 33] = [
-    "echo", "printf", "ls", "stat", "chmod", "chown", "chgrp", "rm", "rmdir", "unlink", "mv", "mkdir", "touch", "cd",
-    "pwd", "which", "type", "test", "true", "false", "ln", "truncate", "tee", "git", "npm", "yarn", "pnpm", "pip",
-    "pip3", "cargo", "make", "docker", "kubectl",
+const NON_READERS: [&str; 31] = [
+    "echo", "printf", "ls", "stat", "chmod", "chown", "chgrp", "rm", "rmdir", "unlink", "mkdir", "touch", "cd", "pwd",
+    "which", "type", "test", "true", "false", "truncate", "tee", "git", "npm", "yarn", "pnpm", "pip", "pip3", "cargo",
+    "make", "docker", "kubectl",
 ];
 const KEY_OPTION_COMMANDS: [&str; 6] = ["ssh", "scp", "sftp", "ssh-add", "ssh-keygen", "rsync"];
 
@@ -300,7 +300,14 @@ fn by_command(cx: &mut Cx<'_>, inv: &Invocation, name: &str, args: &[String]) {
         }
         "crontab" if has_short(args, 'r') => cx.add(Category::Destructive, "crontab -r removes every scheduled job"),
         "chmod" | "chown" | "chgrp" => permissions(cx, inv, name, args),
-        "git" => git(cx, args),
+        "git" => {
+            if first == "add" {
+                for word in operands.iter().skip(1) {
+                    read_path(cx, "git add", word);
+                }
+            }
+            git(cx, args);
+        }
         "curl" => curl(cx, args),
         "wget" => wget(cx, args),
         "nc" | "ncat" | "netcat" | "socat" | "telnet" => {
@@ -311,6 +318,9 @@ fn by_command(cx: &mut Cx<'_>, inv: &Invocation, name: &str, args: &[String]) {
         "ssh" | "ping" | "dig" | "nslookup" | "host" | "traceroute" | "gh" | "gcloud" | "az" | "helm" | "heroku"
         | "vercel" | "fly" | "flyctl" | "terraform" | "kubectl" | "docker" => {
             cx.add(Category::Network, name);
+            if name == "ssh" && (has_short(args, 'R') || has_short(args, 'D')) {
+                cx.add(Category::Exfil, "ssh -R or -D opens a tunnel out of this machine");
+            }
             cloud_and_tools(cx, name, args, &first);
         }
         "aws" => {
@@ -442,6 +452,15 @@ fn git(cx: &mut Cx<'_>, args: &[String]) {
     match sub {
         "push" => {
             cx.add(Category::Network, "git push");
+            if operands
+                .iter()
+                .any(|a| ["http://", "https://", "ssh://", "git://", "git@"].iter().any(|p| a.starts_with(p)))
+            {
+                cx.add(
+                    Category::Exfil,
+                    "git push to an address instead of a named remote sends the repository elsewhere",
+                );
+            }
             let lease = has_long(rest, "force-with-lease") || has_long(rest, "force-if-includes");
             if (has_long(rest, "force") || has_short(rest, 'f')) && !lease {
                 cx.add(Category::VcsForce, "git push --force can overwrite the work of others");
