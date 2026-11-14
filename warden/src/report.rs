@@ -124,6 +124,80 @@ pub fn status(records: &[warden_audit::Record], all: bool, last: usize) -> Strin
     out
 }
 
+/// `warden report`: what a stricter profile would have stopped among the calls that audit mode let through.
+pub fn adoption(records: &[warden_audit::Record]) -> String {
+    use std::collections::BTreeMap;
+    let mut out = String::new();
+    if records.is_empty() {
+        let _ = writeln!(out, "nothing to report yet: the log holds no record");
+        return out;
+    }
+    let calls: Vec<&warden_audit::Record> = records.iter().filter(|r| r.entry.kind != "run").collect();
+    let mut stopped = 0_usize;
+    let mut by_category: BTreeMap<&str, usize> = BTreeMap::new();
+    let mut by_command: BTreeMap<(&str, &str), usize> = BTreeMap::new();
+    for record in &calls {
+        let entry = &record.entry;
+        let intended = if entry.intended.is_empty() { entry.decision.as_str() } else { entry.intended.as_str() };
+        if intended == "ask" || intended == "deny" {
+            stopped += 1;
+            for category in &entry.categories {
+                *by_category.entry(category.as_str()).or_default() += 1;
+            }
+            *by_command.entry((intended, entry.summary.as_str())).or_default() += 1;
+        }
+    }
+    let total = calls.len();
+    let _ = writeln!(out, "calls: {total}   would be stopped: {stopped}");
+    if !by_category.is_empty() {
+        let _ = writeln!(out, "\nby category:");
+        let mut rows: Vec<_> = by_category.into_iter().collect();
+        rows.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(b.0)));
+        for (category, count) in rows {
+            let _ = writeln!(out, "  {category:<18} {count}");
+        }
+    }
+    if !by_command.is_empty() {
+        let _ = writeln!(out, "\nstopped most often:");
+        let mut rows: Vec<_> = by_command.into_iter().collect();
+        rows.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+        for ((intended, summary), count) in rows.into_iter().take(10) {
+            let _ = writeln!(out, "  {count:>4}x {intended:<5} {summary}");
+        }
+    }
+    let share = (stopped * 100).checked_div(total).unwrap_or(0);
+    let _ = writeln!(out, "\n{stopped} of {total} calls ({share}%) would have been stopped by the policy as written.");
+    out
+}
+
+/// `warden report --json`: the same counts, for a program.
+pub fn adoption_json(records: &[warden_audit::Record]) -> String {
+    use std::collections::BTreeMap;
+    let calls: Vec<&warden_audit::Record> = records.iter().filter(|r| r.entry.kind != "run").collect();
+    let mut would_stop = 0_usize;
+    let mut by_category: BTreeMap<&str, usize> = BTreeMap::new();
+    for record in &calls {
+        let entry = &record.entry;
+        let intended = if entry.intended.is_empty() { entry.decision.as_str() } else { entry.intended.as_str() };
+        if intended == "ask" || intended == "deny" {
+            would_stop += 1;
+            for category in &entry.categories {
+                *by_category.entry(category.as_str()).or_default() += 1;
+            }
+        }
+    }
+    let summary = warden_audit::summarize(records);
+    let object = serde_json::json!({
+        "records": summary.total,
+        "calls": calls.len(),
+        "would_stop": would_stop,
+        "by_category": by_category,
+        "by_decision": summary.decisions,
+        "redactions": summary.redactions,
+    });
+    format!("{object}\n")
+}
+
 /// `warden audit verify`.
 pub fn verification(result: &warden_audit::Verification) -> String {
     match &result.problem {

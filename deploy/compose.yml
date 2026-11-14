@@ -56,6 +56,18 @@ services:
   web:
     <<: *shelf
     command: ["shelf-web"]
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_UI_UPSTREAM: http://temporal:8233
+      SHELF_CONFIG: /etc/shelf/shelf.toml
+      GITHUB_APP_PRIVATE_KEY_PATH: /run/secrets/github-app.pem
+      # Where the guard's audit log is, so the admin page can say what the agents did (it only reads).
+      WARDEN_STATE_DIR: /var/lib/warden
+    # A `volumes` key replaces the shared one, so the shared mounts are repeated here.
+    volumes:
+      - ./config:/etc/shelf:ro
+      - ./secrets:/run/secrets:ro
+      - warden-state:/var/lib/warden:ro
     ports:
       # Every interface unless WEB_BIND says otherwise (127.0.0.1 when your reverse proxy runs on this server).
       - "${WEB_BIND:-0.0.0.0}:${WEB_PORT:-8080}:8080"

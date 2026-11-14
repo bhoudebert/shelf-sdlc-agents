@@ -342,6 +342,9 @@ impl Builder {
                 };
                 Some(Redirect { kind, target: self.word(target, depth)? })
             }
+            IoRedirect::File(_, _, IoFileRedirectTarget::Duplicate(target)) => {
+                Some(Redirect { kind: RedirectKind::Other, target: self.word(target, depth)? })
+            }
             IoRedirect::OutputAndError(target, append) => Some(Redirect {
                 kind: if *append { RedirectKind::Append } else { RedirectKind::Write },
                 target: self.word(target, depth)?,

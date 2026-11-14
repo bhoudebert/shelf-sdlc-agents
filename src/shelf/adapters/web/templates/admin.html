@@ -21,6 +21,26 @@
   </section>
   {% endif %}
 
+  <section class="admin-block" aria-labelledby="guard-title">
+    <h2 id="guard-title">Guard</h2>
+    {% if guard.report %}
+    {% set g = guard.report %}
+    <p class="muted">What Warden has recorded about the agents' commands, file accesses and prompts. Details: <code>warden status</code> in the worker.</p>
+    {% if not g.chain_intact %}
+    <p class="finding finding-error"><strong>Fix</strong> The audit log's chain is broken: a record was changed or removed. Run <code>warden audit verify</code> in the worker to see where.</p>
+    {% endif %}
+    <dl class="facts">
+      <dt>Calls recorded</dt><dd>{{ g.calls }}</dd>
+      <dt>Stopped, or would be</dt><dd>{{ g.stopped }}</dd>
+      <dt>Values redacted</dt><dd>{{ g.redactions }}</dd>
+      <dt>Audit chain</dt><dd>{{ "intact" if g.chain_intact else "BROKEN" }}</dd>
+      {% if g.top_categories() %}<dt>Risks found most</dt><dd>{% for name, count in g.top_categories() %}{{ name }} ({{ count }}){{ ", " if not loop.last }}{% endfor %}</dd>{% endif %}
+    </dl>
+    {% else %}
+    <p class="muted">{{ guard.why_not }}</p>
+    {% endif %}
+  </section>
+
   <section class="admin-block" aria-labelledby="deliveries-title">
     <h2 id="deliveries-title">What GitHub has sent</h2>
     <p class="muted">The latest webhook deliveries since this instance started, newest first. Compare with the App's page on
