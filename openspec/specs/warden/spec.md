@@ -651,3 +651,27 @@ The system SHALL load the file named by `WARDEN_OPERATOR_POLICY` as a locked lay
 
 - **WHEN** `WARDEN_PROFILE` is `shelf`
 - **THEN** every command that loads a policy starts from the `shelf` preset
+
+### Requirement: Warden installs as one verified binary, and a release publishes it
+
+The system SHALL publish, when a Warden release is made, a static binary for Linux and macOS on x86-64 and aarch64 with a file of their SHA-256 checksums, and SHALL ship an `install.sh` that downloads the binary for the machine it runs on (the latest release, or `WARDEN_VERSION`), verifies it against the checksum file and refuses to install it on a mismatch, installs it without `sudo` into `WARDEN_INSTALL_DIR` (`~/.local/bin` by default), says when that folder is not on the `PATH`, and names the next step, `warden init`.
+
+#### Scenario: A good release
+
+- **WHEN** `install.sh` runs against a release whose checksum matches
+- **THEN** the binary is installed, runs and reports its version, and the script says what to do next
+
+#### Scenario: A download that does not match
+
+- **WHEN** the checksum file does not match the download
+- **THEN** the script fails naming the mismatch and installs nothing
+
+#### Scenario: A release that is not there
+
+- **WHEN** the files cannot be downloaded
+- **THEN** the script says so and fails
+
+#### Scenario: A release is made
+
+- **WHEN** release-please makes a Warden release
+- **THEN** the binaries and `checksums.txt` are built and attached to that release by the same workflow run
