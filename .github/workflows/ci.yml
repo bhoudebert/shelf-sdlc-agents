@@ -35,6 +35,25 @@ jobs:
       - name: Quality gate
         run: uv run ruff check . && uv run ruff format --check . && uv run pyright && uv run lint-imports && uv run pytest
 
+  quality-warden:
+    name: warden (Rust)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: warden
+    steps:
+      - uses: actions/checkout@v7
+      - run: rustup toolchain install stable --profile minimal --component clippy,rustfmt && rustup default stable
+      - uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            warden/target
+          key: warden-${{ runner.os }}-${{ hashFiles('warden/Cargo.lock') }}
+      - name: Quality gate
+        run: cargo fmt --check && cargo clippy --all-targets --locked -- -D warnings && cargo test --locked
+
   commits:
     name: Conventional commits
     if: github.event_name == 'pull_request'
@@ -49,7 +68,7 @@ jobs:
   quality:
     name: Quality gate
     if: always()
-    needs: [commits, quality-shelf-sdlc-agents]
+    needs: [commits, quality-shelf-sdlc-agents, quality-warden]
     runs-on: ubuntu-latest
     steps:
       - name: Every job passed or was skipped

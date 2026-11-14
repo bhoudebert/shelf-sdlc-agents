@@ -29,6 +29,10 @@
             pyright
             uv
             temporal-cli
+            cargo
+            rustc
+            clippy
+            rustfmt
           ];
         };
       });

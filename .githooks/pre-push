@@ -21,6 +21,12 @@ fi
 echo "pre-push: uv run ruff check . && uv run ruff format --check . && uv run pyright && uv run lint-imports && uv run pytest" >&2
 uv run ruff check . && uv run ruff format --check . && uv run pyright && uv run lint-imports && uv run pytest
 status=$?
+# Warden (Rust), when this checkout has it and a toolchain is there.
+if [ "$status" -eq 0 ] && [ -f warden/Cargo.toml ] && command -v cargo >/dev/null 2>&1; then
+  echo "pre-push: cd warden && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test" >&2
+  (cd warden && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test)
+  status=$?
+fi
 if [ "$status" -ne 0 ]; then
   echo "pre-push: the quality gate failed. Fix it, or define it first if the project does not have one yet (AGENTS.md, 'Useful commands')." >&2
   echo "          Skip once with SKIP_PRE_PUSH=1 git push; the pull request checks run anyway." >&2
