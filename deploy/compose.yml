@@ -77,11 +77,19 @@ services:
       SHELF_NESTED_SANDBOX: "1"
       # Each repository's tools and package caches (mise, Maven, npm...) live here, one home per repository.
       SHELF_CACHE_DIR: /cache
+      # Warden, the guard around every agent: the profile, the operator's locked policy file (config/warden.toml, optional),
+      # where its audit log lives, and where a sandboxed command may save its session tokens.
+      WARDEN_PROFILE: ${SHELF_WARDEN_PROFILE:-shelf}
+      WARDEN_OPERATOR_POLICY: /etc/shelf/warden.toml
+      WARDEN_STATE_DIR: /var/lib/warden
+      WARDEN_SESSION_DIR: /tmp/warden/sessions
     # A `volumes` key replaces the shared one, so the shared mounts are repeated here.
     volumes:
       - ./config:/etc/shelf:ro
       - ./secrets:/run/secrets:ro
       - worker-cache:/cache
+      # Warden's audit log: every decision about every agent, in a hash chain (`warden audit verify`).
+      - warden-state:/var/lib/warden
       # The synced catalog of skills and plugins, and the managed policy that enables the plugins (see catalog.toml).
       - catalog-plugins:/opt/shelf/catalog:ro
       - claude-policy:/etc/claude-code:ro
@@ -99,6 +107,9 @@ services:
     build:
       context: ..
     command: ["shelf-catalog", "sync"]
+    environment:
+      # on (default): Warden's hooks come first in the managed policy, so they run for every agent. off: no guard.
+      SHELF_WARDEN: ${SHELF_WARDEN:-on}
     volumes:
       - ./config:/etc/shelf:ro
       - catalog-plugins:/opt/shelf/catalog
@@ -107,5 +118,6 @@ services:
 volumes:
   temporal-data:
   worker-cache:
+  warden-state:
   catalog-plugins:
   claude-policy:

@@ -59,6 +59,11 @@ fi
 
 # The catalog of corporate skills and plugins is yours too: created once from the example (which fetches nothing until you
 # uncomment a source), then never touched or committed.
+# Warden's operator policy is yours too, and optional: a locked file that every repository can only tighten.
+if [ ! -f "$here/config/warden.toml" ]; then
+  cp "$here/warden.toml.example" "$here/config/warden.toml"
+  echo "Created $here/config/warden.toml from the example (every line is commented: the profile alone guards the agents)."
+fi
 if [ ! -f "$here/config/catalog.toml" ]; then
   cp "$here/catalog.toml.example" "$here/config/catalog.toml"
   echo "Created $here/config/catalog.toml from the example. Uncomment the sources you want agents to have, then run this script again."

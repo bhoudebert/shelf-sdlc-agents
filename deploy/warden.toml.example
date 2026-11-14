@@ -1,0 +1,33 @@
+# Warden guards every agent: it checks each command, file access and fetch before it runs. This file is yours (it is
+# deploy/config/warden.toml, which git ignores): it is mounted read-only and loaded as a LOCKED layer, so a repository's own
+# .warden/policy.toml can add rules and protect more files, but can never loosen what you say here. Read `warden policy`
+# inside the worker to see the result:  docker compose -f deploy/compose.yml exec worker warden policy
+#
+# The profile comes from SHELF_WARDEN_PROFILE in deploy/.env (shelf by default). Nothing below is needed: uncomment what you want.
+#
+# Everything in the `shelf` profile is documented in the Configuration page of the guide. Examples:
+
+# Production is hands-off for every agent.
+# [[rules]]
+# id = "no-prod"
+# match = 'kubectl .*--context[= ]prod'
+# decision = "deny"
+# reason = "production is hands-off for agents"
+
+# Only these sites may be reached by a command (everything else is denied). Leave it out to allow any site not on the
+# built-in deny list.
+# [network]
+# allow_domains = ["github.com", "registry.npmjs.org", "pypi.org", "api.internal.example"]
+
+# Names that must never reach a model as they are, and your own identifiers: they become tokens such as <CUSTOMER_ID_1>.
+# [redact.pii]
+# names = ["Acme Corp"]
+# custom = [{ name = "customer_id", pattern = 'CUST-\d{6}' }]
+
+# Variables hidden from every command an agent runs.
+# [env]
+# hide = ["*_TOKEN", "*_SECRET"]
+
+# A write outside the working directory is denied by default in this profile; protect more files:
+# [paths]
+# protected = ["infra/prod/**", "CODEOWNERS"]

@@ -1,6 +1,7 @@
 import os
 import shutil
 import subprocess
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -125,3 +126,19 @@ def test_a_catalog_the_operator_edited_is_never_overwritten(server: Path) -> Non
     (config / "catalog.toml").write_text("# mine\n")
     run(server)
     assert (config / "catalog.toml").read_text() == "# mine\n"
+
+
+def test_wardens_operator_policy_is_created_from_the_example_and_never_overwritten(server: Path) -> None:
+    write_env(server)
+    config = server / "deploy" / "config"
+    assert run(server).returncode == 0
+    created = config / "warden.toml"
+    assert created.read_text() == (server / "deploy" / "warden.toml.example").read_text()
+    created.write_text("# mine\n")
+    run(server)
+    assert created.read_text() == "# mine\n"
+
+
+def test_the_operator_policy_example_is_valid_toml_with_every_line_commented() -> None:
+    text = (DEPLOY / "warden.toml.example").read_text()
+    assert tomllib.loads(text) == {}, "the example must change nothing until the operator uncomments a part"

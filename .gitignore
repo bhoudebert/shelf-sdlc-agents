@@ -37,4 +37,5 @@ deploy/secrets/*
 deploy/shelf.toml
 deploy/config/shelf.toml
 deploy/config/catalog.toml
+deploy/config/warden.toml
 warden/target/

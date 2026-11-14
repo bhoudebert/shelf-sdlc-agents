@@ -6,6 +6,7 @@ from shelf.domain.catalog import (
     Hook,
     Kind,
     Source,
+    guard_hooks,
     managed_policy,
     marketplace,
     parse_catalog,
@@ -117,3 +118,27 @@ def test_operator_hooks_go_in_the_policy_grouped_by_event_with_their_matcher() -
         ],
         "Stop": [{"hooks": [{"type": "command", "command": "bye"}]}],
     }
+
+
+def test_wardens_hooks_are_five_blocking_commands_with_a_matcher_on_the_tool_events() -> None:
+    hooks = guard_hooks("/usr/local/bin/warden")
+    assert [hook.event for hook in hooks] == ["PreToolUse", "PostToolUse", "UserPromptSubmit", "SessionStart", "Stop"]
+    assert hooks[0].command == "/usr/local/bin/warden hook claude PreToolUse"
+    assert [hook.matcher for hook in hooks] == ["*", "*", "", "", ""]
+    assert all(hook.timeout == 20 and hook.on_failure == "block" for hook in hooks)
+
+
+def test_the_managed_policy_carries_the_timeout_and_the_failure_rule_of_a_hook() -> None:
+    policy = managed_policy([], guard_hooks("/w"), "/opt/shelf/catalog")
+    entry = policy["hooks"]["PreToolUse"][0]
+    assert entry["matcher"] == "*"
+    assert entry["hooks"] == [
+        {"type": "command", "command": "/w hook claude PreToolUse", "timeout": 20, "onFailure": "block"}
+    ]
+    assert "matcher" not in policy["hooks"]["Stop"][0]
+    assert policy["allowManagedHooksOnly"] is True
+
+
+def test_the_operators_own_hooks_do_not_gain_a_timeout_or_a_failure_rule() -> None:
+    policy = managed_policy([], [Hook("PreToolUse", "rtk hook claude", "Bash")], "/opt/shelf/catalog")
+    assert policy["hooks"]["PreToolUse"][0]["hooks"] == [{"type": "command", "command": "rtk hook claude"}]
