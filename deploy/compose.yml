@@ -78,11 +78,13 @@ services:
       # Each repository's tools and package caches (mise, Maven, npm...) live here, one home per repository.
       SHELF_CACHE_DIR: /cache
       # Warden, the guard around every agent: the profile, the operator's locked policy file (config/warden.toml, optional),
-      # where its audit log lives, and where a sandboxed command may save its session tokens.
+      # where its audit log lives, and where a sandboxed command may keep its session tokens.
       WARDEN_PROFILE: ${SHELF_WARDEN_PROFILE:-shelf}
       WARDEN_OPERATOR_POLICY: /etc/shelf/warden.toml
       WARDEN_STATE_DIR: /var/lib/warden
-      WARDEN_SESSION_DIR: /tmp/warden/sessions
+      # A command in the agents' sandbox may write only in $TMPDIR (/tmp/claude-1000, the agent user's uid) and its working
+      # directory: the session tokens and the pending audit records live there, and the hooks move the records to the log.
+      WARDEN_SESSION_DIR: /tmp/claude-1000/warden
     # A `volumes` key replaces the shared one, so the shared mounts are repeated here.
     volumes:
       - ./config:/etc/shelf:ro
