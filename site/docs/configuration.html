@@ -65,7 +65,7 @@ reason = &quot;production is hands-off for agents&quot;
 [redact.pii]
 names = [&quot;Acme Corp&quot;]
 custom = [{ name = &quot;customer_id&quot;, pattern = 'CUST-\d{6}' }]</code></pre>
-<p>To see it work, from <code>deploy/</code>: <code>docker compose exec worker warden policy</code> (what is in force), <code>warden explain '&lt;command&gt;'</code> (how one command is judged), <code>warden status</code> (what it refused and redacted) and <code>warden audit verify</code> (the log has not been changed). Start with <code>observe</code> for a week: it logs what it would have refused and refuses nothing. What Warden is not, in <a href="limits.html#warden">Limits</a>.</p>
+<p>To see it work, from <code>deploy/</code>: <code>docker compose exec worker warden policy</code> (what is in force), <code>warden explain '&lt;command&gt;'</code> (how one command is judged), <code>warden status</code> (what it refused and redacted) and <code>warden audit verify</code> (the log has not been changed). Start with <code>observe</code> for a week: it logs what it would have refused and refuses nothing. After that week, <code>docker compose exec worker warden report</code> says how many calls it would have stopped, per risk and per command: if the list is what you expected, switch to <code>shelf</code>. The same counts, and whether the log&rsquo;s chain is intact, are in the <strong>Guard</strong> section of the admin page. What Warden is not, in <a href="limits.html#warden">Limits</a>.</p>
 <h2 id="repo">.shelf/config.toml (per repository)</h2>
 <p>Lives in the repository, so changes to who may do what are reviewed like any other change. Every key is optional.</p>
 <pre><code># .shelf/config.toml
