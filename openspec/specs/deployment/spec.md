@@ -526,3 +526,12 @@ The system SHALL build Warden from the repository's own `warden/` sources into t
 
 - **WHEN** the operator edited `config/warden.toml` and the install script runs again
 - **THEN** their file is as they left it
+
+### Requirement: The catalog image is rebuilt before it syncs
+
+The system SHALL, when the install script runs, build the catalog service's image before running the sync, because that service sits behind a profile and is not rebuilt with the web and worker images, so that the sync always runs from the revision just built and its managed policy carries what that revision ships (Warden's hooks).
+
+#### Scenario: An update
+
+- **WHEN** the install script runs after the checkout was updated
+- **THEN** the catalog image is built before the sync runs
