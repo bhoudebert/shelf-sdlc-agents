@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Guard the agents Shelf runs, and the agents of anyone who installs it, with a policy engine that sees each tool call before it runs: it gates commands, keeps secrets and personal data off the model and records every decision. This capability is built in stages (decision 0014); the requirements below are the ones that hold so far: the policy, the judging of commands and files, the commands that show a decision, and the audit log.
+Guard the agents Shelf runs, and the agents of anyone who installs it, with a policy engine that sees each tool call before it runs: it gates commands, keeps secrets and personal data off the model and records every decision. This capability is built in stages (decision 0014); the requirements below are the ones that hold so far: the policy, the judging of commands and files, the commands that show a decision, the audit log, and redaction.
 
 ## Requirements
 
@@ -332,3 +332,83 @@ The system SHALL log by default to `~/.local/share/warden/audit`, let a policy t
 
 - **WHEN** a repository file sets `audit.enabled = false` and `audit.dir` after a locked layer
 - **THEN** the log stays on in the locked layer's directory and two warnings name the repository file
+
+### Requirement: Secrets and personal data become stable, reversible tokens
+
+The system SHALL replace credentials and personal data in text by tokens of the form `<KIND_n>`, the same value always getting the same token within a session and different values different numbers starting at 1 for each kind; SHALL recognise the credentials of the common providers (AWS, GitHub, GitLab, Slack, Google, Stripe, OpenAI and Anthropic keys, SendGrid, Twilio, npm, PyPI, Hugging Face and Doppler tokens, JSON web tokens, bearer tokens, basic-auth headers, passwords in URLs, `.npmrc` tokens, private key blocks and literals assigned to sensitive names such as `password` or `api_key`) and the personal data of email addresses, telephone numbers, IBANs (checked by their checksum), payment cards (checked with Luhn), French social security numbers (checked by their key), US social security numbers, public IPv4 addresses (only when asked), the names a policy lists and the patterns a policy defines; SHALL leave alone the values an allow list names; and SHALL put the real value back when asked to restore a text.
+
+#### Scenario: Same value, same token
+
+- **WHEN** one address appears twice and another once in a session
+- **THEN** the first gets `<EMAIL_1>` both times and the second `<EMAIL_2>`
+
+#### Scenario: A checksum
+
+- **WHEN** a number has the shape of a card or an IBAN but fails its checksum
+- **THEN** it is left alone
+
+#### Scenario: An allowed address
+
+- **WHEN** the text holds `noreply@service.com` or an address under `example.com`
+- **THEN** it is not replaced
+
+#### Scenario: A round trip
+
+- **WHEN** a text with a token is restored
+- **THEN** the original value is back, and a token the session does not know is left as it is
+
+#### Scenario: A private key
+
+- **WHEN** a key block spans several lines
+- **THEN** the block becomes one token, whether the text is one string or arrives line by line
+
+### Requirement: A session keeps its tokens in a private file
+
+The system SHALL keep the tokens of a session in a JSON file in the state directory (`$WARDEN_STATE_DIR`, or `~/.local/share/warden`), readable by its owner only, so that a later command of the same session gets the same tokens, and SHALL start another session's numbering afresh.
+
+#### Scenario: The next command
+
+- **WHEN** a second command of a session prints a value the first one printed
+- **THEN** it gets the token the first one got
+
+### Requirement: `warden run` redacts what a command prints
+
+The system SHALL run the command given to `warden run` through `bash -c`, copy its standard output and its standard error line by line with credentials and personal data replaced by tokens, return the command's own exit code, hide from it the environment variables the policy's `env.hide` names (names or `*` patterns), and pass its output through untouched when the policy turns output redaction off.
+
+#### Scenario: Both streams
+
+- **WHEN** a command prints a password-bearing URL and an email address on its output and an access key on its error output, and exits with 3
+- **THEN** none of the values appears, the tokens do, and the exit code is 3
+
+#### Scenario: Ordinary output
+
+- **WHEN** a command prints nothing sensitive
+- **THEN** its output is unchanged and nothing is added to the audit log
+
+#### Scenario: A hidden variable
+
+- **WHEN** the policy hides `*_TOKEN` and the command prints `$MY_TOKEN`
+- **THEN** the variable is empty
+
+### Requirement: A redacted run is logged by its counts
+
+The system SHALL, when a run redacted something, append an audit record with the number of values redacted per kind and the command line with its own secrets replaced, and never the values.
+
+#### Scenario: A logged run
+
+- **WHEN** a run redacted one email address
+- **THEN** the log has one record with the decision `redacted` and `email` counted once, and no address
+
+### Requirement: A policy says what is kept off the model, and a locked one keeps it
+
+The system SHALL read from a policy `redact.outputs`, `redact.secrets`, `redact.mcp`, `redact.prompts` (`off`, `warn` or `block`), `redact.read_tool` (`allow` or `deny`), `redact.pii` (`enabled`, `kinds`, `names`, `allow`, `custom` detectors) and `env.hide`, with all of them on by default and prompts blocked in the `strict`, `unattended` and `shelf` profiles; and SHALL ignore, with a warning, an attempt after a locked layer to switch a redaction off, to loosen the prompt or read-tool rule, to drop a kind a locked layer detects or to add allowed values, while letting names, custom detectors, more kinds and hidden variables be added.
+
+#### Scenario: A repository tries to switch redaction off
+
+- **WHEN** a repository file sets the redaction switches to false, the prompt rule to off and lists allowed values after a locked layer
+- **THEN** redaction stays on, the prompt rule stays as locked, the allowed values are not added and each attempt is a warning
+
+#### Scenario: A repository adds its own
+
+- **WHEN** a repository file lists the name `Acme Corp` and a `customer_id` pattern
+- **THEN** both are detected, and the pattern's tokens read `<CUSTOMER_ID_1>`

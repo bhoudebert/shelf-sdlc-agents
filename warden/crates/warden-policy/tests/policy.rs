@@ -234,3 +234,64 @@ fn the_audit_log_is_on_by_default_and_a_repository_cannot_turn_off_a_locked_one(
     assert_eq!(policy.audit.dir, "/var/log/warden");
     assert_eq!(policy.warnings.len(), 2, "{:?}", policy.warnings);
 }
+
+#[test]
+fn redaction_is_on_by_default_and_unattended_profiles_block_prompts() {
+    use warden_policy::PromptMode;
+    let guarded = preset("guarded");
+    assert!(guarded.redact.outputs && guarded.redact.secrets && guarded.redact.mcp);
+    assert_eq!(guarded.redact.prompts, PromptMode::Warn);
+    assert_eq!(guarded.redact.pii.kinds, ["email", "phone", "iban", "card", "nir", "ssn"]);
+    assert!(guarded.redact.pii.allow.contains(&"noreply@*".to_owned()));
+    for profile in ["strict", "unattended", "shelf"] {
+        assert_eq!(preset(profile).redact.prompts, PromptMode::Block, "{profile}");
+    }
+}
+
+#[test]
+fn a_repository_can_add_names_and_detectors_and_choose_its_kinds() {
+    let policy = resolve(&[(
+        "repo",
+        "[redact.pii]\nnames = [\"Acme Corp\"]\nkinds = [\"email\", \"ip\"]\ncustom = [{ name = \"customer_id\", pattern = 'CUST-\\d{6}' }]\nallow = [\"*@acme.test\"]",
+    )]);
+    assert_eq!(policy.redact.pii.names, ["Acme Corp"]);
+    assert_eq!(policy.redact.pii.kinds, ["email", "ip"]);
+    assert_eq!(policy.redact.pii.custom, [("customer_id".to_owned(), "CUST-\\d{6}".to_owned())]);
+    assert!(policy.redact.pii.allow.contains(&"*@acme.test".to_owned()));
+}
+
+#[test]
+fn a_locked_layer_keeps_redaction_on_and_the_prompt_rule_and_the_kinds() {
+    use warden_policy::{PromptMode, ReadTool};
+    let policy = resolve(&[
+        ("operator", "locked = true\n[redact]\nprompts = \"block\"\n[redact.pii]\nkinds = [\"email\", \"card\"]"),
+        (
+            "repo",
+            "[redact]\noutputs = false\nsecrets = false\nmcp = false\nprompts = \"off\"\nread_tool = \"allow\"\n\
+             [redact.pii]\nenabled = false\nkinds = [\"phone\"]\nallow = [\"*@anything\"]\nnames = [\"Client X\"]",
+        ),
+    ]);
+    assert!(policy.redact.outputs && policy.redact.secrets && policy.redact.mcp);
+    assert_eq!(policy.redact.prompts, PromptMode::Block);
+    assert_eq!(policy.redact.read_tool, ReadTool::Deny, "the preset's deny is part of what the lock fixed");
+    assert!(policy.redact.pii.enabled);
+    assert_eq!(policy.redact.pii.kinds, ["email", "card", "phone"], "kinds can be added, not dropped");
+    assert_eq!(policy.redact.pii.names, ["Client X"], "names only add");
+    assert!(!policy.redact.pii.allow.contains(&"*@anything".to_owned()));
+    assert_eq!(policy.warnings.len(), 8, "{:?}", policy.warnings);
+}
+
+#[test]
+fn hidden_variables_add_up() {
+    let policy = resolve(&[("a", "[env]\nhide = [\"*_TOKEN\"]"), ("b", "[env]\nhide = [\"*_SECRET\", \"*_TOKEN\"]")]);
+    assert_eq!(policy.env_hide, ["*_TOKEN", "*_SECRET"]);
+}
+
+#[test]
+fn a_credential_in_a_prompt_and_a_personal_data_read_are_decided_by_every_profile() {
+    for profile in ["observe", "guarded", "strict", "unattended", "shelf"] {
+        let policy = preset(profile);
+        assert_eq!(policy.decision(Category::SecretPrompt), Decision::Deny, "{profile}");
+        assert_eq!(policy.decision(Category::PiiRead), Decision::Deny, "{profile}");
+    }
+}

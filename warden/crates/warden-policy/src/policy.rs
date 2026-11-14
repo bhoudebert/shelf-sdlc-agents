@@ -8,7 +8,7 @@ use globset::{Glob, GlobSet, GlobSetBuilder};
 use regex::Regex;
 
 use crate::category::{Category, Decision};
-use crate::layer::{Layer, Mode, OnError, Profile};
+use crate::layer::{CustomSpec, Layer, Mode, OnError, Profile, PromptMode, ReadTool};
 use crate::presets;
 
 /// Why a set of layers could not be merged into a policy.
@@ -169,6 +169,38 @@ pub struct Audit {
     pub dir: String,
 }
 
+/// Personal data, resolved.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Pii {
+    /// Whether to look for it.
+    pub enabled: bool,
+    /// The kinds to look for.
+    pub kinds: Vec<String>,
+    /// Names that must never reach a model as they are.
+    pub names: Vec<String>,
+    /// Values to leave alone, as globs.
+    pub allow: Vec<String>,
+    /// Detectors of the policy's own, as `(name, pattern)`.
+    pub custom: Vec<(String, String)>,
+}
+
+/// What is kept off the model, resolved.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Redact {
+    /// Whether allowed commands run through the redactor.
+    pub outputs: bool,
+    /// Whether credentials are redacted.
+    pub secrets: bool,
+    /// Whether MCP arguments are checked and pseudonymized.
+    pub mcp: bool,
+    /// What to do with personal data in a prompt.
+    pub prompts: PromptMode,
+    /// What to do when the Read tool opens a personal-data file.
+    pub read_tool: ReadTool,
+    /// Personal data.
+    pub pii: Pii,
+}
+
 /// The policy a tool call is judged against.
 #[derive(Debug, Clone)]
 pub struct Policy {
@@ -198,6 +230,10 @@ pub struct Policy {
     pub tools_ask: Vec<Regex>,
     /// The audit log.
     pub audit: Audit,
+    /// What is kept off the model.
+    pub redact: Redact,
+    /// Variables hidden from commands: names or globs.
+    pub env_hide: Vec<String>,
     /// The layers that contributed, lowest first.
     pub sources: Vec<String>,
     /// Things a layer tried that a locked layer or a fixed rule did not allow, and so were ignored.
@@ -214,6 +250,7 @@ struct Floor {
     scope_set: bool,
     allow_domains_set: bool,
     audit_enabled: bool,
+    redact: Redact,
 }
 
 #[derive(Default)]
@@ -234,6 +271,25 @@ fn extend_unique(into: &mut Vec<String>, from: &[String]) {
 
 fn compile(id: &str, pattern: &str) -> Result<Regex, PolicyError> {
     Regex::new(pattern).map_err(|error| PolicyError::Pattern { id: id.to_owned(), message: error.to_string() })
+}
+
+impl Default for Redact {
+    fn default() -> Self {
+        Self {
+            outputs: true,
+            secrets: true,
+            mcp: true,
+            prompts: PromptMode::Warn,
+            read_tool: ReadTool::Deny,
+            pii: Pii {
+                enabled: true,
+                kinds: ["email", "phone", "iban", "card", "nir", "ssn"].map(str::to_owned).to_vec(),
+                names: Vec::new(),
+                allow: Vec::new(),
+                custom: Vec::new(),
+            },
+        }
+    }
 }
 
 impl Policy {
@@ -328,6 +384,8 @@ struct Fold {
     tools_ask: Vec<String>,
     audit_enabled: bool,
     audit_dir: String,
+    redact: Redact,
+    env_hide: Vec<String>,
     locked: bool,
     floor: Option<Floor>,
     warnings: Vec<String>,
@@ -355,6 +413,8 @@ impl Fold {
             tools_ask: Vec::new(),
             audit_enabled: true,
             audit_dir: "~/.local/share/warden/audit".to_owned(),
+            redact: Redact::default(),
+            env_hide: Vec::new(),
             locked: false,
             floor: None,
             warnings,
@@ -392,6 +452,10 @@ impl Fold {
         }
         self.lists_and_domains(name, layer);
         self.audit(name, layer);
+        self.redaction(name, layer);
+        if let Some(env) = &layer.env {
+            extend_unique(&mut self.env_hide, &env.hide);
+        }
         if layer.locked == Some(true) {
             self.locked = true;
             self.floor = Some(Floor {
@@ -402,6 +466,7 @@ impl Fold {
                 scope_set: self.scope.is_some(),
                 allow_domains_set: self.allow_domains.is_some(),
                 audit_enabled: self.audit_enabled,
+                redact: self.redact.clone(),
             });
         }
         Ok(())
@@ -446,6 +511,84 @@ impl Fold {
                 continue;
             }
             self.categories.insert(*category, *decision);
+        }
+    }
+
+    /// A switch that a locked layer left on stays on.
+    fn switch(
+        &mut self,
+        name: &str,
+        key: &str,
+        wanted: Option<bool>,
+        fixed: Option<bool>,
+        current: fn(&mut Redact) -> &mut bool,
+    ) {
+        let Some(wanted) = wanted else { return };
+        if !wanted && fixed == Some(true) {
+            self.warnings.push(format!("{name}: redact.{key} = false ignored: a locked layer keeps it on"));
+        } else {
+            *current(&mut self.redact) = wanted;
+        }
+    }
+
+    fn redaction(&mut self, name: &str, layer: &Layer) {
+        let Some(spec) = &layer.redact else { return };
+        let fixed = self.floor.as_ref().map(|f| f.redact.clone());
+        self.switch(name, "outputs", spec.outputs, fixed.as_ref().map(|f| f.outputs), |r| &mut r.outputs);
+        self.switch(name, "secrets", spec.secrets, fixed.as_ref().map(|f| f.secrets), |r| &mut r.secrets);
+        self.switch(name, "mcp", spec.mcp, fixed.as_ref().map(|f| f.mcp), |r| &mut r.mcp);
+        if let Some(mode) = spec.prompts {
+            if fixed.as_ref().is_some_and(|f| mode < f.prompts) {
+                self.warnings.push(format!("{name}: redact.prompts ignored: a locked layer is stricter"));
+            } else {
+                self.redact.prompts = mode;
+            }
+        }
+        if let Some(mode) = spec.read_tool {
+            if fixed.as_ref().is_some_and(|f| mode < f.read_tool) {
+                self.warnings.push(format!("{name}: redact.read_tool ignored: a locked layer is stricter"));
+            } else {
+                self.redact.read_tool = mode;
+            }
+        }
+        if let Some(pii) = &spec.pii {
+            self.personal_data(name, pii, fixed.as_ref());
+        }
+    }
+
+    fn personal_data(&mut self, name: &str, pii: &crate::layer::PiiSpec, fixed: Option<&Redact>) {
+        if let Some(enabled) = pii.enabled {
+            if !enabled && fixed.is_some_and(|f| f.pii.enabled) {
+                self.warnings.push(format!("{name}: redact.pii.enabled = false ignored: a locked layer keeps it on"));
+            } else {
+                self.redact.pii.enabled = enabled;
+            }
+        }
+        if let Some(kinds) = &pii.kinds {
+            if let Some(fixed) = fixed {
+                let mut merged = fixed.pii.kinds.clone();
+                extend_unique(&mut merged, kinds);
+                if merged.len() != kinds.len() {
+                    self.warnings.push(format!("{name}: redact.pii.kinds cannot drop a kind a locked layer detects"));
+                }
+                self.redact.pii.kinds = merged;
+            } else {
+                self.redact.pii.kinds.clone_from(kinds);
+            }
+        }
+        extend_unique(&mut self.redact.pii.names, &pii.names);
+        for CustomSpec { name: custom, pattern } in &pii.custom {
+            if !self.redact.pii.custom.iter().any(|(existing, _)| existing == custom) {
+                self.redact.pii.custom.push((custom.clone(), pattern.clone()));
+            }
+        }
+        if !pii.allow.is_empty() {
+            if fixed.is_some() {
+                self.warnings
+                    .push(format!("{name}: redact.pii.allow ignored: a locked layer does not let values through"));
+            } else {
+                extend_unique(&mut self.redact.pii.allow, &pii.allow);
+            }
         }
     }
 
@@ -523,6 +666,8 @@ impl Fold {
             tools_deny: tools(&self.tools_deny)?,
             tools_ask: tools(&self.tools_ask)?,
             audit: Audit { enabled: self.audit_enabled, dir: self.audit_dir },
+            redact: self.redact,
+            env_hide: self.env_hide,
             sources: stack.iter().map(|(name, _)| name.clone()).collect(),
             warnings: self.warnings,
         })

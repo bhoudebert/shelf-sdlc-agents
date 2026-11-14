@@ -140,6 +140,84 @@ pub struct AuditSpec {
     pub dir: Option<String>,
 }
 
+/// What to do with personal data in a prompt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PromptMode {
+    /// Ignore it.
+    Off,
+    /// Let the prompt through and warn.
+    Warn,
+    /// Refuse the prompt.
+    Block,
+}
+
+/// What to do when the Read tool opens a personal-data file, whose content cannot be redacted on the way.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReadTool {
+    /// Let it open.
+    Allow,
+    /// Refuse, and point at the shell, whose output is redacted.
+    Deny,
+}
+
+/// A detector of the policy's own: a name, which becomes the token prefix, and a regular expression.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CustomSpec {
+    /// The token prefix: `customer_id` gives `<CUSTOMER_ID_1>`.
+    pub name: String,
+    /// The pattern.
+    pub pattern: String,
+}
+
+/// Personal data.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PiiSpec {
+    /// Whether to look for it.
+    pub enabled: Option<bool>,
+    /// The kinds to look for: `email`, `phone`, `iban`, `card`, `nir`, `ssn`, `ip`.
+    pub kinds: Option<Vec<String>>,
+    /// Names that must never reach a model as they are.
+    #[serde(default)]
+    pub names: Vec<String>,
+    /// Values to leave alone, as globs (`*@example.com`).
+    #[serde(default)]
+    pub allow: Vec<String>,
+    /// Detectors of the policy's own.
+    #[serde(default)]
+    pub custom: Vec<CustomSpec>,
+}
+
+/// What is kept off the model.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RedactSpec {
+    /// Whether allowed commands run through the redactor.
+    pub outputs: Option<bool>,
+    /// Whether credentials are redacted.
+    pub secrets: Option<bool>,
+    /// Whether MCP arguments are checked and pseudonymized.
+    pub mcp: Option<bool>,
+    /// What to do with personal data in a prompt.
+    pub prompts: Option<PromptMode>,
+    /// What to do when the Read tool opens a personal-data file.
+    pub read_tool: Option<ReadTool>,
+    /// Personal data.
+    pub pii: Option<PiiSpec>,
+}
+
+/// Variables hidden from the commands the agent runs.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EnvSpec {
+    /// Names or globs (`*_TOKEN`).
+    #[serde(default)]
+    pub hide: Vec<String>,
+}
+
 /// One policy file.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -173,6 +251,10 @@ pub struct Layer {
     pub tools: Option<ToolsSpec>,
     /// The audit log.
     pub audit: Option<AuditSpec>,
+    /// What is kept off the model.
+    pub redact: Option<RedactSpec>,
+    /// Variables hidden from commands.
+    pub env: Option<EnvSpec>,
 }
 
 impl Layer {
