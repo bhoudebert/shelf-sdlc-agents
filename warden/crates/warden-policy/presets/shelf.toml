@@ -31,3 +31,6 @@ supply_chain = "allow"
 
 [paths]
 scope = ["."]
+
+[redact]
+prompts = "block"

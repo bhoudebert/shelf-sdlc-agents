@@ -28,3 +28,6 @@ out_of_scope = "deny"
 tamper = "deny"
 secret_write = "deny"
 supply_chain = "allow"
+
+[redact]
+prompts = "block"

@@ -7,5 +7,5 @@ pub mod policy;
 pub mod presets;
 
 pub use category::{Category, Decision};
-pub use layer::{AuditSpec, Layer, Mode, OnError, Profile};
-pub use policy::{Audit, Network, PathSet, Paths, Policy, PolicyError, Rewrite, Rule};
+pub use layer::{AuditSpec, Layer, Mode, OnError, Profile, PromptMode, ReadTool};
+pub use policy::{Audit, Network, PathSet, Paths, Pii, Policy, PolicyError, Redact, Rewrite, Rule};
