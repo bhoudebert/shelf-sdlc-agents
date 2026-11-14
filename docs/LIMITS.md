@@ -59,6 +59,12 @@ What it does not do, and you should not assume:
   sandbox lets a command write only in `$TMPDIR` and its working directory, so the token files and the pending audit records live
   in `/tmp/claude-1000/warden` and the next hook moves the records into the log. The first real task is the real test: set
   `SHELF_WARDEN_PROFILE=observe` for a first week to see what it would refuse without refusing anything.
+- Warden's Codex hook was checked against the real Codex CLI 0.167 with a mock of the model API (`warden/live/check_codex.py`),
+  not against a real model or a person at the keyboard. Codex runs a hook only once it trusts it (`/hooks`, or
+  `--dangerously-bypass-hook-trust` in automation): until then every command runs unguarded and nothing says so. A hook cannot
+  ask in Codex (an `ask` is ignored and the command runs), so what a profile would ask about is refused there. Shell commands and
+  `apply_patch` reach the hook, and a rewritten command is honoured; hosted tools such as web search never reach it. The
+  OpenCode and Copilot adapters have not been run against the real agents.
 
 ### The plan
 
