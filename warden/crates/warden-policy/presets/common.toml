@@ -50,4 +50,8 @@ kinds = ["email", "phone", "iban", "card", "nir", "ssn"]
 allow = ["*@example.com", "*@example.org", "noreply@*", "no-reply@*", "git@*", "*@users.noreply.github.com"]
 
 [network]
-deny_domains = ["pastebin.com", "transfer.sh", "file.io", "ngrok.io", "requestbin.com", "webhook.site"]
+deny_domains = [
+  "pastebin.com", "transfer.sh", "file.io", "ngrok.io", "requestbin.com", "webhook.site", "requestbin.net",
+  "pipedream.net", "interact.sh", "oast.fun", "oast.pro", "burpcollaborator.net",
+  "169.254.169.254", "metadata.google.internal", "metadata.azure.com",
+]
