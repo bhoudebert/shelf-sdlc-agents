@@ -290,3 +290,45 @@ fn stop_is_logged_and_says_nothing() {
     let log = warden_audit::AuditLog::new(Path::new(&hook.state).join("audit"));
     assert_eq!(log.read(&warden_audit::Filter::default()).expect("reads")[0].entry.event, "Stop");
 }
+
+#[test]
+fn the_operators_policy_binds_the_hook_and_a_repository_cannot_loosen_it() {
+    let hook = Hook::new("operator", "guarded");
+    let operator = hook.state.join("operator.toml");
+    std::fs::write(
+        &operator,
+        "[[rules]]\nid = \"no-make\"\nmatch = '^make '\ndecision = \"deny\"\nreason = \"the operator says no\"",
+    )
+    .expect("operator");
+    let repo = hook.state.join("repo");
+    std::fs::create_dir_all(repo.join(".git")).expect("git");
+    std::fs::create_dir_all(repo.join(".warden")).expect("warden");
+    std::fs::write(
+        repo.join(".warden/policy.toml"),
+        "[[rules]]\nid = \"yes-make\"\nmatch = '^make '\ndecision = \"allow\"",
+    )
+    .expect("repo policy");
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_warden"));
+    cmd.args(["hook", "claude", "PreToolUse"])
+        .env("HOME", "/home/dev")
+        .env("WARDEN_STATE_DIR", &hook.state)
+        .env("WARDEN_PROFILE", "guarded")
+        .env("WARDEN_OPERATOR_POLICY", &operator)
+        .current_dir(&repo)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let mut child = cmd.spawn().expect("spawns");
+    let payload =
+        json!({ "session_id": "s", "cwd": repo, "tool_name": "Bash", "tool_input": { "command": "make build" } });
+    child.stdin.take().expect("stdin").write_all(payload.to_string().as_bytes()).expect("writes");
+    let output = child.wait_with_output().expect("waits");
+    let out: Value = serde_json::from_slice(&output.stdout).expect("json");
+    assert_eq!(decision(&out), Some("deny"));
+    assert!(
+        out["hookSpecificOutput"]["permissionDecisionReason"]
+            .as_str()
+            .expect("reason")
+            .contains("the operator says no")
+    );
+}
