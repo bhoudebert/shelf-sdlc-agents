@@ -651,3 +651,21 @@ The system SHALL load the file named by `WARDEN_OPERATOR_POLICY` as a locked lay
 
 - **WHEN** `WARDEN_PROFILE` is `shelf`
 - **THEN** every command that loads a policy starts from the `shelf` preset
+
+### Requirement: A command in an agent's sandbox leaves its audit record for the next hook
+
+The system SHALL, when `warden run` cannot write the audit log (an agent's sandbox lets a command write only in its temporary and working directories), keep the record in a file next to the session's tokens, and have the next hook of that session, which runs outside the sandbox, move the records into the audit log, so that no redaction is lost from the log.
+
+#### Scenario: A read-only log
+
+- **WHEN** `warden run` redacts an email address while the audit directory cannot be written, and a hook of the same session runs next with a writable log
+- **THEN** the log gains one `redacted` record for that session with the email counted once, and nothing is left waiting
+
+### Requirement: Warden does not talk to the model about its own trouble
+
+The system SHALL print on the error output, which an agent passes to the model, nothing about its own degraded state (a session that cannot be saved, an audit log that cannot be written) unless `WARDEN_DEBUG` is set.
+
+#### Scenario: Quiet by default
+
+- **WHEN** `warden run` cannot save its tokens or write the log
+- **THEN** its error output is empty, and with `WARDEN_DEBUG` set it says what failed
