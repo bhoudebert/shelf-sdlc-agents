@@ -48,6 +48,20 @@ The system SHALL give each agent only the tools of its role, with reviewers read
 - **WHEN** a code review runs
 - **THEN** the agent may only read and search the clone
 
+### Requirement: The operator can see what each agent step cost
+
+The system SHALL write one log line when an agent step ends, naming the role, the number of turns, the time it took, the cost in US dollars when the model reported one, and how many tool calls the guard refused when the model reported any, and SHALL NOT put the prompt, the answer or any credential in it.
+
+#### Scenario: A finished step
+
+- **WHEN** a code review ends after 12 turns, 94 seconds and a cost of 0.4213 dollars
+- **THEN** the worker's log has one line naming the code review, 12 turns, 94 seconds and 0.4213 dollars
+
+#### Scenario: No cost reported
+
+- **WHEN** the model reports no cost
+- **THEN** the line says the cost is unknown instead of showing zero
+
 ### Requirement: Producers leave their work on the work's branch
 
 The system SHALL commit and push what a producing step wrote, to the work's branch, as the App's bot identity, and SHALL push nothing when nothing changed.

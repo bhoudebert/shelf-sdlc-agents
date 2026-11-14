@@ -301,6 +301,20 @@ The system SHALL show on each row of the board and at the head of the work's pag
 - **WHEN** work has no kept title
 - **THEN** its row is headed by its repository
 
+### Requirement: The board and the work page say which stops a run does without
+
+The system SHALL keep, when work starts, which stops its run does without a person (the spec approval, the design review, the wait at a deadlock), and SHALL show them in words on the work's row of the board and on its page, as `Unattended: spec, design`, for work that removes any; work that keeps every stop, and work started before this was kept, SHALL show nothing.
+
+#### Scenario: A run that skips two stops
+
+- **WHEN** work was started with the spec approval and the design review removed
+- **THEN** its row on the board and its page say `Unattended: spec, design`
+
+#### Scenario: A run that keeps every stop
+
+- **WHEN** work was started with every stop kept
+- **THEN** nothing about it is said
+
 ### Requirement: The board and the work page say when things happened
 
 The system SHALL show on each row of the board how long ago the work last did anything, with the exact date and time in UTC as its tooltip, and on the work page's timeline when something last happened at each step, and SHALL show nothing for work that predates times.
@@ -633,3 +647,23 @@ The system SHALL give administrators, and only them, a page listing the recent w
 
 - **WHEN** an ordinary person asks for the page
 - **THEN** it is refused and the navigation does not offer it
+
+### Requirement: The admin page shows what the guard has seen
+
+The system SHALL show administrators, on the admin page, a section "Guard" with the number of recorded agent calls, how many the guard stopped or would have stopped, the redactions it made, whether the audit log's chain is intact, and the risk categories that were found most often. The section SHALL say so plainly when the guard is not installed or its log cannot be read, and SHALL NOT stop the rest of the page from showing.
+
+#### Scenario: The guard has recorded calls
+
+- **WHEN** an administrator opens the admin page and the guard reports twelve calls, three of which it would have stopped
+- **THEN** the Guard section shows twelve calls and three stopped, and the categories found
+
+#### Scenario: The chain is broken
+
+- **WHEN** the guard reports that the audit log's chain is broken
+- **THEN** the section says so as a fault to fix
+
+#### Scenario: No guard
+
+- **WHEN** the guard is not installed or cannot be read
+- **THEN** the Guard section says it is not available and the rest of the page is unchanged
+

@@ -119,6 +119,15 @@ def test_the_catalog_is_created_from_the_example_and_synced_after_the_containers
     assert sync > up
 
 
+def test_the_catalog_image_is_rebuilt_before_it_syncs_so_it_never_runs_an_older_one(server: Path) -> None:
+    write_env(server)
+    assert run(server).returncode == 0
+    calls = (server / "docker.log").read_text().splitlines()
+    build = next(i for i, line in enumerate(calls) if "build" in line.split() and "catalog" in line.split())
+    sync = next(i for i, line in enumerate(calls) if "run" in line.split() and "catalog" in line.split())
+    assert build < sync
+
+
 def test_a_catalog_the_operator_edited_is_never_overwritten(server: Path) -> None:
     write_env(server)
     config = server / "deploy" / "config"
@@ -142,3 +151,49 @@ def test_wardens_operator_policy_is_created_from_the_example_and_never_overwritt
 def test_the_operator_policy_example_is_valid_toml_with_every_line_commented() -> None:
     text = (DEPLOY / "warden.toml.example").read_text()
     assert tomllib.loads(text) == {}, "the example must change nothing until the operator uncomments a part"
+
+
+def with_doctor(server: Path, output: str) -> None:
+    """Make the fake docker answer ``warden doctor`` with ``output``."""
+    fake = server / "bin" / "docker"
+    fake.write_text(
+        '#!/bin/sh\necho "$@" >> "${DOCKER_LOG:-/dev/null}"\n'
+        f'case "$*" in *"warden doctor"*) cat <<\'EOF\'\n{output}\nEOF\n;; esac\nexit 0\n'
+    )
+
+
+def test_a_guard_that_is_wired_is_reported(server: Path) -> None:
+    write_env(server)
+    with_doctor(server, "ok    warden 0.1.0\nok    Claude Code is wired in the managed settings")
+    done = run(server)
+    assert "Guard: Warden is wired into the agents" in done.stdout
+    assert "not fully in force" not in done.stderr
+
+
+def test_a_guard_that_is_not_wired_is_a_warning_that_repeats_the_line(server: Path) -> None:
+    write_env(server)
+    with_doctor(server, "ok    warden 0.1.0\nwarn  Claude Code is not wired in any settings file")
+    done = run(server)
+    assert done.returncode == 0
+    assert "the guard (Warden) is not fully in force" in done.stderr
+    assert "Claude Code is not wired in any settings file" in done.stderr
+
+
+def test_the_guard_is_not_asked_when_it_is_switched_off(server: Path) -> None:
+    write_env(server, SHELF_WARDEN="off")
+    run(server)
+    assert "warden doctor" not in (server / "docker.log").read_text()
+
+
+def test_a_check_that_cannot_run_does_not_fail_the_script(server: Path) -> None:
+    write_env(server)
+    done = run(server)
+    assert done.returncode == 0
+    assert "Guard: Warden is wired" not in done.stdout
+
+
+def test_the_web_service_reads_the_guards_log_but_cannot_change_it() -> None:
+    compose = (Path(__file__).parents[2] / "deploy" / "compose.yml").read_text()
+    web = compose.split("\n  web:\n", 1)[1].split("\n  worker:\n", 1)[0]
+    assert "WARDEN_STATE_DIR: /var/lib/warden" in web
+    assert "- warden-state:/var/lib/warden:ro" in web

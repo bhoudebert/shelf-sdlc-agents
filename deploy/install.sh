@@ -103,8 +103,13 @@ echo "Building revision $SHELF_REVISION"
 $compose up -d --build --force-recreate
 
 # Fetch the catalog at its pinned commits into the volumes the worker reads. It runs nothing it fetches, and a failure leaves
-# the previous catalog in place.
+# the previous catalog in place. The sync service sits behind a profile, so `up --build` does not rebuild it: build it here, or
+# it would run from an older image (without Warden, so the managed policy would carry no guard).
 echo "Syncing the catalog ($here/config/catalog.toml)..."
+$compose --profile tools build catalog || {
+  echo "ERROR: the catalog image could not be built (see above)." >&2
+  exit 1
+}
 $compose --profile tools run --rm --no-deps catalog || {
   echo "ERROR: the catalog could not be synced (see above). The worker keeps the previous catalog. Fix config/catalog.toml and run this script again." >&2
   exit 1
@@ -128,6 +133,16 @@ elif [ -n "$running" ]; then
   echo "Something answers on port $port that is not the container just built. Check: $compose ps" >&2
 else
   echo "The web service did not answer on port $port yet. Check: $compose logs web" >&2
+fi
+# Say now whether the guard is in force, rather than after a run that found nothing.
+if [ "$(value SHELF_WARDEN)" != "off" ]; then
+  doctor=$($compose exec -T worker warden doctor 2>&1) || true
+  if printf '%s\n' "$doctor" | grep -qE '^(warn|fail|error)'; then
+    echo "WARNING: the guard (Warden) is not fully in force:" >&2
+    printf '%s\n' "$doctor" | grep -E '^(warn|fail|error)' | sed 's/^/  /' >&2
+  elif printf '%s\n' "$doctor" | grep -q '^ok'; then
+    echo "Guard: Warden is wired into the agents (docker compose exec worker warden status shows what it saw)."
+  fi
 fi
 echo "Open $(sed -n 's/^PUBLIC_URL=//p' "$env_file"): if the GitHub App is not registered yet, you will be guided."
 echo "Logs: $compose logs -f"

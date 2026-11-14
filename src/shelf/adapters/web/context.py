@@ -26,6 +26,7 @@ from shelf.ports.context_sources import ContextSources
 from shelf.ports.conversation import Conversations
 from shelf.ports.documents import Documents
 from shelf.ports.forge import Forge
+from shelf.ports.guard import GuardReader
 from shelf.ports.references import References
 from shelf.ports.runner import WorkRunner
 
@@ -92,6 +93,9 @@ class WebDeps:
     access_source: Callable[[], AccessRules] | None = None
     """Where the access list is read from each time it is needed, so an edit of ``shelf.toml`` applies without a
     restart; ``rules`` is used when there is none."""
+
+    guard: GuardReader | None = None
+    """Where the guard's findings are read from, for the administrator's page; the section says so without it."""
 
     def access(self) -> AccessRules:
         """The access rules in force now."""

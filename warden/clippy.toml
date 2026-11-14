@@ -1,0 +1,1 @@
+doc-valid-idents = ["OpenAI", "OpenCode", "GitHub", "camelCase", "PascalCase", "JavaScript", "IPv4", "IPv6", "IBAN", "IBANs", "NIR", "SSN", "JWT", "OAuth", "PyPI", "SendGrid", "HuggingFace", "Hugging", "Doppler", "Twilio", "GitLab", "..."]

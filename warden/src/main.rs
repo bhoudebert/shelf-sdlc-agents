@@ -79,6 +79,26 @@ enum Command {
         /// Only this session.
         #[arg(long)]
         session: Option<String>,
+        /// Only the records of this period before now: `30m`, `12h` or `7d`.
+        #[arg(long, value_parser = parse_since)]
+        since: Option<std::time::Duration>,
+        /// The log directory, in place of the policy's.
+        #[arg(long)]
+        dir: Option<PathBuf>,
+        #[command(flatten)]
+        from: Where,
+    },
+    /// Say what the policy would have stopped among the calls the log holds.
+    Report {
+        /// Print one JSON object, for a program.
+        #[arg(long)]
+        json: bool,
+        /// Only this session.
+        #[arg(long)]
+        session: Option<String>,
+        /// Only the records of this period before now: `30m`, `12h` or `7d`.
+        #[arg(long, value_parser = parse_since)]
+        since: Option<std::time::Duration>,
         /// The log directory, in place of the policy's.
         #[arg(long)]
         dir: Option<PathBuf>,
@@ -121,6 +141,9 @@ enum Command {
         /// Say what would change and change nothing.
         #[arg(long)]
         dry_run: bool,
+        /// The agent: claude (default), opencode, copilot, or codex (prints a snippet to paste).
+        #[arg(long, default_value = "claude", value_parser = parse_agent)]
+        agent: install::Agent,
     },
     /// Take Warden out of Claude Code.
     Uninstall {
@@ -136,6 +159,9 @@ enum Command {
         /// Also delete the policy file, the sessions and the audit log.
         #[arg(long)]
         purge: bool,
+        /// The agent: claude (default), opencode or copilot.
+        #[arg(long, default_value = "claude", value_parser = parse_agent)]
+        agent: install::Agent,
     },
     /// Check that Warden is wired and healthy.
     Doctor {
@@ -159,6 +185,36 @@ enum AuditAction {
         #[command(flatten)]
         from: Where,
     },
+}
+
+fn parse_agent(text: &str) -> Result<install::Agent, String> {
+    match text {
+        "claude" => Ok(install::Agent::Claude),
+        "opencode" => Ok(install::Agent::OpenCode),
+        "copilot" => Ok(install::Agent::Copilot),
+        "codex" => Ok(install::Agent::Codex),
+        other => Err(format!("unknown agent {other:?}: claude, opencode, copilot or codex")),
+    }
+}
+
+/// `30m`, `12h`, `7d`.
+fn parse_since(text: &str) -> Result<std::time::Duration, String> {
+    let refused = || format!("{text:?} is not a period: write a whole number and m, h or d, such as 30m, 12h or 7d");
+    let unit = text.chars().last().ok_or_else(refused)?;
+    let seconds = match unit {
+        'm' => 60,
+        'h' => 3_600,
+        'd' => 86_400,
+        _ => return Err(refused()),
+    };
+    let number: u64 = text[..text.len() - 1].parse().map_err(|_| refused())?;
+    number.checked_mul(seconds).map(std::time::Duration::from_secs).ok_or_else(refused)
+}
+
+/// The time `period` before now, as the log writes it.
+fn since_of(period: Option<std::time::Duration>) -> Option<String> {
+    let period = period?;
+    Some(warden_audit::rfc3339(std::time::SystemTime::now().checked_sub(period).unwrap_or(std::time::UNIX_EPOCH)))
 }
 
 fn parse_profile(text: &str) -> Result<Profile, String> {
@@ -292,12 +348,34 @@ fn policy_command(from: &Where) -> Outcome {
     Ok(ExitCode::SUCCESS)
 }
 
-fn status_command(all: bool, n: usize, session: Option<String>, dir: Option<PathBuf>, from: &Where) -> Outcome {
+fn status_command(
+    all: bool,
+    n: usize,
+    session: Option<String>,
+    since: Option<std::time::Duration>,
+    dir: Option<PathBuf>,
+    from: &Where,
+) -> Outcome {
     let log = audit_log(from, dir)?;
     let records = log
-        .read(&warden_audit::Filter { session, last: None })
+        .read(&warden_audit::Filter { session, since: since_of(since), ..warden_audit::Filter::default() })
         .map_err(|error| format!("{}: {error}", log.dir().display()))?;
     print!("{}", report::status(&records, all, n));
+    Ok(ExitCode::SUCCESS)
+}
+
+fn report_command(
+    json: bool,
+    session: Option<String>,
+    since: Option<std::time::Duration>,
+    dir: Option<PathBuf>,
+    from: &Where,
+) -> Outcome {
+    let log = audit_log(from, dir)?;
+    let records = log
+        .read(&warden_audit::Filter { session, since: since_of(since), ..warden_audit::Filter::default() })
+        .map_err(|error| format!("{}: {error}", log.dir().display()))?;
+    print!("{}", if json { report::adoption_json(&records) } else { report::adoption(&records) });
     Ok(ExitCode::SUCCESS)
 }
 
@@ -307,20 +385,37 @@ fn init_command(
     managed: Option<PathBuf>,
     profile: Option<Profile>,
     dry_run: bool,
+    agent: install::Agent,
 ) -> Outcome {
     let places = places();
     let scope = scope_of(global, repo, managed, &places);
-    for line in install::init(&install::Init { scope, profile, dry_run }, &places)? {
+    let lines = if agent == install::Agent::Claude {
+        install::init(&install::Init { scope, profile, dry_run }, &places)?
+    } else {
+        install::init_other(agent, &scope, dry_run, &places)?
+    };
+    for line in lines {
         println!("{line}");
     }
     Ok(ExitCode::SUCCESS)
 }
 
-fn uninstall_command(global: bool, repo: bool, managed: Option<PathBuf>, purge: bool) -> Outcome {
+fn uninstall_command(
+    global: bool,
+    repo: bool,
+    managed: Option<PathBuf>,
+    purge: bool,
+    agent: install::Agent,
+) -> Outcome {
     let places = places();
     let scope = scope_of(global, repo, managed, &places);
     let state = state_dir(&Context::from_env());
-    for line in install::uninstall(&scope, purge, &state, &places)? {
+    let lines = if agent == install::Agent::Claude {
+        install::uninstall(&scope, purge, &state, &places)?
+    } else {
+        install::uninstall_other(agent, &scope, &places)?
+    };
+    for line in lines {
         println!("{line}");
     }
     Ok(ExitCode::SUCCESS)
@@ -404,11 +499,16 @@ fn run(cli: Cli) -> Outcome {
         }
         Some(Command::Explain { command, from }) => explain_command(&command, &from),
         Some(Command::Policy { from }) => policy_command(&from),
-        Some(Command::Status { all, n, session, dir, from }) => status_command(all, n, session, dir, &from),
-        Some(Command::Init { global, repo, managed, profile, dry_run }) => {
-            init_command(global, repo, managed, profile, dry_run)
+        Some(Command::Status { all, n, session, since, dir, from }) => {
+            status_command(all, n, session, since, dir, &from)
         }
-        Some(Command::Uninstall { global, repo, managed, purge }) => uninstall_command(global, repo, managed, purge),
+        Some(Command::Report { json, session, since, dir, from }) => report_command(json, session, since, dir, &from),
+        Some(Command::Init { global, repo, managed, profile, dry_run, agent }) => {
+            init_command(global, repo, managed, profile, dry_run, agent)
+        }
+        Some(Command::Uninstall { global, repo, managed, purge, agent }) => {
+            uninstall_command(global, repo, managed, purge, agent)
+        }
         Some(Command::Doctor { from }) => Ok(doctor_command(&from)),
         Some(Command::Hook { agent, event }) => hook_command(&agent, &event),
         Some(Command::Run { session, command, from }) => run_command(&session, &command, &from),

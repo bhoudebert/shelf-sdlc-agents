@@ -6,8 +6,14 @@
 #![cfg_attr(test, allow(clippy::expect_used, clippy::unwrap_used, clippy::indexing_slicing))]
 
 mod claude;
+mod codex;
+mod copilot;
+mod opencode;
 
 pub use claude::Claude;
+pub use codex::Codex;
+pub use copilot::Copilot;
+pub use opencode::OpenCode;
 use serde_json::Value;
 use warden_policy::Decision;
 
@@ -148,6 +154,8 @@ pub struct Answer {
     pub updated_input: Option<Value>,
     /// Refuse a person's prompt.
     pub block_prompt: bool,
+    /// What the tool printed, replaced, for the agents that let a hook change the result the model sees.
+    pub updated_output: Option<String>,
 }
 
 /// What a hook prints and how it exits.
@@ -174,6 +182,18 @@ pub trait Adapter {
 
     /// What to print when the input could not be read and the policy says to fail closed.
     fn refuse(&self, event: &Event, reason: &str) -> Rendered;
+
+    /// Whether the agent lets a hook replace the arguments of a tool: Warden then wraps a command so its output is
+    /// redacted, and rewrites it for a safer form.
+    fn can_rewrite_input(&self) -> bool {
+        true
+    }
+
+    /// Whether the agent lets a hook replace what a tool printed before the model sees it: Warden then redacts the
+    /// output there when it cannot wrap the command.
+    fn can_rewrite_output(&self) -> bool {
+        false
+    }
 }
 
 /// The adapter named `name`.
@@ -181,6 +201,9 @@ pub trait Adapter {
 pub fn adapter(name: &str) -> Option<Box<dyn Adapter>> {
     match name {
         "claude" => Some(Box::new(Claude)),
+        "codex" => Some(Box::new(Codex)),
+        "copilot" => Some(Box::new(Copilot)),
+        "opencode" => Some(Box::new(OpenCode)),
         _ => None,
     }
 }
