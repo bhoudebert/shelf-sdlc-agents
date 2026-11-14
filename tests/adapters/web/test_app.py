@@ -18,6 +18,7 @@ from shelf.domain.access import AccessRules
 from shelf.domain.app_check import REQUIRED_EVENTS, REQUIRED_PERMISSIONS, AppFacts
 from shelf.domain.config import RepoConfig, Role
 from shelf.domain.context_repo import ContextRepo
+from shelf.domain.guard import GuardReport
 from shelf.domain.model import Identity, RepoRef, WorkId, WorkView
 from shelf.domain.pipeline import EntryPoint, Phase
 from shelf.domain.policy import Autonomy, Policy
@@ -29,6 +30,7 @@ from shelf.ports.app_inspector import AppInspector
 from shelf.ports.context_sources import ContextSources
 from shelf.ports.conversation import Conversations
 from shelf.ports.documents import Documents
+from shelf.ports.guard import GuardReader
 from shelf.ports.references import References
 from shelf.ports.runner import UnreachableWorkError
 from tests.fakes import FakeConfigs, FakeForge, FakeRunner
@@ -59,6 +61,7 @@ class Fixture:
         references: References | None = None,
         context_sources: ContextSources | None = None,
         access_source: Callable[[], AccessRules] | None = None,
+        guard: GuardReader | None = None,
     ) -> None:
         self.forge = FakeForge(identities={"token-code": ALICE}, repos={"token-code": (REPO,)})
         self.runner = FakeRunner()
@@ -76,6 +79,7 @@ class Fixture:
             context_sources,
             conversations,
             access_source,
+            guard,
         )
         self.client = TestClient(create_app(deps), base_url="https://shelf.example.org", follow_redirects=False)
 
@@ -936,3 +940,43 @@ def test_leaving_all_three_boxes_checked_is_the_fully_attended_choice(app: Fixtu
     data |= {"spec_approval": "1", "design_review": "1", "stop_on_deadlock": "1"}
     assert app.client.post("/start", data=data).status_code == 303
     assert app.runner.started[-1].autonomy == Autonomy.strictest()
+
+
+class FakeGuard:
+    def __init__(self, result: Result[GuardReport, str]) -> None:
+        self.result = result
+
+    async def report(self) -> Result[GuardReport, str]:
+        return self.result
+
+
+def test_the_admin_page_shows_what_the_guard_has_seen() -> None:
+    report = GuardReport(12, 3, 2, chain_intact=True, categories={"destructive": 2, "exfil": 1})
+    fixture = Fixture(AccessRules(admins=frozenset({"alice"})), guard=FakeGuard(Ok(report)))
+    fixture.sign_in()
+    page = fixture.client.get("/admin").text
+    assert "Calls recorded" in page
+    assert "<dd>12</dd>" in page
+    assert "<dd>3</dd>" in page
+    assert "destructive (2), exfil (1)" in page
+    assert "chain is broken" not in page
+
+
+def test_the_admin_page_says_when_the_guards_chain_is_broken() -> None:
+    report = GuardReport(12, 3, 0, chain_intact=False)
+    fixture = Fixture(AccessRules(admins=frozenset({"alice"})), guard=FakeGuard(Ok(report)))
+    fixture.sign_in()
+    page = fixture.client.get("/admin").text
+    assert "chain is broken" in page
+    assert "BROKEN" in page
+
+
+def test_the_admin_page_still_loads_when_the_guard_is_missing() -> None:
+    fixture = Fixture(AccessRules(admins=frozenset({"alice"})), guard=FakeGuard(Err("the guard is not installed")))
+    fixture.sign_in()
+    page = fixture.client.get("/admin").text
+    assert "Not available: the guard is not installed." in page
+    assert "What GitHub has sent" in page
+    without = Fixture(AccessRules(admins=frozenset({"alice"})))
+    without.sign_in()
+    assert "not set up on this instance" in without.client.get("/admin").text
