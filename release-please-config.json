@@ -16,6 +16,11 @@
   "packages": {
     ".": {
       "release-type": "python"
+    },
+    "warden": {
+      "release-type": "rust",
+      "component": "warden",
+      "include-component-in-tag": true
     }
   }
 }

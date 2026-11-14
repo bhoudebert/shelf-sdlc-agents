@@ -36,6 +36,7 @@ src/shelf/application   use cases: sign in, start work, decide, board, run a ste
 src/shelf/adapters      temporal, github_app, git, claude_agent, config, web
 src/shelf/entrypoints   settings, wiring, the web and worker programs, first-run setup
 src/shelf/prompts       one system prompt per agent role
+warden                  the Rust guard: a policy engine wired into each agent's hooks (decision 0014), its own binary and release
 openspec/specs          what the system does, as requirements with scenarios
 tests                   mirrors src; Temporal tests run on a real dev server
 deploy                  compose.yml, .env.example, shelf.toml.example, install.sh (the access list lives in config/shelf.toml)

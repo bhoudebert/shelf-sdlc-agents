@@ -1,0 +1,29 @@
+[package]
+name = "warden"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.85"
+description = "A policy engine for coding agents: gates commands, keeps secrets off the model, logs every decision."
+license = "Apache-2.0"
+repository = "https://github.com/bhoudebert/shelf-sdlc-agents"
+publish = false
+
+# The root crate is the `warden` binary; the engine's parts live under crates/ as they are built (see decision 0014).
+[workspace]
+members = ["."]
+resolver = "3"
+
+[dependencies]
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
