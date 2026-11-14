@@ -106,3 +106,8 @@ def test_a_role_table_takes_only_a_use_list() -> None:
         parse_operator('[roles.implementer]\nskills = ["x"]\n')
     with pytest.raises(ConfigError, match="use must be a list of strings"):
         parse_operator('[roles.implementer]\nuse = "x"\n')
+
+
+def test_a_repository_may_let_work_go_on_past_a_deadlock_and_by_default_does_not() -> None:
+    assert parse_repo_config("[policy]\nproceed_on_deadlock = true").policy.proceed_on_deadlock
+    assert not parse_repo_config("").policy.proceed_on_deadlock

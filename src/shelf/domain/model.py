@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import NewType
 
 from shelf.domain.pipeline import EntryPoint, Phase
+from shelf.domain.policy import Autonomy
 from shelf.domain.work import Outcome, Reason
 
 WorkId = NewType("WorkId", str)
@@ -52,6 +53,8 @@ class WorkRequest:
     """The pull request to review, for that entry point."""
     context: tuple[str, ...] = ()
     """Other repositories the agents may read as reference, each as ``owner/name@ref:folder`` (see ``ContextRepo``)."""
+    autonomy: Autonomy | None = None
+    """What the person chose about stops for this work; ``None`` leaves the repository's policy."""
 
 
 @dataclass(frozen=True, slots=True)

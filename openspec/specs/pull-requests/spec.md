@@ -206,6 +206,20 @@ The system SHALL, when a step starts, mark as outdated the announcements of wait
 - **WHEN** marking a comment fails
 - **THEN** the step runs anyway
 
+### Requirement: What a review left open when the work went on is posted
+
+The system SHALL, when work goes on past a spec or design review that could not settle, post a comment on the pull request that names the review and lists the issues that stayed open, so that a person reads them before the merge.
+
+#### Scenario: Open points posted
+
+- **WHEN** the work goes on past a deadlocked spec review
+- **THEN** the pull request gets a comment that names the spec review and lists its open issues
+
+#### Scenario: Nothing to post otherwise
+
+- **WHEN** a review approves or the work waits for a person
+- **THEN** no such comment is posted
+
 ### Requirement: A gate announcement links what to judge
 
 The system SHALL link, in the announcement of a wait, the document the person is asked to judge.

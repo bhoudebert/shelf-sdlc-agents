@@ -55,6 +55,15 @@ def agent_comment(work_id: str, role: str, body: str) -> str:
     return f"{AGENT_MARK}{role}:{work_id} -->\n**{title}** · agent\n\n{body}".strip()
 
 
+def open_points_comment(work_id: str, role: str, review: str, issues: str) -> str:
+    """What a review left open when the work went on without a person, spoken by that reviewer."""
+    words = (
+        f"I could not settle the {review} with the writer, and nobody was there to decide, so the work went on. "
+        f"These points are still open: please read them before you merge.\n\n{issues.strip()}"
+    )
+    return agent_comment(work_id, role, words)
+
+
 def person_comment(work_id: str, login: str, body: str) -> str:
     """A comment a person made from the interface, posted by the App on their behalf and attributed to them."""
     return f"{PERSON_MARK}{login}:{work_id} -->\n**{login}** · via shelf\n\n{body}".strip()

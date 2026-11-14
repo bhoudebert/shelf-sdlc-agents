@@ -12,9 +12,9 @@ from shelf.adapters.temporal.runner import TemporalRunner
 from shelf.domain.config import RepoConfig
 from shelf.domain.model import RepoRef, WorkId, WorkRequest, WorkView
 from shelf.domain.pipeline import EntryPoint, Phase
-from shelf.domain.policy import Policy
+from shelf.domain.policy import Autonomy, Policy
 from shelf.domain.polling import Mode
-from shelf.domain.work import DecisionKind, Outcome, PersonDecided, Reason
+from shelf.domain.work import DecisionKind, Outcome, PersonDecided, Reason, Reviewed, Verdict
 from shelf.ports.runner import UnreachableWorkError
 from tests.adapters.temporal.test_workflow import QUEUE, FakePulls, FakeSteps, worker
 from tests.fakes import FakeConfigs
@@ -207,3 +207,14 @@ async def test_the_other_repositories_a_work_reads_are_kept_and_shown_on_the_boa
         work_id = await runner.start(request)
         board = await _until_waiting(runner, work_id, Reason.GATE)
     assert board.context == ("foo/bar@v1",)
+
+
+async def test_what_the_person_chose_at_the_start_beats_the_repositorys_file(env: WorkflowEnvironment) -> None:
+    runner = runner_for(env, FakeConfigs({REPO: RepoConfig(policy=Policy(spec_approval=True, design_review=True))}))
+    steps = FakeSteps({(Phase.SPEC_REVIEW, 0): Reviewed(Verdict.ESCALATE, "cannot decide")})
+    chosen = Autonomy(spec_approval=False, design_review=False, proceed_on_deadlock=True)
+    async with worker(env, steps, FakePulls()):
+        work_id = await runner.start(WorkRequest(REPO, "alice", EntryPoint.NEED, "x", autonomy=chosen))
+        await _until(runner, work_id, lambda v: v.waiting_for is Reason.MERGE)
+    assert Phase.DESIGN_REVIEW not in {step.phase for step in steps.ran}
+    assert Phase.PLAN in {step.phase for step in steps.ran}

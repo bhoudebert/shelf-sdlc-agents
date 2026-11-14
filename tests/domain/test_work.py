@@ -15,6 +15,7 @@ from shelf.domain.work import (
     DecisionKind,
     Event,
     Finished,
+    NoteOpenPoints,
     Outcome,
     PersonDecided,
     Produced,
@@ -436,3 +437,77 @@ def test_work_started_before_protocol_5_has_no_adopted_pull_request_behaviour() 
     course = course_for(EntryPoint.PULL_REQUEST_REVIEW, Policy(), protocol=4)
     assert not course.review_is_read_only
     assert not course.adopts_pull_request
+
+
+def deadlocked(phase: Phase, verdict: Verdict = Verdict.CHANGES) -> Callable[[State], Event | None]:
+    """Everything is approved, except that ``phase`` never agrees."""
+
+    def answer(state: State) -> Event | None:
+        if isinstance(state, Running) and state.phase is phase:
+            return StepDone(Reviewed(verdict, f"{phase} still disagrees"))
+        return happy(state)
+
+    return answer
+
+
+def test_a_deadlocked_spec_review_goes_on_when_the_policy_says_so_and_notes_what_stayed_open() -> None:
+    course = course_for(EntryPoint.SPEC, Policy(max_rounds=1, spec_approval=False, proceed_on_deadlock=True))
+    log, state = drive(course, deadlocked(Phase.SPEC_REVIEW))
+    notes = [c for c in log if isinstance(c, NoteOpenPoints)]
+    assert [n.phase for n in notes] == [Phase.SPEC_REVIEW]
+    assert "limit of 1 rounds" in notes[0].issues
+    assert Phase.DESIGN in phases_run(log)
+    assert state == Finished(Outcome.MERGED)
+
+
+def test_a_design_review_that_cannot_decide_goes_on_to_the_plan() -> None:
+    course = course_for(EntryPoint.DESIGN, Policy(proceed_on_deadlock=True))
+    log, _ = drive(course, deadlocked(Phase.DESIGN_REVIEW, Verdict.ESCALATE))
+    assert [c.phase for c in log if isinstance(c, NoteOpenPoints)] == [Phase.DESIGN_REVIEW]
+    assert Phase.PLAN in phases_run(log)
+
+
+def test_the_spec_approval_still_asks_when_it_is_on_after_a_passed_deadlock() -> None:
+    course = course_for(EntryPoint.SPEC, Policy(max_rounds=1, proceed_on_deadlock=True))
+    _, state = drive(course, lambda s: deadlocked(Phase.SPEC_REVIEW)(s) if isinstance(s, Running) else None)
+    assert state == AwaitingPerson(Phase.SPEC_APPROVAL, Reason.GATE)
+
+
+def test_work_that_does_not_proceed_still_waits_at_a_deadlock_and_notes_nothing() -> None:
+    course = course_for(EntryPoint.SPEC, Policy(max_rounds=1))
+    log, state = drive(course, deadlocked(Phase.SPEC_REVIEW))
+    assert isinstance(state, AwaitingPerson)
+    assert state.reason is Reason.ESCALATION
+    assert not [c for c in log if isinstance(c, NoteOpenPoints)]
+
+
+def test_failing_checks_and_a_code_review_that_cannot_decide_still_wait_for_a_person() -> None:
+    course = course_for(EntryPoint.IMPLEMENT, Policy(max_rounds=1, proceed_on_deadlock=True))
+
+    def red(state: State) -> Event | None:
+        if isinstance(state, Running) and state.phase is Phase.VERIFY:
+            return StepDone(Verified(passed=False, report="make test failed"))
+        return happy(state)
+
+    _, state = drive(course, red)
+    assert state == AwaitingPerson(Phase.VERIFY, Reason.ESCALATION, "limit of 1 rounds reached:\nmake test failed")
+    _, state = drive(course, deadlocked(Phase.CODE_REVIEW, Verdict.ESCALATE))
+    assert isinstance(state, AwaitingPerson)
+    assert (state.phase, state.reason) == (Phase.CODE_REVIEW, Reason.ESCALATION)
+
+
+@given(
+    st.lists(st.sampled_from([Verdict.APPROVE, Verdict.CHANGES, Verdict.ESCALATE]), max_size=12),
+    st.integers(min_value=1, max_value=4),
+)
+def test_a_work_that_proceeds_never_waits_at_a_review_of_a_document(verdicts: list[Verdict], rounds: int) -> None:
+    course = course_for(EntryPoint.NEED, Policy(max_rounds=rounds, spec_approval=False, proceed_on_deadlock=True))
+    remaining = iter(verdicts)
+
+    def answer(state: State) -> Event | None:
+        if isinstance(state, Running) and state.phase in (Phase.SPEC_REVIEW, Phase.DESIGN_REVIEW):
+            return StepDone(Reviewed(next(remaining, Verdict.CHANGES), "open"))
+        return happy(state)
+
+    _, state = drive(course, answer)
+    assert state == Finished(Outcome.MERGED)

@@ -8,10 +8,12 @@ from typing import Any
 from temporalio import activity
 
 from shelf.adapters.temporal import wire
-from shelf.adapters.temporal.workflow import ANNOUNCE, POLL, PROGRESS, PUBLISH, READY, RUN_STEP, STAGE
+from shelf.adapters.temporal.workflow import ANNOUNCE, OPEN_POINTS, POLL, PROGRESS, PUBLISH, READY, RUN_STEP, STAGE
 from shelf.domain.pipeline import Phase
 from shelf.domain.progress import Entry, Position, render_progress
+from shelf.domain.roles import ROLES
 from shelf.domain.stage import stage_of
+from shelf.domain.story import open_points_comment
 from shelf.domain.work import AskPerson, Outcome, Reason, RunStep
 from shelf.ports.steps import PullRequests, StepRunner
 
@@ -80,4 +82,10 @@ def build_activities(steps: StepRunner, pulls: PullRequests) -> Sequence[Callabl
         body = render_progress(update.work.work_id, phases, log, position, update.updated)
         await pulls.progress(wire.context_of(update.work), body)
 
-    return [run_step, announce, publish, poll, set_stage, set_ready, progress]
+    @activity.defn(name=OPEN_POINTS)
+    async def note_open_points(note: wire.OpenPointsInput) -> None:
+        phase = Phase(note.phase)
+        body = open_points_comment(note.work.work_id, ROLES[phase].name, phase.value.replace("_", " "), note.issues)
+        await pulls.comment(wire.context_of(note.work), body)
+
+    return [run_step, announce, publish, poll, set_stage, set_ready, progress, note_open_points]

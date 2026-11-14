@@ -1,5 +1,14 @@
 from shelf.domain.pipeline import Phase
-from shelf.domain.story import SPEAKERS, Posted, Voice, agent_comment, classify, person_comment, superseded
+from shelf.domain.story import (
+    SPEAKERS,
+    Posted,
+    Voice,
+    agent_comment,
+    classify,
+    open_points_comment,
+    person_comment,
+    superseded,
+)
 
 
 def test_an_agent_speaks_under_its_role_title_with_a_marker() -> None:
@@ -110,3 +119,12 @@ def test_any_other_description_is_returned_as_it_is() -> None:
 
     assert request_in("  Fixes the rounding \n") == ("Fixes the rounding", False)
     assert request_in("") == ("", False)
+
+
+def test_what_a_review_left_open_is_said_by_that_reviewer_and_asks_to_be_read_before_the_merge() -> None:
+    text = open_points_comment("work-1", "spec_critic", "spec review", "- no limit stated\n")
+    message = classify(text, "shelf-sdlc[bot]")
+    assert (message.voice, message.speaker) == (Voice.AGENT, "Spec reviewer")
+    assert "could not settle the spec review" in message.body
+    assert "read them before you merge" in message.body
+    assert message.body.endswith("- no limit stated")

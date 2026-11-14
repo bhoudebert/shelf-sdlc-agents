@@ -40,6 +40,14 @@ REPORT_TAIL = 4000
 """How much of a failing check's output goes back to the implementer."""
 
 
+UNATTENDED_NOTE = (
+    "Nobody is available to answer while this work runs, and it goes on past a spec or design review that cannot "
+    "settle. Do not stop to ask: where the request leaves a choice open, take the most reasonable reading and write "
+    "each such choice under an `Assumptions` heading of your document, so a person can check them afterwards. A "
+    "reviewer states plainly any point it cannot settle: it is handed to the person with the pull request."
+)
+
+
 def branch_of(work: WorkContext) -> str:
     """The branch the work lives on."""
     return f"shelf/{work.id}"
@@ -82,6 +90,8 @@ def task_prompt(  # noqa: PLR0913
         lines += ["", picture]
     if work.request.text:
         lines += ["", "The request:", work.request.text]
+    if work.request.autonomy and work.request.autonomy.proceed_on_deadlock:
+        lines += ["", UNATTENDED_NOTE]
     if step.feedback:
         lines += ["", f"This is round {step.attempt}. Address this feedback first:", step.feedback]
     if step.phase in REVIEWERS or role.name == "architect":

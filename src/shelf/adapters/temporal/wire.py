@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 
 from shelf.domain.model import RepoRef, WorkContext, WorkId, WorkRequest
 from shelf.domain.pipeline import EntryPoint, Phase
-from shelf.domain.policy import Course, Policy, course_for
+from shelf.domain.policy import Autonomy, Course, Policy, course_for
 from shelf.domain.work import (
     AwaitingPerson,
     DecisionKind,
@@ -39,6 +39,8 @@ class WorkInput:
     max_rounds: int = 3
     spec_approval: bool = True
     design_review: bool = True
+    proceed_on_deadlock: bool = False
+    """Whether a spec or design review that cannot settle lets the work go on; older work has False."""
     poll_base_seconds: float = 30.0
     poll_ceiling_seconds: float = 900.0
     protocol: int = 1
@@ -120,6 +122,15 @@ class ReadyInput:
 
 
 @dataclass(frozen=True, slots=True)
+class OpenPointsInput:
+    """The input of the activity that posts what a review left open."""
+
+    work: WorkInput
+    phase: str
+    issues: str
+
+
+@dataclass(frozen=True, slots=True)
 class EventDto:
     """An event found on the pull request, as a tagged record."""
 
@@ -156,7 +167,7 @@ class Snapshot:
 
 def course_of(work: WorkInput) -> Course:
     """The course of the work, from its policy and entry point."""
-    policy = Policy(work.max_rounds, work.spec_approval, work.design_review)
+    policy = Policy(work.max_rounds, work.spec_approval, work.design_review, work.proceed_on_deadlock)
     return course_for(EntryPoint(work.entry), policy, work.protocol)
 
 
@@ -169,6 +180,7 @@ def context_of(work: WorkInput) -> WorkContext:
         work.text,
         work.pull_request,
         tuple(work.context),
+        Autonomy(work.spec_approval, work.design_review, work.proceed_on_deadlock),
     )
     return WorkContext(WorkId(work.work_id), request)
 

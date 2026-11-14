@@ -20,6 +20,7 @@ from shelf.domain.config import RepoConfig, Role
 from shelf.domain.context_repo import ContextRepo
 from shelf.domain.model import Identity, RepoRef, WorkId, WorkView
 from shelf.domain.pipeline import EntryPoint, Phase
+from shelf.domain.policy import Autonomy, Policy
 from shelf.domain.reference import Imported, Reference
 from shelf.domain.result import Err, Ok, Result
 from shelf.domain.story import Message, Voice
@@ -847,3 +848,76 @@ def test_a_pull_request_that_is_not_ours_shows_its_own_description() -> None:
     )
     assert "Pull request description" in page
     assert "Fixes the rounding" in page
+
+
+def box(page: str, name: str) -> str:
+    """The input tag of the checkbox ``name`` on the start form."""
+    found = re.search(rf'<input type="checkbox" name="{name}"[^>]*>', page)
+    assert found, f"no {name} box"
+    return found.group(0)
+
+
+def test_the_start_form_shows_the_stops_of_the_repository_and_says_what_removing_them_costs(app: Fixture) -> None:
+    app.sign_in()
+    page = app.client.get("/start").text
+    for name in ("spec_approval", "design_review"):
+        assert "checked" in box(page, name)
+    assert "checked" not in box(page, "proceed_on_deadlock")
+    assert "less control and potentially less quality" in page
+    assert "autonomy-warning" in page
+    assert "never merged without you" in page
+
+
+def test_the_boxes_start_from_the_policy_of_the_repository() -> None:
+    policy = Policy(spec_approval=False, proceed_on_deadlock=True)
+    app = Fixture(configs=FakeConfigs({REPO: RepoConfig(policy=policy)}))
+    app.sign_in()
+    page = app.client.get("/start").text
+    assert "checked" not in box(page, "spec_approval")
+    assert "checked" in box(page, "design_review")
+    assert "checked" in box(page, "proceed_on_deadlock")
+
+
+def test_picking_another_repository_reloads_the_boxes_with_its_values() -> None:
+    app = Fixture(configs=FakeConfigs({REPO: RepoConfig(policy=Policy(design_review=False))}))
+    app.sign_in()
+    fragment = app.client.get("/start/autonomy", params={"repo": "acme/shop"}).text
+    assert fragment.lstrip().startswith('<fieldset id="autonomy"')
+    assert "checked" not in box(fragment, "design_review")
+
+
+def test_a_repository_the_person_cannot_see_gets_the_strictest_boxes_from_the_fragment(app: Fixture) -> None:
+    app.sign_in()
+    fragment = app.client.get("/start/autonomy", params={"repo": "acme/secret"}).text
+    assert "checked" in box(fragment, "spec_approval")
+    assert "checked" not in box(fragment, "proceed_on_deadlock")
+
+
+def test_the_fragment_needs_a_signed_in_person(app: Fixture) -> None:
+    assert app.client.get("/start/autonomy", params={"repo": "acme/shop"}, follow_redirects=False).status_code in (
+        303,
+        401,
+    )
+
+
+def test_what_the_form_shows_is_what_the_work_starts_with(app: Fixture) -> None:
+    app.sign_in()
+    data = {"repo": "acme/shop", "entry": "need", "text": "x", "autonomy_form": "1", "proceed_on_deadlock": "1"}
+    assert app.client.post("/start", data=data).status_code == 303
+    assert app.runner.started[-1].autonomy == Autonomy(
+        spec_approval=False, design_review=False, proceed_on_deadlock=True
+    )
+
+
+def test_a_start_that_does_not_show_the_boxes_leaves_the_repositorys_policy(app: Fixture) -> None:
+    app.sign_in()
+    app.client.post("/start", data={"repo": "acme/shop", "entry": "need", "text": "x"})
+    assert app.runner.started[-1].autonomy is None
+
+
+def test_a_refused_start_keeps_the_repository_and_the_choices(app: Fixture) -> None:
+    app.sign_in()
+    data = {"repo": "acme/shop", "entry": "need", "text": " ", "autonomy_form": "1", "proceed_on_deadlock": "1"}
+    page = app.client.post("/start", data=data).text
+    assert "checked" in box(page, "proceed_on_deadlock")
+    assert "checked" not in box(page, "spec_approval")

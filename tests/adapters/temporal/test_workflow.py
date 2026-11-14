@@ -22,6 +22,7 @@ from shelf.domain.work import (
     Event,
     Produced,
     PullRequestClosed,
+    Reason,
     Reviewed,
     RunStep,
     StepResult,
@@ -295,3 +296,31 @@ async def test_work_on_a_pull_request_never_opens_one_and_readies_the_one_it_has
     assert [s.phase for s in steps.ran] == [Phase.IMPLEMENT, Phase.VERIFY, Phase.CODE_REVIEW]
     assert pulls.published == 0, "the pull request already exists: nothing is opened or retitled"
     assert pulls.ready == [True]
+
+
+async def test_work_that_goes_on_past_a_deadlock_posts_what_stayed_open_and_reaches_the_merge(
+    env: WorkflowEnvironment,
+) -> None:
+    steps = FakeSteps({(Phase.SPEC_REVIEW, 0): Reviewed(Verdict.ESCALATE, "the limit is not defined")})
+    pulls = FakePulls()
+    async with worker(env, steps, pulls):
+        handle = await start(env, work_input("need", spec_approval=False, proceed_on_deadlock=True))
+        await until(handle, lambda s: s.waiting_for == "merge")
+        await handle.signal(WorkItemWorkflow.pull_request_closed, True)
+        await handle.result()
+    posted = [body for body in pulls.commented if "the limit is not defined" in body]
+    assert len(posted) == 1
+    assert "read them before you merge" in posted[0]
+    assert not pulls.announced or all(ask.reason is not Reason.ESCALATION for ask in pulls.announced)
+
+
+async def test_work_that_does_not_go_on_waits_at_the_same_deadlock(env: WorkflowEnvironment) -> None:
+    steps = FakeSteps({(Phase.SPEC_REVIEW, 0): Reviewed(Verdict.ESCALATE, "the limit is not defined")})
+    pulls = FakePulls()
+    async with worker(env, steps, pulls):
+        handle = await start(env, work_input("need"))
+        snapshot = await until(handle, lambda s: s.waiting_for == "escalation")
+        assert snapshot.phase == "spec_review"
+        await handle.signal(WorkItemWorkflow.decided, wire.DecisionDto("alice", DecisionKind.ABORT, ""))
+        await handle.result()
+    assert not [body for body in pulls.commented if "read them before you merge" in body]

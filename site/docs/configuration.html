@@ -61,6 +61,7 @@ checks = [&quot;make test&quot;]      # what the verify step runs
 max_rounds = 3             # how many times a loop may send work back before a person is asked
 spec_approval = true       # a person approves the spec before the design starts
 design_review = true       # a reviewer checks the design before the plan
+proceed_on_deadlock = false  # go on, with the open points posted, when a spec or design review cannot settle
 
 [roles]                    # without roles, any signed-in person may decide
 product_owner = [&quot;alice&quot;]  # decides at the spec gate
@@ -68,6 +69,7 @@ architect     = [&quot;bob&quot;]
 tech_lead     = [&quot;bob&quot;, &quot;carol&quot;]
 developer     = [&quot;dan&quot;]</code></pre>
 <p>Roles limit who may decide only once you set them. The spec gate belongs to <code>product_owner</code>, the design review to <code>architect</code> and <code>tech_lead</code>, and the pull request to <code>tech_lead</code> and <code>developer</code>. Administrators may always decide.</p>
+<p>The three <code>[policy]</code> choices about stops are only defaults. The start form shows them, preset from the repository, and what you leave checked there is what that work runs with, so a file edit never changes work already running. <code>proceed_on_deadlock</code> lets work go on past a spec or design review that cannot settle (it answers <em>escalate</em>, or the loop used its rounds): what stayed open is posted on the pull request and the agents write their assumptions down. The code review, the repository&rsquo;s checks and the merge always stay: a red check or a code review that cannot decide still waits for you. Fewer stops mean more autonomy, less control and potentially less quality.</p>
 <nav class="pager" aria-label="Pages"><a href="concepts.html">&larr; Concepts</a><a href="architecture.html">Architecture &rarr;</a></nav></main></div>
 <footer class="foot"><p class="big" aria-hidden="true">shelf-sdlc</p>
 <ul><li><a href="getting-started.html">Documentation</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents">Repository</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents/blob/main/CONTRIBUTING.md">Contributing</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents/issues">Issues</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents/blob/main/LICENSE">Apache-2.0</a></li></ul>

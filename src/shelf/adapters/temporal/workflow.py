@@ -25,6 +25,7 @@ with workflow.unsafe.imports_passed_through():
         Conclude,
         Event,
         Finished,
+        NoteOpenPoints,
         Outcome,
         PersonDecided,
         PublishPullRequest,
@@ -46,6 +47,7 @@ POLL = "shelf_poll_pull_request"
 STAGE = "shelf_set_stage"
 READY = "shelf_set_ready"
 PROGRESS = "shelf_progress"
+OPEN_POINTS = "shelf_note_open_points"
 
 STEP_TIMEOUT = timedelta(minutes=45)
 STEP_HEARTBEAT = timedelta(seconds=60)
@@ -129,6 +131,8 @@ class WorkItemWorkflow:
                     await self._announce(work, phase, reason, detail)
                 case SetPullRequestReady(ready):
                     await self._set_ready(work, ready=ready)
+                case NoteOpenPoints(phase, issues):
+                    await self._note_open_points(work, phase, issues)
                 case PublishPullRequest():
                     await self._publish(work)
                 case Conclude(outcome):
@@ -205,6 +209,18 @@ class WorkItemWorkflow:
             )
         except ActivityError:
             workflow.logger.warning("could not change the draft state of the pull request")
+
+    async def _note_open_points(self, work: wire.WorkInput, phase: Phase, issues: str) -> None:
+        """Post what a review left open. Cosmetic: a failure is logged, and the work goes on."""
+        try:
+            await workflow.execute_activity(
+                OPEN_POINTS,
+                wire.OpenPointsInput(work, phase, issues),
+                start_to_close_timeout=GITHUB_TIMEOUT,
+                retry_policy=RetryPolicy(maximum_attempts=3),
+            )
+        except ActivityError:
+            workflow.logger.warning("could not post the open points of %s", phase)
 
     async def _publish(self, work: wire.WorkInput) -> None:
         """Open the pull request (or find it). Failing to is logged, not fatal: the merge phase asks again."""

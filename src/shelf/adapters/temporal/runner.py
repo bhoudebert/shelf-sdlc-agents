@@ -59,6 +59,7 @@ class TemporalRunner:
     async def start(self, request: WorkRequest) -> WorkId:
         """Start a workflow for ``request`` with the policy of its repository."""
         config = await self.configs.load(request.repo)
+        policy = request.autonomy.over(config.policy) if request.autonomy else config.policy
         base, ceiling = poll_bounds(self.mode)
         work_id = self.next_id()
         work = wire.WorkInput(
@@ -68,9 +69,10 @@ class TemporalRunner:
             entry=request.entry,
             text=request.text,
             pull_request=request.pull_request,
-            max_rounds=config.policy.max_rounds,
-            spec_approval=config.policy.spec_approval,
-            design_review=config.policy.design_review,
+            max_rounds=policy.max_rounds,
+            spec_approval=policy.spec_approval,
+            design_review=policy.design_review,
+            proceed_on_deadlock=policy.proceed_on_deadlock,
             poll_base_seconds=base.total_seconds(),
             poll_ceiling_seconds=ceiling.total_seconds(),
             protocol=CURRENT_PROTOCOL,

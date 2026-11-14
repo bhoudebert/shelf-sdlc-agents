@@ -129,6 +129,25 @@ The system SHALL record, when a piece of work starts, the protocol version it be
 - **WHEN** histories recorded by earlier releases are replayed with the current code
 - **THEN** every one replays without a non-determinism error
 
+### Requirement: The choices about stops are part of the work's input
+
+The system SHALL record in the input of a piece of work whether it asks for the spec approval, reviews the design and goes on past a deadlock, as chosen when it started or taken from the repository's policy, SHALL post on the pull request what a review left open when the work goes on past it, and SHALL treat work recorded without the choice as waiting at a deadlock.
+
+#### Scenario: Chosen at the start
+
+- **WHEN** work starts with a request that chose its stops
+- **THEN** the workflow runs the course those choices make, whatever the repository's file says later
+
+#### Scenario: Open points are posted
+
+- **WHEN** the workflow goes on past a deadlocked spec review
+- **THEN** it runs the activity that posts the open issues, and a failure of that activity is logged without stopping the work
+
+#### Scenario: Older work
+
+- **WHEN** a history recorded before the choice existed is replayed
+- **THEN** it replays unchanged and the work waits at a deadlock
+
 ### Requirement: A review shows the pull request it started from
 
 The system SHALL link, on the board and on the work page, the pull request a review of an existing pull request started from, even though that work publishes nothing of its own.

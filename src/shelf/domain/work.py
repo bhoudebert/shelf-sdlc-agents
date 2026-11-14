@@ -194,7 +194,15 @@ class Conclude:
     outcome: Outcome
 
 
-type Command = RunStep | AskPerson | CancelStep | PublishPullRequest | SetPullRequestReady | Conclude
+@dataclass(frozen=True, slots=True)
+class NoteOpenPoints:
+    """Say on the pull request which issues of a review stayed open when the work went on without a person."""
+
+    phase: Phase
+    issues: str
+
+
+type Command = RunStep | AskPerson | CancelStep | PublishPullRequest | SetPullRequestReady | Conclude | NoteOpenPoints
 
 
 class Transition(NamedTuple):
@@ -267,7 +275,7 @@ def _after_step(course: Course, state: Running, result: StepResult) -> Transitio
         case Kind.REVIEW, Reviewed(Verdict.CHANGES, issues):
             return _send_back(course, state, issues)
         case Kind.REVIEW, Reviewed(Verdict.ESCALATE, issues):
-            return _ask(state.phase, Reason.ESCALATION, issues)
+            return _deadlocked(course, state.phase, issues)
         case Kind.VERIFY, Verified(waiting=True):
             if course.waits_for_ci:
                 return _enter(course, state.phase, state.attempt, feedback=WAITING_FOR_CI)  # look again, same round
@@ -356,8 +364,20 @@ def _advance(course: Course, phase: Phase, attempt: int) -> Transition:
 
 def _send_back(course: Course, state: Running, feedback: str) -> Transition:
     if state.attempt >= course.max_rounds:
-        return _ask(state.phase, Reason.ESCALATION, f"limit of {course.max_rounds} rounds reached:\n{feedback}")
+        return _deadlocked(course, state.phase, f"limit of {course.max_rounds} rounds reached:\n{feedback}")
     return _enter(course, LOOP_BACK[state.phase], state.attempt + 1, feedback)
+
+
+PASSABLE = frozenset({Phase.SPEC_REVIEW, Phase.DESIGN_REVIEW})
+"""The reviews of documents: the only ones whose open issues may be passed on. Code review and checks never are."""
+
+
+def _deadlocked(course: Course, phase: Phase, issues: str) -> Transition:
+    """A review cannot settle: a person is asked, unless the work may go on, and then its open issues are noted."""
+    if course.proceeds_on_deadlock and phase in PASSABLE:
+        moved = _advance(course, phase, 0)
+        return Transition(moved.state, (NoteOpenPoints(phase, issues), *moved.commands))
+    return _ask(phase, Reason.ESCALATION, issues)
 
 
 def _ask(phase: Phase, reason: Reason, detail: str) -> Transition:

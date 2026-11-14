@@ -39,6 +39,35 @@ The system SHALL send work back to the phase that redoes it, with the issues fou
 - **WHEN** work goes from code review back through implementation and checks to code review
 - **THEN** the rounds already used are kept, so the loops together stay within the limit
 
+### Requirement: Work may go on past a review that cannot settle, when its policy says so
+
+The system SHALL, when the policy of a piece of work says to proceed on deadlock, go on to the next phase instead of waiting for a person when the spec review or the design review answers that it cannot decide or sends work back after the maximum number of rounds, SHALL post the issues that stayed open on the pull request, and SHALL NOT do so for the code review or the checks. Without that policy, and for work that began before it existed, a person is asked as before.
+
+#### Scenario: The spec review deadlocks
+
+- **WHEN** the policy proceeds on deadlock and the spec review asks for changes after the maximum number of rounds
+- **THEN** the design starts (or the spec approval gate, when it is on) and a comment on the pull request lists the open issues
+
+#### Scenario: The design review cannot decide
+
+- **WHEN** the policy proceeds on deadlock and the design review answers escalate
+- **THEN** the plan starts and the open issues are posted
+
+#### Scenario: A red check still waits
+
+- **WHEN** the policy proceeds on deadlock and the checks fail after the maximum number of rounds
+- **THEN** the work waits for a person
+
+#### Scenario: The code review still waits
+
+- **WHEN** the policy proceeds on deadlock and the code review answers escalate
+- **THEN** the work waits for a person
+
+#### Scenario: Not asked for
+
+- **WHEN** the policy does not proceed on deadlock and the spec review reaches the round limit
+- **THEN** the work waits for a person and says the limit was reached
+
 ### Requirement: A review of someone else's pull request ends with a person, not with new code
 
 The system SHALL, when work started from an existing pull request has its review find problems, wait for a person with the findings instead of sending the work to the implementer, and SHALL send the work to the implementer only when a person asks for changes, handing over the reviewer's findings when the person wrote no note. Work that publishes its own pull request keeps the automatic loop, and work started before this rule keeps its original behaviour.
