@@ -85,6 +85,17 @@ enum Command {
         #[command(flatten)]
         from: Where,
     },
+    /// Say what the policy would have stopped among the calls the log holds.
+    Report {
+        /// Only this session.
+        #[arg(long)]
+        session: Option<String>,
+        /// The log directory, in place of the policy's.
+        #[arg(long)]
+        dir: Option<PathBuf>,
+        #[command(flatten)]
+        from: Where,
+    },
     /// Run a command and redact what it prints (the agents' hooks call this).
     Run {
         /// The session whose tokens to use, so the same value gets the same token.
@@ -317,6 +328,15 @@ fn status_command(all: bool, n: usize, session: Option<String>, dir: Option<Path
     Ok(ExitCode::SUCCESS)
 }
 
+fn report_command(session: Option<String>, dir: Option<PathBuf>, from: &Where) -> Outcome {
+    let log = audit_log(from, dir)?;
+    let records = log
+        .read(&warden_audit::Filter { session, last: None })
+        .map_err(|error| format!("{}: {error}", log.dir().display()))?;
+    print!("{}", report::adoption(&records));
+    Ok(ExitCode::SUCCESS)
+}
+
 fn init_command(
     global: bool,
     repo: bool,
@@ -438,6 +458,7 @@ fn run(cli: Cli) -> Outcome {
         Some(Command::Explain { command, from }) => explain_command(&command, &from),
         Some(Command::Policy { from }) => policy_command(&from),
         Some(Command::Status { all, n, session, dir, from }) => status_command(all, n, session, dir, &from),
+        Some(Command::Report { session, dir, from }) => report_command(session, dir, &from),
         Some(Command::Init { global, repo, managed, profile, dry_run, agent }) => {
             init_command(global, repo, managed, profile, dry_run, agent)
         }
