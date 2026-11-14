@@ -1,0 +1,156 @@
+# Wrappers, quoting, nesting and indirection must not hide a command from the policy.
+# Every case runs the same destructive command, `kubectl delete`, in a different disguise; each must be at least asked about.
+# Run with: warden test corpus/evasion.toml --profile guarded
+profile = "guarded"
+
+[[case]]
+cmd = "kubectl delete ns prod"
+expect = "ask"
+
+[[case]]
+cmd = "k\"\"ubectl delete ns prod"
+expect = "ask"
+
+[[case]]
+cmd = "\\kubectl delete ns prod"
+expect = "ask"
+
+[[case]]
+cmd = "/usr/bin/kubectl delete ns prod"
+expect = "ask"
+
+[[case]]
+cmd = "command kubectl delete ns prod"
+expect = "ask"
+
+[[case]]
+cmd = "exec kubectl delete ns prod"
+expect = "ask"
+
+[[case]]
+cmd = "builtin kubectl delete ns prod"
+expect = "ask"
+
+[[case]]
+cmd = "env kubectl delete ns prod"
+expect = "ask"
+
+[[case]]
+cmd = "env -i kubectl delete ns prod"
+expect = "ask"
+
+[[case]]
+cmd = "nohup kubectl delete ns prod"
+expect = "ask"
+
+[[case]]
+cmd = "time kubectl delete ns prod"
+expect = "ask"
+
+[[case]]
+cmd = "nice kubectl delete ns prod"
+expect = "ask"
+
+[[case]]
+cmd = "ionice -c3 kubectl delete ns prod"
+expect = "ask"
+
+[[case]]
+cmd = "setsid kubectl delete ns prod"
+expect = "ask"
+
+[[case]]
+cmd = "flock /tmp/l kubectl delete ns prod"
+expect = "ask"
+
+[[case]]
+cmd = "timeout 5 kubectl delete ns prod"
+expect = "ask"
+
+[[case]]
+cmd = "stdbuf -o0 kubectl delete ns prod"
+expect = "ask"
+
+[[case]]
+cmd = "watch -n1 kubectl delete ns prod"
+expect = "ask"
+
+[[case]]
+cmd = "doas kubectl delete ns prod"
+expect = "ask"
+
+[[case]]
+cmd = "sudo -u root kubectl delete ns prod"
+expect = "ask"
+
+[[case]]
+cmd = "echo prod | xargs kubectl delete ns"
+expect = "ask"
+
+[[case]]
+cmd = "find . -exec kubectl delete ns prod ;"
+expect = "ask"
+
+[[case]]
+cmd = "(kubectl delete ns prod)"
+expect = "ask"
+
+[[case]]
+cmd = "{ kubectl delete ns prod; }"
+expect = "ask"
+
+[[case]]
+cmd = "true && kubectl delete ns prod"
+expect = "ask"
+
+[[case]]
+cmd = "false || kubectl delete ns prod"
+expect = "ask"
+
+[[case]]
+cmd = "kubectl delete ns prod &"
+expect = "ask"
+
+[[case]]
+cmd = "if true; then kubectl delete ns prod; fi"
+expect = "ask"
+
+[[case]]
+cmd = "for i in 1; do kubectl delete ns prod; done"
+expect = "ask"
+
+[[case]]
+cmd = "bash -c \"kubectl delete ns prod\""
+expect = "ask"
+
+[[case]]
+cmd = "sh -c \"k\\\"\\\"ubectl delete ns prod\""
+expect = "ask"
+
+[[case]]
+cmd = "eval \"kubectl delete ns prod\""
+expect = "ask"
+
+[[case]]
+cmd = "echo a3ViZWN0bCBkZWxldGUgbnMgcHJvZA== | base64 -d | bash"
+expect = "deny"
+
+[[case]]
+cmd = "strace -o out kubectl delete ns prod"
+expect = "ask"
+
+[[case]]
+cmd = "unshare -r kubectl delete ns prod"
+expect = "ask"
+
+[[case]]
+cmd = "busybox kubectl delete ns prod"
+expect = "ask"
+
+[[case]]
+cmd = "chroot /jail kubectl delete ns prod"
+expect = "ask"
+
+[[case]]
+cmd = "flock -w 5 /tmp/l kubectl delete ns prod"
+expect = "ask"
