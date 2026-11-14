@@ -601,3 +601,13 @@ cmd = "$(npm bin)/jest --ci"
 expect = "allow"
 why = "a command name that comes from an expansion is allowed in guarded"
 
+
+
+[[case]]
+cmd = "gh pr merge 3 --squash"
+expect = "allow"
+why = "guarded leaves the default branch to the person; the shelf profile denies it"
+
+[[case]]
+cmd = "git push -u origin feat/maintenance"
+expect = "allow"

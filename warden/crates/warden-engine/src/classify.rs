@@ -347,6 +347,13 @@ fn by_command(cx: &mut Cx<'_>, inv: &Invocation, name: &str, args: &[String]) {
     }
 }
 
+/// Whether a `git push` operand names the default branch: `main`, `HEAD:main`, `topic:refs/heads/master`.
+fn pushes_to_default_branch(operand: &str) -> bool {
+    let target = operand.rsplit(':').next().unwrap_or(operand);
+    let name = target.strip_prefix("refs/heads/").unwrap_or(target);
+    matches!(name, "main" | "master" | "trunk")
+}
+
 fn remove(cx: &mut Cx<'_>, inv: &Invocation, args: &[String]) {
     let recursive = has_short(args, 'r') || has_short(args, 'R') || has_long(args, "recursive");
     if !recursive {
@@ -420,6 +427,9 @@ fn git(cx: &mut Cx<'_>, args: &[String]) {
             }
             if has_long(rest, "delete") || has_short(rest, 'd') || operands.iter().any(|a| a.starts_with(':')) {
                 cx.add(Category::VcsDestructive, "git push deletes a remote branch");
+            }
+            if operands.iter().skip(1).any(|a| pushes_to_default_branch(a)) {
+                cx.add(Category::DefaultBranch, "git push to the default branch skips the pull request");
             }
             if has_long(rest, "mirror") {
                 cx.add(Category::VcsDestructive, "git push --mirror overwrites the remote");
@@ -566,6 +576,19 @@ fn cloud_and_tools(cx: &mut Cx<'_>, name: &str, args: &[String], first: &str) {
         "gh" => {
             if first == "auth" && args.iter().any(|a| a == "token") {
                 cx.add(Category::SecretAccess, "gh auth token prints the GitHub token");
+            }
+            let verb = args.iter().skip(1).find(|a| !a.starts_with('-')).map_or("", String::as_str);
+            if matches!((first, verb), ("pr", "merge") | ("workflow", "run")) {
+                cx.add(
+                    Category::DefaultBranch,
+                    format!("gh {first} {verb} changes the default branch or runs a deployment"),
+                );
+            }
+            if (first, verb) == ("pr", "review") && has_long(args, "approve") {
+                cx.add(Category::DefaultBranch, "gh pr review --approve approves a change on a person's behalf");
+            }
+            if first == "api" && args.iter().any(|a| a.contains("/merge")) && !args.iter().any(|a| a == "GET") {
+                cx.add(Category::DefaultBranch, "gh api merges on GitHub");
             }
             if first == "gist" {
                 cx.add(Category::Exfil, "gh gist publishes text to a public place");
