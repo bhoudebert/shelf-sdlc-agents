@@ -535,3 +535,23 @@ The system SHALL, when the install script runs, build the catalog service's imag
 
 - **WHEN** the install script runs after the checkout was updated
 - **THEN** the catalog image is built before the sync runs
+
+### Requirement: The install script says whether the guard is wired
+
+The system SHALL, once the services are up, ask the worker's `warden doctor` and print that the guard is wired into the agents when it has no warning, or a warning that names each warning line when it has, so an operator learns at once, not after a run that found nothing, that the guard is not in force; and SHALL skip this when `SHELF_WARDEN` is `off`, and never fail the script because the check could not run.
+
+#### Scenario: A guard that is wired
+
+- **WHEN** `warden doctor` prints only `ok` lines
+- **THEN** the script prints that the guard is wired into the agents
+
+#### Scenario: A guard that is not wired
+
+- **WHEN** `warden doctor` prints a `warn` line saying Claude Code is not wired
+- **THEN** the script warns and repeats that line
+
+#### Scenario: The guard is switched off
+
+- **WHEN** `SHELF_WARDEN=off` is set in the environment file
+- **THEN** the script does not ask the guard
+
