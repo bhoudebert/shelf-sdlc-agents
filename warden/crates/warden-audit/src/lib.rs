@@ -148,6 +148,8 @@ pub struct Filter {
     pub session: Option<String>,
     /// Only the most recent this many.
     pub last: Option<usize>,
+    /// Only records written at or after this time, as [`rfc3339`] writes it.
+    pub since: Option<String>,
 }
 
 /// What [`AuditLog::verify`] found.
@@ -287,6 +289,7 @@ impl AuditLog {
                 }
                 if let Ok(record) = serde_json::from_str::<Record>(&line)
                     && filter.session.as_ref().is_none_or(|s| *s == record.entry.session)
+                    && filter.since.as_ref().is_none_or(|since| record.ts.as_str() >= since.as_str())
                 {
                     records.push(record);
                 }
@@ -485,9 +488,9 @@ mod tests {
         for (decision, session) in [("allow", "a"), ("deny", "b"), ("ask", "a"), ("allow", "a")] {
             log.append(&entry(decision, session)).expect("append");
         }
-        let only_a = log.read(&Filter { session: Some("a".into()), last: None }).expect("reads");
+        let only_a = log.read(&Filter { session: Some("a".into()), ..Filter::default() }).expect("reads");
         assert_eq!(only_a.len(), 3);
-        let last_two = log.read(&Filter { session: None, last: Some(2) }).expect("reads");
+        let last_two = log.read(&Filter { last: Some(2), ..Filter::default() }).expect("reads");
         assert_eq!(last_two.iter().map(|r| r.entry.decision.as_str()).collect::<Vec<_>>(), ["ask", "allow"]);
         let _ = fs::remove_dir_all(dir);
     }
