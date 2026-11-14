@@ -368,6 +368,13 @@ fn by_command(cx: &mut Cx<'_>, inv: &Invocation, name: &str, args: &[String]) {
     }
 }
 
+/// Whether a `git push` operand names the default branch: `main`, `HEAD:main`, `topic:refs/heads/master`.
+fn pushes_to_default_branch(operand: &str) -> bool {
+    let target = operand.rsplit(':').next().unwrap_or(operand);
+    let name = target.strip_prefix("refs/heads/").unwrap_or(target);
+    matches!(name, "main" | "master" | "trunk")
+}
+
 fn find_delete(cx: &mut Cx<'_>, inv: &Invocation) {
     let mut reaches_out = false;
     for word in operands(inv).into_iter().take_while(|w| !w.text().starts_with('-')) {
@@ -468,6 +475,9 @@ fn git(cx: &mut Cx<'_>, args: &[String]) {
             if has_long(rest, "delete") || has_short(rest, 'd') || operands.iter().any(|a| a.starts_with(':')) {
                 cx.add(Category::VcsDestructive, "git push deletes a remote branch");
             }
+            if operands.iter().skip(1).any(|a| pushes_to_default_branch(a)) {
+                cx.add(Category::DefaultBranch, "git push to the default branch skips the pull request");
+            }
             if has_long(rest, "mirror") {
                 cx.add(Category::VcsDestructive, "git push --mirror overwrites the remote");
             }
@@ -559,6 +569,19 @@ fn transfer(cx: &mut Cx<'_>, name: &str, operands: &[&Word]) {
     }
 }
 
+/// `gh` commands that merge, approve or deploy on a person's behalf.
+fn gh_default_branch(cx: &mut Cx<'_>, args: &[String], first: &str, verb: &str) {
+    if matches!((first, verb), ("pr", "merge") | ("workflow", "run")) {
+        cx.add(Category::DefaultBranch, format!("gh {first} {verb} changes the default branch or runs a deployment"));
+    }
+    if (first, verb) == ("pr", "review") && has_long(args, "approve") {
+        cx.add(Category::DefaultBranch, "gh pr review --approve approves a change on a person's behalf");
+    }
+    if first == "api" && args.iter().any(|a| a.contains("/merge")) && !args.iter().any(|a| a == "GET") {
+        cx.add(Category::DefaultBranch, "gh api merges on GitHub");
+    }
+}
+
 fn cloud_and_tools(cx: &mut Cx<'_>, name: &str, args: &[String], first: &str) {
     let joined = args.join(" ");
     match name {
@@ -615,6 +638,7 @@ fn cloud_and_tools(cx: &mut Cx<'_>, name: &str, args: &[String], first: &str) {
                 cx.add(Category::SecretAccess, "gh auth token prints the GitHub token");
             }
             let verb = args.iter().skip(1).find(|a| !a.starts_with('-')).map_or("", String::as_str);
+            gh_default_branch(cx, args, first, verb);
             if matches!((first, verb), ("repo", "delete" | "archive") | ("release" | "secret", "delete")) {
                 cx.add(Category::Destructive, format!("gh {first} {verb} removes something on GitHub"));
             }

@@ -222,6 +222,24 @@ The system SHALL judge the reading of a credential file, the writing of a protec
 - **WHEN** an unattended policy judges a write to `/etc/claude-code/managed-settings.json`
 - **THEN** it is denied
 
+### Requirement: Nobody watching, an agent does not merge, approve or push to the default branch
+
+The system SHALL classify as `default_branch` a `git push` whose target is `main`, `master` or `trunk` (in any form, `HEAD:main` and `refs/heads/master` included), `gh pr merge`, `gh workflow run`, `gh pr review --approve` and a `gh api` call to a merge endpoint; SHALL deny that category in the `unattended` and `shelf` profiles, where nobody watches, ask about it in `strict` and allow it in `observe` and `guarded`, which serve a person at the keyboard; and SHALL leave the push of any other branch allowed everywhere.
+
+#### Scenario: Unattended pushing to main
+
+- **WHEN** an agent runs `git push origin HEAD:main` under the shelf or unattended profile
+- **THEN** the call is denied
+
+#### Scenario: Pushing a topic branch
+
+- **WHEN** an agent runs `git push -u origin feat/maintenance` under the shelf or unattended profile
+- **THEN** the call is allowed
+
+#### Scenario: A person's own session
+
+- **WHEN** a person runs `git push origin main` under the guarded profile
+
 ### Requirement: Routes that carry data out of the machine are risky
 
 The system SHALL treat as exfiltration a `git push` to an address instead of a named remote, `ssh` with `-R` or `-D`, staging a credential file with `git add`, and moving or linking a credential file with `mv` or `ln`; and SHALL always deny a request to a cloud metadata address (`169.254.169.254`, `metadata.google.internal`, `metadata.azure.com`) or to a public request-capture or tunnelling service (`requestbin.net`, `pipedream.net`, `interact.sh`, `oast.fun`, `oast.pro`, `burpcollaborator.net`, beside those already listed).
