@@ -348,7 +348,7 @@ The system SHALL provide a script that finds what an Ubuntu 23.10+ host restrict
 
 ### Requirement: The operator can replay what a step meets and get a report safe to share
 
-The system SHALL provide `shelf-diagnose`, run where the worker runs with a work id or `owner/repo#number`, that uses the App's real credentials to report, without ever printing a secret, which installation covers the repository and what it was granted and has not accepted yet, what GitHub says the pull request is, what git lists and whether the checkout a review does works, and for a work id the repository, the pull request and the latest failed or timed-out attempts of its workflow with their times and innermost messages. Its exit code SHALL say whether anything failed, and its output SHALL be safe to paste into an issue or a chat.
+The system SHALL provide `shelf-diagnose`, run where the worker runs with a work id or `owner/repo#number`, that uses the App's real credentials to report, without ever printing a secret, which installation covers the repository and what it was granted and has not accepted yet, what GitHub says the pull request is, what git lists and whether the checkout a review does works, and for a work id the repository, the pull request and the latest failed or timed-out attempts of its workflow with their times and innermost messages. It SHALL also report the guard: each check of `warden doctor` as a finding, a warning counting as a failure because an unguarded agent is what this system must not run, and the counts of `warden report`; where the guard is not installed it SHALL say so as a note. Its exit code SHALL say whether anything failed, and its output SHALL be safe to paste into an issue or a chat.
 
 #### Scenario: A repository the App is not installed on
 
@@ -369,6 +369,16 @@ The system SHALL provide `shelf-diagnose`, run where the worker runs with a work
 
 - **WHEN** a secret would appear in any line
 - **THEN** it is blanked
+
+#### Scenario: The guard is not wired
+
+- **WHEN** `warden doctor` warns that Claude Code is not wired in any settings file
+- **THEN** `shelf-diagnose` prints that warning as a failure and exits with status 1
+
+#### Scenario: No guard installed
+
+- **WHEN** the `warden` binary is not found
+- **THEN** `shelf-diagnose` notes that the guard is not installed and does not count it as a failure
 
 ### Requirement: The install script catches the usual mistakes before building
 
@@ -535,3 +545,13 @@ The system SHALL, when the install script runs, build the catalog service's imag
 
 - **WHEN** the install script runs after the checkout was updated
 - **THEN** the catalog image is built before the sync runs
+
+### Requirement: The web service can read the guard's log
+
+The system SHALL give the web service the guard's state volume read-only and the same `WARDEN_STATE_DIR` as the worker, so the admin page can report on what the agents did without being able to change the log.
+
+#### Scenario: The compose file
+
+- **WHEN** the compose file is read
+- **THEN** the web service mounts the `warden-state` volume read-only at the path `WARDEN_STATE_DIR` names
+
