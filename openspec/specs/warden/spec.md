@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Guard the agents Shelf runs, and the agents of anyone who installs it, with a policy engine that sees each tool call before it runs: it gates commands, keeps secrets and personal data off the model and records every decision. This capability is built in stages (decision 0014); the requirements below are the ones that hold so far: the policy, the judging of commands and files, the commands that show a decision, the audit log, redaction, and the hook that puts them in front of an agent, and the commands that install it and check it.
+Guard the agents Shelf runs, and the agents of anyone who installs it, with a policy engine that sees each tool call before it runs: it gates commands, keeps secrets and personal data off the model and records every decision. This capability is built in stages (decision 0014); the requirements below are the ones that hold so far: the policy, the judging of commands and files, the commands that show a decision, the audit log, redaction, and the hook that puts them in front of an agent, the commands that install it and check it, and the adapters for Codex, Copilot and OpenCode.
 
 ## Requirements
 
@@ -693,3 +693,60 @@ The system SHALL publish, when a Warden release is made, a static binary for Lin
 
 - **WHEN** release-please makes a Warden release
 - **THEN** the binaries and `checksums.txt` are built and attached to that release by the same workflow run
+
+### Requirement: Codex, Copilot and OpenCode are guarded through their own adapters
+
+The system SHALL provide an adapter for the Codex CLI (the Claude Code payload, `apply_patch` read by the files its patch names whichever field holds the patch, and a question that Codex cannot ask passed on as context so that Codex's own approval flow runs, never as an `ask` that Codex would fail open on), for GitHub Copilot (both the camelCase payload whose `toolArgs` is a JSON string and the PascalCase payload, the decision as a top-level `permissionDecision`, an allow never sent so as not to approve what the person's own settings ask about, a prompt that cannot be blocked left unanswered) and for OpenCode (the events of a plugin Warden ships, answered in JSON the plugin acts on); and the hook SHALL use each agent as far as it lets a hook go: wrap a command and put token values back only where the agent accepts changed arguments, turn a rewrite the policy wants into a refusal that says what to run where it does not, redact the result after the tool ran where the agent lets a hook replace it, and refuse an MCP call that holds personal data where it cannot be replaced by tokens.
+
+#### Scenario: Codex cannot ask
+
+- **WHEN** a command that `guarded` would ask about reaches the Codex hook
+- **THEN** the answer has no permission decision and carries the question as context
+
+#### Scenario: A Codex patch
+
+- **WHEN** an `apply_patch` call names `.claude/settings.json`, or adds a file whose text holds a credential, under `unattended`
+- **THEN** the call is denied, and a patch that adds an ordinary file is let through
+
+#### Scenario: Copilot refuses and says what to run
+
+- **WHEN** `git push -f origin main` reaches the Copilot hook
+- **THEN** it is refused with the command `git push --force-with-lease origin main` to run instead, and a routine command gets no decision
+
+#### Scenario: Copilot's result is redacted afterwards
+
+- **WHEN** a `postToolUse` payload holds an email address in the text of a result
+- **THEN** the answer replaces the result with the same text holding `<EMAIL_1>`
+
+#### Scenario: OpenCode's plugin
+
+- **WHEN** the OpenCode plugin asks about a routine command, a dangerous one, a file's output holding an address, and a prompt holding a credential
+- **THEN** the answers are: allow with the command wrapped, deny with the reason, the output with a token, and a block
+
+### Requirement: Warden ships an OpenCode plugin that fails closed
+
+The system SHALL ship a JavaScript plugin for OpenCode that calls `warden hook opencode <event>` for every tool call, tool result and prompt, throws to refuse a call with Warden's reason, replaces the tool's arguments and its output in place, and refuses every call when Warden cannot be run or answers something unreadable.
+
+#### Scenario: Run under node
+
+- **WHEN** the plugin is run under `node` against the real binary
+- **THEN** a dangerous command is refused with the reason, a routine one has its command wrapped and keeps its other arguments, and when the binary is missing every call is refused
+
+### Requirement: `warden init --agent` wires the other agents
+
+The system SHALL, for `warden init --agent opencode`, write the plugin to `~/.config/opencode/plugins` or the repository's `.opencode/plugins`; for `--agent copilot`, write a hooks file (`version` 1, a `command` hook for `preToolUse`, `postToolUse`, `userPromptSubmitted`, `sessionStart` and `agentStop`) to `~/.copilot/hooks` or the repository's `.github/hooks`; for `--agent codex`, print the `config.toml` snippet and write nothing, since Codex's configuration is the person's to edit and its hooks need trusting with `/hooks`; and for `warden uninstall --agent`, remove the files it wrote.
+
+#### Scenario: OpenCode
+
+- **WHEN** `warden init --global --agent opencode` runs
+- **THEN** the plugin is written, and `uninstall --agent opencode` removes it
+
+#### Scenario: Copilot
+
+- **WHEN** `warden init --repo --agent copilot` runs
+- **THEN** `.github/hooks/warden.json` has `preToolUse` calling `warden hook copilot preToolUse`
+
+#### Scenario: Codex
+
+- **WHEN** `warden init --global --agent codex` runs
+- **THEN** the snippet is printed with its `[[hooks.PreToolUse]]` table, nothing is written, and the person is told to trust the hooks
