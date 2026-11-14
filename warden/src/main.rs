@@ -30,7 +30,7 @@ struct Cli {
 #[derive(clap::Args)]
 struct Where {
     /// Start from this preset: observe, guarded, strict, unattended or shelf.
-    #[arg(long, value_parser = parse_profile)]
+    #[arg(long, env = "WARDEN_PROFILE", value_parser = parse_profile)]
     profile: Option<Profile>,
     /// Also read the global file and the repository's `.warden/policy.toml`.
     #[arg(long)]
@@ -184,6 +184,7 @@ fn sources(from: &Where, ctx: &Context, default_profile: Option<Profile>) -> Sou
         profile: from.profile.or(default_profile),
         files: from.files || from.policy.is_some(),
         global: from.policy.clone(),
+        operator: None,
         cwd: ctx.cwd.clone(),
         home: ctx.home.clone(),
     }

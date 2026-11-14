@@ -49,6 +49,7 @@ pub fn run(agent: &str, event: &str, stdin: &str, setting: &Setting) -> Rendered
         profile: setting.profile,
         files: true,
         global: None,
+        operator: None,
         cwd: setting.cwd.clone(),
         home: setting.home.clone(),
     };

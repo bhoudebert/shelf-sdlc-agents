@@ -13,6 +13,9 @@ pub struct Sources {
     pub files: bool,
     /// An explicit global file, in place of the default one.
     pub global: Option<PathBuf>,
+    /// The operator's policy: a file an organisation controls, always locked, between the global and the repository's.
+    /// Taken from `WARDEN_OPERATOR_POLICY` when not given.
+    pub operator: Option<PathBuf>,
     /// The directory to look for the repository file from.
     pub cwd: PathBuf,
     /// The home directory.
@@ -28,6 +31,11 @@ fn global_path(sources: &Sources) -> PathBuf {
         return PathBuf::from(from_env);
     }
     sources.home.join(".config/warden/policy.toml")
+}
+
+/// The operator's policy file: the one given, or `$WARDEN_OPERATOR_POLICY`.
+fn operator_path(sources: &Sources) -> Option<PathBuf> {
+    sources.operator.clone().or_else(|| std::env::var_os("WARDEN_OPERATOR_POLICY").map(PathBuf::from))
 }
 
 /// The nearest `.warden/policy.toml` from `start` up to the root of the repository (or the filesystem).
@@ -61,6 +69,11 @@ pub fn policy(sources: &Sources) -> Result<Policy, String> {
         let global = global_path(sources);
         if global.is_file() {
             layers.push(read_layer(&global)?);
+        }
+        if let Some(operator) = operator_path(sources).filter(|path| path.is_file()) {
+            let (name, mut layer) = read_layer(&operator)?;
+            layer.locked = Some(true);
+            layers.push((format!("operator:{name}"), layer));
         }
         if let Some(repo) = repo_path(&sources.cwd) {
             layers.push(read_layer(&repo)?);
@@ -101,6 +114,37 @@ mod tests {
         assert_eq!(policy.sources.len(), 4, "{:?}", policy.sources);
         assert!(policy.sources[2].ends_with("global.toml"));
         assert!(policy.sources[3].ends_with(".warden/policy.toml"));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn the_operators_file_is_always_locked_and_sits_between_the_global_and_the_repository_files() {
+        let root = temp_dir("operator");
+        std::fs::create_dir_all(root.join(".git")).expect("git dir");
+        std::fs::create_dir_all(root.join(".warden")).expect("warden dir");
+        // The repository tries to loosen the operator and to tighten one more thing.
+        std::fs::write(root.join(".warden/policy.toml"), "[categories]\nexfil = \"allow\"\npackage_install = \"deny\"")
+            .expect("repo file");
+        let operator = root.join("operator.toml");
+        std::fs::write(&operator, "profile = \"shelf\"\n[categories]\nexfil = \"deny\"").expect("operator file");
+        let sources = Sources {
+            files: true,
+            operator: Some(operator),
+            cwd: root.clone(),
+            home: root.clone(),
+            global: Some(root.join("none.toml")),
+            ..Sources::default()
+        };
+        let policy = policy(&sources).expect("policy");
+        assert!(policy.locked, "the operator's layer is locked although its file does not say so");
+        assert_eq!(policy.decision(warden_policy::Category::Exfil), warden_policy::Decision::Deny);
+        assert_eq!(
+            policy.decision(warden_policy::Category::PackageInstall),
+            warden_policy::Decision::Deny,
+            "tightening works"
+        );
+        assert_eq!(policy.warnings.len(), 1, "{:?}", policy.warnings);
+        assert!(policy.sources.iter().any(|s| s.starts_with("operator:")), "{:?}", policy.sources);
         let _ = std::fs::remove_dir_all(root);
     }
 

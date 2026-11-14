@@ -29,7 +29,7 @@ missing_panics_doc = "allow"
 warden-redact = { path = "crates/warden-redact" }
 warden-agents = { path = "crates/warden-agents" }
 serde_json = { version = "1", features = ["preserve_order"] }
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive", "env"] }
 warden-shell = { path = "crates/warden-shell" }
 warden-policy = { path = "crates/warden-policy" }
 warden-engine = { path = "crates/warden-engine" }
