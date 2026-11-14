@@ -535,3 +535,13 @@ The system SHALL, when the install script runs, build the catalog service's imag
 
 - **WHEN** the install script runs after the checkout was updated
 - **THEN** the catalog image is built before the sync runs
+
+### Requirement: The web service can read the guard's log
+
+The system SHALL give the web service the guard's state volume read-only and the same `WARDEN_STATE_DIR` as the worker, so the admin page can report on what the agents did without being able to change the log.
+
+#### Scenario: The compose file
+
+- **WHEN** the compose file is read
+- **THEN** the web service mounts the `warden-state` volume read-only at the path `WARDEN_STATE_DIR` names
+
