@@ -67,6 +67,7 @@ categories! {
     RemoteExec => "remote_exec",
     PackageInstall => "package_install",
     Publish => "publish",
+    DefaultBranch => "default_branch",
     SecretAccess => "secret_access",
     EnvDump => "env_dump",
     Obfuscation => "obfuscation",
