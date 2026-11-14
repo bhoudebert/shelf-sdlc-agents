@@ -10,8 +10,20 @@ when it would be used. An idea that cannot be described in those terms is not re
 - **Per-repository settings editable in the UI** (kept next to the repository's file), for administrators who cannot edit
   `.shelf/config.toml`.
 - **`continue_as_new` after very long waits**, so a work item can live for months.
+- **A guard summary on each pull request**: how many calls the agents made for this work, what the guard refused and
+  redacted. For whoever reviews the pull request. It needs the step's working directory in the audit record (it has the
+  directory already) and a replay-safe new activity in the workflow, so it is not a small change.
+- **A spend total per work item and a view of it.** The worker now logs the cost of each step; a total needs the cost kept
+  in the workflow's state (a patched, replay-safe change) and a place to show it. For operators who share one model account.
+- **The board says which runs proceed without you.** The start form records the autonomy of a run, the board does not show
+  it. For the person who started several runs before going to bed.
 
 ## Later
+- **Warden checked against the real Copilot CLI and OpenCode.** Claude Code is checked against a mock model, and Codex is
+  being checked the same way; Copilot and OpenCode adapters were written from their documentation only. For anyone who
+  runs those agents under Warden.
+- **Warden audit log retention.** The log grows by a day file per day and is never pruned; pruning must keep the chain
+  verifiable (an anchor record). For operators with long-lived instances.
 
 - **An isolated environment created for each step.** Each step runs in its own short-lived container (an image with the toolchains,
   the clone mounted, no host mounts, no credentials, a restricted network, resource limits), thrown away afterwards, so an agent
