@@ -16,8 +16,8 @@
     <div class="start-form">
       <div class="field">
         <label for="repo">Repository</label>
-        <select id="repo" name="repo" required>
-          {% for repo in repos %}<option>{{ repo }}</option>{% endfor %}
+        <select id="repo" name="repo" required hx-get="/start/autonomy" hx-trigger="change" hx-target="#autonomy" hx-swap="outerHTML">
+          {% for repo in repos %}<option{% if repo == selected %} selected{% endif %}>{{ repo }}</option>{% endfor %}
         </select>
         <p class="hint">Not listed? <a href="{{ install_url }}" target="_blank" rel="noopener noreferrer">Add a repository on GitHub<span class="vh"> (opens in a new tab)</span></a>, then come back and reload.</p>
       </div>
@@ -53,6 +53,8 @@
         <input id="context" name="context" autocomplete="off" placeholder="ollama/ollama@v0.5.0, acme/shared:docs">
         <p class="hint">You do not have to fill this in: a link to a public repository in your request, such as &ldquo;implement the CI like https://github.com/foo/bar&rdquo;, is read as reference too. Use this to pin a branch, tag or commit with @, or one folder with :. They are copied read only, as plain files: nothing in them is ever run, and nothing is added to your repository. Up to three.</p>
       </div>
+
+      {% include "_autonomy.html" %}
 
       <div class="field">
         <label for="text">What you want (or your document; for a pull request, what to do to it)</label>

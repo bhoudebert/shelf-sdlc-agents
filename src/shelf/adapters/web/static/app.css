@@ -352,6 +352,21 @@ input:not([type="radio"]), select, textarea {
 }
 textarea { resize: vertical; }
 input:not([type="radio"]):focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.autonomy { border: 0; margin: 0; padding: 0; min-width: 0; display: grid; gap: 8px; }
+.autonomy legend { font-weight: 700; font-size: 1.05rem; padding: 0; margin-bottom: 2px; }
+.autonomy .hint { margin: 0 0 4px; }
+.choice { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--raised); cursor: pointer; }
+.choice input { margin-top: 4px; flex: none; }
+.choice-body { display: grid; gap: 2px; }
+.choice-label { font-weight: 600; }
+.choice-help { color: var(--ink-2); font-size: .95rem; }
+.autonomy-warning { display: none; margin: 4px 0 0; padding: 12px 14px; border-radius: var(--radius); border: 2px solid var(--danger); color: var(--ink); background: var(--raised); }
+.autonomy:has(input[name="spec_approval"]:not(:checked)) .autonomy-warning,
+.autonomy:has(input[name="design_review"]:not(:checked)) .autonomy-warning,
+.autonomy:has(input[name="proceed_on_deadlock"]:checked) .autonomy-warning { display: block; }
+.autonomy:has(input[name="spec_approval"]:not(:checked)) .choice:has(input[name="spec_approval"]),
+.autonomy:has(input[name="design_review"]:not(:checked)) .choice:has(input[name="design_review"]),
+.autonomy .choice:has(input[name="proceed_on_deadlock"]:checked) { border-color: var(--danger); }
 .entries { border: 0; margin: 0; padding: 0; min-width: 0; display: grid; gap: 6px; }
 .entries legend { margin-bottom: 2px; }
 .entries .hint { margin: 0 0 6px; }
