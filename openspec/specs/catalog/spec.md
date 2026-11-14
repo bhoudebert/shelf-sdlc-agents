@@ -99,3 +99,22 @@ The system SHALL read `[[hook]]` entries from `catalog.toml`, each with an event
 
 - **WHEN** a `[[hook]]` has an event and no command
 - **THEN** the catalog is refused and the error says which entry
+
+### Requirement: Warden's hooks come first in the managed policy and block when Warden fails
+
+The system SHALL, when Warden is installed and not turned off with `SHELF_WARDEN=off`, put Warden's five hooks (`PreToolUse` and `PostToolUse` with the matcher `*`, `UserPromptSubmit`, `SessionStart`, `Stop`, each a `hook claude <Event>` command with a 20-second timeout and `onFailure` set to `block`) before the operator's hooks in the managed policy, so that they run for every agent whatever the repository says, and SHALL say so when the catalog is synced; and SHALL warn, and sync the policy without them, when Warden is wanted but not found.
+
+#### Scenario: Ahead of the operator's hooks
+
+- **WHEN** the catalog declares `rtk hook claude` on `PreToolUse` and Warden is installed
+- **THEN** the managed policy runs Warden's hook before it on that event, and the other four events have Warden's hooks too
+
+#### Scenario: A blocking guard
+
+- **WHEN** the managed policy is written
+- **THEN** each of Warden's hooks has a timeout of 20 seconds and `onFailure` set to `block`, and the operator's own hooks gain neither
+
+#### Scenario: No guard
+
+- **WHEN** `SHELF_WARDEN` is `off`, or Warden is not at its path
+- **THEN** the managed policy holds only the operator's hooks, and a missing Warden is reported

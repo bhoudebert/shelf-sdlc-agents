@@ -456,3 +456,17 @@ The system SHALL load into each agent the generated skill plugins that the opera
 
 - **WHEN** the instance has no synced catalog
 - **THEN** agents start with no extra plugin
+
+### Requirement: Every agent step runs under Warden
+
+The system SHALL have every agent's tool calls judged by Warden through the managed policy, which repository settings cannot override: commands are checked and wrapped so that their output is redacted, file reads, writes and fetches are checked, and a call that Warden cannot judge is refused; the operator's locked policy and the repository's own `.warden/policy.toml` (which can only tighten it) apply.
+
+#### Scenario: A dangerous command
+
+- **WHEN** an agent runs a command that downloads text and pipes it into a shell
+- **THEN** the call is refused with a reason, and the decision is in the audit log
+
+#### Scenario: A repository that tries to loosen the guard
+
+- **WHEN** a repository's `.warden/policy.toml` allows what the operator's file denies
+- **THEN** the operator's rule holds

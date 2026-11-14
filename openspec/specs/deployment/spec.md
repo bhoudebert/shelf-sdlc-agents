@@ -507,3 +507,22 @@ The system SHALL ship in the worker image the tools that the corporate plugins a
 
 - **WHEN** the image is built
 - **THEN** Node and `rtk` are installed from pinned releases and the build fails if a checksum does not match
+
+### Requirement: The image carries Warden, built from the same commit, with a volume for its log
+
+The system SHALL build Warden from the repository's own `warden/` sources into the image, put it at `/usr/local/bin/warden`, give the worker the profile (`SHELF_WARDEN_PROFILE`, `shelf` by default), the operator's policy file (`config/warden.toml`, loaded as a locked layer), a state volume holding the audit log and a folder for the session tokens of sandboxed commands, and create `config/warden.toml` from a fully commented example on install without ever overwriting an edited one.
+
+#### Scenario: The worker's environment
+
+- **WHEN** the stack is started
+- **THEN** the worker has `WARDEN_PROFILE`, `WARDEN_OPERATOR_POLICY`, `WARDEN_STATE_DIR` and `WARDEN_SESSION_DIR`, and the state volume is mounted
+
+#### Scenario: The example changes nothing
+
+- **WHEN** `config/warden.toml` is created from the example
+- **THEN** it is valid TOML that sets nothing until the operator uncomments a part
+
+#### Scenario: An edited file
+
+- **WHEN** the operator edited `config/warden.toml` and the install script runs again
+- **THEN** their file is as they left it
