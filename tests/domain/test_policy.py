@@ -67,3 +67,10 @@ def test_a_depth_chosen_for_one_work_replaces_the_repositorys_and_silence_keeps_
     assert chosen.design_review_depth is ReviewDepth.THOROUGH
     assert chosen.spec_review_depth is ReviewDepth.QUICK
     assert Autonomy(True, True, False).over(repository).design_review_depth is ReviewDepth.STANDARD
+
+
+def test_new_work_continues_its_agents_sessions_and_work_from_before_does_not() -> None:
+    from shelf.domain.policy import CURRENT_PROTOCOL  # noqa: PLC0415
+
+    assert course_for(EntryPoint.NEED, Policy()).resumes_sessions
+    assert not course_for(EntryPoint.NEED, Policy(), CURRENT_PROTOCOL - 1).resumes_sessions

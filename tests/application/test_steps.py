@@ -862,3 +862,47 @@ def test_an_agent_that_writes_a_document_is_told_to_format_it_as_the_repository_
 @pytest.mark.parametrize("phase", [Phase.SPEC_REVIEW, Phase.DESIGN_REVIEW, Phase.CODE_REVIEW, Phase.IMPLEMENT])
 def test_a_step_that_writes_no_document_is_not_told_to_format_one(phase: Phase) -> None:
     assert "run it on the file you wrote" not in task_prompt(NEED, RunStep(phase, 0, ""))
+
+
+def sent_back(phase: Phase, feedback: str = "Cut R10.", attempt: int = 1, session: str = "sess-1") -> RunStep:
+    return RunStep(phase, attempt, feedback, session)
+
+
+async def test_an_agent_that_is_sent_back_continues_its_session_without_being_given_the_task_again() -> None:
+    agents = FakeAgents()
+    await steps(agents).run(NEED, sent_back(Phase.INTAKE))
+    [task] = agents.tasks
+    assert task.resume == "sess-1"
+    assert "You are continuing your earlier session" in task.prompt
+    assert "This is round 1." in task.prompt
+    assert "Address this feedback first:\nCut R10." in task.prompt
+    assert "Requested by:" not in task.prompt, "the task is in the session, not asked again"
+    assert "Write your result to `.shelf/work-1/spec.md`" in task.prompt
+    assert "Requested by:" in task.fallback_prompt, "the whole task is what it falls back on"
+
+
+async def test_a_reviewer_that_continues_is_still_asked_for_its_verdict_line() -> None:
+    agents = FakeAgents("Fine.\nVERDICT: APPROVE")
+    await steps(agents).run(NEED, sent_back(Phase.SPEC_REVIEW, feedback=""))
+    assert "End your answer with a single line `VERDICT: APPROVE`" in agents.tasks[0].prompt
+
+
+async def test_the_first_run_of_an_agent_starts_a_new_session_and_reports_its_id() -> None:
+    class Reporting(FakeAgents):
+        async def run(self, task: AgentTask) -> str:
+            if task.sink is not None:
+                task.sink.session_id = "sess-new"
+            return await super().run(task)
+
+    agents = Reporting()
+    result = await steps(agents).run(NEED, RunStep(Phase.INTAKE, 0, ""))
+    assert agents.tasks[0].resume == ""
+    assert agents.tasks[0].fallback_prompt == ""
+    assert isinstance(result, Produced)
+    assert result.session == "sess-new"
+
+
+async def test_a_person_sending_the_work_back_also_continues_the_session() -> None:
+    agents = FakeAgents()
+    await steps(agents).run(NEED, sent_back(Phase.INTAKE, feedback="More detail.", attempt=0))
+    assert "You have been sent back." in agents.tasks[0].prompt

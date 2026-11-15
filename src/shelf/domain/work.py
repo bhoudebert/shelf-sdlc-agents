@@ -58,6 +58,8 @@ class Produced:
 
     usage: Usage | None = None
     """What the agent used, when the provider said."""
+    session: str = ""
+    """The session the agent ran in, so that a later round can continue it."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,6 +70,8 @@ class Reviewed:
     issues: str = ""
     usage: Usage | None = None
     """What the agent used, when the provider said."""
+    session: str = ""
+    """The session the agent ran in, so that a later round can continue it."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -163,6 +167,8 @@ class RunStep:
     phase: Phase
     attempt: int
     feedback: str
+    session: str = ""
+    """The agent's session from an earlier round, to continue; empty when it has none."""
 
 
 @dataclass(frozen=True, slots=True)

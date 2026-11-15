@@ -63,6 +63,8 @@ class StepInput:
     phase: str
     attempt: int
     feedback: str
+    session: str = ""
+    """The agent's session from an earlier round, to continue; empty for work that does not resume."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,6 +92,8 @@ class StepOutput:
     waiting: bool = False
     usage: UsageDto | None = None
     """What the agent used; absent for the checks and for a provider that said nothing."""
+    session: str = ""
+    """The session the agent ran in; empty for the checks and for a backend that has none."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -260,10 +264,10 @@ def result_of(output: StepOutput) -> StepResult:
 def output_of(result: StepResult) -> StepOutput:
     """Write a step's report."""
     match result:
-        case Produced(usage):
-            return StepOutput("produced", usage=usage_dto(usage))
-        case Reviewed(verdict, issues, usage):
-            return StepOutput("reviewed", verdict=verdict, text=issues, usage=usage_dto(usage))
+        case Produced(usage, session):
+            return StepOutput("produced", usage=usage_dto(usage), session=session)
+        case Reviewed(verdict, issues, usage, session):
+            return StepOutput("reviewed", verdict=verdict, text=issues, usage=usage_dto(usage), session=session)
         case Verified(passed, report, waiting):
             return StepOutput("verified", passed=passed, text=report, waiting=waiting)
 

@@ -25,7 +25,7 @@ from shelf.domain.toolchain import TOOLCHAIN_NOTE, setup_command, toolchain_env,
 from shelf.domain.verdict import parse_verdict
 from shelf.domain.web import WEB_NOTE
 from shelf.domain.work import WAITING_FOR_CI, Produced, Reviewed, RunStep, StepResult, Verdict, Verified
-from shelf.ports.agents import AgentBackend, AgentTask, UsageSink
+from shelf.ports.agents import AgentBackend, AgentTask, RunSink
 from shelf.ports.configs import RepoConfigs
 from shelf.ports.context_sources import ContextSources
 from shelf.ports.steps import PullRequests
@@ -129,6 +129,35 @@ def _tools_to_set_up(root: Path) -> dict[str, str]:
     """What CI uses that the worker should install; nothing for a repository that declares its tools for mise."""
     files = _read_sources(root)
     return {} if is_declared(files) else detect_tools(files)
+
+
+def continuation_prompt(step: RunStep, folder: str, *, ci: str = "") -> str:
+    """What an agent is asked when it continues its own session: the round, what changed, the feedback, the output.
+
+    It does not repeat the task: the agent has it, and what it did, in the session it continues.
+    """
+    role = ROLES[step.phase]
+    sent = f"This is round {step.attempt}." if step.attempt else "You have been sent back."
+    lines = [
+        f"{sent} You are continuing your earlier session on this work.",
+        (
+            "The working copy is a fresh checkout of the work's branch: it holds what everyone, you included, has "
+            "pushed since. Re-read what changed (`git log --stat`, the documents folder) before you answer, and do not "
+            "trust the contents of files you remember."
+        ),
+    ]
+    if step.feedback:
+        lines += ["", "Address this feedback first:", step.feedback]
+    if ci:
+        lines += ["", f"What the repository's CI says about this pull request right now:\n{ci}"]
+    if role.document:
+        lines += ["", f"Write your result to `{folder}/{role.document}`.", "", DOCUMENT_FORMAT_NOTE]
+    if step.phase in REVIEWERS:
+        lines += [
+            "",
+            "End your answer with a single line `VERDICT: APPROVE`, `VERDICT: CHANGES` or `VERDICT: ESCALATE`.",
+        ]
+    return "\n".join(lines)
 
 
 def folder_of(root: Path, work_id: WorkId) -> str:
@@ -312,6 +341,7 @@ class Steps:
             return checked, "checks", ran
         sees_ci = step.phase in CI_PHASES
         ci = await self._ci_now(work) if sees_ci else Ci(CiState.NONE)
+        ci_report = ci.report() if ci.state is not CiState.NONE else ""
         prompt = task_prompt(
             work,
             step,
@@ -319,25 +349,30 @@ class Steps:
             self._picture(work, workspace),
             toolchain=bool(self.cache_dir),
             setup=await self._set_up_tools(work, step, workspace),
-            ci=ci.report() if ci.state is not CiState.NONE else "",
+            ci=ci_report,
             context=_context_note(work),
             folder=folder_of(workspace.path, work.id),
             results=config.results,
             web=self.web,
             depth=_depth_for(work, step.phase, config),
         )
-        sink = UsageSink()
-        answer = await self._ask_agent(work, step, workspace, token, prompt, sink)
+        sink = RunSink()
+        asked = continuation_prompt(step, folder_of(workspace.path, work.id), ci=ci_report) if step.session else prompt
+        answer = await self._ask_agent(work, step, workspace, token, (asked, prompt if step.session else ""), sink)
         role = ROLES[step.phase]
         if step.phase in REVIEWERS:
-            reviewed = replace(parse_verdict(answer), usage=sink.usage)
+            reviewed = replace(parse_verdict(answer), usage=sink.usage, session=sink.session_id)
             if (
                 step.phase is Phase.CODE_REVIEW
             ):  # a document is not judged by what the repository's CI says of its draft
                 reviewed = hold_back_for_ci(reviewed, ci)
             return reviewed, role.name, f"**Verdict: {reviewed.verdict}**\n\n{reviewed.issues}".strip()
         await workspace.commit_and_push(f"chore(shelf): {role.name} for {work.id}")
-        return Produced(sink.usage), role.name, await self._story(work, step, workspace, config, answer)
+        return (
+            Produced(sink.usage, sink.session_id),
+            role.name,
+            await self._story(work, step, workspace, config, answer),
+        )
 
     async def record_decision(self, work: WorkContext, record: DecisionRecord) -> None:
         """Append a person's decision to the work's decision log on its branch, committed by the system."""
@@ -397,14 +432,24 @@ class Steps:
         return "\n".join([*lines, "", picture] if picture else lines)
 
     async def _ask_agent(  # noqa: PLR0913, PLR0917 - one argument per thing the agent needs
-        self, work: WorkContext, step: RunStep, workspace: Workspace, token: str, prompt: str, sink: UsageSink
+        self,
+        work: WorkContext,
+        step: RunStep,
+        workspace: Workspace,
+        token: str,
+        prompts: tuple[str, str],
+        sink: RunSink,
     ) -> str:
+        """Ask the agent: ``prompts`` is what to ask and, for a session continued, the whole task to fall back on."""
+        prompt, fallback = prompts
         role = ROLES[step.phase]
         return await self.agents.run(
             AgentTask(
                 role=role,
                 system_prompt=self.prompt_for(role.name),
                 prompt=prompt,
+                resume=step.session,
+                fallback_prompt=fallback,
                 workdir=workspace.path,
                 env={
                     **(self._toolchain_env(work, workspace)),

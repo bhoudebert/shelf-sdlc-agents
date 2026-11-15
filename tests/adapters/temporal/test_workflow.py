@@ -478,3 +478,63 @@ async def test_work_whose_steps_reported_nothing_has_no_usage_entries(env: Workf
         handle = await start(env, work_input("need"))
         await until(handle, lambda s: s.waiting_for == "gate")
         assert await handle.query(WorkItemWorkflow.usage) == []
+
+
+async def test_an_agent_sent_back_is_given_the_session_of_its_own_earlier_run_and_never_another_agents(
+    env: WorkflowEnvironment,
+) -> None:
+    steps = FakeSteps(
+        script={
+            (Phase.INTAKE, 0): Produced(session="s-writer-1"),
+            (Phase.SPEC_REVIEW, 0): Reviewed(Verdict.CHANGES, "more", session="s-critic-1"),
+            (Phase.INTAKE, 1): Produced(session="s-writer-2"),
+            (Phase.SPEC_REVIEW, 1): Reviewed(Verdict.CHANGES, "still", session="s-critic-2"),
+            (Phase.INTAKE, 2): Produced(session="s-writer-3"),
+        }
+    )
+    async with worker(env, steps, FakePulls()):
+        handle = await start(env, work_input("need"))
+        await until(handle, lambda s: s.waiting_for == "gate")
+        await handle.signal(WorkItemWorkflow.decided, wire.DecisionDto("carol", DecisionKind.ABORT, ""))
+        await handle.result()
+    assert [(s.phase, s.attempt, s.session) for s in steps.ran[:5]] == [
+        (Phase.INTAKE, 0, ""),
+        (Phase.SPEC_REVIEW, 0, ""),
+        (Phase.INTAKE, 1, "s-writer-1"),
+        (Phase.SPEC_REVIEW, 1, "s-critic-1"),
+        (Phase.INTAKE, 2, "s-writer-2"),
+    ]
+
+
+async def test_work_started_under_the_previous_protocol_gives_no_session(env: WorkflowEnvironment) -> None:
+    steps = FakeSteps(
+        script={
+            (Phase.INTAKE, 0): Produced(session="s-writer-1"),
+            (Phase.SPEC_REVIEW, 0): Reviewed(Verdict.CHANGES, "more"),
+            (Phase.INTAKE, 1): Produced(),
+        }
+    )
+    async with worker(env, steps, FakePulls()):
+        handle = await start(env, work_input("need", protocol=8))
+        await until(handle, lambda s: s.waiting_for == "gate")
+        await handle.signal(WorkItemWorkflow.decided, wire.DecisionDto("carol", DecisionKind.ABORT, ""))
+        await handle.result()
+    assert {s.session for s in steps.ran} == {""}
+
+
+async def test_a_step_that_reports_no_session_leaves_the_earlier_one_in_place(env: WorkflowEnvironment) -> None:
+    steps = FakeSteps(
+        script={
+            (Phase.INTAKE, 0): Produced(session="s-writer-1"),
+            (Phase.SPEC_REVIEW, 0): Reviewed(Verdict.CHANGES, "more"),
+            (Phase.INTAKE, 1): Produced(),
+            (Phase.SPEC_REVIEW, 1): Reviewed(Verdict.CHANGES, "more"),
+        }
+    )
+    async with worker(env, steps, FakePulls()):
+        handle = await start(env, work_input("need"))
+        await until(handle, lambda s: s.waiting_for == "gate")
+        await handle.signal(WorkItemWorkflow.decided, wire.DecisionDto("carol", DecisionKind.ABORT, ""))
+        await handle.result()
+    writer_rounds = [s.session for s in steps.ran if s.phase is Phase.INTAKE]
+    assert writer_rounds[:3] == ["", "s-writer-1", "s-writer-1"]

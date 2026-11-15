@@ -10,10 +10,12 @@ from shelf.domain.usage import Usage
 
 
 @dataclass(eq=False)
-class UsageSink:
-    """Where a backend puts what a run used, if it knows. The caller reads it after the run."""
+class RunSink:
+    """Where a backend puts what it knows about a run: what it used, and the session it ran in."""
 
     usage: Usage | None = None
+    session_id: str = ""
+    """The agent's session, so that a later run can continue it."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,8 +30,12 @@ class AgentTask:
     max_turns: int = 40
     max_budget_usd: float | None = None
     model: str | None = None
-    sink: UsageSink | None = field(default=None, compare=False)
-    """Filled with what the run used when the backend can say."""
+    sink: RunSink | None = field(default=None, compare=False)
+    """Filled with what the run used and the session it ran in, when the backend can say."""
+    resume: str = ""
+    """The session of an earlier run to continue; empty to start a new one."""
+    fallback_prompt: str = ""
+    """What to ask instead, from the start, when the session to continue cannot be continued."""
 
 
 class AgentBackend(Protocol):

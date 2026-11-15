@@ -51,7 +51,7 @@ def _steps_activities(steps: StepRunner, pulls: PullRequests) -> Sequence[Callab
         beating = asyncio.create_task(keep_alive(activity.heartbeat, HEARTBEAT_EVERY))
         try:
             result = await steps.run(
-                wire.context_of(step.work), RunStep(Phase(step.phase), step.attempt, step.feedback)
+                wire.context_of(step.work), RunStep(Phase(step.phase), step.attempt, step.feedback, step.session)
             )
         finally:
             beating.cancel()
