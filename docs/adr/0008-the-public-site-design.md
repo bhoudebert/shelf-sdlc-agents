@@ -1,6 +1,6 @@
 # 0008. Build the public site as plain HTML and CSS with a field-and-type design
 
-- Status: accepted
+- Status: superseded by 0018
 - Date: 2026-11-08
 
 ## Context
