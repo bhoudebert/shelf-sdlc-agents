@@ -370,7 +370,7 @@ def test_the_title_agent_is_told_to_judge_the_type_by_the_intent_not_by_the_book
 
 
 GREEN = judge([CiRun("build", "completed", "success")])
-RED = judge([CiRun("build", "completed", "cancelled", "https://ci/9", "ran out of time")])
+RED = judge([CiRun("build", "completed", "timed_out", "https://ci/9", "ran out of time")])
 RUNNING = judge([CiRun("build", "in_progress")])
 ON_CI = RepoConfig(checks=("make test",))
 
@@ -384,12 +384,12 @@ async def test_the_checks_wait_for_the_ci_and_pass_once_it_is_green() -> None:
     assert slept == [60.0, 60.0]
 
 
-async def test_a_ci_that_was_cancelled_sends_the_work_back_with_what_it_reported() -> None:
+async def test_a_ci_that_timed_out_sends_the_work_back_with_what_it_reported() -> None:
     result = await steps(pulls=FakePulls(cis=[RED]), config=ON_CI).run(NEED, RunStep(Phase.VERIFY, 0, ""))
     assert isinstance(result, Verified)
     assert not result.passed
     assert not result.waiting
-    assert "build: cancelled (https://ci/9)" in result.report
+    assert "build: timed_out (https://ci/9)" in result.report
     assert "ran out of time" in result.report
 
 
@@ -471,7 +471,7 @@ async def test_the_developer_is_told_what_the_ci_says_with_the_failing_runs() ->
     await steps(agents, pulls=FakePulls(cis=[RED])).run(NEED, RunStep(Phase.IMPLEMENT, 1, "CI is red"))
     [task] = agents.tasks
     assert "What the repository's CI says" in task.prompt
-    assert "build: cancelled (https://ci/9)" in task.prompt
+    assert "build: timed_out (https://ci/9)" in task.prompt
     assert "ran out of time" in task.prompt
 
 
@@ -991,3 +991,42 @@ async def test_the_planner_is_not_given_a_flake_environment() -> None:
     workspaces = with_files(FakeWorkspaces(), {"flake.nix": FLAKE})
     await nix_steps(workspaces, FakeAgents()).run(NEED, RunStep(Phase.PLAN, 0, ""))
     assert not any("print-dev-env" in c for c in workspaces.workspace.ran)
+
+
+CANCELLED = judge([CiRun("Specs validate", "completed", "cancelled")])
+
+
+async def test_a_ci_with_only_a_cancelled_run_is_waited_for_and_goes_green_without_a_round_lost() -> None:
+    pulls = FakePulls(cis=[CANCELLED, CANCELLED, GREEN])
+    result = await steps(pulls=pulls, config=ON_CI).run(NEED, RunStep(Phase.VERIFY, 0, ""))
+    assert result == Verified(passed=True)
+
+
+async def test_a_ci_whose_cancelled_runs_nothing_replaces_is_in_the_end_red() -> None:
+    pulls = FakePulls(cis=[CANCELLED])
+    runner = replace(steps(pulls=pulls, config=ON_CI), ci_wait=3.0, ci_poll=1.0)
+    result = await runner.run(NEED, RunStep(Phase.VERIFY, 0, ""))
+    assert isinstance(result, Verified)
+    assert result.passed is False
+    assert "Specs validate: cancelled" in result.report
+
+
+async def test_the_code_review_waits_for_a_ci_that_our_own_label_change_restarted() -> None:
+    running = judge([CiRun("Specs validate", "in_progress")])
+    pulls = FakePulls(cis=[running, running, GREEN])
+    result = await steps(FakeAgents("Fine.\nVERDICT: APPROVE"), pulls=pulls).run(
+        NEED, RunStep(Phase.CODE_REVIEW, 0, "")
+    )
+    assert isinstance(result, Reviewed)
+    assert result.verdict is Verdict.APPROVE, "judged on the finished CI, not sent to a person for an unfinished one"
+    assert pulls.looked >= 3
+
+
+async def test_a_ci_that_never_finishes_still_asks_a_person_at_the_code_review() -> None:
+    running = judge([CiRun("Specs validate", "in_progress")])
+    runner = replace(
+        steps(FakeAgents("Fine.\nVERDICT: APPROVE"), pulls=FakePulls(cis=[running])), ci_wait=3.0, ci_poll=1.0
+    )
+    result = await runner.run(NEED, RunStep(Phase.CODE_REVIEW, 0, ""))
+    assert isinstance(result, Reviewed)
+    assert result.verdict is Verdict.ESCALATE

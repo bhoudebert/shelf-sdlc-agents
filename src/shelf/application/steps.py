@@ -353,7 +353,10 @@ class Steps:
             checked, ran = await self._verify(work, step, workspace, config)
             return checked, "checks", ran
         sees_ci = step.phase in CI_PHASES
-        ci = await self._ci_now(work) if sees_ci else Ci(CiState.NONE)
+        if step.phase is Phase.CODE_REVIEW:  # what our own label changes and pushes started a moment ago must finish
+            ci = await self._wait_for_ci(work)
+        else:
+            ci = await self._ci_now(work) if sees_ci else Ci(CiState.NONE)
         ci_report = ci.report() if ci.state is not CiState.NONE else ""
         setup = await self._set_up_tools(work, step, workspace)
         prompt = task_prompt(
@@ -631,7 +634,7 @@ class Steps:
             elif ci.settled and ci.state is not CiState.BLOCKED:
                 return ci
             if waited >= self.ci_wait:
-                return ci
+                return ci.given_up() if ci.only_cancelled else ci
             await self.sleep(self.ci_poll)
             waited += self.ci_poll
 

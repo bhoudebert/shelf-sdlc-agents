@@ -11,13 +11,17 @@ NEEDS_A_PERSON = frozenset({"action_required"})
 """Conclusions that wait for a person on GitHub (a workflow from a fork that nobody approved, for instance)."""
 
 
-def is_red(conclusion: str) -> bool:
-    """Whether a finished run counts against the commit: anything that is not a pass.
+CANCELLED = "cancelled"
+"""A run somebody or something stopped, most often a newer push of the same workflow: it proved nothing either way."""
 
-    That includes ``cancelled``, ``timed_out`` and ``startup_failure`` (a run that did not finish proved nothing)
-    and any conclusion GitHub adds later, which is safer to stop on than to ignore.
+
+def is_red(conclusion: str) -> bool:
+    """Whether a finished run counts against the commit: anything that is not a pass and was not merely cancelled.
+
+    That includes ``timed_out``, ``startup_failure`` and any conclusion GitHub adds later, which is safer to stop on
+    than to ignore. A cancelled run is not a failure: while nothing has replaced it the CI is unfinished (``judge``).
     """
-    return conclusion not in PASSING and conclusion not in NEEDS_A_PERSON
+    return conclusion not in PASSING and conclusion not in NEEDS_A_PERSON and conclusion != CANCELLED
 
 
 LIMIT = 8
@@ -65,9 +69,28 @@ class Ci:
         return self.state is not CiState.PENDING
 
     @property
+    def cancelled(self) -> tuple[CiRun, ...]:
+        """The runs that were cancelled."""
+        return tuple(run for run in self.runs if run.status == "completed" and run.conclusion == CANCELLED)
+
+    @property
+    def only_cancelled(self) -> bool:
+        """Whether the CI is unfinished only because runs were cancelled and nothing replaced them (yet)."""
+        return (
+            self.state is CiState.PENDING
+            and bool(self.cancelled)
+            and all(run.status == "completed" for run in self.runs)
+        )
+
+    @property
     def failing(self) -> tuple[CiRun, ...]:
-        """The runs that are red."""
-        return tuple(run for run in self.runs if run.status == "completed" and is_red(run.conclusion))
+        """The runs that are red; once the CI has been called red for runs nothing replaced, those too."""
+        red = tuple(run for run in self.runs if run.status == "completed" and is_red(run.conclusion))
+        return red or (self.cancelled if self.state is CiState.RED else ())
+
+    def given_up(self) -> "Ci":
+        """The same CI called red, because the cancelled runs it was unfinished for were never replaced."""
+        return Ci(CiState.RED, self.runs)
 
     def report(self) -> str:
         """What a person or an agent reads: the state, and for each red run its name, link and what it says."""
@@ -80,6 +103,9 @@ class Ci:
         waiting = [run.name for run in self.runs if run.status != "completed"]
         if waiting:
             lines.append("Still running: " + ", ".join(waiting[:LIMIT]))
+        if self.state is not CiState.RED and self.cancelled:
+            names = ", ".join(sorted({run.name for run in self.cancelled})[:LIMIT])
+            lines.append(f"Cancelled, waiting for a newer run to replace them: {names}")
         asked = [run.name for run in self.runs if run.conclusion in NEEDS_A_PERSON]
         if asked:
             lines.append("Waiting for someone to approve it on GitHub: " + ", ".join(asked[:LIMIT]))
@@ -108,6 +134,8 @@ def judge(runs: Sequence[CiRun]) -> Ci:
         return Ci(CiState.RED, found)
     if any(run.status != "completed" for run in found):
         return Ci(CiState.PENDING, found)
+    if any(run.conclusion == CANCELLED for run in found):
+        return Ci(CiState.PENDING, found)  # a cancelled run proved nothing: a newer one is what to wait for
     if any(run.conclusion in NEEDS_A_PERSON for run in found):
         return Ci(CiState.BLOCKED, found)
     return Ci(CiState.GREEN, found)
