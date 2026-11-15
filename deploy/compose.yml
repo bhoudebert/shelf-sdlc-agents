@@ -63,11 +63,14 @@ services:
       GITHUB_APP_PRIVATE_KEY_PATH: /run/secrets/github-app.pem
       # Where the guard's audit log is, so the admin page can say what the agents did (it only reads).
       WARDEN_STATE_DIR: /var/lib/warden
+      # Where the admin page keeps the rules an administrator adds to the guard: the one place this service writes.
+      SHELF_GUARD_RULES_DIR: /var/lib/shelf-guard
     # A `volumes` key replaces the shared one, so the shared mounts are repeated here.
     volumes:
       - ./config:/etc/shelf:ro
       - ./secrets:/run/secrets:ro
       - warden-state:/var/lib/warden:ro
+      - guard-rules:/var/lib/shelf-guard
     ports:
       # Every interface unless WEB_BIND says otherwise (127.0.0.1 when your reverse proxy runs on this server).
       - "${WEB_BIND:-0.0.0.0}:${WEB_PORT:-8080}:8080"
@@ -94,6 +97,9 @@ services:
       WARDEN_PROFILE: ${SHELF_WARDEN_PROFILE:-shelf}
       WARDEN_OPERATOR_POLICY: /etc/shelf/warden.toml
       WARDEN_STATE_DIR: /var/lib/warden
+      # The rules an administrator adds from the admin page: a file the guard reads on every call (no reload), in a
+      # volume this service only reads.
+      WARDEN_OVERLAY_POLICY: /var/lib/shelf-guard/warden.ui.toml
       # A command in the agents' sandbox may write only in $TMPDIR (/tmp/claude-1000, the agent user's uid) and its working
       # directory: the session tokens and the pending audit records live there, and the hooks move the records to the log.
       WARDEN_SESSION_DIR: /tmp/claude-1000/warden
@@ -107,6 +113,7 @@ services:
       # The synced catalog of skills and plugins, and the managed policy that enables the plugins (see catalog.toml).
       - catalog-plugins:/opt/shelf/catalog:ro
       - claude-policy:/etc/claude-code:ro
+      - guard-rules:/var/lib/shelf-guard:ro
     # The agents' sandbox (bubblewrap) needs user namespaces, which the default seccomp profile blocks. This is the only
     # service that relaxes it, and the agents it runs only ever see a clone of the repository and a one-hour token.
     security_opt:
@@ -133,5 +140,6 @@ volumes:
   temporal-data:
   worker-cache:
   warden-state:
+  guard-rules:
   catalog-plugins:
   claude-policy:
