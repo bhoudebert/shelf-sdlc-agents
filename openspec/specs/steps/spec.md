@@ -982,3 +982,17 @@ The system SHALL tell the architect to end `design.md` with a section `Outside f
 
 - **WHEN** the architect could not read the documentation
 - **THEN** the fact is marked UNVERIFIED and the developer does not ship it as known
+
+### Requirement: Every agent is told the work's own folder belongs to the system
+
+The system SHALL tell every agent that the work's folder under `.shelf/` (the request, the spec, the design, the plan, the decision log) is part of the pull request on purpose, committed by the system, and that the `.shelf/` line it adds to a repository's `.prettierignore` belongs to the system too, so that no agent asks to remove them, writes that they stay out of the pull request, or judges them as a change of the repository.
+
+#### Scenario: A reviewer sees the folder in the diff
+
+- **WHEN** the code reviewer's diff holds the work's `.shelf/` folder and the `.prettierignore` line
+- **THEN** it is told they are the system's, so it does not ask to remove them
+
+#### Scenario: A spec writer decides where its documents go
+
+- **WHEN** the spec writer starts
+- **THEN** it is told its documents are committed on the branch and are part of the pull request

@@ -995,6 +995,39 @@ def test_the_admin_page_shows_what_the_guard_has_seen() -> None:
     assert "chain is broken" not in page
 
 
+def test_a_call_the_guard_only_recorded_is_not_said_to_have_been_refused() -> None:
+    recorded = StoppedCall(
+        "10:00",
+        "claude",
+        "s1",
+        "bash",
+        "allow",
+        "deny",
+        ("tamper",),
+        "cat redirects output to opencode.json",
+        "cat > x",
+    )
+    report = GuardReport(3, 1, 0, chain_intact=True, recent=(recorded,))
+    fixture = Fixture(AccessRules(admins=frozenset({"alice"})), guard=FakeGuard(Ok(report)))
+    fixture.sign_in()
+    page = fixture.client.get("/admin").text
+    assert "Not stopped: the guard only recorded it." in page
+    assert "The guard is only watching." in page
+    assert "the guard always refuses it" not in page
+    assert "once the guard is enforcing, it refuses it" in page
+
+
+def test_a_call_the_guard_stopped_says_so_and_there_is_no_watching_note() -> None:
+    stopped = StoppedCall("10:00", "claude", "s1", "bash", "deny", "deny", ("tamper",), "protected file", "cat > x")
+    report = GuardReport(3, 1, 0, chain_intact=True, recent=(stopped,))
+    fixture = Fixture(AccessRules(admins=frozenset({"alice"})), guard=FakeGuard(Ok(report)))
+    fixture.sign_in()
+    page = fixture.client.get("/admin").text
+    assert "<strong>Stopped.</strong>" in page
+    assert "The guard is only watching." not in page
+    assert "the guard always refuses it" in page
+
+
 def test_the_admin_page_says_when_the_guards_chain_is_broken() -> None:
     report = GuardReport(12, 3, 0, chain_intact=False)
     fixture = Fixture(AccessRules(admins=frozenset({"alice"})), guard=FakeGuard(Ok(report)))
