@@ -74,12 +74,17 @@ The system SHALL read from a `[results]` section of a repository's `.shelf/confi
 
 ### Requirement: Mistakes in configuration are reported, not ignored
 
-The system SHALL refuse a configuration file that is not valid TOML, has unknown keys or sections, names an unknown mode, entry point or role, or sets fewer than one round, and SHALL say why.
+The system SHALL refuse a configuration file that is not valid TOML, has unknown keys or sections, names an unknown mode, entry point or role, gives a role no one (an empty list, which would leave its gate to administrators alone), or sets fewer than one round, and SHALL say why.
 
 #### Scenario: A misspelt section
 
 - **WHEN** a file contains an unknown section
 - **THEN** it is refused naming the unknown key
+
+#### Scenario: A role with no one in it
+
+- **WHEN** a file sets `product_owner = []`
+- **THEN** it is refused, saying to list the people or to leave the role out, because an empty role would lock its gate for everyone but an administrator
 
 ### Requirement: Waiting work looks at GitHub at a pace that suits the mode
 
