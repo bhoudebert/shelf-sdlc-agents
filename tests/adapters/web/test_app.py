@@ -5,6 +5,7 @@ import re
 from collections.abc import Callable, Mapping
 from dataclasses import replace
 from pathlib import Path
+from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 import httpx
@@ -1438,3 +1439,63 @@ def test_only_an_administrator_frees_a_file() -> None:
     fixture.sign_in()
     assert fixture.client.post("/admin/guard/allow-file", data={"pattern": "**/opencode.json"}).status_code == 403
     assert rules.kept == []
+
+
+def exported(documents: FakeDocuments, conversations: FakeConversations, work_id: str = "work-1") -> Any:
+    fixture = Fixture(documents=documents, conversations=conversations)
+    fixture.sign_in()
+    fixture.runner.views[WorkId("work-1")] = WorkView(
+        WorkId("work-1"),
+        REPO,
+        "alice",
+        EntryPoint.NEED,
+        Phase.DESIGN,
+        pull_request_url="https://github.com/acme/shop/pull/12",
+        unattended=("spec", "design"),
+        review_depths=(("spec", "quick"), ("design", "off")),
+    )
+    return fixture.client.get(f"/work/{work_id}/export")
+
+
+def test_a_work_is_downloaded_as_one_markdown_file_with_everything_about_it() -> None:
+    response = exported(
+        FakeDocuments({"spec.md": "# The spec\n\n```bash\nnpm test\n```", "design.md": "the design"}),
+        FakeConversations(STORY, body="Please add OpenCode."),
+    )
+    assert response.status_code == 200
+    assert response.headers["content-disposition"] == 'attachment; filename="shelf-work-1.md"'
+    assert response.headers["content-type"].startswith("text/markdown")
+    text = response.text
+    assert text.startswith("# Work work-1")
+    assert "**Reviews:** spec review quick, design review off" in text
+    assert "**Does without a person:** spec, design" in text
+    assert "## Steps" in text
+    assert "Please add OpenCode." in text
+    assert "I wrote the **spec**." in text  # an agent's comment, whole and in order
+    assert "table" not in text.split("## Conversation")[1].split("## Documents")[0] or "Progress" in text
+    assert "````markdown" in text  # the spec holds a fence, so it sits in a longer one
+    assert "the design" in text
+    assert "## What the agents used" in text
+
+
+def test_a_part_that_cannot_be_read_is_said_in_the_file_and_the_rest_is_delivered() -> None:
+    response = exported(FakeDocuments({}, fail=True), FakeConversations(STORY, fail=True))
+    assert response.status_code == 200
+    assert "The conversation could not be read from GitHub" in response.text
+    assert "The documents could not be read from GitHub" in response.text
+    assert "## Steps" in response.text
+
+
+def test_nobody_downloads_a_work_they_may_not_see() -> None:
+    fixture = Fixture(documents=FakeDocuments({}), conversations=FakeConversations(STORY))
+    fixture.sign_in()
+    fixture.runner.views[WorkId("work-9")] = WorkView(
+        WorkId("work-9"), RepoRef("acme", "secret"), "x", EntryPoint.NEED, Phase.DESIGN
+    )
+    assert fixture.client.get("/work/work-9/export").status_code == 404
+    assert Fixture().client.get("/work/work-1/export").status_code in (303, 401, 403)
+
+
+def test_the_work_page_offers_the_download() -> None:
+    fixture = with_work(FakeDocuments({}))
+    assert 'href="/work/work-1/export"' in fixture.client.get("/work/work-1").text

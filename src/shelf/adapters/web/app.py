@@ -3,7 +3,18 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from shelf.adapters.web import admin, auth, board, conversation, documents, hooks, start, temporal_proxy, work
+from shelf.adapters.web import (
+    admin,
+    auth,
+    board,
+    conversation,
+    documents,
+    export,
+    hooks,
+    start,
+    temporal_proxy,
+    work,
+)
 from shelf.adapters.web.context import ASSETS, Web, WebDeps
 
 
@@ -19,6 +30,7 @@ def create_app(deps: WebDeps) -> FastAPI:
         work.router,
         documents.router,
         conversation.router,
+        export.router,
         admin.router,
         temporal_proxy.router,
         hooks.router,
