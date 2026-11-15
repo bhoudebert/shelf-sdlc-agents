@@ -24,6 +24,7 @@ from shelf.domain.pipeline import EntryPoint, Phase
 from shelf.domain.policy import Autonomy, Policy
 from shelf.domain.reference import Imported, Reference
 from shelf.domain.result import Err, Ok, Result
+from shelf.domain.review import ReviewDepth
 from shelf.domain.story import Message, Voice
 from shelf.domain.work import DecisionKind, PersonDecided, Reason
 from shelf.ports.app_inspector import AppInspector
@@ -993,3 +994,27 @@ def test_the_admin_page_still_loads_when_the_guard_is_missing() -> None:
     without = Fixture(AccessRules(admins=frozenset({"alice"})))
     without.sign_in()
     assert "not set up on this instance" in without.client.get("/admin").text
+
+
+def test_the_form_offers_the_depth_of_the_reviews_preset_from_the_repositorys_choice() -> None:
+    app = Fixture(configs=FakeConfigs({REPO: RepoConfig(policy=Policy(review_depth=ReviewDepth.THOROUGH))}))
+    app.sign_in()
+    fragment = app.client.get("/start/autonomy", params={"repo": "acme/shop"}).text
+    assert '<option value="thorough" selected>' in fragment
+    assert '<option value="quick" selected>' not in fragment
+
+
+def test_the_depth_chosen_on_the_form_is_what_the_work_starts_with(app: Fixture) -> None:
+    app.sign_in()
+    data = {"repo": "acme/shop", "entry": "need", "text": "x", "autonomy_form": "1", "review_depth": "thorough"}
+    assert app.client.post("/start", data=data).status_code == 303
+    assert app.runner.started[-1].autonomy is not None
+    assert app.runner.started[-1].autonomy.review_depth is ReviewDepth.THOROUGH
+
+
+def test_a_depth_nobody_offered_leaves_the_repositorys_own(app: Fixture) -> None:
+    app.sign_in()
+    data = {"repo": "acme/shop", "entry": "need", "text": "x", "autonomy_form": "1", "review_depth": "bottomless"}
+    app.client.post("/start", data=data)
+    assert app.runner.started[-1].autonomy is not None
+    assert app.runner.started[-1].autonomy.review_depth is None

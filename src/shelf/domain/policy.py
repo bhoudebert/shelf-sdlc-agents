@@ -47,6 +47,8 @@ class Autonomy:
     spec_approval: bool
     design_review: bool
     proceed_on_deadlock: bool
+    review_depth: ReviewDepth | None = None
+    """How deep the spec and design reviews look for this work; ``None`` leaves it to the repository's file."""
 
     @classmethod
     def strictest(cls) -> "Autonomy":
@@ -56,15 +58,16 @@ class Autonomy:
     @classmethod
     def of(cls, policy: Policy) -> "Autonomy":
         """What a repository's policy says."""
-        return cls(policy.spec_approval, policy.design_review, policy.proceed_on_deadlock)
+        return cls(policy.spec_approval, policy.design_review, policy.proceed_on_deadlock, policy.review_depth)
 
     def over(self, policy: Policy) -> Policy:
-        """``policy`` with these three choices in place of its own; the round limit stays the repository's."""
+        """``policy`` with these choices in place of its own; the round limit stays the repository's."""
         return replace(
             policy,
             spec_approval=self.spec_approval,
             design_review=self.design_review,
             proceed_on_deadlock=self.proceed_on_deadlock,
+            review_depth=self.review_depth or policy.review_depth,
         )
 
     @property

@@ -252,7 +252,7 @@ class Steps:
             context=_context_note(work),
             folder=folder_of(workspace.path, work.id),
             results=config.results,
-            depth=config.policy.review_depth,
+            depth=(work.request.autonomy and work.request.autonomy.review_depth) or config.policy.review_depth,
         )
         answer = await self._ask_agent(work, step, workspace, token, prompt)
         role = ROLES[step.phase]

@@ -19,5 +19,14 @@
     <span class="choice-help">Unchecked: the work does not wait for you when the writer and the reviewer disagree for good. What stayed open is posted on the pull request, and the agents write their assumptions down. A failing check or a code review that cannot decide still waits for you.</span></span>
   </label>
   </div>
+  <div class="depth">
+    <label for="review_depth"><strong>How hard should the reviewers look at the spec and the design?</strong></label>
+    <select id="review_depth" name="review_depth">
+      <option value="quick"{% if autonomy.review_depth and autonomy.review_depth.value == "quick" %} selected{% endif %}>Quick: only what blocks</option>
+      <option value="standard"{% if autonomy.review_depth and autonomy.review_depth.value == "standard" %} selected{% endif %}>Standard: the usual pass</option>
+      <option value="thorough"{% if autonomy.review_depth and autonomy.review_depth.value == "thorough" %} selected{% endif %}>Thorough: edge cases, failures</option>
+    </select>
+    <p class="hint">Quick suits most requests. Thorough costs more rounds and tokens: use it for risky or far-reaching work. The code review is always the same.</p>
+  </div>
   <p class="autonomy-warning" role="note"><strong>Less control.</strong> Nobody will be asked at the stops you removed, so the spec or design can reach the pull request with open points or unchecked assumptions. Read them on the pull request before you merge.</p>
 </fieldset>

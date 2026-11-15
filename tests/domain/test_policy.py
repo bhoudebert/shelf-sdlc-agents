@@ -2,6 +2,7 @@ import pytest
 
 from shelf.domain.pipeline import PIPELINE, EntryPoint, Phase
 from shelf.domain.policy import Autonomy, Policy, course_for
+from shelf.domain.review import ReviewDepth
 
 
 def test_the_default_course_from_a_need_is_the_whole_pipeline() -> None:
@@ -41,7 +42,7 @@ def test_the_choices_of_a_person_replace_the_three_of_the_repository_and_keep_it
 
 
 def test_the_choices_start_from_what_the_repository_says() -> None:
-    assert Autonomy.of(Policy(design_review=False)) == Autonomy(True, False, False)
+    assert Autonomy.of(Policy(design_review=False)) == Autonomy(True, False, False, ReviewDepth.QUICK)
     assert Autonomy.strictest() == Autonomy(True, True, False)
 
 
@@ -56,3 +57,9 @@ def test_the_stops_a_policy_removes_are_named_in_a_fixed_order() -> None:
     assert Policy().removed_stops() == ()
     assert Policy(design_review=False, spec_approval=False).removed_stops() == ("spec", "design")
     assert Policy(proceed_on_deadlock=True).removed_stops() == ("deadlock",)
+
+
+def test_a_depth_chosen_for_one_work_replaces_the_repositorys_and_silence_keeps_it() -> None:
+    repository = Policy(review_depth=ReviewDepth.QUICK)
+    assert Autonomy(True, True, False, ReviewDepth.THOROUGH).over(repository).review_depth is ReviewDepth.THOROUGH
+    assert Autonomy(True, True, False).over(repository).review_depth is ReviewDepth.QUICK

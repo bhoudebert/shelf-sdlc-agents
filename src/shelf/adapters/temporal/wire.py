@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from shelf.domain.model import RepoRef, WorkContext, WorkId, WorkRequest
 from shelf.domain.pipeline import EntryPoint, Phase
 from shelf.domain.policy import Autonomy, Course, Policy, course_for
+from shelf.domain.review import ReviewDepth
 from shelf.domain.work import (
     AwaitingPerson,
     DecisionKind,
@@ -41,6 +42,8 @@ class WorkInput:
     design_review: bool = True
     proceed_on_deadlock: bool = False
     """Whether a spec or design review that cannot settle lets the work go on; older work has False."""
+    review_depth: str = ""
+    """How deep the spec and design reviews look, chosen when the work started; empty for work that predates it."""
     poll_base_seconds: float = 30.0
     poll_ceiling_seconds: float = 900.0
     protocol: int = 1
@@ -180,7 +183,12 @@ def context_of(work: WorkInput) -> WorkContext:
         work.text,
         work.pull_request,
         tuple(work.context),
-        Autonomy(work.spec_approval, work.design_review, work.proceed_on_deadlock),
+        Autonomy(
+            work.spec_approval,
+            work.design_review,
+            work.proceed_on_deadlock,
+            ReviewDepth(work.review_depth) if work.review_depth else None,
+        ),
     )
     return WorkContext(WorkId(work.work_id), request)
 

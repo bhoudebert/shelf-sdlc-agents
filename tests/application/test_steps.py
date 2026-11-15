@@ -630,3 +630,17 @@ async def test_the_code_reviewer_is_told_no_depth() -> None:
     await steps(agents).run(NEED, RunStep(Phase.CODE_REVIEW, 0, ""))
     [task] = agents.tasks
     assert "quick review" not in task.prompt
+
+
+async def test_the_depth_chosen_for_the_work_wins_over_the_repositorys() -> None:
+    from dataclasses import replace  # noqa: PLC0415
+
+    from shelf.domain.policy import Autonomy  # noqa: PLC0415
+    from shelf.domain.review import ReviewDepth  # noqa: PLC0415
+
+    work = replace(NEED, request=replace(NEED.request, autonomy=Autonomy(True, True, False, ReviewDepth.THOROUGH)))
+    agents = FakeAgents()
+    await steps(agents).run(work, RunStep(Phase.SPEC_REVIEW, 0, ""))
+    [task] = agents.tasks
+    assert "This is a thorough review" in task.prompt
+    assert "quick review" not in task.prompt

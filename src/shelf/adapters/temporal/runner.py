@@ -73,6 +73,7 @@ class TemporalRunner:
             spec_approval=policy.spec_approval,
             design_review=policy.design_review,
             proceed_on_deadlock=policy.proceed_on_deadlock,
+            review_depth=policy.review_depth.value,
             poll_base_seconds=base.total_seconds(),
             poll_ceiling_seconds=ceiling.total_seconds(),
             protocol=CURRENT_PROTOCOL,
