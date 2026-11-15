@@ -12,7 +12,7 @@ from shelf.adapters.web.context import Web
 from shelf.adapters.web.sessions import Session
 from shelf.domain.app_check import Finding, Level, check_app
 from shelf.domain.guard import rule_to_deny_host
-from shelf.domain.guard_rules import RuleKind
+from shelf.domain.guard_rules import FREEABLE_FILES, RuleKind
 from shelf.domain.result import Err
 
 
@@ -56,6 +56,7 @@ def router(web: Web) -> APIRouter:
             guard=await guard_view(web),
             deny_host_rule=rule_to_deny_host,
             rule_kind=RuleKind,
+            freeable_files=FREEABLE_FILES,
             deliveries=views.delivery_rows(web.webhooks.newest_first()),
             app_url=f"https://github.com/apps/{settings.app_slug}",
         )

@@ -10,7 +10,7 @@ from fastapi.responses import RedirectResponse, Response
 from shelf.adapters.web.context import Web
 from shelf.adapters.web.sessions import Session
 from shelf.domain.guard import GuardReport
-from shelf.domain.guard_rules import OverlayRule, allow_command, allow_site, deny_host
+from shelf.domain.guard_rules import OverlayRule, allow_command, allow_file, allow_site, deny_host
 from shelf.domain.result import Err
 
 
@@ -91,10 +91,31 @@ def _site_route(web: Web, routes: APIRouter) -> None:
         return _back()
 
 
+def _file_route(web: Web, routes: APIRouter) -> None:
+    """The route that lets an administrator free one of the project agent files for the agents' writes."""
+
+    @routes.post("/admin/guard/allow-file", dependencies=[Depends(web.same_origin)])
+    async def allow_a_file(
+        session: Annotated[Session, Depends(web.signed_in)], pattern: Annotated[str, Form()]
+    ) -> Response:
+        by = _administrator(web, session)
+        store = web.deps.guard_rules
+        if store is None:
+            message = "this instance cannot apply rules from the page"
+            raise _refused(message, 409)
+        rule = allow_file(pattern, by, _now())
+        if rule is None:
+            message = "that file is not one an administrator may free"
+            raise _refused(message)
+        await store.add(rule)
+        return _back()
+
+
 def router(web: Web) -> APIRouter:
     """The routes that change the guard's overlay: administrators only, and only for what the page lists."""
     routes = APIRouter()
     _site_route(web, routes)
+    _file_route(web, routes)
 
     @routes.post("/admin/guard/allow", dependencies=[Depends(web.same_origin)])
     async def allow(session: Annotated[Session, Depends(web.signed_in)], command: Annotated[str, Form()]) -> Response:

@@ -73,3 +73,36 @@ def test_a_site_is_not_written_into_the_guards_overlay_file() -> None:
     rule = allow_site("registry.example.org", "alice", "t")
     assert rule is not None
     assert "registry.example.org" not in render((rule,))
+
+
+def test_only_a_project_agent_file_from_the_list_can_be_freed() -> None:
+    from shelf.domain.guard_rules import FREEABLE_FILES, RuleKind, allow_file  # noqa: PLC0415
+
+    for pattern in FREEABLE_FILES:
+        rule = allow_file(pattern, "alice", "t")
+        assert rule is not None
+        assert rule.kind is RuleKind.ALLOW_FILE
+    for pattern in ("**/.claude/settings.json", "**/.warden/**", "**/.git/hooks/**", "~/.bashrc", "**/*", ""):
+        assert allow_file(pattern, "alice", "t") is None, pattern
+    assert allow_file("**/opencode.json", "al ice", "t") is None
+
+
+def test_a_freed_file_is_written_to_the_overlay_as_unprotect() -> None:
+    from shelf.domain.guard_rules import allow_file, render  # noqa: PLC0415
+
+    rule = allow_file("**/opencode.json", "alice", "t")
+    assert rule is not None
+    text = render((rule,))
+    assert '[paths]\nunprotect = ["**/opencode.json"]' in text
+
+
+def test_the_pages_list_is_the_one_the_guard_honours() -> None:
+    import re  # noqa: PLC0415
+    from pathlib import Path  # noqa: PLC0415
+
+    from shelf.domain.guard_rules import FREEABLE_FILES  # noqa: PLC0415
+
+    rust = Path("warden/crates/warden-policy/src/policy.rs").read_text()
+    block = rust.split("const FREEABLE", 1)[1].split("];", 1)[0]
+    honoured = set(re.findall(r'"(\*\*/[^"]+)"', block))
+    assert set(FREEABLE_FILES) <= honoured

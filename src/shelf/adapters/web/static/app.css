@@ -702,3 +702,4 @@ details.rule pre code { background: none; padding: 0; box-shadow: none; }
 .slice-5 { fill: var(--slice-5); background: var(--slice-5); } .slice-6 { fill: var(--slice-6); background: var(--slice-6); }
 .slice-7 { fill: var(--slice-7); background: var(--slice-7); } .slice-8 { fill: var(--slice-8); background: var(--slice-8); }
 #site { width: 100%; max-width: 28rem; margin-right: 8px; }
+#file-pattern { width: 100%; max-width: 32rem; margin-right: 8px; }

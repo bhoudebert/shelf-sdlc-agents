@@ -110,6 +110,17 @@
       <button type="submit" class="btn-secondary button-small">Allow this site</button>
     </form>
     {% endif %}
+    {% if guard.can_apply %}
+    <h3 id="files-title">Project agent files the agents may write</h3>
+    <p class="muted">These files make a tool run a command for whoever opens the repository with it, so the guard refuses an agent's write to them. Free one when a repository ships it on purpose: the file still goes through the pull request, where a person reads it before merging. The settings and hooks of Claude Code, the guard's own files and the git hooks cannot be freed. It applies from the next call an agent makes.</p>
+    <form method="post" action="/admin/guard/allow-file" class="inline-form">
+      <label for="file-pattern" class="vh">A project agent file</label>
+      <select id="file-pattern" name="pattern" required>
+        {% for pattern, label in freeable_files.items() %}<option value="{{ pattern }}">{{ label }}</option>{% endfor %}
+      </select>
+      <button type="submit" class="btn-secondary button-small">Let agents write it</button>
+    </form>
+    {% endif %}
     {% if guard.rules %}
     <h3 id="added-title">Rules added from this page</h3>
     <div class="table-wrap">
@@ -118,7 +129,7 @@
         <tbody>
         {% for rule in guard.rules %}
           <tr>
-            <td>{% if rule.kind == rule_kind.ALLOW_COMMAND %}allows <code>{{ rule.subject }}</code>{% elif rule.kind == rule_kind.ALLOW_SITE %}lets commands reach <code>{{ rule.subject }}</code>{% else %}blocks <code>{{ rule.subject }}</code>{% endif %}</td>
+            <td>{% if rule.kind == rule_kind.ALLOW_COMMAND %}allows <code>{{ rule.subject }}</code>{% elif rule.kind == rule_kind.ALLOW_SITE %}lets commands reach <code>{{ rule.subject }}</code>{% elif rule.kind == rule_kind.ALLOW_FILE %}lets agents write <code>{{ rule.subject }}</code>{% else %}blocks <code>{{ rule.subject }}</code>{% endif %}</td>
             <td class="nowrap">{{ rule.by }}</td>
             <td class="nowrap">{{ rule.at[:16] | replace("T", " ") }}</td>
             <td>
