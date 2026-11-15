@@ -144,7 +144,7 @@ stopped most often:
 <p class="intro rise">One file in the repository says what to run for checks, how many rounds a loop gets and who may decide where. It changes through a pull request, like any other rule.</p>
 <div class="cols rise"><div><h3>Roles decide where.</h3><p>The spec gate belongs to <code>product_owner</code>, the design review to <code>architect</code> and <code>tech_lead</code>, the pull request to <code>tech_lead</code> and <code>developer</code>. Administrators, listed by the operator in <code>shelf.toml</code>, may always decide. There is no user database: access is that file plus GitHub, closed by default.</p>
 <h3 style="margin-top:1.4em">Give agents your corporate skills.</h3><p>The operator pins skills and plugins from git repositories to a full commit, and binds them to roles such as <code>implementer</code> or <code>code_reviewer</code>. A change is a change you review.</p>
-<div class="coming"><p><strong>Coming, not shipped.</strong> The lasting results of a run (requirements, decision records) will go where the repository keeps them, under <code>openspec/</code> and <code>docs/adr/</code>, with a run's own files in <code>.shelf/&lt;work-id&gt;/</code> and a <code>[results]</code> section in this file. It is specified in <a href="https://github.com/bhoudebert/shelf-sdlc-agents/pull/133">open pull request 133</a> and being built. Today a run's documents are written to <code>docs/shelf/&lt;work-id&gt;/</code>.</p></div></div>
+<div class="coming"><p><strong>New.</strong> The lasting results of a run go where the repository keeps them: requirements in <code>openspec/</code>, decision records in <code>docs/adr/</code>, checked against the earlier ones, and a run's own files in <code>.shelf/&lt;work-id&gt;/</code>. Set it in the <code>[results]</code> section below. Not yet tried on a real run with a model.</p></div></div>
 <pre><code># .shelf/config.toml, in the repository
 base_branch = &quot;main&quot;
 checks = [&quot;make test&quot;]            # what the checks step runs
@@ -159,7 +159,12 @@ proceed_on_deadlock = false
 product_owner = [&quot;maria&quot;]         # the spec gate
 architect     = [&quot;bob&quot;]           # the design review
 tech_lead     = [&quot;bob&quot;, &quot;carol&quot;]  # the pull request
-developer     = [&quot;dan&quot;]</code></pre></div>
+developer     = [&quot;dan&quot;]
+
+[results]                         # where a run puts its specs and decision records
+specs = &quot;openspec/specs&quot;
+decisions = &quot;docs/adr&quot;
+conflicts = &quot;block&quot;            # refuse a record that contradicts an earlier one</code></pre></div>
 </div></section>
 
 <section class="block" id="install" aria-labelledby="install-h"><div class="wrap">

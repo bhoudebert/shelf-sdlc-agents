@@ -62,8 +62,8 @@ Open question for a person: do points expire?</pre></div>
 <h2 id="guard">The guard</h2>
 <p>Every agent runs under Warden, which judges each command, file access and fetch before it runs. <a href="guard.html">The guard</a> shows it deciding.</p>
 <h2 id="where">Where a run's files go</h2>
-<p>Today a run writes its documents to <code>docs/shelf/&lt;work-id&gt;/</code> on the work's branch (<code>request.md</code>, <code>spec.md</code>, <code>design.md</code>, <code>plan.md</code>), and the work page shows them.</p>
-<div class="callout planned"><p><strong>Coming, not shipped.</strong> The lasting results of a run will go where the repository keeps them (<code>openspec/</code>, <code>docs/adr/</code>), with a run's own files in <code>.shelf/&lt;work-id&gt;/</code> and a <code>[results]</code> section in <code>.shelf/config.toml</code>. It is specified in <a href="https://github.com/bhoudebert/shelf-sdlc-agents/pull/133">open pull request 133</a> and being built.</p></div>
+<p>A run writes its own documents to <code>.shelf/&lt;work-id&gt;/</code> on the work's branch (<code>request.md</code>, <code>spec.md</code>, <code>design.md</code>, <code>plan.md</code>), and the work page shows them.</p>
+<p>What lasts goes where the repository keeps it: requirements in its specs folder (<code>openspec/specs/</code> by default) and decision records in its decisions folder (<code>docs/adr/</code>), created when missing. A new record is checked against the earlier ones. <a href="repository.html#results">Set the folders and the strictness</a> in <code>.shelf/config.toml</code>. Older runs left their files in <code>docs/shelf/</code>, which is still read.</p>
 
 <nav class="pager" aria-label="Pages"><a href="index.html">&larr; Guide overview</a><a href="getting-started.html">Get started &rarr;</a></nav></main></div>
 <footer class="foot"><div class="wrap"><div class="tiles">

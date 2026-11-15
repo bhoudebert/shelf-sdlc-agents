@@ -37,7 +37,8 @@ developer     = [&quot;dan&quot;]</code></pre>
 <tr><td><code>base_branch</code></td><td>The branch pull requests target.</td></tr>
 <tr><td><code>checks</code></td><td>The commands the checks step runs. They run in the worker, outside the sandbox, through a shell. Configure only repositories whose checks you trust (<a href="limits.html#isolation">Limits</a>).</td></tr>
 <tr><td><code>[policy]</code></td><td>Defaults for rounds and stops. See <a href="roles-and-stops.html">Roles and stops</a>. The start form shows them and what you leave checked is what that work runs with, so editing the file never changes a run already in flight.</td></tr>
-<tr><td><code>[roles]</code></td><td>Who may decide where. See <a href="roles-and-stops.html#roles">Roles and stops</a>.</td></tr></tbody></table></div>
+<tr><td><code>[roles]</code></td><td>Who may decide where. See <a href="roles-and-stops.html#roles">Roles and stops</a>.</td></tr>
+<tr><td><code>[results]</code></td><td>Where a run puts its specs and decision records, and how strictly they are checked. See <a href="#results">below</a>.</td></tr></tbody></table></div>
 <p>An invalid file is reported on the page that needs it, with what is wrong. Per-repository settings edited in the web interface, for people who cannot edit the file, are on the <a href="https://github.com/bhoudebert/shelf-sdlc-agents/blob/main/ROADMAP.md">roadmap</a>, not built.</p>
 <h2 id="read">What agents already read</h2>
 <p>Agents read what a repository tells them: <code>CLAUDE.md</code>, <code>AGENTS.md</code>, its skills and rules, and the title convention of its pull requests (a titler role names the pull request by it). Put your conventions there; they apply to the agents as to any contributor.</p>
@@ -47,7 +48,15 @@ developer     = [&quot;dan&quot;]</code></pre>
 <p>After the repository's own <code>checks</code> pass, the checks step reads the pull request's CI as the App. A run that failed, timed out or was cancelled sends the work back to the implementer with what it reported. A run still going makes the work wait (one step looks every minute for half an hour, <code>SHELF_CI_WAIT</code>, then again later without losing a round). A commit with no CI run within two minutes (<code>SHELF_CI_GRACE</code>) counts as a repository without CI. The code reviewer is told what the CI says and cannot approve over a red or unfinished one.</p>
 <h2 id="guard">The guard in a repository</h2>
 <p>A repository may add its own <code>.warden/policy.toml</code> to tighten the operator's policy. It can never loosen it. See <a href="guard.html#tune">the guard</a>.</p>
-<div class="callout planned"><p><strong>Coming, not shipped.</strong> A <code>[results]</code> section here (<code>specs</code>, <code>decisions</code>, <code>write</code>, <code>conflicts</code>) will say where the lasting results of a run land: requirements under <code>openspec/</code>, decision records under <code>docs/adr/</code>, a run's own files under <code>.shelf/&lt;work-id&gt;/</code>, with a check of a new decision record against earlier ones. It is specified in <a href="https://github.com/bhoudebert/shelf-sdlc-agents/pull/133">open pull request 133</a> and is being built. Do not rely on it yet.</p></div>
+<h2 id="results">Where the results of a run go</h2>
+<p>A <code>[results]</code> section says where the lasting results of a run land. A run's own files (<code>request.md</code>, <code>spec.md</code>, <code>design.md</code>, <code>plan.md</code>) live in <code>.shelf/&lt;work-id&gt;/</code> on the work's branch. Folders of earlier runs under <code>docs/shelf/</code> are still read.</p>
+<pre><code>[results]
+specs = &quot;openspec/specs&quot;   # requirements with scenarios, one folder per capability
+decisions = &quot;docs/adr&quot;     # decision records, numbered, from the repository's template
+write = [&quot;spec&quot;, &quot;adr&quot;]    # what a run writes there: spec, adr, both or none
+conflicts = &quot;block&quot;        # block | warn | off: a new record against the earlier ones</code></pre>
+<p>A missing folder is created, never skipped. The design reviewer compares a new decision record with every accepted one and, with <code>block</code>, refuses a contradiction that neither your request nor the new record states (<code>Supersedes: NNNN</code>). With <code>warn</code> it only reports it, with <code>off</code> it does not look. The keys are checked: a value outside the repository or an unknown key stops the work with a message.</p>
+<div class="callout planned"><p><strong>New.</strong> The configuration and the instructions are covered by tests. Whether a model follows them has not been tried on a real run yet, so read the pull request before you merge it.</p></div>
 
 <nav class="pager" aria-label="Pages"><a href="start-work.html">&larr; Start your first work</a><a href="roles-and-stops.html">Roles and stops &rarr;</a></nav></main></div>
 <footer class="foot"><div class="wrap"><div class="tiles">
