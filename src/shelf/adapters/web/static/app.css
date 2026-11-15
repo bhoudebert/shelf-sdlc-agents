@@ -679,3 +679,6 @@ details.rule pre code { background: none; padding: 0; box-shadow: none; }
 .admin-table.wide { min-width: 640px; }
 .button-small { min-height: 44px; padding: 0 16px; font-size: .9rem; }
 .inline-form { margin: 8px 0 0; }
+.usage { margin-top: 40px; }
+.usage h3 { margin: 28px 0 8px; font-size: 1.05rem; }
+.usage .facts { margin-bottom: 8px; }

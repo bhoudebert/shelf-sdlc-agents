@@ -6,17 +6,34 @@ import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from claude_agent_sdk import ClaudeAgentOptions, ResultMessage, query
 from claude_agent_sdk.types import SandboxSettings
 
 from shelf.domain.secrets import hidden_from_agents
+from shelf.domain.usage import Usage
 from shelf.ports.agents import AgentTask
 
 log = logging.getLogger(__name__)
 
 AGENT_ENVIRONMENT = {"DO_NOT_TRACK": "1", "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1"}
 """Telemetry off, and no memory carried from one step to the next: an agent starts each step from the repository."""
+
+
+def usage_of(message: ResultMessage) -> Usage:
+    """What the run used, as the provider reported it: a figure not reported is zero, a cost not reported is none."""
+    used: dict[str, Any] = dict(message.usage or {})
+    return Usage(
+        input_tokens=int(used.get("input_tokens") or 0),
+        output_tokens=int(used.get("output_tokens") or 0),
+        cache_read_tokens=int(used.get("cache_read_input_tokens") or 0),
+        cache_write_tokens=int(used.get("cache_creation_input_tokens") or 0),
+        cost_usd=message.total_cost_usd,
+        turns=int(message.num_turns or 0),
+        seconds=round((message.duration_ms or 0) / 1000, 1),
+        models=tuple(sorted(message.model_usage or {})),
+    )
 
 
 def step_summary(role: str, message: ResultMessage) -> str:
@@ -140,6 +157,8 @@ class ClaudeBackend:
         ):
             if isinstance(message, ResultMessage):
                 log.info(step_summary(task.role.name, message))
+                if task.sink is not None:
+                    task.sink.usage = usage_of(message)
                 if message.is_error:
                     raise AgentFailedError(task.role.name, message.result or message.subtype)
                 answer = message.result or ""
