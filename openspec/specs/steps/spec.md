@@ -1088,14 +1088,33 @@ The system SHALL, for the developer and the code reviewer on a repository that d
 - **WHEN** the repository's `checks` hold `./mvnw -B verify`
 - **THEN** the command runs with the installed tools on its path
 
-### Requirement: The agent is told how its sandbox behaves for tools, and that there is no Docker
+### Requirement: The agent is told that the system runs the checks, with the repository's tools, outside its sandbox
 
-The system SHALL tell the developer and the code reviewer, in the note about tools, that the sandbox lets a command write only the clone and `$TMPDIR` (so a tool that stores data, cache or state in the home needs `XDG_DATA_HOME`, `XDG_CACHE_HOME` and `XDG_STATE_HOME` set under `$TMPDIR` first), that Java build tools do not read `HTTPS_PROXY` and are told the sandbox's proxy with `-Dhttps.proxyHost`, `-Dhttps.proxyPort` and the matching `http.*` and user and password properties taken from it, and that Docker is not available: a compose file is for people, and tests must run without it (an embedded database, or a test that is skipped when it is missing and says so).
+The system SHALL tell the developer and the code reviewer, in the note about tools, that the repository's checks (`checks` in its configuration) are run by the system after the step, outside the agent's sandbox, with the tools that `mise` or the flake declares and with the network, so that the agent does not spend its turns making a build run in its sandbox; that a command in the sandbox may write only the clone and `$TMPDIR`; and that Docker is not available, so tests have to run without it (an embedded database, or a test that is skipped when the service is missing, and says so).
 
 #### Scenario: A build that needs a database
 
 - **WHEN** the developer is asked for tests against PostgreSQL
-- **THEN** it is told that it cannot start Docker and that the tests must run without it
+- **THEN** it is told that the system runs the checks without Docker and that the tests must run without it
+
+### Requirement: The checks step installs the repository's tools before it runs its checks
+
+The system SHALL, before it runs the repository's `checks`, install in the worker the tools that the clone declares for mise or detects from its CI, as for the developer and the code reviewer, so that a repository whose `mise.toml` an agent has just written is built with the tools that file declares; SHALL tell on the pull request when that installation failed, with its last line; and SHALL, when no check is configured, say on the pull request that nothing was verified here and how to configure one.
+
+#### Scenario: A project started from an empty repository
+
+- **WHEN** the developer wrote a `mise.toml` and the checks are `./mvnw -B verify`
+- **THEN** the worker installs the JDK from `mise.toml` and runs the command with it
+
+#### Scenario: The installation fails
+
+- **WHEN** `mise install` fails in the worker before the checks
+- **THEN** the pull request says so and the checks still run
+
+#### Scenario: No check configured
+
+- **WHEN** the repository has no `checks`
+- **THEN** the comment says nothing was verified here and shows a `checks` example
 
 ### Requirement: The sandbox may reach the hosts a JDK and Maven come from
 
