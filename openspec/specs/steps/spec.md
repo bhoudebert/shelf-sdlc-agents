@@ -846,6 +846,11 @@ The system SHALL, before the code reviewer is asked, wait for the CI of the pull
 - **WHEN** the CI is still running when the waiting ends
 - **THEN** the code review proceeds with the unfinished CI and its approval asks a person, as before
 
+#### Scenario: A run starts while the reviewer works
+
+- **WHEN** the CI was finished when the code reviewer was asked, a run shows up while it works, and it approves
+- **THEN** the system waits for that run to finish and judges the approval on it, instead of asking a person about a CI that was not running when the review began
+
 ### Requirement: A repository's formatter does not check Shelf's own files
 
 The system SHALL, when a repository uses Prettier (a Prettier configuration file, or `prettier` in its `package.json`), make sure its `.prettierignore` names the `.shelf/` folder, creating the file or adding one line, before the first step commits, so that a check that formats or checks the whole repository never fails on the request, the spec, the design, the plan or the decision log of a piece of work; SHALL change nothing when the folder is already ignored or when the repository does not use Prettier; and SHALL NOT download or run any program to do it.
