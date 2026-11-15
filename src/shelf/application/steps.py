@@ -79,6 +79,10 @@ def _depth_for(work: WorkContext, phase: Phase, config: RepoConfig) -> ReviewDep
     return (chosen and chosen.design_review_depth) or config.policy.design_review_depth
 
 
+CI_PHASES = frozenset({Phase.IMPLEMENT, Phase.CODE_REVIEW})
+"""The steps that are told what the CI says: the code. A spec or a design is not judged by the checks of a draft."""
+
+
 def folder_of(root: Path, work_id: WorkId) -> str:
     """The folder a work keeps its documents in: the one it already has (a run that began before ``.shelf``)."""
     old = legacy_documents_dir(work_id)
@@ -120,7 +124,7 @@ def task_prompt(  # noqa: PLR0913
         lines += ["", f"This is round {step.attempt}. Address this feedback first:", step.feedback]
     if step.phase in REVIEWERS or role.name == "architect":
         lines += ["", f"The base branch is `{base}`: `git diff {base}...HEAD` shows what this work changed."]
-    sees_ci = step.phase in REVIEWERS or step.phase is Phase.IMPLEMENT
+    sees_ci = step.phase in CI_PHASES
     notes = [
         f"What the repository's CI says about this pull request right now:\n{ci}" if ci and sees_ci else "",
         context,
@@ -257,7 +261,7 @@ class Steps:
         if step.phase is Phase.VERIFY:
             checked, ran = await self._verify(work, step, workspace, config)
             return checked, "checks", ran
-        sees_ci = step.phase in REVIEWERS or step.phase is Phase.IMPLEMENT
+        sees_ci = step.phase in CI_PHASES
         ci = await self._ci_now(work) if sees_ci else Ci(CiState.NONE)
         prompt = task_prompt(
             work,
@@ -275,7 +279,11 @@ class Steps:
         answer = await self._ask_agent(work, step, workspace, token, prompt)
         role = ROLES[step.phase]
         if step.phase in REVIEWERS:
-            reviewed = hold_back_for_ci(parse_verdict(answer), ci)
+            reviewed = parse_verdict(answer)
+            if (
+                step.phase is Phase.CODE_REVIEW
+            ):  # a document is not judged by what the repository's CI says of its draft
+                reviewed = hold_back_for_ci(reviewed, ci)
             return reviewed, role.name, f"**Verdict: {reviewed.verdict}**\n\n{reviewed.issues}".strip()
         await workspace.commit_and_push(f"chore(shelf): {role.name} for {work.id}")
         return Produced(), role.name, await self._story(work, step, workspace, config, answer)

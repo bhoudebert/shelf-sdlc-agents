@@ -428,3 +428,32 @@ async def test_an_id_that_is_not_a_node_id_never_reaches_a_mutation(settings: Gi
     ]
     await adapter(settings, graphql_handler(comments, sent)).outdate(NEED, None)
     assert all("evil" not in query for query in sent)
+
+
+async def test_a_run_a_newer_run_of_the_same_check_superseded_does_not_count(settings: GitHubAppSettings) -> None:
+    runs: list[dict[str, object]] = [
+        {"id": 1, "name": "Specs validate", "status": "completed", "conclusion": "cancelled"},
+        {"id": 2, "name": "Specs validate", "status": "completed", "conclusion": "success"},
+        {"id": 3, "name": "lint", "status": "completed", "conclusion": "success"},
+    ]
+    ci = await adapter(settings, ci_handler(runs)).ci(REVIEW)
+    assert ci.state is CiState.GREEN
+    assert [run.name for run in ci.runs] == ["Specs validate", "lint"]
+
+
+async def test_a_failure_after_a_success_of_the_same_check_is_red(settings: GitHubAppSettings) -> None:
+    runs: list[dict[str, object]] = [
+        {"id": 5, "name": "test", "status": "completed", "conclusion": "success"},
+        {"id": 6, "name": "test", "status": "completed", "conclusion": "failure"},
+    ]
+    ci = await adapter(settings, ci_handler(runs)).ci(REVIEW)
+    assert ci.state is CiState.RED
+    assert [run.name for run in ci.failing] == ["test"]
+
+
+async def test_two_different_checks_are_both_counted(settings: GitHubAppSettings) -> None:
+    runs: list[dict[str, object]] = [
+        {"id": 1, "name": "lint", "status": "completed", "conclusion": "failure"},
+        {"id": 2, "name": "test", "status": "completed", "conclusion": "success"},
+    ]
+    assert (await adapter(settings, ci_handler(runs)).ci(REVIEW)).state is CiState.RED

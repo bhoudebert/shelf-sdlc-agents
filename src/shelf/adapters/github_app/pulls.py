@@ -10,7 +10,7 @@ import httpx
 
 from shelf.adapters.github_app.forge import pull_info
 from shelf.adapters.github_app.settings import GitHubAppSettings
-from shelf.domain.ci import Ci, CiRun, CiState, is_red, judge
+from shelf.domain.ci import Ci, CiRun, CiState, is_red, judge, latest_of_each
 from shelf.domain.commands import HELP, MARKER, is_ours, parse_command
 from shelf.domain.model import PullInfo, RepoRef, WorkContext
 from shelf.domain.pipeline import EntryPoint, Phase
@@ -256,14 +256,14 @@ class GitHubPullRequests:
         return judge([*await self._check_runs(repo, sha), *await self._statuses(repo, sha)])
 
     async def _check_runs(self, repo: RepoRef, sha: str) -> list[CiRun]:
-        runs: list[CiRun] = []
+        runs: list[tuple[int, CiRun]] = []
         for page in range(1, MAX_CHECK_PAGES + 1):
             path = f"/repos/{repo.full_name}/commits/{sha}/check-runs?per_page=100&page={page}"
             found = (await self._call("GET", repo, path)).json().get("check_runs", [])
-            runs += [await self._run_of(repo, run) for run in found]
+            runs += [(int(run.get("id", 0)), await self._run_of(repo, run)) for run in found]
             if len(found) < COMMENTS_PER_PAGE:
                 break
-        return runs
+        return latest_of_each(runs)
 
     async def _run_of(self, repo: RepoRef, run: Mapping[str, Any]) -> CiRun:
         status = str(run.get("status", ""))
