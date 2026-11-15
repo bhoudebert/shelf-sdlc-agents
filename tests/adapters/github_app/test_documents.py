@@ -45,3 +45,15 @@ async def test_a_work_from_before_the_shelf_folder_is_still_read_from_the_old_on
 
     found = await documents(settings, httpx.MockTransport(handler)).read(REPO, WorkId("work-1"))
     assert found == {"spec.md": "# Old spec\n"}
+
+
+async def test_the_decision_log_is_read_with_the_other_documents(settings: GitHubAppSettings) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/decisions.md"):
+            return httpx.Response(200, text="# Decisions\n")
+        if request.url.path.endswith("/spec.md"):
+            return httpx.Response(200, text="# Spec\n")
+        return httpx.Response(404)
+
+    found = await documents(settings, httpx.MockTransport(handler)).read(REPO, WorkId("work-1"))
+    assert list(found) == ["spec.md", "decisions.md"]

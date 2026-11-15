@@ -13,10 +13,18 @@ when it would be used. An idea that cannot be described in those terms is not re
 - **A guard summary on each pull request**: how many calls the agents made for this work, what the guard refused and
   redacted. For whoever reviews the pull request. It needs the step's working directory in the audit record (it has the
   directory already) and a replay-safe new activity in the workflow, so it is not a small change.
-- **A spend total per work item and a view of it.** The worker now logs the cost of each step; a total needs the cost kept
-  in the workflow's state (a patched, replay-safe change) and a place to show it. For operators who share one model account.
-- **The board says which runs proceed without you.** The start form records the autonomy of a run, the board does not show
-  it. For the person who started several runs before going to bed.
+- **Show the decision log on the work page.** Every decision a person makes is already written to `.shelf/<work-id>/decisions.md`
+  in the repository; the page does not show it. For whoever reviews who approved what.
+- **An approval step for a download.** An agent that needs a file the guard refuses says so in its output; a person cannot yet
+  say yes to that one download from the page (the work would wait, as it does for a review that cannot settle). For operators
+  who want agents to fetch tools they did not foresee.
+- **Savings of rtk in the admin page.** `rtk gain` measures what its filtering saved; the web service would read it as it
+  reads the guard's log. A skill such as caveman or ponytail cannot be measured per run, only compared between runs, so no
+  figure is shown for them.
+- **The agents' sandbox allowed to write the repository's own home.** The worker installs the tools itself for now; a
+  command an agent runs cannot yet write the caches of its tools.
+- **The Nix profile tried on a real flake.** It is checked on Docker with a small flake; agentRide's own (nixpkgs-unstable,
+  flake-parts, git-hooks) has not been run through it.
 
 ## Later
 - **Warden checked against the real Copilot CLI and OpenCode.** Claude Code is checked against a mock model, and Codex is
@@ -32,7 +40,7 @@ when it would be used. An idea that cannot be described in those terms is not re
   For operators who let agents work on repositories they do not fully trust.
 - **Another agent backend** (OpenCode, or a harness made for local models) behind the `AgentBackend` port, for teams that
   must stay on local models.
-- **Budget per work item** and a spend view, for operators who share one model account.
+- **A budget per work item.** What each step used is now recorded and shown; a cap that stops a work at a figure is not built. For operators who share one model account.
 - **GitHub OIDC for CI**, so a repository's CI can ask for a review without a shared secret.
 - **Bring-your-own model key per repository**, stored encrypted, for public instances.
 

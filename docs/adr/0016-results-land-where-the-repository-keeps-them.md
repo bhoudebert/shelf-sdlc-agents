@@ -1,6 +1,6 @@
 # 0016. Let the results of a run land where the repository keeps them
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-11-15
 
 ## Context
