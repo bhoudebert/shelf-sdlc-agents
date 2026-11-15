@@ -253,12 +253,28 @@ struct Floor {
     redact: Redact,
 }
 
+/// The project-level agent files an overlay may free: a file a repository ships on purpose, read by a person in a pull
+/// request. The settings and hooks of Claude Code, Warden's own files, the shell start-up files and the git hooks are
+/// not here, so no overlay can free them.
+const FREEABLE: &[&str] = &[
+    "**/opencode.json",
+    "**/opencode.jsonc",
+    "**/.opencode",
+    "**/.opencode/**",
+    "**/.codex",
+    "**/.codex/**",
+    "**/.github/copilot/**",
+    "**/.github/hooks/**",
+];
+
 #[derive(Default)]
 struct Lists {
     deny_read: Vec<String>,
     deny_write: Vec<String>,
     protected: Vec<String>,
     pii: Vec<String>,
+    /// The protected patterns the overlay freed.
+    freed: Vec<String>,
 }
 
 fn extend_unique(into: &mut Vec<String>, from: &[String]) {
@@ -623,6 +639,15 @@ impl Fold {
             extend_unique(&mut self.lists.deny_write, &paths.deny_write);
             extend_unique(&mut self.lists.protected, &paths.protected);
             extend_unique(&mut self.lists.pii, &paths.pii);
+            if layer.overlay {
+                for item in &paths.unprotect {
+                    if FREEABLE.contains(&item.as_str()) {
+                        extend_unique(&mut self.lists.freed, std::slice::from_ref(item));
+                    } else {
+                        self.warnings.push(format!("{name}: unprotect {item} ignored: that file can never be freed"));
+                    }
+                }
+            }
             if let Some(scope) = &paths.scope {
                 if self.floor.as_ref().is_some_and(|f| f.scope_set) {
                     self.warnings.push(format!("{name}: scope ignored: a locked layer fixed it"));
@@ -665,7 +690,10 @@ impl Fold {
             paths: Paths {
                 deny_read: PathSet::new(&self.lists.deny_read, home)?,
                 deny_write: PathSet::new(&self.lists.deny_write, home)?,
-                protected: PathSet::new(&self.lists.protected, home)?,
+                protected: PathSet::new(
+                    &self.lists.protected.iter().filter(|p| !self.lists.freed.contains(p)).cloned().collect::<Vec<_>>(),
+                    home,
+                )?,
                 pii: PathSet::new(&self.lists.pii, home)?,
                 scope: self.scope,
             },

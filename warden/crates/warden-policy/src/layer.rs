@@ -104,6 +104,21 @@ pub struct PathsSpec {
     /// When set, writes outside these directories (and `/tmp`) are `out_of_scope`.
     #[serde(default)]
     pub scope: Option<Vec<String>>,
+    /// Protected patterns the overlay frees. Only in the overlay, and only the project agent files that may be freed.
+    #[serde(default)]
+    pub unprotect: Vec<String>,
+}
+
+impl PathsSpec {
+    /// Whether this holds nothing but `unprotect`: all an overlay may hold of the file lists.
+    #[must_use]
+    pub fn only_unprotects(&self) -> bool {
+        self.deny_read.is_empty()
+            && self.deny_write.is_empty()
+            && self.protected.is_empty()
+            && self.pii.is_empty()
+            && self.scope.is_none()
+    }
 }
 
 /// Domain lists.
@@ -261,8 +276,8 @@ pub struct Layer {
 }
 
 impl Layer {
-    /// This layer as the overlay: it may hold only rules and denied domains, and its `allow` rules then count after a
-    /// locked layer. Anything else in it is an error that says what it may hold.
+    /// This layer as the overlay: it may hold only rules, denied domains and `[paths] unprotect`, and its `allow` rules
+    /// then count after a locked layer. Anything else in it is an error that says what it may hold.
     pub fn into_overlay(mut self) -> Result<Self, String> {
         let allowed = self.profile.is_none()
             && self.mode.is_none()
@@ -271,14 +286,14 @@ impl Layer {
             && self.on_error.is_none()
             && self.categories.is_empty()
             && self.rewrites.is_empty()
-            && self.paths.is_none()
+            && self.paths.as_ref().is_none_or(PathsSpec::only_unprotects)
             && self.tools.is_none()
             && self.audit.is_none()
             && self.redact.is_none()
             && self.env.is_none()
             && self.network.as_ref().is_none_or(|network| network.allow_domains.is_none());
         if !allowed {
-            return Err("an overlay may hold only [[rules]] and [network] deny_domains".to_owned());
+            return Err("an overlay may hold only [[rules]], [network] deny_domains and [paths] unprotect".to_owned());
         }
         self.overlay = true;
         Ok(self)
