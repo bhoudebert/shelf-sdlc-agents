@@ -187,6 +187,11 @@ def continuation_prompt(step: RunStep, folder: str, *, ci: str = "") -> str:
     if step.phase in REVIEWERS:
         lines += [
             "",
+            (
+                "Before the verdict, say where you stand on your earlier points: a line `REPEATED: <n>` (how many "
+                "you raised before that are still unaddressed) and a line `BLOCKING: yes|no` (whether any open "
+                "point must be fixed before this can merge)."
+            ),
             "End your answer with a single line `VERDICT: APPROVE`, `VERDICT: CHANGES` or `VERDICT: ESCALATE`.",
         ]
     return "\n".join(lines)
@@ -249,6 +254,11 @@ def task_prompt(  # noqa: PLR0913
     if step.phase in REVIEWERS:
         lines += [
             "",
+            (
+                "Before the verdict, say where you stand on your earlier points: a line `REPEATED: <n>` (how many "
+                "you raised before that are still unaddressed) and a line `BLOCKING: yes|no` (whether any open "
+                "point must be fixed before this can merge)."
+            ),
             "End your answer with a single line `VERDICT: APPROVE`, `VERDICT: CHANGES` or `VERDICT: ESCALATE`.",
         ]
     return "\n".join(lines)
@@ -725,12 +735,14 @@ def hold_back_for_ci(reviewed: Reviewed, ci: Ci) -> Reviewed:
             return replace(
                 reviewed,
                 verdict=Verdict.CHANGES,
+                blocking=True,
                 issues=f"{reviewed.issues}\n\nNot approved: the CI is red.\n{ci.report()}".strip(),
             )
         case CiState.PENDING | CiState.BLOCKED:
             return replace(
                 reviewed,
                 verdict=Verdict.ESCALATE,
+                blocking=True,
                 issues=f"{reviewed.issues}\n\nNot approved yet: the CI has not finished.\n{ci.report()}".strip(),
             )
         case CiState.GREEN | CiState.NONE:

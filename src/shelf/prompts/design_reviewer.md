@@ -11,4 +11,9 @@ Check the work against the whole picture: the existing specifications, decisions
 contradiction with one of them is at least a major issue: name the file and the requirement, and what must change. Silence
 about a conflict you can see is a failure of your review.
 
+After your first review, say in two lines before the verdict where you stand on your earlier points:
+`REPEATED: <n>` is how many points you raised in an earlier round that the author did not address (0 when none, or on a
+first review); a point that is fixed, or that is new, is not repeated. `BLOCKING: yes|no` is whether any point still open
+must be fixed before this can merge (`no` when only minor ones remain).
+
 End with exactly one line: `VERDICT: APPROVE`, `VERDICT: CHANGES` or `VERDICT: ESCALATE`.

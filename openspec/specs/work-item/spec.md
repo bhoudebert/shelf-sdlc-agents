@@ -226,3 +226,27 @@ The system SHALL let the command to run a step carry the session the agent shoul
 
 - **WHEN** a step is run with no session
 - **THEN** it behaves as it always did
+
+### Requirement: A review loop ends when it repeats itself or when only minor points are left, not only on a count
+
+The system SHALL, for work that begins after this requirement, read two lines of a reviewer's answer: `REPEATED: <n>`, how many points it raised in an earlier round that are still unaddressed (none when absent), and `BLOCKING: yes|no`, whether any open point must be fixed before the work can merge (yes when absent); SHALL stop sending the work back and treat the review as unable to settle as soon as a reviewer reports a repeated point, since the author and the reviewer then disagree; SHALL allow twice the policy's rounds while each round brings only points that are new; and SHALL let a code review that cannot settle go on to the merge gate, with its open points posted on the pull request, when its last answer said no point is blocking. Work already running keeps the count-only limit.
+
+#### Scenario: Each round finds something new
+
+- **WHEN** the reviewer asks for changes after the policy's maximum number of rounds, and reports no repeated point
+- **THEN** the work goes back to the author again, up to twice the maximum
+
+#### Scenario: The same point comes back
+
+- **WHEN** the reviewer asks for changes and reports that a point it raised before is still open
+- **THEN** the work does not go back to the author: a person is asked, or the open points are posted when the policy lets the work go on
+
+#### Scenario: Only minor points remain
+
+- **WHEN** the code review cannot settle and its last answer reported no blocking point
+- **THEN** the work goes on to the merge gate and the open points are posted on the pull request
+
+#### Scenario: Work that began before
+
+- **WHEN** work that began under an earlier protocol gets a verdict
+- **THEN** it is judged by the count of rounds alone, as before

@@ -72,6 +72,10 @@ class Reviewed:
     """What the agent used, when the provider said."""
     session: str = ""
     """The session the agent ran in, so that a later round can continue it."""
+    repeated: int = 0
+    """How many points raised in an earlier round are still unaddressed."""
+    blocking: bool = True
+    """Whether any open point must be fixed before the work can merge."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -284,10 +288,10 @@ def _after_step(course: Course, state: Running, result: StepResult) -> Transitio
             return _advance(course, state.phase, 0)
         case Kind.REVIEW, Reviewed(Verdict.CHANGES, issues) if course.asks_a_person_after_review:
             return _ask(state.phase, Reason.ESCALATION, issues)
-        case Kind.REVIEW, Reviewed(Verdict.CHANGES, issues):
-            return _send_back(course, state, issues)
-        case Kind.REVIEW, Reviewed(Verdict.ESCALATE, issues):
-            return _deadlocked(course, state.phase, issues)
+        case Kind.REVIEW, Reviewed(Verdict.CHANGES, issues) as review:
+            return _send_back(course, state, issues, review)
+        case Kind.REVIEW, Reviewed(Verdict.ESCALATE, issues, blocking=blocking):
+            return _deadlocked(course, state.phase, issues, blocking=blocking)
         case Kind.VERIFY, Verified(waiting=True):
             if course.waits_for_ci:
                 return _enter(course, state.phase, state.attempt, feedback=WAITING_FOR_CI)  # look again, same round
@@ -374,9 +378,16 @@ def _advance(course: Course, phase: Phase, attempt: int) -> Transition:
     return _enter(course, upcoming, attempt)
 
 
-def _send_back(course: Course, state: Running, feedback: str) -> Transition:
-    if state.attempt >= course.max_rounds:
-        return _deadlocked(course, state.phase, f"limit of {course.max_rounds} rounds reached:\n{feedback}")
+def _send_back(course: Course, state: Running, feedback: str, review: Reviewed | None = None) -> Transition:
+    """Send the work back, or end the loop: a reviewer's repeated point or a count of rounds that ran out."""
+    judges = course.judges_review_loops and review is not None
+    blocking = review.blocking if review else True
+    if review and judges and review.repeated > 0:
+        detail = f"the reviewer and the author disagree, {review.repeated} point(s) came back:\n{feedback}"
+        return _deadlocked(course, state.phase, detail, blocking=blocking)
+    limit = course.max_rounds * 2 if judges else course.max_rounds
+    if state.attempt >= limit:
+        return _deadlocked(course, state.phase, f"limit of {limit} rounds reached:\n{feedback}", blocking=blocking)
     return _enter(course, LOOP_BACK[state.phase], state.attempt + 1, feedback)
 
 
@@ -384,9 +395,10 @@ PASSABLE = frozenset({Phase.SPEC_REVIEW, Phase.DESIGN_REVIEW})
 """The reviews of documents: the only ones whose open issues may be passed on. Code review and checks never are."""
 
 
-def _deadlocked(course: Course, phase: Phase, issues: str) -> Transition:
+def _deadlocked(course: Course, phase: Phase, issues: str, *, blocking: bool = True) -> Transition:
     """A review cannot settle: a person is asked, unless the work may go on, and then its open issues are noted."""
-    if course.proceeds_on_deadlock and phase in PASSABLE:
+    minor_code_review = course.judges_review_loops and phase is Phase.CODE_REVIEW and not blocking
+    if minor_code_review or (course.proceeds_on_deadlock and phase in PASSABLE):
         moved = _advance(course, phase, 0)
         return Transition(moved.state, (NoteOpenPoints(phase, issues), *moved.commands))
     return _ask(phase, Reason.ESCALATION, issues)

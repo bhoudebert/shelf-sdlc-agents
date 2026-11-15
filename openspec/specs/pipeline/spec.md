@@ -169,3 +169,12 @@ The system SHALL say, from the protocol a piece of work started under, whether a
 
 - **WHEN** a course is built for work that started under the previous protocol
 - **THEN** its agents start fresh each time
+
+### Requirement: New work judges its review loops by repetition and minor points
+
+The system SHALL start new work under a protocol version in which a review loop ends when a reviewer reports a repeated point, allows twice the policy's rounds while each round brings only new points, and lets a code review with only minor points left go to the merge gate; and SHALL keep the count-only limit for work that began under an earlier protocol.
+
+#### Scenario: Work from before
+
+- **WHEN** work that began under protocol 9 gets a repeated point
+- **THEN** it is sent back to the author until its rounds run out, as before

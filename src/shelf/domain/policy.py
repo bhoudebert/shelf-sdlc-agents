@@ -149,12 +149,17 @@ class Course:
         return self.protocol >= RESUMES_SESSIONS
 
     @property
+    def judges_review_loops(self) -> bool:
+        """Whether a review loop ends on a repeated or minor point, not on a count alone (protocol 10)."""
+        return self.protocol >= JUDGES_REVIEW_LOOPS
+
+    @property
     def readies_pull_request(self) -> bool:
         """Whether the pull request leaves the draft state when the work asks for the merge: ours, or adopted."""
         return self.opens_early and (self.publishes_pull_request or self.adopts_pull_request)
 
 
-CURRENT_PROTOCOL = 9
+CURRENT_PROTOCOL = 10
 """The behaviour new work starts with. Raise it, and gate the new behaviour on it, whenever a change would alter what
 the workflow does for a history recorded before: protocol 1 is the original behaviour, which old work keeps."""
 
@@ -191,6 +196,9 @@ CLOSES_PULL_REQUEST = 8
 
 RESUMES_SESSIONS = 9
 """The protocol under which an agent sent back continues its own session instead of starting a new one."""
+
+JUDGES_REVIEW_LOOPS = 10
+"""The protocol under which a reviewer's repeated or minor points decide how a review loop ends."""
 
 
 def course_for(entry: EntryPoint, policy: Policy, protocol: int = CURRENT_PROTOCOL) -> Course:
