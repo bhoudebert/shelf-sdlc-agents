@@ -893,3 +893,22 @@ The system SHALL tell an agent about the repository's tools, and to install and 
 
 - **WHEN** the developer is started on the same repository
 - **THEN** its task carries the note about the repository's tools as before
+
+### Requirement: The worker installs a Node repository's dependencies for the steps that build and test
+
+The system SHALL, for the developer and the code reviewer on a repository whose CI uses Node, whose `package-lock.json` exists and whose `node_modules` does not, run `npm ci --ignore-scripts` in the clone, in the worker and outside the agent's sandbox, after the tools are installed, so that the repository's own linters, formatters and test runners (Prettier among them) are on disk when the agent starts and it never has to download them with `npx`; SHALL NOT run the dependencies' install scripts; SHALL tell the agent that the dependencies are installed, or that they could not be and why; and SHALL treat a failure as information for the agent, never as a failure of the step.
+
+#### Scenario: A repository with a lockfile
+
+- **WHEN** the code reviewer starts on a Node repository with a `package-lock.json` and no `node_modules`
+- **THEN** the worker installs the dependencies without running their scripts and the reviewer is told they are installed
+
+#### Scenario: The install fails
+
+- **WHEN** `npm ci` fails
+- **THEN** the step goes on and the agent is told that the dependencies are missing and the last line of the error
+
+#### Scenario: No lockfile or already installed
+
+- **WHEN** the repository has no `package-lock.json`, or `node_modules` already exists
+- **THEN** the worker installs nothing

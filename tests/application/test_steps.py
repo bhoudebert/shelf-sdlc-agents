@@ -1075,3 +1075,31 @@ async def test_an_approval_waits_for_a_run_that_started_while_the_reviewer_worke
         REVIEW, RunStep(Phase.CODE_REVIEW, 0, "")
     )
     assert result == Reviewed(Verdict.APPROVE, "Fine.")
+
+
+async def test_a_node_repository_with_a_lockfile_gets_its_dependencies_without_their_scripts() -> None:
+    workspaces = with_files(FakeWorkspaces(), {".github/workflows/ci.yml": CI_NODE_24, "package-lock.json": "{}"})
+    agents = FakeAgents()
+    await steps(agents, workspaces, cache_dir="/cache").run(NEED, RunStep(Phase.CODE_REVIEW, 0, ""))
+    [command] = [c for c in workspaces.workspace.ran if "npm ci" in c]
+    assert "npm ci --ignore-scripts" in command
+    assert "HOME=/cache/home/acme__shop" in command
+    assert "node_modules` is there" in agents.tasks[0].prompt
+
+
+async def test_dependencies_that_cannot_be_installed_are_told_to_the_agent_and_stop_nothing() -> None:
+    workspaces = with_files(FakeWorkspaces(), {".github/workflows/ci.yml": CI_NODE_24, "package-lock.json": "{}"})
+    workspaces.workspace.fail_when = "npm ci"
+    agents = FakeAgents()
+    await steps(agents, workspaces, cache_dir="/cache").run(NEED, RunStep(Phase.IMPLEMENT, 0, ""))
+    assert "`node_modules` is missing" in agents.tasks[0].prompt
+
+
+async def test_no_lockfile_or_an_existing_node_modules_installs_nothing() -> None:
+    bare = with_files(FakeWorkspaces(), {".github/workflows/ci.yml": CI_NODE_24})
+    await steps(workspaces=bare, cache_dir="/cache").run(NEED, RunStep(Phase.IMPLEMENT, 0, ""))
+    installed = with_files(
+        FakeWorkspaces(), {".github/workflows/ci.yml": CI_NODE_24, "package-lock.json": "{}", "node_modules/x": ""}
+    )
+    await steps(workspaces=installed, cache_dir="/cache").run(NEED, RunStep(Phase.IMPLEMENT, 0, ""))
+    assert not any("npm ci" in c for c in bare.workspace.ran + installed.workspace.ran)
