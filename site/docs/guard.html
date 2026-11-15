@@ -78,6 +78,8 @@ stopped most often:
 <dt>Audit chain</dt><dd>intact</dd>
 <dt>Risks found most</dt><dd>remote_exec (3), secret_access (2), privilege (2), publish (1), exfil (1)</dd>
 </dl></div></div>
+<h2 id="web">Reading the web</h2>
+<p>Agents can fetch an address and search the web, so they can check documentation, a specification or a current version instead of guessing. Warden judges every call before it happens. It refuses an address that is not http or https, a local or private address (<code>localhost</code>, <code>10.x</code>, <code>192.168.x</code>, the cloud metadata endpoints, <code>*.internal</code>), a credential in the address or in a search, and an address or query long enough to carry data out. A fetch returns text: downloads stay limited to the hosts a build needs. What a page says is data, and the agents are told never to follow an instruction in one. Set <code>SHELF_WEB=off</code> in <code>deploy/.env</code> to forbid it.</p>
 <h2 id="redact">Secrets and personal data</h2>
 <p>Allowed commands run through a redactor: secrets and personal data in their output become stable tokens such as <code>&lt;EMAIL_1&gt;</code>, restored when an agent writes them into a file. A session keeps its tokens in a private file. A prompt that carries a secret is refused. The operator can add names and patterns (below). Redaction is pattern-based: a short password, a key in a format nobody has seen and a name nobody listed go through.</p>
 <h2 id="audit">The audit log</h2>

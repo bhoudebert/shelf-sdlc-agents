@@ -44,6 +44,10 @@ class AgentFailedError(RuntimeError):
         super().__init__(f"{role} failed: {reason}{hint}")
 
 
+WEB_TOOLS = ("WebFetch", "WebSearch")
+"""Reading the web. Not part of a role: the operator can turn them off for every agent."""
+
+
 def options_for(  # noqa: PLR0913 - one argument per setting the operator controls
     task: AgentTask,
     *,
@@ -52,16 +56,18 @@ def options_for(  # noqa: PLR0913 - one argument per setting the operator contro
     cli_path: str | None = None,
     allowed_domains: tuple[str, ...] = (),
     bundles: tuple[Path, ...] = (),
+    web: bool = False,
 ) -> ClaudeAgentOptions:
     """The SDK options for ``task``: its own tools only, the sandbox on, bounded in turns and money.
 
+    ``web`` adds the tools that read the web: Warden judges each call, and what they fetch is text, never a download.
     ``nested_sandbox`` selects the weaker sandbox mode that works inside a container (Docker). ``sandbox=False`` turns
     the sandbox off, for hosts where it cannot start: the container is then the only boundary around the agent.
     """
     return ClaudeAgentOptions(
         cwd=task.workdir,
         system_prompt={"type": "preset", "preset": "claude_code", "append": task.system_prompt},
-        allowed_tools=list(task.role.tools),
+        allowed_tools=[*task.role.tools, *(WEB_TOOLS if web else ())],
         permission_mode="acceptEdits",
         max_turns=task.max_turns,
         max_budget_usd=task.max_budget_usd,
@@ -96,6 +102,8 @@ class ClaudeBackend:
     """The sites a sandboxed command may reach: tool downloads and package registries."""
     catalog_dir: Path | None = None
     """Where the synced catalog is: one generated plugin per skill source."""
+    web: bool = False
+    """Whether agents may read the web (``SHELF_WEB``)."""
     bindings: Callable[[str], tuple[str, ...]] | None = None
     """The skill sources the operator bound to a role, read for every step so an edit applies at once."""
 
@@ -120,6 +128,7 @@ class ClaudeBackend:
             cli_path=self.cli_path,
             allowed_domains=self.allowed_domains,
             bundles=self._bundles(task.role.name),
+            web=self.web,
         )
 
     async def run(self, task: AgentTask) -> str:

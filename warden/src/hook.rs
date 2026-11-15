@@ -10,7 +10,9 @@ use std::path::{Path, PathBuf};
 use serde_json::Value;
 use warden_agents::{Answer, Call, Event, Rendered, Tool};
 use warden_audit::{AuditLog, Entry, digest_of, shorten};
-use warden_engine::{Context, Verdict, judge_command, judge_read, judge_text, judge_tool, judge_web, judge_write};
+use warden_engine::{
+    Context, Verdict, judge_command, judge_read, judge_search, judge_text, judge_tool, judge_web, judge_write,
+};
 use warden_policy::{Category, Decision, Mode, OnError, Policy, PromptMode, ReadTool};
 use warden_redact::{Counts, Kind, Redactor, Session};
 
@@ -221,6 +223,7 @@ fn pre_tool(
             verdict = Some(strictest(verdict, judged));
         }
         Some(Tool::Web { url }) => verdict = Some(strictest(verdict, judge_web(policy, url))),
+        Some(Tool::Search { query }) => verdict = Some(strictest(verdict, judge_search(policy, query))),
         Some(Tool::Mcp { strings, .. }) if policy.redact.mcp => {
             let (mut judged, updated) = mcp_arguments(policy, redactor, session, call, strings, decided);
             if updated.is_some() && !caps.rewrite_input {
@@ -456,6 +459,7 @@ fn log(
         (Some(Tool::Bash { command }), _) => command.clone(),
         (Some(Tool::Read { path } | Tool::Write { path, .. } | Tool::Edit { path, .. }), _) => path.clone(),
         (Some(Tool::Web { url }), _) => url.clone(),
+        (Some(Tool::Search { query }), _) => query.clone(),
         (_, Some(_)) => format!("prompt({} chars)", decided.prompt_chars),
         _ => call.tool_name.clone(),
     };
@@ -499,7 +503,7 @@ fn kind_of(tool: Option<&Tool>) -> &'static str {
         Some(Tool::Bash { .. }) => "bash",
         Some(Tool::Read { .. }) => "read",
         Some(Tool::Write { .. } | Tool::Edit { .. } | Tool::Patch { .. }) => "write",
-        Some(Tool::Web { .. }) => "web",
+        Some(Tool::Web { .. } | Tool::Search { .. }) => "web",
         Some(Tool::Mcp { .. }) => "mcp",
         Some(Tool::Agent) => "agent",
         None => "other",

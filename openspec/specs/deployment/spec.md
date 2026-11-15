@@ -582,3 +582,22 @@ The system SHALL give the worker the instance's administrators as they are in th
 
 - **WHEN** a login listed under `admins` in the access file approves a spec of a repository that uses roles and lists them in none
 - **THEN** the record says that the person acted as an administrator
+
+### Requirement: The operator can switch the agents' web access off
+
+The system SHALL read `SHELF_WEB` from the environment, `on` by default, and give agents no web tool when it is `off`, and SHALL refuse any other value, naming the variable.
+
+#### Scenario: The default
+
+- **WHEN** `SHELF_WEB` is not set
+- **THEN** agents may read the web
+
+#### Scenario: Off
+
+- **WHEN** `SHELF_WEB=off`
+- **THEN** no agent can fetch or search
+
+#### Scenario: A value that is not understood
+
+- **WHEN** `SHELF_WEB=maybe`
+- **THEN** the service does not start and the message names `SHELF_WEB`

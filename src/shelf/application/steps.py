@@ -21,6 +21,7 @@ from shelf.domain.story import agent_comment
 from shelf.domain.titles import clean_title, fallback_title
 from shelf.domain.toolchain import TOOLCHAIN_NOTE, toolchain_env
 from shelf.domain.verdict import parse_verdict
+from shelf.domain.web import WEB_NOTE
 from shelf.domain.work import WAITING_FOR_CI, Produced, Reviewed, RunStep, StepResult, Verdict, Verified
 from shelf.ports.agents import AgentBackend, AgentTask
 from shelf.ports.configs import RepoConfigs
@@ -94,6 +95,7 @@ def task_prompt(  # noqa: PLR0913
     ci: str = "",
     context: str = "",
     folder: str = "",
+    web: bool = False,
     results: Results | None = None,
     depth: ReviewDepth = ReviewDepth.STANDARD,
 ) -> str:
@@ -125,6 +127,7 @@ def task_prompt(  # noqa: PLR0913
         results_note(results or Results(), step.phase),
         review_note(depth, step.phase),
         TOOLCHAIN_NOTE if toolchain else "",
+        WEB_NOTE if web else "",
     ]
     lines += [part for note in notes if note for part in ("", note)]
     if role.document:
@@ -163,6 +166,8 @@ class Steps:
     seconds after a push, not at once."""
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep
     context_sources: ContextSources | None = None
+    web: bool = False
+    """Whether the agents may read the web: their prompts then say how to treat what they read."""
     administrators: Callable[[], frozenset[str]] = frozenset[str]
     """The logins of the instance's administrators now, for the record of who decided what."""
     """Where other repositories are read from, as reference material put next to the clone (none without it)."""
@@ -264,6 +269,7 @@ class Steps:
             context=_context_note(work),
             folder=folder_of(workspace.path, work.id),
             results=config.results,
+            web=self.web,
             depth=_depth_for(work, step.phase, config),
         )
         answer = await self._ask_agent(work, step, workspace, token, prompt)

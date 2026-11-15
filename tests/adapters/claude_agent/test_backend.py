@@ -193,3 +193,12 @@ def test_a_missing_cost_is_unknown_not_zero() -> None:
 def test_refused_tool_calls_are_counted_when_there_are_any() -> None:
     line = step_summary("implementer", _result(permission_denials=[{"tool_name": "Bash"}, {"tool_name": "Bash"}]))
     assert line.endswith("refused_tool_calls=2")
+
+
+def test_agents_can_read_the_web_when_the_operator_allows_it_and_never_otherwise() -> None:
+    off = options_for(task(Phase.CODE_REVIEW))
+    on = options_for(task(Phase.CODE_REVIEW), web=True)
+    assert "WebFetch" not in off.allowed_tools
+    assert "WebSearch" not in off.allowed_tools
+    assert {"WebFetch", "WebSearch"} <= set(on.allowed_tools)
+    assert {"Read", "Glob", "Grep", "Write", "Edit", "Bash"} <= set(on.allowed_tools)

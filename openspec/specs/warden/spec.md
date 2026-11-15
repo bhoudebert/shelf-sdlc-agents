@@ -852,3 +852,37 @@ The system SHALL, for `warden init --agent opencode`, write the plugin to `~/.co
 
 - **WHEN** `warden init --global --agent codex` runs
 - **THEN** the snippet is printed with its `[[hooks.PreToolUse]]` table, nothing is written, and the person is told to trust the hooks
+
+### Requirement: A fetch or a search is judged by what it sends
+
+The system SHALL judge every fetch of an address and every web search before it happens, and SHALL refuse it when the scheme is not `http` or `https`; when the host is `localhost`, a loopback, private or link-local address, or ends in `.internal`, `.local` or `.localdomain`, in every profile, as a blocked domain; when a credential is in the address or the search text, as an exfiltration; and when the address is longer than 2,048 characters or its query string is longer than 512, as an exfiltration; and SHALL otherwise judge it as network use, with the policy's list of denied domains.
+
+#### Scenario: Reading documentation
+
+- **WHEN** an agent fetches `https://docs.rs/serde/latest/serde/`
+- **THEN** it is allowed under the `shelf` profile
+
+#### Scenario: A private address
+
+- **WHEN** an agent fetches `http://10.0.0.5/admin` or `http://localhost:8080/`
+- **THEN** it is refused as a blocked domain, whatever the profile
+
+#### Scenario: A file address
+
+- **WHEN** an agent fetches `file:///etc/passwd`
+- **THEN** it is refused
+
+#### Scenario: A credential in the address
+
+- **WHEN** an agent fetches an address whose query holds a token
+- **THEN** it is refused as an exfiltration
+
+#### Scenario: A payload in the query
+
+- **WHEN** an agent fetches an address with a 600-character query
+- **THEN** it is refused as an exfiltration
+
+#### Scenario: A search that holds a secret
+
+- **WHEN** an agent searches the web for text that contains a credential
+- **THEN** it is refused as an exfiltration
