@@ -430,6 +430,53 @@ async def test_an_id_that_is_not_a_node_id_never_reaches_a_mutation(settings: Gi
     assert all("evil" not in query for query in sent)
 
 
+def closing(
+    settings: GitHubAppSettings, state: str, *, found: bool = True
+) -> tuple[GitHubPullRequests, list[tuple[str, str, str]]]:
+    calls: list[tuple[str, str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append((request.method, request.url.path, request.content.decode()))
+        if request.url.path.endswith("/pulls") and request.method == "GET":
+            return httpx.Response(200, json=[{"number": 9}] if found else [])
+        if request.method == "GET":
+            return httpx.Response(200, json={"state": state})
+        return httpx.Response(200, json={})
+
+    return adapter(settings, httpx.MockTransport(handler)), calls
+
+
+async def test_closing_says_why_and_closes_the_open_pull_request_a_draft_included(settings: GitHubAppSettings) -> None:
+    pulls, calls = closing(settings, "open")
+    await pulls.close(NEED, "carol aborted the work")
+    comment = next(c for c in calls if c[0] == "POST")
+    assert comment[1] == "/repos/acme/shop/issues/9/comments"
+    assert "carol aborted the work" in comment[2]
+    assert "shelf/work-1" in comment[2]
+    patch = next(c for c in calls if c[0] == "PATCH")
+    assert patch[1] == "/repos/acme/shop/pulls/9"
+    assert json.loads(patch[2]) == {"state": "closed"}
+    assert [m for m, _, _ in calls].index("POST") < [m for m, _, _ in calls].index("PATCH"), "it says why first"
+
+
+async def test_a_pull_request_that_is_already_closed_or_merged_is_left_alone(settings: GitHubAppSettings) -> None:
+    pulls, calls = closing(settings, "closed")
+    await pulls.close(NEED, "carol aborted the work")
+    assert not any(method in ("POST", "PATCH") for method, _, _ in calls)
+
+
+async def test_closing_before_the_pull_request_exists_does_nothing(settings: GitHubAppSettings) -> None:
+    pulls, calls = closing(settings, "open", found=False)
+    await pulls.close(NEED, "carol aborted the work")
+    assert not any(method in ("POST", "PATCH") for method, _, _ in calls)
+
+
+async def test_a_pull_request_someone_else_opened_is_never_closed(settings: GitHubAppSettings) -> None:
+    pulls, calls = closing(settings, "open")
+    await pulls.close(REVIEW, "carol aborted the work")
+    assert calls == []
+
+
 async def test_a_run_a_newer_run_of_the_same_check_superseded_does_not_count(settings: GitHubAppSettings) -> None:
     runs: list[dict[str, object]] = [
         {"id": 1, "name": "Specs validate", "status": "completed", "conclusion": "cancelled"},

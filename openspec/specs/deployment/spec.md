@@ -620,3 +620,12 @@ The system SHALL keep the overlay policy file, the list of the rules and the cha
 
 - **WHEN** an administrator allows a command while a step is running
 - **THEN** the agent's next call sees it, with no restart
+
+### Requirement: The web service can close the pull request of a work an administrator closes
+
+The system SHALL give the web service the same access to pull requests as the worker has, so that closing a work from its page can close the pull request it opened, using the GitHub App's installation token and no other credential.
+
+#### Scenario: A work is closed from its page
+
+- **WHEN** an administrator closes a work from its page
+- **THEN** the pull request is closed with the App's token, as the worker would

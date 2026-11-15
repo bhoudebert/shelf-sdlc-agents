@@ -315,6 +315,30 @@ The system SHALL, for work started under the protocol that records decisions, ru
 - **WHEN** the recording activity fails
 - **THEN** the decision still takes effect and a warning is logged
 
+### Requirement: A person ending the work closes its pull request, for new work only
+
+The system SHALL, for work started under the protocol that closes pull requests, run an activity that closes the work's own pull request after a person's rejection or abort has ended it, SHALL run it only when the work ends that way (a merge or a close from GitHub does not run it), SHALL log and ignore a failure of that activity, and SHALL NOT run it for work started under an earlier protocol, so that a history recorded before it replays unchanged.
+
+#### Scenario: A person aborts new work
+
+- **WHEN** a person aborts work started under the new protocol
+- **THEN** the closing activity runs once and the work ends as aborted
+
+#### Scenario: A merge
+
+- **WHEN** the pull request is merged
+- **THEN** the closing activity does not run
+
+#### Scenario: Older work
+
+- **WHEN** a finished history of work started under an earlier protocol is replayed
+- **THEN** it replays deterministically and the closing activity does not appear
+
+#### Scenario: Closing fails
+
+- **WHEN** the closing activity fails
+- **THEN** the work still ends and a warning is logged
+
 ### Requirement: The workflow keeps what each step used and answers for it
 
 The system SHALL keep, in the workflow, one entry for each agent step in the order they ran (the phase, the round, the agent, and the usage the step reported), and SHALL answer a query for them, for finished work as well as running work; and SHALL do so without any new command or activity, so that a history recorded before it replays unchanged and has no entries.

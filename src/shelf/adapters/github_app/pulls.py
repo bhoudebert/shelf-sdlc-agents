@@ -200,6 +200,21 @@ class GitHubPullRequests:
         if stage.name not in names:
             await self._call("POST", repo, f"{base}/issues/{number}/labels", json={"labels": [stage.name]})
 
+    async def close(self, work: WorkContext, reason: str) -> None:
+        """Say why on the pull request and close it. Only a pull request the work opened, and only while it is open."""
+        if work.request.entry in OWN_PULL_REQUEST:
+            return
+        number = await self._number(work)
+        if number is None:
+            return
+        repo = work.request.repo
+        path = f"/repos/{repo.full_name}/pulls/{number}"
+        if (await self._call("GET", repo, path)).json().get("state") != "open":
+            return
+        body = f"**Closed.** {reason}. The branch `{branch_name(work)}` is kept."
+        await self._call("POST", repo, f"/repos/{repo.full_name}/issues/{number}/comments", json={"body": body})
+        await self._call("PATCH", repo, path, json={"state": "closed"})
+
     async def comment(self, work: WorkContext, body: str) -> None:
         """Post ``body`` as a comment on the pull request."""
         repo = work.request.repo
