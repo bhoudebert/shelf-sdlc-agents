@@ -339,3 +339,23 @@ async def test_a_task_with_no_session_to_continue_is_asked_once_and_its_failure_
     with pytest.raises(RuntimeError, match="boom"):
         await ClaudeBackend().run(task(Phase.IMPLEMENT))
     assert calls == 1
+
+
+def test_the_sites_added_from_the_page_join_the_configured_ones_for_every_step() -> None:
+    backend = ClaudeBackend(
+        allowed_domains=("github.com",), extra_domains=lambda: ("registry.example.org", "github.com")
+    )
+    sandbox = backend.options(task(Phase.IMPLEMENT)).sandbox
+    assert sandbox is not None
+    assert sandbox.get("network") == {"allowedDomains": ["github.com", "registry.example.org"]}
+
+
+def test_an_unreadable_store_of_sites_leaves_the_configured_ones() -> None:
+    def broken() -> tuple[str, ...]:
+        message = "folder gone"
+        raise OSError(message)
+
+    backend = ClaudeBackend(allowed_domains=("github.com",), extra_domains=broken)
+    sandbox = backend.options(task(Phase.IMPLEMENT)).sandbox
+    assert sandbox is not None
+    assert sandbox.get("network") == {"allowedDomains": ["github.com"]}

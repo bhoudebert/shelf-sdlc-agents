@@ -996,3 +996,17 @@ The system SHALL tell every agent that the work's folder under `.shelf/` (the re
 
 - **WHEN** the spec writer starts
 - **THEN** it is told its documents are committed on the branch and are part of the pull request
+
+### Requirement: A command may reach the sites an administrator added from the page
+
+The system SHALL let the commands an agent runs in its sandbox reach, besides the sites of the built-in list and of `SHELF_ALLOWED_DOMAINS`, the sites an administrator added from the admin page, reading them from the store for every step so that a change applies to the next step without a restart; and SHALL start the step with the built-in and configured sites alone when the store cannot be read.
+
+#### Scenario: A site added from the page
+
+- **WHEN** an administrator added a site and an agent step starts afterwards
+- **THEN** the sandbox of that step may reach it
+
+#### Scenario: An unreadable store
+
+- **WHEN** the store of rules cannot be read
+- **THEN** the step starts with the built-in and configured sites alone

@@ -66,3 +66,16 @@ async def test_the_overlay_is_replaced_as_a_whole_and_no_temporary_file_is_left(
         await rules.add(rule)
     names = sorted(path.name for path in (tmp_path / "guard").iterdir())
     assert names == [CHANGES_FILE, "rules.json", OVERLAY_FILE]
+
+
+async def test_the_worker_reads_the_sites_the_page_added(tmp_path: Path) -> None:
+    from shelf.domain.guard_rules import allow_site  # noqa: PLC0415
+
+    store = FileGuardRules(tmp_path)
+    assert store.sites_now() == ()
+    rule = allow_site("registry.example.org", "alice", "2026-11-15T10:00:00+00:00")
+    assert rule is not None
+    await store.add(rule)
+    assert store.sites_now() == ("registry.example.org",)
+    (tmp_path / "rules.json").write_text("not json")
+    assert store.sites_now() == ()

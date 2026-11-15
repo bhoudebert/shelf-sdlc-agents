@@ -10,7 +10,7 @@ from fastapi.responses import RedirectResponse, Response
 from shelf.adapters.web.context import Web
 from shelf.adapters.web.sessions import Session
 from shelf.domain.guard import GuardReport
-from shelf.domain.guard_rules import OverlayRule, allow_command, deny_host
+from shelf.domain.guard_rules import OverlayRule, allow_command, allow_site, deny_host
 from shelf.domain.result import Err
 
 
@@ -71,9 +71,30 @@ async def _report_to_apply(web: Web) -> GuardReport:
     return view.report
 
 
+def _site_route(web: Web, routes: APIRouter) -> None:
+    """The route that lets an administrator allow a site that agents' commands may reach."""
+
+    @routes.post("/admin/guard/allow-site", dependencies=[Depends(web.same_origin)])
+    async def allow_a_site(
+        session: Annotated[Session, Depends(web.signed_in)], site: Annotated[str, Form()]
+    ) -> Response:
+        by = _administrator(web, session)
+        store = web.deps.guard_rules
+        if store is None:
+            message = "this instance cannot apply rules from the page"
+            raise _refused(message, 409)
+        rule = allow_site(site, by, _now())
+        if rule is None:
+            message = "that is not a public host name (for example registry.example.org or *.example.org)"
+            raise _refused(message)
+        await store.add(rule)
+        return _back()
+
+
 def router(web: Web) -> APIRouter:
     """The routes that change the guard's overlay: administrators only, and only for what the page lists."""
     routes = APIRouter()
+    _site_route(web, routes)
 
     @routes.post("/admin/guard/allow", dependencies=[Depends(web.same_origin)])
     async def allow(session: Annotated[Session, Depends(web.signed_in)], command: Annotated[str, Form()]) -> Response:

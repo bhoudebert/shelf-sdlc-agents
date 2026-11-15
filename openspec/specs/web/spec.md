@@ -874,3 +874,27 @@ The system SHALL say, for each call in the Guard section's list, whether it was 
 
 - **WHEN** a call has the decision deny
 - **THEN** the row says it was stopped, and for a risk no rule can free, that no rule can allow it
+
+### Requirement: An administrator allows or removes a site that agents' commands may reach, from the admin page
+
+The system SHALL let an administrator, in the Guard section of the admin page and when the instance keeps rules from the page, type a site (a host name, optionally `*.` followed by a domain) that the commands agents run in their sandbox may reach, add it, see the sites added with who added them and when, and remove one; SHALL refuse what is not a plain public host name (an address, a name without a dot, a wildcard over a whole top-level domain, a path, a scheme or a port); SHALL keep the sites in the same store as the other rules added from the page; and SHALL apply a change from the next step an agent starts, without a restart.
+
+#### Scenario: Adding a site
+
+- **WHEN** an administrator types `registry.example.org` and adds it
+- **THEN** the page lists it with the administrator's login and the time, and the next agent step may reach it
+
+#### Scenario: Something that is not a host name
+
+- **WHEN** an administrator submits `https://x.example/path`, `10.0.0.1` or `*.com`
+- **THEN** the page refuses it and keeps nothing
+
+#### Scenario: Removing a site
+
+- **WHEN** an administrator removes a site added from the page
+- **THEN** it is no longer listed and the next agent step may not reach it, unless the operator's own list holds it
+
+#### Scenario: Not an administrator
+
+- **WHEN** someone who is not an administrator posts a site
+- **THEN** it is refused and nothing changes
