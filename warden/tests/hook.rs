@@ -502,3 +502,26 @@ fn a_file_that_can_never_be_freed_stays_protected_whatever_the_overlay_says() {
         assert_eq!(decision(&out), Some("deny"), "{path}: {out}");
     }
 }
+
+#[test]
+fn a_command_that_only_mentions_a_protected_file_is_not_a_write_to_it() {
+    let hook = Hook::new("mention-protected", "shelf");
+    for command in [
+        "echo 'see opencode.json and .claude/settings.json for the config' > README.md",
+        "cat > docs/guide.md <<'EOF'\nWe ship opencode.json at the root. Never write cat > opencode.json by hand.\nEOF",
+        "cat > test/opencode-config.test.ts <<'EOF'\nimport x from 'y'\nEOF",
+        "grep -n opencode.json README.md",
+        "sed -i 's/Codex/Codex, OpenCode/' docs/guide/opencode.json.md",
+        "git commit -m 'docs: explain the opencode.json file and .codex/config.toml'",
+    ] {
+        let out = hook.bash(command);
+        assert_ne!(decision(&out), Some("deny"), "{command}: {out}");
+    }
+}
+
+#[test]
+fn a_real_write_to_a_protected_file_is_still_refused_even_after_a_mention() {
+    let hook = Hook::new("write-protected", "shelf");
+    let command = "echo 'about opencode.json' > README.md; cat > opencode.json <<'EOF'\n{}\nEOF";
+    assert_eq!(decision(&hook.bash(command)), Some("deny"), "the second command writes it");
+}

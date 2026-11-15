@@ -83,3 +83,16 @@ async def test_a_report_from_an_older_guard_has_no_details_and_is_still_read(tmp
     assert isinstance(result, Ok)
     assert result.value.recent == ()
     assert result.value.web_hosts == {}
+
+
+@pytest.mark.anyio
+async def test_the_mode_of_the_latest_call_is_read_and_an_older_guard_has_none(tmp_path: Path) -> None:
+    watching = REPORT.replace('"calls":7', '"mode":"audit","calls":7')
+    result = await WardenReader(fake_warden(tmp_path, watching, 0)).report()
+    assert isinstance(result, Ok)
+    assert result.value.mode == "audit"
+    assert result.value.only_watching
+    older = await WardenReader(fake_warden(tmp_path, REPORT, 0)).report()
+    assert isinstance(older, Ok)
+    assert older.value.mode == ""
+    assert not older.value.only_watching

@@ -49,6 +49,7 @@ class WardenReader:
                     categories={str(name): int(count) for name, count in data["by_category"].items()},
                     recent=tuple(_stopped(call) for call in data.get("recent", [])),
                     web_hosts={str(host): int(count) for host, count in data.get("web_hosts", {}).items()},
+                    mode=str(data.get("mode") or ""),
                 )
             )
         except FileNotFoundError:

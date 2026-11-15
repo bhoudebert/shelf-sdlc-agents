@@ -79,6 +79,13 @@ class GuardReport:
     """The latest calls the guard stopped or would have stopped, newest first."""
     web_hosts: Mapping[str, int] = field(default_factory=dict[str, int])
     """Each host the agents fetched, with how many times."""
+    mode: str = ""
+    """``enforce`` or ``audit``: what the latest recorded call was judged in; empty when none, or an older guard."""
+
+    @property
+    def only_watching(self) -> bool:
+        """Whether the guard's latest call was only recorded, not enforced."""
+        return self.mode == "audit"
 
     def top_categories(self, limit: int = 5) -> tuple[tuple[str, int], ...]:
         """The risks found most often, the most frequent first."""

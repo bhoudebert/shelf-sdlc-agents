@@ -43,7 +43,7 @@
     {% else %}
     <p class="muted">The latest {{ g.recent | length }}, newest first. A rule is text to copy into your operator policy file (<code>deploy/config/warden.toml</code>). Applying a rule from this page is not set up on this instance: nothing here changes the guard.</p>
     {% endif %}
-    {% if g.recent | selectattr("decision", "equalto", "allow") | list %}
+    {% if g.only_watching %}
     <p class="muted"><strong>The guard is only watching.</strong> Calls marked "Not stopped" ran: the guard recorded what its policy would have refused. Set <code>SHELF_WARDEN_PROFILE=shelf</code> in <code>deploy/.env</code> to enforce it.</p>
     {% endif %}
     <div class="table-wrap">

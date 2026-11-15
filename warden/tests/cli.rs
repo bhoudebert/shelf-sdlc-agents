@@ -198,11 +198,13 @@ fn report_json_is_one_object_a_program_can_read() {
     assert_eq!(value["would_stop"], 2);
     assert_eq!(value["by_category"]["exfil"], 2);
     assert_eq!(value["by_decision"]["deny"], 1);
+    assert_eq!(value["mode"], "enforce", "the mode of the latest call");
     let empty = temp_dir("report-json-empty");
     let none = stdout(&warden(&["report", "--json", "--dir", &empty.display().to_string()]));
     let value: serde_json::Value = serde_json::from_str(none.trim()).expect("one JSON object");
     assert_eq!(value["calls"], 0);
     assert_eq!(value["would_stop"], 0);
+    assert_eq!(value["mode"], "", "nothing recorded, no mode");
     let _ = std::fs::remove_dir_all(dir);
     let _ = std::fs::remove_dir_all(empty);
 }
