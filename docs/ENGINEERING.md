@@ -23,6 +23,16 @@ flowchart LR
   github -- webhook --> web
 ```
 
+Behaviour of a run that changes over time is gated by a **protocol** number fixed when the work starts (`CURRENT_PROTOCOL` in
+`domain/policy.py`): work already running keeps the behaviour it started with, so a new release never changes what a recorded
+history does, and the replay test stays green. What a step used (tokens, cost, turns) is kept in the workflow and shown on the
+work page; every decision a person makes is written to `.shelf/<work-id>/decisions.md`; an agent that is sent back continues
+its own session; ending a work closes the pull request it opened.
+
+Before the code steps the worker sets up the tools the repository's CI uses (plain versions of node, python, go and java,
+installed with mise into the repository's own home, outside the agents' sandbox), or, when Nix is on, the repository's flake
+environment from a persistent store the worker only reads.
+
 Layers, from the inside: `domain` (pure, standard library only), `ports` (protocols), `application` (use cases),
 `adapters` (Temporal, GitHub, git, Claude, config, web), `entrypoints` (the composition roots `shelf-web` and
 `shelf-worker`).
@@ -54,6 +64,9 @@ The reasons live in [`docs/adr/`](adr/README.md). The ones that shape everything
 - [0004](adr/0004-specs-are-checked-in-ci.md) Specs are checked in CI
 - [0006](adr/0006-python-with-a-pure-core-and-hexagonal-layers.md) Python, a pure functional core, hexagonal layers
 - [0007](adr/0007-a-python-only-web-ui.md) A Python-only web interface
+- [0014](adr/0014-guard-agents-with-warden-a-policy-engine-in-rust.md) Guard agents with Warden, and [0015](adr/0015-read-the-guard-through-its-binary.md) read it only through its binary
+- [0016](adr/0016-results-land-where-the-repository-keeps-them.md) The results of a run land where the repository keeps them
+- [0017](adr/0017-let-agents-read-the-web-and-keep-downloads-limited.md) Agents read the web, and downloads stay limited
 
 ## Rules the code enforces
 
