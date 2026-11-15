@@ -94,6 +94,28 @@ def setup_command(env: Mapping[str, str], tools: Mapping[str, str]) -> str:
     return f"mkdir -p {shlex.quote(home)} && env {assignments} mise use --global --yes {versions}"
 
 
+def dependencies_command(env: Mapping[str, str]) -> str:
+    """The shell command that installs a Node repository's locked dependencies, without running any of their scripts."""
+    assignments = " ".join(f"{name}={shlex.quote(value)}" for name, value in env.items())
+    return f"env {assignments} npm ci --ignore-scripts --no-audit --no-fund"
+
+
+def dependencies_ready() -> str:
+    """What the agent is told once the worker has installed the locked dependencies."""
+    return (
+        "Dependencies: the worker ran `npm ci --ignore-scripts`, so `node_modules` is there with the repository's own "
+        "linters, formatters and test runners: run them with `npx --no-install` or `npm run`, never download them. "
+        "Install scripts did not run."
+    )
+
+
+def dependencies_failed(reason: str) -> str:
+    """What the agent is told when the locked dependencies could not be installed."""
+    return (
+        f"Dependencies: the worker tried `npm ci --ignore-scripts` and it failed: {reason}. `node_modules` is missing."
+    )
+
+
 def tools_ready(tools: Mapping[str, str]) -> str:
     """What the agent is told once the worker has installed what the repository's CI uses."""
     names = ", ".join(f"{tool} {version}" for tool, version in tools.items())

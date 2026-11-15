@@ -31,7 +31,16 @@ from shelf.domain.roles import PROVIDED_DOCUMENT, REVIEWERS, ROLES, TITLER, docu
 from shelf.domain.story import agent_comment
 from shelf.domain.titles import clean_title, fallback_title
 from shelf.domain.tool_detection import DECLARED, SOURCES, detect_tools, is_declared
-from shelf.domain.toolchain import TOOLCHAIN_NOTE, setup_command, toolchain_env, tools_failed, tools_ready
+from shelf.domain.toolchain import (
+    TOOLCHAIN_NOTE,
+    dependencies_command,
+    dependencies_failed,
+    dependencies_ready,
+    setup_command,
+    toolchain_env,
+    tools_failed,
+    tools_ready,
+)
 from shelf.domain.verdict import parse_verdict
 from shelf.domain.web import WEB_NOTE
 from shelf.domain.work import WAITING_FOR_CI, Produced, Reviewed, RunStep, StepResult, Verdict, Verified
@@ -536,7 +545,28 @@ class Steps:
         if done.exit_code != 0:
             last = next((line for line in reversed(done.output.strip().splitlines()) if line.strip()), "no output")
             return ToolSetup(tools_failed(tools, last[:200]))
-        return ToolSetup(tools_ready(tools))
+        note = tools_ready(tools)
+        if (
+            "node" in tools
+            and not workspace.path.joinpath("node_modules").exists()
+            and workspace.path.joinpath("package-lock.json").is_file()
+        ):
+            note = f"{note}\n\n{await self._install_dependencies(workspace, env)}"
+        return ToolSetup(note)
+
+    async def _install_dependencies(self, workspace: Workspace, env: Mapping[str, str]) -> str:
+        """Install the locked Node dependencies in the clone, here and not in the sandbox, and say how it went."""
+        try:
+            done = await asyncio.wait_for(workspace.run(dependencies_command(env)), SETUP_TIMEOUT)
+        except TimeoutError:
+            return dependencies_failed(f"it took longer than {int(SETUP_TIMEOUT // 60)} minutes")
+        except Exception as error:  # noqa: BLE001 - told to the agent, never fatal
+            log.warning("could not install the dependencies: %s", error)
+            return dependencies_failed("it could not be run")
+        if done.exit_code != 0:
+            last = next((line for line in reversed(done.output.strip().splitlines()) if line.strip()), "no output")
+            return dependencies_failed(last[:200])
+        return dependencies_ready()
 
     async def _flake_environment(self, work: WorkContext, workspace: Workspace, env: Mapping[str, str]) -> ToolSetup:
         """The environment of the repository's flake development shell, asked of Nix without entering the shell."""
