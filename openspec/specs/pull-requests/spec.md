@@ -306,3 +306,22 @@ The system SHALL sum up the CI of a commit from the latest run of each check, so
 - **WHEN** two checks with different names each have one run, one red and one green
 - **THEN** the CI is red
 
+
+### Requirement: A cancelled run is not a failure, until nothing has replaced it for a long time
+
+The system SHALL NOT count a run that was cancelled as a failure of the commit, since it proved nothing: while the CI holds a cancelled run that no newer run of the same check has replaced, and no run has failed, the CI SHALL be unfinished, and SHALL be reported as such with the cancelled runs named; and SHALL count the cancelled runs as a failure only when the waiting for the CI has run its whole course and still nothing replaced them.
+
+#### Scenario: A run cancelled by a newer push
+
+- **WHEN** a check's latest run is cancelled and no other run has failed
+- **THEN** the CI is unfinished, not red, and the report names the cancelled run
+
+#### Scenario: Something really failed
+
+- **WHEN** one run failed and another was cancelled
+- **THEN** the CI is red and lists the failed run
+
+#### Scenario: Nothing replaces it
+
+- **WHEN** the waiting for the CI ends and the only runs left are cancelled
+- **THEN** the CI is red and lists the cancelled runs, so that a person or the developer is told

@@ -831,3 +831,17 @@ The system SHALL count the log of decisions (`decisions.md` in the work's docume
 
 - **WHEN** an agent step runs
 - **THEN** no agent's role names the decision log as its document
+
+### Requirement: The code review waits for the CI to finish before it judges
+
+The system SHALL, before the code reviewer is asked, wait for the CI of the pull request to finish, as the checks step does and for as long as it does, so that a run that the work's own label changes or pushes started a moment ago is not mistaken for an unfinished CI that needs a person; and SHALL otherwise keep what the code reviewer is told and how its verdict is held back.
+
+#### Scenario: A workflow retriggered by a label
+
+- **WHEN** the stage label changes before the code review and the repository's workflow starts again
+- **THEN** the code review starts once that run has finished, and its verdict is judged on it
+
+#### Scenario: The CI never finishes
+
+- **WHEN** the CI is still running when the waiting ends
+- **THEN** the code review proceeds with the unfinished CI and its approval asks a person, as before
