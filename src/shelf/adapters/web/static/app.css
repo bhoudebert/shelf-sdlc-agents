@@ -5,6 +5,8 @@
    A faint star field sits behind everything, never on top of text. No web fonts, no requests to anywhere else. */
 
 :root {
+--slice-1: #c2410c; --slice-2: #0e7490; --slice-3: #6d28d9; --slice-4: #4d7c0f;
+--slice-5: #be185d; --slice-6: #a16207; --slice-7: #1d4ed8; --slice-8: #475569;
   --ground: #f4f5f9;
   --raised: #ffffff;
   --surface: #e6e8f1;
@@ -52,6 +54,8 @@
 }
 /* Light unless the person chose dark with the toggle: the system's preference is not followed. */
 :root[data-theme="dark"] {
+--slice-1: #e8956a; --slice-2: #79b8c4; --slice-3: #b79af0; --slice-4: #a3c76a;
+--slice-5: #ee8cb6; --slice-6: #d9b457; --slice-7: #7ea6f2; --slice-8: #a6adbd;
   --ground: #171b24;
   --raised: #1d222d;
   --surface: #252b38;
@@ -685,3 +689,15 @@ details.rule pre code { background: none; padding: 0; box-shadow: none; }
 .usage h2 { margin-bottom: 12px; }
 .usage .table-wrap { overflow-x: auto; }
 .usage .admin-table th, .usage .admin-table td { white-space: nowrap; padding-right: 20px; }
+
+.usage .pie { display: flex; flex-wrap: wrap; align-items: center; gap: 24px 40px; margin: 8px 0 0; }
+.usage .pie svg { width: 200px; height: 200px; flex: none; }
+.usage .pie svg path, .usage .pie svg circle { stroke: var(--raised); stroke-width: 1.5; }
+.usage .legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.usage .legend li { display: flex; align-items: baseline; gap: 10px; }
+.usage .legend .swatch { width: 12px; height: 12px; border-radius: 3px; flex: none; align-self: center; }
+.usage .legend .n { font-variant-numeric: tabular-nums; margin-left: 6px; }
+.slice-1 { fill: var(--slice-1); background: var(--slice-1); } .slice-2 { fill: var(--slice-2); background: var(--slice-2); }
+.slice-3 { fill: var(--slice-3); background: var(--slice-3); } .slice-4 { fill: var(--slice-4); background: var(--slice-4); }
+.slice-5 { fill: var(--slice-5); background: var(--slice-5); } .slice-6 { fill: var(--slice-6); background: var(--slice-6); }
+.slice-7 { fill: var(--slice-7); background: var(--slice-7); } .slice-8 { fill: var(--slice-8); background: var(--slice-8); }

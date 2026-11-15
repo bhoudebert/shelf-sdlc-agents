@@ -1297,3 +1297,46 @@ def test_a_decision_that_is_refused_closes_nothing() -> None:
     app.client.cookies.clear()
     app.client.post("/work/work-1/decide", data={"kind": "reject", "note": ""}, follow_redirects=False)
     assert pulls.closed == []
+
+
+def test_the_work_page_shows_who_used_the_most_tokens_as_a_pie_with_a_legend() -> None:
+    from shelf.domain.usage import StepUsage, Usage  # noqa: PLC0415
+
+    app = Fixture()
+    waiting(app)
+    app.runner.usages[WorkId("work-1")] = (
+        StepUsage("implement", 0, "implementer", Usage(input_tokens=9000)),
+        StepUsage("spec_review", 0, "spec_critic", Usage(input_tokens=1000)),
+    )
+    page = app.client.get("/work/work-1/usage").text
+    assert "Who used the tokens" in page
+    assert page.count("<path") == 2
+    assert "implementer: 9,000 tokens, 90.0%" in page
+    assert "<small>10.0%</small>" in page
+
+
+def test_a_lone_agent_is_a_whole_disc_and_no_tokens_is_no_pie() -> None:
+    from shelf.domain.usage import StepUsage, Usage  # noqa: PLC0415
+
+    app = Fixture()
+    waiting(app)
+    app.runner.usages[WorkId("work-1")] = (StepUsage("intake", 0, "intake", Usage(input_tokens=5)),)
+    page = app.client.get("/work/work-1/usage").text
+    assert "<circle" in page
+    assert "100%" in page
+    app.runner.usages[WorkId("work-1")] = (StepUsage("intake", 0, "intake", Usage()),)
+    assert "Who used the tokens" not in app.client.get("/work/work-1/usage").text
+
+
+def test_a_sliver_of_the_pie_is_not_shown_as_zero() -> None:
+    from shelf.domain.usage import StepUsage, Usage  # noqa: PLC0415
+
+    app = Fixture()
+    waiting(app)
+    app.runner.usages[WorkId("work-1")] = (
+        StepUsage("implement", 0, "implementer", Usage(input_tokens=1_000_000)),
+        StepUsage("title", 0, "titler", Usage(input_tokens=10)),
+    )
+    page = app.client.get("/work/work-1/usage").text
+    assert "&lt;0.1%" in page
+    assert "<small>0.0%</small>" not in page

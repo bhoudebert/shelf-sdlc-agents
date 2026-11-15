@@ -9,6 +9,22 @@
     <dt>Cost</dt><dd>{{ "$%.2f"|format(used.total.cost_usd) if used.total.cost_usd is not none else "not reported" }}</dd>
     <dt>Agent time</dt><dd>{{ used.total.seconds | round | int }} s, {{ used.total.turns }} turns</dd>
   </dl>
+  {% if pie %}
+  <h3 id="usage-pie">Who used the tokens</h3>
+  <figure class="pie" aria-labelledby="usage-pie">
+    <svg viewBox="0 0 120 120" role="img" aria-label="Share of the tokens each agent used">
+      {% for slice in pie %}
+        {% if slice.path %}<path class="slice-{{ slice.colour }}" d="{{ slice.path }}"><title>{{ slice.agent }}: {{ "{:,}".format(slice.tokens) }} tokens, {{ slice.percent }}%</title></path>
+        {% else %}<circle class="slice-{{ slice.colour }}" cx="60" cy="60" r="56"><title>{{ slice.agent }}: {{ "{:,}".format(slice.tokens) }} tokens, 100%</title></circle>{% endif %}
+      {% endfor %}
+    </svg>
+    <ul class="legend">
+      {% for slice in pie %}
+      <li><i class="swatch slice-{{ slice.colour }}" aria-hidden="true"></i><span class="who">{{ slice.agent }}</span> <span class="n">{{ "{:,}".format(slice.tokens) }}</span> <small>{{ "<0.1%" if slice.percent < 0.1 else "%s%%"|format(slice.percent) }}</small></li>
+      {% endfor %}
+    </ul>
+  </figure>
+  {% endif %}
   <h3 id="usage-agents">By agent</h3>
   <div class="table-wrap">
     <table class="admin-table" aria-labelledby="usage-agents">
