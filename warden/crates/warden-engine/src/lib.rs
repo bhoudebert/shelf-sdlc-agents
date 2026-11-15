@@ -151,16 +151,112 @@ pub fn judge_write(policy: &Policy, ctx: &Context, path: &str) -> Verdict {
     conclude(policy, path.to_owned(), None, findings, None, false)
 }
 
-/// Judge a fetch of a URL.
+/// The longest address a fetch may use, and the longest query string or search: more than that is a payload, not a
+/// question.
+const MAX_URL: usize = 2048;
+const MAX_QUERY: usize = 512;
+
+/// Judge a fetch of a URL: what it reaches, and whether it carries something out in its address.
 #[must_use]
 pub fn judge_web(policy: &Policy, url: &str) -> Verdict {
     let mut findings = vec![Finding { category: Category::Network, detail: format!("fetches {url}") }];
-    if let Some(host) = host_of(url)
-        && let Some(why) = policy.network.denies(&host)
-    {
-        findings.push(Finding { category: Category::BlockedDomain, detail: why });
+    if let Some(scheme) = foreign_scheme(url) {
+        findings
+            .push(Finding { category: Category::Exfil, detail: format!("{scheme}: is not an http or https address") });
+    }
+    if let Some(host) = host_of(url) {
+        if let Some(why) = internal_host(&host) {
+            findings.push(Finding { category: Category::BlockedDomain, detail: why });
+        }
+        if let Some(why) = policy.network.denies(&host) {
+            findings.push(Finding { category: Category::BlockedDomain, detail: why });
+        }
+    }
+    if let Some(kind) = credential_in(url) {
+        findings.push(Finding { category: Category::Exfil, detail: format!("the address contains {kind}") });
+    }
+    let query = url.split_once('?').map_or("", |(_, query)| query);
+    if url.len() > MAX_URL || query.len() > MAX_QUERY {
+        findings.push(Finding {
+            category: Category::Exfil,
+            detail: "the address is long enough to carry data out in it".to_owned(),
+        });
     }
     conclude(policy, url.to_owned(), None, findings, None, false)
+}
+
+/// Judge a web search: what is searched for must not hold a credential or be a payload.
+#[must_use]
+pub fn judge_search(policy: &Policy, query: &str) -> Verdict {
+    let mut findings = vec![Finding { category: Category::Network, detail: "searches the web".to_owned() }];
+    if let Some(kind) = credential_in(query) {
+        findings.push(Finding { category: Category::Exfil, detail: format!("the search contains {kind}") });
+    }
+    if query.len() > MAX_QUERY {
+        findings.push(Finding {
+            category: Category::Exfil,
+            detail: "the search is long enough to carry data out in it".to_owned(),
+        });
+    }
+    conclude(policy, shorten_subject(query), None, findings, None, false)
+}
+
+fn shorten_subject(text: &str) -> String {
+    text.chars().take(80).collect()
+}
+
+/// The scheme of `url` when it is not http or https: a file, a data URL, an FTP or SSH address.
+fn foreign_scheme(url: &str) -> Option<String> {
+    let (scheme, rest) = url.split_once(':')?;
+    let scheme = scheme.to_ascii_lowercase();
+    let named = scheme.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '.'));
+    let known = matches!(
+        scheme.as_str(),
+        "file" | "ftp" | "ftps" | "data" | "javascript" | "gopher" | "ssh" | "ldap" | "dict" | "jar"
+    );
+    let remote = rest.starts_with("//") && !matches!(scheme.as_str(), "http" | "https");
+    (named && !scheme.is_empty() && (known || remote)).then_some(scheme)
+}
+
+/// Why `host` is not a place a fetch may go: this machine, a private network, or a name that is not on the internet.
+fn internal_host(host: &str) -> Option<String> {
+    let host = host.trim_end_matches('.').to_ascii_lowercase();
+    let local_name = host == "localhost"
+        || [".localhost", ".internal", ".local", ".localdomain", ".lan", ".home.arpa"]
+            .iter()
+            .any(|suffix| host.ends_with(suffix));
+    if local_name {
+        return Some(format!("{host} is a local or internal name"));
+    }
+    if let Ok(ip) = host.parse::<std::net::Ipv4Addr>() {
+        let [a, b, ..] = ip.octets();
+        let shared = a == 100 && (64..128).contains(&b);
+        if ip.is_loopback()
+            || ip.is_private()
+            || ip.is_link_local()
+            || ip.is_unspecified()
+            || ip.is_broadcast()
+            || shared
+        {
+            return Some(format!("{host} is a private or local address"));
+        }
+    }
+    if let Ok(ip) = host.parse::<std::net::Ipv6Addr>() {
+        let first = ip.segments()[0];
+        let unique_local = first & 0xfe00 == 0xfc00;
+        let link_local = first & 0xffc0 == 0xfe80;
+        let mapped_private =
+            ip.to_ipv4_mapped().is_some_and(|v4| v4.is_loopback() || v4.is_private() || v4.is_link_local());
+        if ip.is_loopback() || ip.is_unspecified() || unique_local || link_local || mapped_private {
+            return Some(format!("{host} is a private or local address"));
+        }
+    }
+    // 2130706433 and 0x7f000001 are 127.0.0.1 to a resolver: a number for a host is a way round the checks above.
+    let numeric = !host.is_empty() && host.chars().all(|c| c.is_ascii_digit());
+    if numeric || host.starts_with("0x") {
+        return Some(format!("{host} is a number written as a host name"));
+    }
+    None
 }
 
 /// Judge text that is about to be written, sent or typed: a credential in it is a finding of `category`
@@ -189,7 +285,11 @@ fn word_of(text: &str) -> warden_shell::Word {
 fn host_of(url: &str) -> Option<String> {
     let rest = url.split_once("://").map_or(url, |(_, rest)| rest);
     let authority = rest.split(['/', '?', '#']).next()?;
-    let host = authority.rsplit('@').next()?.split(':').next()?;
+    let hostport = authority.rsplit('@').next()?;
+    let host = match hostport.strip_prefix('[') {
+        Some(inside) => inside.split(']').next()?,
+        None => hostport.split(':').next()?,
+    };
     (!host.is_empty()).then(|| host.to_owned())
 }
 

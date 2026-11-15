@@ -42,6 +42,7 @@ fn opencode_tool(name: &str, args: &Value) -> Option<Tool> {
             new_text: text(args, "newString").or_else(|| text(args, "new_string")).unwrap_or_default().to_owned(),
         }),
         "webfetch" => text(args, "url").map(|url| Tool::Web { url: url.to_owned() }),
+        "websearch" => text(args, "query").map(|query| Tool::Search { query: query.to_owned() }),
         "task" => Some(Tool::Agent),
         other if other.contains('_') && !matches!(other, "todo_write" | "todo_read") => {
             let (server, tool) = other.split_once('_').unwrap_or((other, ""));

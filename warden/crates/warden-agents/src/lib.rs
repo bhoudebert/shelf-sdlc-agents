@@ -105,6 +105,11 @@ pub enum Tool {
         /// The URL.
         url: String,
     },
+    /// Searching the web.
+    Search {
+        /// What is searched for.
+        query: String,
+    },
     /// A tool of an MCP server.
     Mcp {
         /// The server.

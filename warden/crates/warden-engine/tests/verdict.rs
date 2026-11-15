@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use warden_engine::{Context, judge_command, judge_read, judge_tool, judge_web, judge_write};
+use warden_engine::{Context, judge_command, judge_read, judge_search, judge_tool, judge_web, judge_write};
 use warden_policy::{Category, Decision, Layer, Policy};
 
 fn ctx() -> Context {
@@ -124,6 +124,87 @@ fn a_fetch_is_judged_by_its_host() {
     assert_eq!(judge_web(&p, "https://docs.rs/regex").decision, Decision::Allow);
     assert_eq!(judge_web(&p, "https://webhook.site/abc").decision, Decision::Deny);
     assert_eq!(judge_web(&p, "https://user:pw@sub.pastebin.com:8443/x?y=1").decision, Decision::Deny);
+}
+
+#[test]
+fn reading_documentation_is_allowed() {
+    let p = policy(&["[categories]\nnetwork = \"allow\"\nexfil = \"deny\""]);
+    for url in
+        ["https://docs.rs/serde/latest/serde/", "https://opencode.ai/docs/mcp-servers/", "http://example.org/a?b=c"]
+    {
+        assert_eq!(judge_web(&p, url).decision, Decision::Allow, "{url}");
+    }
+}
+
+#[test]
+fn an_address_inside_the_machine_or_the_network_is_always_refused() {
+    let p = policy(&["[categories]\nblocked_domain = \"allow\""]);
+    for url in [
+        "http://localhost:8080/",
+        "http://api.localhost/x",
+        "http://127.0.0.1/",
+        "http://10.0.0.5/admin",
+        "http://172.16.3.4/",
+        "http://192.168.1.1/",
+        "http://169.254.169.254/latest/meta-data/",
+        "http://100.64.0.1/",
+        "http://[::1]:3000/",
+        "http://[fd00::1]/",
+        "http://[::ffff:10.0.0.1]/",
+        "http://db.internal/",
+        "http://printer.local/",
+        "http://2130706433/",
+        "http://0x7f000001/",
+        "http://0.0.0.0/",
+    ] {
+        assert_eq!(judge_web(&p, url).decision, Decision::Deny, "{url}");
+    }
+}
+
+#[test]
+fn a_public_address_that_looks_close_is_not_refused() {
+    let p = policy(&["[categories]\nnetwork = \"allow\""]);
+    for url in
+        ["http://172.32.0.1/", "http://100.128.0.1/", "http://[2606:4700::1111]/", "https://internal.example.com/x"]
+    {
+        assert_eq!(judge_web(&p, url).decision, Decision::Allow, "{url}");
+    }
+}
+
+#[test]
+fn a_scheme_other_than_http_is_refused() {
+    let p = policy(&["[categories]\nnetwork = \"allow\"\nexfil = \"deny\""]);
+    for url in [
+        "file:///etc/passwd",
+        "ftp://example.org/x",
+        "data:text/plain;base64,aGk=",
+        "gopher://example.org/",
+        "ssh://git@example.org/x",
+    ] {
+        assert_eq!(judge_web(&p, url).decision, Decision::Deny, "{url}");
+    }
+    assert_eq!(judge_web(&p, "localhost:8080/x").decision, Decision::Deny, "no scheme, still the machine");
+    assert_eq!(judge_web(&p, "docs.rs/serde").decision, Decision::Allow, "no scheme means https");
+}
+
+#[test]
+fn a_credential_or_a_payload_in_an_address_is_refused_as_exfiltration() {
+    let p = policy(&["[categories]\nnetwork = \"allow\"\nexfil = \"deny\""]);
+    let token = "https://example.org/x?k=ghp_abcdefghijklmnopqrstuvwxyz0123456789";
+    assert_eq!(judge_web(&p, token).decision, Decision::Deny);
+    let long = format!("https://example.org/x?d={}", "a".repeat(600));
+    assert_eq!(judge_web(&p, &long).decision, Decision::Deny);
+    let verdict = judge_web(&p, &format!("https://example.org/{}", "a".repeat(2100)));
+    assert_eq!(verdict.decision, Decision::Deny);
+    assert!(verdict.findings.iter().any(|f| f.category == Category::Exfil));
+}
+
+#[test]
+fn a_search_is_judged_by_what_it_sends() {
+    let p = policy(&["[categories]\nnetwork = \"allow\"\nexfil = \"deny\""]);
+    assert_eq!(judge_search(&p, "opencode mcp servers configuration").decision, Decision::Allow);
+    assert_eq!(judge_search(&p, "ghp_abcdefghijklmnopqrstuvwxyz0123456789 login").decision, Decision::Deny);
+    assert_eq!(judge_search(&p, &"q ".repeat(300)).decision, Decision::Deny);
 }
 
 #[test]

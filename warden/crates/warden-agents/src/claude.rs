@@ -52,6 +52,7 @@ pub(crate) fn tool_of(name: &str, input: &Value) -> Option<Tool> {
             Some(Tool::Edit { path: path_of(input)?, new_text: edits.join("\n") })
         }
         "WebFetch" => text(input, "url").map(|url| Tool::Web { url: url.to_owned() }),
+        "WebSearch" => text(input, "query").map(|query| Tool::Search { query: query.to_owned() }),
         "Task" | "Agent" => Some(Tool::Agent),
         _ => {
             let rest = name.strip_prefix("mcp__")?;
