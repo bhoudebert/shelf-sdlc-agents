@@ -118,6 +118,18 @@ async def _archived(web: Web, session: Session, work_id: str) -> Response:
     return _reply(text, work_id)
 
 
+async def _guard_calls(web: Web) -> tuple[StoppedCall, ...] | None:
+    """The calls the guard flagged, newest first, or ``None`` when it cannot be read: never an error."""
+    reader = web.deps.guard
+    if reader is None:
+        return None
+    try:
+        result = await reader.report()
+    except Exception:  # noqa: BLE001 - the file is still delivered, and says the guard could not be read
+        return None
+    return result.value.recent if isinstance(result, Ok) else None
+
+
 def router(web: Web) -> APIRouter:
     """The download route: it gives what the page shows, to the people who may see the page."""
     routes = APIRouter()
