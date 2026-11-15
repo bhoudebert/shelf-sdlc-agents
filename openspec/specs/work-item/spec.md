@@ -212,3 +212,17 @@ The system SHALL let the result of a producing or reviewing step carry what its 
 
 - **WHEN** a step's result carries no usage
 - **THEN** the work behaves as before
+
+### Requirement: A step can carry the session of the agent that ran it, and be told the one to continue
+
+The system SHALL let the command to run a step carry the session the agent should continue, and the result of a producing or reviewing step carry the session the agent ran in, without that changing what the result means: two results that differ only in the session SHALL lead to the same decision.
+
+#### Scenario: A verdict with a session
+
+- **WHEN** a reviewer's result approves and carries its session
+- **THEN** the work moves on exactly as it does for the same verdict with no session
+
+#### Scenario: A step with no session to continue
+
+- **WHEN** a step is run with no session
+- **THEN** it behaves as it always did
