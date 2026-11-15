@@ -215,7 +215,9 @@ pub fn adoption_json(records: &[warden_audit::Record]) -> String {
             })
         })
         .collect();
+    let mode = calls.last().map_or("", |record| record.entry.mode.as_str());
     let object = serde_json::json!({
+        "mode": mode,
         "records": summary.total,
         "calls": calls.len(),
         "would_stop": would_stop,
