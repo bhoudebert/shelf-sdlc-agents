@@ -5,10 +5,25 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
-from shelf.domain.guard import GuardReport
+from shelf.domain.guard import GuardReport, StoppedCall
 from shelf.domain.result import Err, Ok, Result
 
 TIMEOUT_SECONDS = 10
+
+
+
+def _stopped(call: dict[str, Any]) -> StoppedCall:
+    return StoppedCall(
+        at=str(call["at"]),
+        agent=str(call["agent"]),
+        session=str(call["session"]),
+        kind=str(call["kind"]),
+        decision=str(call["decision"]),
+        intended=str(call.get("intended", "")),
+        categories=tuple(str(name) for name in call["categories"]),
+        reason=str(call["reason"]),
+        summary=str(call["summary"]),
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,6 +47,8 @@ class WardenReader:
                     redactions=sum(int(count) for count in data["redactions"].values()),
                     chain_intact=verified == 0,
                     categories={str(name): int(count) for name, count in data["by_category"].items()},
+                    recent=tuple(_stopped(call) for call in data.get("recent", [])),
+                    web_hosts={str(host): int(count) for host, count in data.get("web_hosts", {}).items()},
                 )
             )
         except FileNotFoundError:
