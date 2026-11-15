@@ -822,3 +822,22 @@ The system SHALL, when a person rejects or aborts a piece of work from its page 
 
 - **WHEN** a person approves or asks for changes
 - **THEN** no pull request is closed
+
+### Requirement: The work page shows who used the most tokens, as a pie
+
+The system SHALL show on the page of a piece of work, with its usage, a pie chart of the tokens each agent used over the whole work, with a legend that names each agent with its tokens and its share of the total (so that nothing is told by colour alone), in colours that read in the light and the dark theme; SHALL show a single agent as a whole disc; and SHALL show no chart when no tokens were recorded.
+
+#### Scenario: Several agents
+
+- **WHEN** a person opens the page of a work in which the developer used most of the tokens
+- **THEN** the pie shows the developer's slice as the largest and the legend lists each agent with its tokens and its percentage
+
+#### Scenario: One agent
+
+- **WHEN** only one agent has run
+- **THEN** the pie is one whole disc with that agent in the legend at 100%
+
+#### Scenario: Nothing recorded
+
+- **WHEN** no step reported tokens
+- **THEN** no pie is shown and the rest of the usage section is unchanged
