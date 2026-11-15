@@ -1,6 +1,6 @@
 """A stand-in for the Anthropic Messages API for Warden's live check: the "model" asks to run one Bash command, then says it is done.
 
-Usage: mock_anthropic.py PORT COMMAND LOGFILE. It never sees a real model or a real key."""
+Usage: mock_anthropic.py PORT COMMAND LOGFILE. A COMMAND of the form `@Tool {json}` asks for that tool with that input instead. It never sees a real model or a real key."""
 import json
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -8,6 +8,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 COMMAND = sys.argv[2]
 LOG = sys.argv[3]
 state = {"calls": 0}
+if COMMAND.startswith("@"):
+    _name, _input = COMMAND[1:].split(" ", 1)
+    TOOL = (_name, json.loads(_input))
+else:
+    TOOL = ("Bash", {"command": COMMAND, "description": "test"})
 
 def sse(events):
     out = ""
@@ -44,7 +49,7 @@ class H(BaseHTTPRequestHandler):
             if has_result:
                 payload = message([{"type": "text", "text": "I could not run that."}], "end_turn")
             else:
-                payload = message([{"type": "tool_use", "id": "toolu_01", "name": "Bash", "input": {"command": COMMAND, "description": "test"}}], "tool_use")
+                payload = message([{"type": "tool_use", "id": "toolu_01", "name": TOOL[0], "input": TOOL[1]}], "tool_use")
             self.send_response(200); self.send_header("content-type", "text/event-stream"); self.send_header("content-length", str(len(payload))); self.end_headers(); self.wfile.write(payload); return
         if "/v1/messages" in self.path and req.get("stream"):
             payload = message([{"type": "text", "text": "ok"}], "end_turn")
