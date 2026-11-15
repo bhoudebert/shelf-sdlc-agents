@@ -29,7 +29,7 @@ CATEGORIES: dict[str, tuple[str, ...]] = {
 }
 """For each kind of document, where repositories usually keep it (glob patterns)."""
 
-EARLIER_WORK = "docs/shelf/*/spec.md"
+EARLIER_WORK = (".shelf/*/spec.md", "docs/shelf/*/spec.md")
 """The specs of earlier pieces of work done here: they describe behaviour that already exists."""
 
 LIMIT = 25

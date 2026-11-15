@@ -23,7 +23,7 @@ def test_each_document_is_written_by_exactly_one_role() -> None:
 
 
 def test_documents_live_under_the_work_id() -> None:
-    assert documents_dir(WorkId("work-1")) == "docs/shelf/work-1"
+    assert documents_dir(WorkId("work-1")) == ".shelf/work-1"
 
 
 @pytest.mark.parametrize(

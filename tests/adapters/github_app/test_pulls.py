@@ -254,9 +254,7 @@ async def test_the_progress_comment_is_created_once_then_edited_in_place(setting
 
 def test_a_gate_announcement_links_the_document_to_judge() -> None:
     text = announcement(NEED, AskPerson(Phase.SPEC_APPROVAL, Reason.GATE, ""))
-    assert (
-        "[docs/shelf/work-1/spec.md](https://github.com/acme/shop/blob/shelf/work-1/docs/shelf/work-1/spec.md)" in text
-    )
+    assert "[.shelf/work-1/spec.md](https://github.com/acme/shop/blob/shelf/work-1/.shelf/work-1/spec.md)" in text
     assert "Read it" not in announcement(NEED, AskPerson(Phase.IMPLEMENT, Reason.FAILURE, "boom"))
 
 
@@ -377,7 +375,7 @@ def test_work_on_a_pull_request_that_exists_links_no_plan_because_it_writes_none
 
 def test_work_of_our_own_still_links_its_plan_at_the_merge() -> None:
     text = announcement(NEED, AskPerson(Phase.PULL_REQUEST, Reason.MERGE, ""))
-    assert "docs/shelf/work-1/plan.md" in text
+    assert ".shelf/work-1/plan.md" in text
 
 
 def graphql_handler(comments: list[dict[str, object]], sent: list[str]) -> httpx.MockTransport:

@@ -6,6 +6,7 @@ from enum import StrEnum, auto
 
 from shelf.domain.pipeline import EntryPoint, Phase
 from shelf.domain.policy import Policy
+from shelf.domain.results import Results
 
 
 class InvalidConfigError(ValueError):
@@ -38,6 +39,7 @@ class RepoConfig:
     base_branch: str = "main"
     checks: tuple[str, ...] = ()
     roles: Mapping[Role, frozenset[str]] = field(default_factory=dict[Role, frozenset[str]])
+    results: Results = field(default_factory=Results)
 
     def members(self) -> frozenset[str]:
         """Everyone with a role."""

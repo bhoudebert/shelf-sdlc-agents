@@ -10,6 +10,7 @@ from shelf.domain.operator import OperatorConfig
 from shelf.domain.pipeline import EntryPoint
 from shelf.domain.policy import Policy
 from shelf.domain.polling import Mode
+from shelf.domain.results import KINDS, Conflicts, Results
 from shelf.domain.roles import ROLES, TITLER
 
 ConfigError = InvalidConfigError
@@ -73,10 +74,33 @@ def parse_operator(text: str) -> OperatorConfig:
     )
 
 
+def _results(table: Mapping[str, Any]) -> Results:
+    """``[results]``: where the specs and the decision records of a repository are, and which of them a run writes."""
+    _only("results", table, {"specs", "decisions", "write", "conflicts"})
+    defaults = Results()
+    folders: dict[str, str] = {}
+    for key, default in (("specs", defaults.specs), ("decisions", defaults.decisions)):
+        value = table.get(key, default)
+        if not isinstance(value, str) or not value.strip() or value.startswith(("/", "..")) or ".." in value.split("/"):
+            message = f"[results] {key} must be a folder inside the repository, such as {default!r}"
+            raise ConfigError(message)
+        folders[key] = value.strip("/")
+    write = _names(table, "write") if "write" in table else defaults.write
+    if not write <= KINDS:
+        message = f"[results] write may list {', '.join(sorted(KINDS))}, not {', '.join(sorted(write - KINDS))}"
+        raise ConfigError(message)
+    try:
+        conflicts = Conflicts(table.get("conflicts", defaults.conflicts))
+    except ValueError as error:
+        message = f"[results] conflicts must be one of {', '.join(c.value for c in Conflicts)}"
+        raise ConfigError(message) from error
+    return Results(folders["specs"], folders["decisions"], write, conflicts)
+
+
 def parse_repo_config(text: str) -> RepoConfig:
     """Read a repository's ``.shelf/config.toml``."""
     document = _load(text)
-    _only("shelf", document, {"entries", "base_branch", "checks", "policy", "roles"})
+    _only("shelf", document, {"entries", "base_branch", "checks", "policy", "roles", "results"})
     policy = document.get("policy", {})
     _only("policy", policy, {"max_rounds", "spec_approval", "design_review", "proceed_on_deadlock"})
     roles = document.get("roles", {})
@@ -92,4 +116,5 @@ def parse_repo_config(text: str) -> RepoConfig:
         base_branch=str(document.get("base_branch", "main")),
         checks=tuple(str(check) for check in document.get("checks", [])),
         roles=role_map,
+        results=_results(document.get("results", {})),
     )

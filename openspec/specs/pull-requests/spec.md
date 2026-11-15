@@ -137,12 +137,17 @@ The system SHALL post, label and poll nothing for a pull request that is not ope
 
 ### Requirement: The documents are read from the work's branch
 
-The system SHALL read the request, spec, design and plan of a piece of work from its branch with the App's token, skipping the ones not written yet.
+The system SHALL read the request, spec, design and plan of a piece of work from its branch with the App's token, skipping the ones not written yet, from the work's `.shelf/<work-id>/` folder and, when a document is not there, from the `docs/shelf/<work-id>/` folder that earlier runs used.
 
 #### Scenario: Only a spec so far
 
 - **WHEN** only the request and the spec exist
 - **THEN** those two are returned
+
+#### Scenario: A work from before the `.shelf` folder
+
+- **WHEN** a work's spec is in `docs/shelf/<work-id>/spec.md` and not in `.shelf/<work-id>/`
+- **THEN** that spec is returned
 
 ### Requirement: Agents speak on the pull request as the team members they stand in for
 

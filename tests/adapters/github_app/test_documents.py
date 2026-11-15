@@ -29,9 +29,19 @@ async def test_the_documents_that_exist_are_read_from_the_works_branch(settings:
     assert found == {"request.md": "loyalty points\n", "spec.md": "# Spec\n"}
     assert all(r.url.params["ref"] == "shelf/work-1" for r in seen)
     assert all(r.headers["Accept"] == "application/vnd.github.raw+json" for r in seen)
-    assert {r.url.path for r in seen} >= {"/repos/acme/shop/contents/docs/shelf/work-1/spec.md"}
+    assert {r.url.path for r in seen} >= {"/repos/acme/shop/contents/.shelf/work-1/spec.md"}
 
 
 async def test_a_work_with_nothing_written_has_no_documents(settings: GitHubAppSettings) -> None:
     transport = httpx.MockTransport(lambda request: httpx.Response(404))
     assert await documents(settings, transport).read(REPO, WorkId("work-1")) == {}
+
+
+async def test_a_work_from_before_the_shelf_folder_is_still_read_from_the_old_one(settings: GitHubAppSettings) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/repos/acme/shop/contents/docs/shelf/work-1/spec.md":
+            return httpx.Response(200, text="# Old spec\n")
+        return httpx.Response(404)
+
+    found = await documents(settings, httpx.MockTransport(handler)).read(REPO, WorkId("work-1"))
+    assert found == {"spec.md": "# Old spec\n"}
