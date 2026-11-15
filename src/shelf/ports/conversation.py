@@ -14,6 +14,10 @@ class Conversations(Protocol):
         """The comments, oldest first, without the one progress comment that the timeline already tells."""
         ...
 
+    async def pull_request_of(self, repo: RepoRef, branch: str) -> int | None:
+        """The number of the pull request whose head is ``branch`` (open or not), or ``None`` when there is none."""
+        ...
+
     async def description(self, repo: RepoRef, pull_request: int) -> str:
         """The description of the pull request, as written: for the work this system opened, the request."""
         ...

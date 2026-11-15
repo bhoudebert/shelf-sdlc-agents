@@ -691,3 +691,17 @@ The system SHALL give the worker the folder where the web page keeps its rules, 
 
 - **WHEN** `SHELF_GUARD_RULES_DIR` is empty on the worker
 - **THEN** only the built-in and configured sites are reachable
+
+### Requirement: The worker keeps the records of agent runs where the web page can read them
+
+The system SHALL give the worker a folder for the records of agent runs that it can write and the web service can only read, named by `SHELF_RUNS_DIR` in both services, in a volume of its own; and SHALL keep no record, and run as before, when the variable is empty.
+
+#### Scenario: A deployment with the compose file
+
+- **WHEN** the stack starts from the compose file
+- **THEN** the worker writes the records into the volume and the web service reads them from it, read-only
+
+#### Scenario: No folder
+
+- **WHEN** `SHELF_RUNS_DIR` is empty
+- **THEN** no record is kept and the downloaded file says so

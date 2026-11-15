@@ -46,6 +46,7 @@ class Settings:
     nix: bool
     """Whether a repository's Nix flake may give the agent its environment (``SHELF_NIX=on``)."""
     guard_rules_dir: str
+    runs_dir: str
     """The folder where the admin page keeps the rules it adds to the guard; empty when this instance has none."""
     """Whether agents may read the web (fetch an address, search); ``SHELF_WEB=off`` turns it off."""
     ci_wait: float
@@ -152,6 +153,7 @@ def from_environ(environ: Mapping[str, str]) -> Settings:
         web=_switch(environ, "SHELF_WEB", default=True),
         nix=_switch(environ, "SHELF_NIX", default=False),
         guard_rules_dir=environ.get("SHELF_GUARD_RULES_DIR", "").strip(),
+        runs_dir=environ.get("SHELF_RUNS_DIR", "").strip(),
         ci_wait=float(environ.get("SHELF_CI_WAIT", "1800")),
         ci_grace=float(environ.get("SHELF_CI_GRACE", "120")),
         sandbox=environ.get("SHELF_SANDBOX_DISABLED", "").strip().lower() not in {"1", "true", "yes"},

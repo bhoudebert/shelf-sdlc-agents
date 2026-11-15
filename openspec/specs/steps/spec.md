@@ -1029,3 +1029,42 @@ The system SHALL, for the developer and the code reviewer on a repository that u
 
 - **WHEN** the agent run raises
 - **THEN** the block is removed all the same
+
+
+### Requirement: Every agent run leaves a record that can be read after the worker is gone
+
+The system SHALL, when a folder for run records is configured, keep for every agent run (finished or failed) a record with: the work, the phase, the round, the role and the model, when it started and ended, how it ended and why it stopped, what it used, whether it continued an earlier session or started again after one could not be continued, what the worker had told it about its tools and about the CI, every tool call it made in order (the tool, what it was about shortened, whether it worked and, for a failure, the start of what the tool said), the calls its permissions refused, the errors the run reported and how long its answer was; SHALL replace anything that looks like a credential in a record by a mark before it is kept; SHALL keep at most a bounded number of calls per run, every failure first; SHALL never stop or fail a step because a record could not be kept; and SHALL keep the records of a work for thirty days after its last run.
+
+#### Scenario: A run that failed
+
+- **WHEN** an agent run raises
+- **THEN** a record with outcome failed, the error and the calls made until then is kept, and the step fails as before
+
+#### Scenario: A tool call that did not work
+
+- **WHEN** an agent's command comes back with an error
+- **THEN** the record holds that command, shortened, marked as failed, with the start of the error
+
+#### Scenario: A credential in a command
+
+- **WHEN** a command or an error holds a token or a password
+- **THEN** the record holds a mark where it was
+
+#### Scenario: A store that cannot be written
+
+- **WHEN** the folder is full or read-only
+- **THEN** the step goes on and the failure is logged
+
+### Requirement: A run record names the repository, who asked and how the work began
+
+The system SHALL put in every run record the repository of the work (as `owner/name`), the login of the person who asked for it and how the work began, so that a record alone says which work it belongs to and who may see it after the workflow engine has forgotten the work.
+
+#### Scenario: A run of a work
+
+- **WHEN** an agent run of a work asked for by alice on acme/shop is recorded
+- **THEN** the record holds `acme/shop`, `alice` and how the work began
+
+#### Scenario: A record from before
+
+- **WHEN** a record written before these fields existed is read
+- **THEN** they are empty and the work cannot be found from it

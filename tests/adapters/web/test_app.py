@@ -36,6 +36,7 @@ from shelf.ports.documents import Documents
 from shelf.ports.guard import GuardReader
 from shelf.ports.guard_rules import GuardRules
 from shelf.ports.references import References
+from shelf.ports.run_records import RunRecords
 from shelf.ports.runner import UnreachableWorkError
 from shelf.ports.steps import PullRequests
 from tests.fakes import FakeConfigs, FakeForge, FakeRunner
@@ -69,6 +70,7 @@ class Fixture:
         guard: GuardReader | None = None,
         guard_rules: GuardRules | None = None,
         pulls: PullRequests | None = None,
+        run_records: RunRecords | None = None,
     ) -> None:
         self.forge = FakeForge(identities={"token-code": ALICE}, repos={"token-code": (REPO,)})
         self.runner = FakeRunner()
@@ -89,6 +91,7 @@ class Fixture:
             guard,
             pulls,
             guard_rules,
+            run_records,
         )
         self.client = TestClient(create_app(deps), base_url="https://shelf.example.org", follow_redirects=False)
 
@@ -642,9 +645,15 @@ def test_work_without_a_kept_title_is_still_listed_under_its_repository(app: Fix
 
 
 class FakeConversations:
-    def __init__(self, story: list[Message], *, fail: bool = False, body: str = "") -> None:
+    def __init__(
+        self, story: list[Message], *, fail: bool = False, body: str = "", branches: dict[str, int] | None = None
+    ) -> None:
         self.story, self.fail, self.body = story, fail, body
+        self.branches = branches or {}
         self.read_for: list[tuple[RepoRef, int]] = []
+
+    async def pull_request_of(self, repo: RepoRef, branch: str) -> int | None:
+        return self.branches.get(branch)
 
     async def description(self, repo: RepoRef, pull_request: int) -> str:
         return self.body
@@ -1509,3 +1518,149 @@ def test_nobody_downloads_a_work_they_may_not_see() -> None:
 def test_the_work_page_offers_the_download() -> None:
     fixture = with_work(FakeDocuments({}))
     assert 'href="/work/work-1/export"' in fixture.client.get("/work/work-1").text
+
+
+def test_the_downloaded_file_lists_what_the_guard_flagged_while_the_work_ran() -> None:
+    during = StoppedCall(
+        "2026-11-15T16:39:14",
+        "claude",
+        "s1",
+        "bash",
+        "allow",
+        "deny",
+        ("tamper",),
+        "protected file",
+        "cat > opencode.json",
+    )
+    before = StoppedCall("2026-11-10T10:00:00", "claude", "s1", "bash", "deny", "deny", ("exfil",), "exfil", "curl x")
+    report = GuardReport(9, 2, 0, chain_intact=True, recent=(during, before), mode="enforce")
+    fixture = Fixture(documents=FakeDocuments({}), conversations=FakeConversations(STORY), guard=FakeGuard(Ok(report)))
+    fixture.sign_in()
+    fixture.runner.views[WorkId("work-1")] = WorkView(
+        WorkId("work-1"),
+        REPO,
+        "alice",
+        EntryPoint.NEED,
+        Phase.DESIGN,
+        pull_request_url="https://github.com/acme/shop/pull/12",
+        updated_at="2026-11-15T17:00:00+00:00",
+        times=(("spec", "2026-11-15T15:00:00+00:00"),),
+    )
+    text = fixture.client.get("/work/work-1/export").text
+    assert "## What the guard flagged while the work ran" in text
+    assert "cat > opencode.json" in text
+    assert "curl x" not in text  # made before the work began
+    assert "not stopped (recorded; the policy meant deny)" in text
+
+
+def test_a_guard_that_cannot_be_read_is_said_in_the_downloaded_file() -> None:
+    fixture = Fixture(
+        documents=FakeDocuments({}), conversations=FakeConversations(STORY), guard=FakeGuard(Err("not installed"))
+    )
+    fixture.sign_in()
+    fixture.runner.views[WorkId("work-1")] = WorkView(WorkId("work-1"), REPO, "alice", EntryPoint.NEED, Phase.DESIGN)
+    response = fixture.client.get("/work/work-1/export")
+    assert response.status_code == 200
+    assert "The guard could not be read" in response.text
+
+
+class MemoryRuns:
+    def __init__(self, found: list[Any]) -> None:
+        self.found = found
+
+    async def write(self, record: Any) -> None:
+        self.found.append(record)
+
+    async def read(self, work_id: str) -> list[Any]:
+        return self.found
+
+
+def test_the_downloaded_file_holds_the_run_records_with_the_failed_commands() -> None:
+    from shelf.domain.runlog import RunRecord, ToolEvent  # noqa: PLC0415
+
+    run = RunRecord(
+        "work-1",
+        "implement",
+        0,
+        "implementer",
+        "t0",
+        "t1",
+        "failed",
+        error="boom",
+        tools=(ToolEvent("Bash", "npm ci", ok=False, note="EACCES"),),
+        tool_calls=1,
+    )
+    fixture = Fixture(
+        documents=FakeDocuments({}), conversations=FakeConversations(STORY), run_records=MemoryRuns([run])
+    )
+    fixture.sign_in()
+    fixture.runner.views[WorkId("work-1")] = WorkView(WorkId("work-1"), REPO, "alice", EntryPoint.NEED, Phase.DESIGN)
+    text = fixture.client.get("/work/work-1/export").text
+    assert "FAILED: EACCES" in text
+    assert "implementer · implement, round 0 · failed" in text
+    assert "**Error:** boom" in text
+
+
+def test_a_downloaded_file_from_an_instance_with_no_run_records_says_so() -> None:
+    fixture = Fixture(documents=FakeDocuments({}), conversations=FakeConversations(STORY))
+    fixture.sign_in()
+    fixture.runner.views[WorkId("work-1")] = WorkView(WorkId("work-1"), REPO, "alice", EntryPoint.NEED, Phase.DESIGN)
+    assert "keeps no record of agent runs" in fixture.client.get("/work/work-1/export").text
+
+
+def archived(
+    records: list[Any], conversations: FakeConversations | None = None, repos: tuple[RepoRef, ...] = ()
+) -> Any:
+    fixture = Fixture(
+        documents=FakeDocuments({"spec.md": "# the spec"}),
+        conversations=conversations
+        or FakeConversations(STORY, body="Please add OpenCode.", branches={"shelf/work-9": 12}),
+        run_records=MemoryRuns(records),
+    )
+    fixture.sign_in()
+    return fixture
+
+
+def test_a_work_the_engine_forgot_is_still_downloaded_from_its_records_the_branch_and_the_pull_request() -> None:
+    from shelf.domain.runlog import RunRecord  # noqa: PLC0415
+    from shelf.domain.usage import Usage  # noqa: PLC0415
+
+    run = RunRecord(
+        "work-9",
+        "implement",
+        0,
+        "implementer",
+        "2026-11-14T10:00:00+00:00",
+        "2026-11-14T10:05:00+00:00",
+        "finished",
+        repo="acme/shop",
+        requester="alice",
+        entry="need",
+        usage=Usage(input_tokens=500, turns=3),
+    )
+    fixture = archived([run])
+    response = fixture.client.get("/work/work-9/export")
+    assert response.status_code == 200
+    text = response.text
+    assert "**Repository:** acme/shop" in text
+    assert "**Requested by:** alice" in text
+    assert "no longer holds this work" in text
+    assert "https://github.com/acme/shop/pull/12" in text
+    assert "Please add OpenCode." in text
+    assert "I wrote the **spec**." in text
+    assert "# the spec" in text
+    assert "implementer · implement, round 0 · finished" in text
+    assert "Not known: the workflow engine no longer holds this work" in text
+    assert "Total: 500 tokens" in text
+
+
+def test_a_forgotten_work_with_no_record_or_of_a_repository_they_may_not_see_is_not_found() -> None:
+    from shelf.domain.runlog import RunRecord  # noqa: PLC0415
+
+    assert archived([]).client.get("/work/work-9/export").status_code == 404
+    secret = RunRecord(
+        "work-9", "plan", 0, "planner", "t0", "t1", "finished", repo="acme/secret", requester="x", entry="need"
+    )
+    assert archived([secret]).client.get("/work/work-9/export").status_code == 404
+    unnamed = RunRecord("work-9", "plan", 0, "planner", "t0", "t1", "finished")
+    assert archived([unnamed]).client.get("/work/work-9/export").status_code == 404

@@ -10,6 +10,7 @@ import uvicorn
 from fastapi import FastAPI
 
 from shelf.adapters.caching.forge import CachedForge
+from shelf.adapters.runs.files import FileRunRecords
 from shelf.adapters.warden.reader import WardenReader
 from shelf.adapters.warden.rules_store import FileGuardRules
 from shelf.adapters.web.app import create_app
@@ -62,6 +63,7 @@ async def build(settings: settings_module.Settings) -> FastAPI:
             guard=WardenReader(),
             pulls=services.pulls,
             guard_rules=FileGuardRules(Path(settings.guard_rules_dir)) if settings.guard_rules_dir else None,
+            run_records=FileRunRecords(Path(settings.runs_dir)) if settings.runs_dir else None,
         )
     )
 

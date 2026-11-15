@@ -6,14 +6,23 @@ import os
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
-from claude_agent_sdk import ClaudeAgentOptions, ResultMessage, query
+from claude_agent_sdk import (
+    AssistantMessage,
+    ClaudeAgentOptions,
+    ResultMessage,
+    ToolResultBlock,
+    ToolUseBlock,
+    UserMessage,
+    query,
+)
 from claude_agent_sdk.types import SandboxSettings
 
+from shelf.domain.runlog import ToolEvent, redact, result_note, tool_summary
 from shelf.domain.secrets import hidden_from_agents
 from shelf.domain.usage import Usage
-from shelf.ports.agents import AgentTask
+from shelf.ports.agents import AgentTask, RunSink
 
 log = logging.getLogger(__name__)
 
@@ -167,21 +176,71 @@ class ClaudeBackend:
                 return await self._run_once(task)
             except Exception as error:  # noqa: BLE001 - whatever stopped the continuation, the step must still run
                 log.warning("could not continue the session of %s (%s): starting again", task.role.name, error)
+                if task.sink is not None:
+                    task.sink.fell_back = True
                 task = replace(task, resume="", prompt=task.fallback_prompt or task.prompt)
         return await self._run_once(task)
 
     async def _run_once(self, task: AgentTask) -> str:
+        try:
+            return await self._stream(task)
+        except Exception as error:
+            if task.sink is not None and not task.sink.error:
+                task.sink.error = redact(" ".join(str(error).split()))[:400]
+            raise
+
+    async def _stream(self, task: AgentTask) -> str:
         answer = ""
+        pending: dict[str, int] = {}
         async for message in query(
             prompt=task.prompt,
             options=self.options(task),
         ):
+            if task.sink is not None:
+                watch_run(message, task.sink, pending)
             if isinstance(message, ResultMessage):
                 log.info(step_summary(task.role.name, message))
                 if task.sink is not None:
                     task.sink.usage = usage_of(message)
                     task.sink.session_id = message.session_id or ""
+                    note_result(message, task.sink)
                 if message.is_error:
                     raise AgentFailedError(task.role.name, message.result or message.subtype)
                 answer = message.result or ""
         return answer
+
+
+def watch_run(message: object, sink: RunSink, pending: dict[str, int]) -> None:
+    """Note the tool calls an agent makes and how each one ended, for the record of the run."""
+    if isinstance(message, AssistantMessage):
+        for block in message.content:
+            if isinstance(block, ToolUseBlock):
+                pending[block.id] = len(sink.tools)
+                sink.tools.append(ToolEvent(block.name, tool_summary(block.name, block.input)))
+    elif isinstance(message, UserMessage) and isinstance(message.content, list):
+        for block in message.content:
+            if isinstance(block, ToolResultBlock) and block.is_error and block.tool_use_id in pending:
+                index = pending[block.tool_use_id]
+                sink.tools[index] = replace(sink.tools[index], ok=False, note=result_note(block.content))
+
+
+def note_result(message: ResultMessage, sink: RunSink) -> None:
+    """What the run said about how it ended: why it stopped, what it was refused, what went wrong."""
+    sink.subtype = message.subtype or ""
+    sink.stop_reason = message.stop_reason or ""
+    sink.terminal_reason = message.terminal_reason or ""
+    sink.api_error_status = message.api_error_status
+    sink.errors = [redact(str(error))[:300] for error in (message.errors or [])]
+    for denied in message.permission_denials or []:
+        sink.denials.append(_denial(denied))
+
+
+def _denial(denied: object) -> str:
+    """A refused tool call as one short line: the tool and what it was about."""
+    data = cast(
+        "dict[str, Any]", denied if isinstance(denied, dict) else vars(denied) if hasattr(denied, "__dict__") else {}
+    )
+    name = str(data.get("tool_name") or "tool")
+    arguments = data.get("tool_input")
+    about = tool_summary(name, arguments) if isinstance(arguments, dict) else ""  # pyright: ignore[reportUnknownArgumentType]
+    return f"{name}: {about}" if about else name
