@@ -1034,3 +1034,17 @@ The system SHALL, when a folder for run records is configured, keep for every ag
 
 - **WHEN** the folder is full or read-only
 - **THEN** the step goes on and the failure is logged
+
+### Requirement: A run record names the repository, who asked and how the work began
+
+The system SHALL put in every run record the repository of the work (as `owner/name`), the login of the person who asked for it and how the work began, so that a record alone says which work it belongs to and who may see it after the workflow engine has forgotten the work.
+
+#### Scenario: A run of a work
+
+- **WHEN** an agent run of a work asked for by alice on acme/shop is recorded
+- **THEN** the record holds `acme/shop`, `alice` and how the work began
+
+#### Scenario: A record from before
+
+- **WHEN** a record written before these fields existed is read
+- **THEN** they are empty and the work cannot be found from it
