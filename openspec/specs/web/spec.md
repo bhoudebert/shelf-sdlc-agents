@@ -793,3 +793,32 @@ The system SHALL show on the page of a piece of work, after its other documents 
 - **WHEN** a person's note in the log contains HTML
 - **THEN** the page shows it as text
 
+
+### Requirement: Rejecting or aborting from the work page closes the pull request, whatever release the work started under
+
+The system SHALL, when a person rejects or aborts a piece of work from its page and the decision is accepted, also close the pull request that work opened (with a comment saying who ended it and how), whichever release the work started under, so that work started before the workflow closed pull requests is closed too; SHALL leave alone a pull request the work did not open, and one that is already closed or merged, so that doing it twice (the workflow also closes it for newer work) changes nothing the second time; and SHALL log and ignore a failure to close, so that the decision still takes effect.
+
+#### Scenario: Work from before
+
+- **WHEN** a person rejects, from the page, a work that started before the workflow closed pull requests
+- **THEN** its draft pull request is closed with a comment saying who rejected it
+
+#### Scenario: Newer work
+
+- **WHEN** a person aborts newer work, whose workflow also closes its pull request
+- **THEN** the pull request is closed once and the second attempt changes nothing
+
+#### Scenario: A pull request that is not the work's
+
+- **WHEN** a person aborts a review of someone else's pull request
+- **THEN** that pull request stays open
+
+#### Scenario: GitHub refuses
+
+- **WHEN** closing the pull request fails
+- **THEN** the decision still takes effect and a warning is logged
+
+#### Scenario: A decision that is not an ending
+
+- **WHEN** a person approves or asks for changes
+- **THEN** no pull request is closed
