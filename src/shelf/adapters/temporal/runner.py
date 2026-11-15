@@ -93,6 +93,10 @@ class TemporalRunner:
                 "title": summary(work.text),
                 **({"context": list(work.context)} if work.context else {}),
                 **({"unattended": list(policy.removed_stops())} if policy.removed_stops() else {}),
+                "review_depths": {
+                    "spec": policy.spec_review_depth.value,
+                    "design": policy.design_review_depth.value if policy.design_review else "off",
+                },
                 **({"pull_request": work.pull_request} if work.pull_request is not None else {}),
             },
         )
@@ -221,6 +225,7 @@ class TemporalRunner:
             updated_at=snapshot.updated_at,
             times=tuple(sorted(snapshot.times.items())),
             unattended=_unattended_of(memo),
+            review_depths=_depths_of(memo),
         )
 
     def _link_of(self, repo: RepoRef, number: object) -> str:
@@ -253,6 +258,12 @@ def _unattended_of(memo: Mapping[str, Any]) -> tuple[str, ...]:
     """The stops a work does without a person, from its memo; none for work started before it was kept."""
     kept: list[object] = list(memo.get("unattended") or [])
     return tuple(str(name) for name in kept)
+
+
+def _depths_of(memo: Mapping[str, Any]) -> tuple[tuple[str, str], ...]:
+    """How hard each review looks, from the memo of a work; none for work started before it was kept."""
+    kept: Mapping[str, Any] = memo.get("review_depths") or {}
+    return tuple((name, str(kept[name])) for name in ("spec", "design") if name in kept)
 
 
 def _context_of(memo: Mapping[str, Any]) -> tuple[str, ...]:

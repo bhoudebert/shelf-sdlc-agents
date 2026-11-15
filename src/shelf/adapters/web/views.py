@@ -139,6 +139,8 @@ class ItemView:
     """``#12``, from the pull request's address; empty while there is none."""
     unattended: str = ""
     """``spec, design``: the stops this run does without a person; empty when it keeps them all."""
+    review_depths: str = ""
+    """``spec review quick, design review off``; empty for work started before they were kept."""
 
 
 def entry_options(allowed: frozenset[EntryPoint]) -> list[EntryOption]:
@@ -279,6 +281,7 @@ def item_view(work: WorkView, now: datetime | None = None) -> ItemView:
         updated_at=clock(work.updated_at),
         pull_request_number=_number_of(work.pull_request_url),
         unattended=", ".join(work.unattended),
+        review_depths=_depths_line(work.review_depths),
     )
 
 
@@ -485,3 +488,8 @@ def _arc(start: float, end: float) -> str:
     return (
         f"M {PIE_CENTER} {PIE_CENTER} L {x1:.2f} {y1:.2f} A {PIE_RADIUS} {PIE_RADIUS} 0 {large} 1 {x2:.2f} {y2:.2f} Z"
     )
+
+
+def _depths_line(depths: Sequence[tuple[str, str]]) -> str:
+    """How hard each review looks, in a line: ``spec review quick, design review off``; nothing when not kept."""
+    return ", ".join(f"{name} review {depth}" for name, depth in depths)

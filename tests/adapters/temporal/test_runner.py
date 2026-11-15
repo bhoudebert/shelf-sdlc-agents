@@ -230,3 +230,24 @@ async def test_the_board_says_which_stops_a_run_does_without(env: WorkflowEnviro
         plain = await _until(runner, kept, lambda v: v.waiting_for is not None)
     assert board.unattended == ("spec", "deadlock")
     assert plain.unattended == ()
+
+
+async def test_the_board_says_how_hard_each_review_looks(env: WorkflowEnvironment) -> None:
+    from shelf.domain.review import ReviewDepth  # noqa: PLC0415
+
+    runner = runner_for(env, FakeConfigs({REPO: RepoConfig(policy=Policy())}))
+    chosen = Autonomy(
+        spec_approval=True,
+        design_review=True,
+        proceed_on_deadlock=False,
+        spec_review_depth=ReviewDepth.QUICK,
+        design_review_depth=ReviewDepth.THOROUGH,
+    )
+    off = Autonomy(spec_approval=True, design_review=False, proceed_on_deadlock=False)
+    async with worker(env, FakeSteps(), FakePulls()):
+        work_id = await runner.start(WorkRequest(REPO, "alice", EntryPoint.NEED, "x", autonomy=chosen))
+        board = await _until(runner, work_id, lambda v: v.waiting_for is not None)
+        skipped = await runner.start(WorkRequest(REPO, "alice", EntryPoint.NEED, "y", autonomy=off))
+        without = await _until(runner, skipped, lambda v: v.waiting_for is not None)
+    assert board.review_depths == (("spec", "quick"), ("design", "thorough"))
+    assert dict(without.review_depths)["design"] == "off"
