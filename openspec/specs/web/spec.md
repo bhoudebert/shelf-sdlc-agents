@@ -898,3 +898,27 @@ The system SHALL let an administrator, in the Guard section of the admin page an
 
 - **WHEN** someone who is not an administrator posts a site
 - **THEN** it is refused and nothing changes
+
+### Requirement: An administrator frees a project agent file for the agents' writes, from the admin page
+
+The system SHALL let an administrator, in the Guard section of the admin page and when the instance keeps rules from the page, choose from a fixed list of project-level agent files (`opencode.json`, `opencode.jsonc`, the `.opencode` and `.codex` folders, the Copilot and hooks folders under `.github`) one that agents may write, add it, see who added it and when, and remove it; SHALL offer nothing outside that list, so that the settings and hooks of Claude Code, the guard's own files and the git hooks can never be freed from the page; SHALL keep it with the other rules added from the page and write it to the guard's overlay as `[paths] unprotect`; SHALL say that the file still goes through the pull request, where a person reads it; and SHALL apply it from the next call an agent makes.
+
+#### Scenario: Freeing opencode.json
+
+- **WHEN** an administrator chooses `opencode.json` and adds it
+- **THEN** the page lists it with the administrator's login and the time, the overlay holds `unprotect = ["**/opencode.json"]`, and an agent may write that file from the next call
+
+#### Scenario: Something outside the list
+
+- **WHEN** a request names `**/.claude/settings.json` or any pattern that is not in the list
+- **THEN** it is refused and nothing is kept
+
+#### Scenario: Removing it
+
+- **WHEN** an administrator removes the exception
+- **THEN** the overlay no longer frees the file and agents may not write it again
+
+#### Scenario: Not an administrator
+
+- **WHEN** someone who is not an administrator posts a file
+- **THEN** it is refused and nothing changes
