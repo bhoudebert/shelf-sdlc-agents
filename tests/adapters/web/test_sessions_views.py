@@ -231,3 +231,16 @@ def test_the_form_offers_to_review_and_to_work_on_a_pull_request_and_each_asks_f
     assert not options["need"].needs_pull_request
     assert "force-push" in options["pull_request_work"].help
     assert "read only" in options["pull_request_review"].help
+
+
+def test_the_decision_log_comes_after_the_other_documents_and_is_shown_as_text() -> None:
+    log = "# Decisions\n\n## 2026-11-15 · alice approved the spec\n\n- Note:\n  > <script>alert(1)</script>\n"
+    docs = document_views({"plan.md": "# P", "decisions.md": log}, Phase.IMPLEMENT)
+    assert [d.name for d in docs] == ["plan.md", "decisions.md"]
+    assert docs[1].title == "Decisions"
+    assert "alice approved the spec" in docs[1].html
+    assert "<script>" not in docs[1].html
+
+
+def test_work_with_no_decision_log_lists_no_decisions_document() -> None:
+    assert "decisions.md" not in [d.name for d in document_views({"spec.md": "# S"}, Phase.SPEC_APPROVAL)]

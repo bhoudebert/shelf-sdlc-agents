@@ -773,3 +773,23 @@ The system SHALL show on the page of a piece of work a table of what each agent 
 
 - **WHEN** the work predates usage
 - **THEN** the section says that nothing was recorded for it and the rest of the page is unchanged
+
+### Requirement: The work page shows who decided what with the work's documents
+
+The system SHALL show on the page of a piece of work, after its other documents and with the same care (rendered as text, never as markup), the log of the decisions people made on it (who, what, when and in which role), so that a reviewer sees who approved what without leaving the page; and SHALL show nothing for work that has no decisions yet or predates the log.
+
+#### Scenario: A work with decisions
+
+- **WHEN** a person opens the page of a work whose branch holds a decision log
+- **THEN** a Decisions document lists each decision with who made it and when, after the plan
+
+#### Scenario: A work without
+
+- **WHEN** the work has no decision log
+- **THEN** the page lists no Decisions document and the others are unchanged
+
+#### Scenario: Markup in a note
+
+- **WHEN** a person's note in the log contains HTML
+- **THEN** the page shows it as text
+

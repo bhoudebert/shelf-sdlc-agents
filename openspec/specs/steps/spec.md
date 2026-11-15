@@ -783,3 +783,17 @@ The system SHALL, when an agent runs again on the same work (sent back by a revi
 
 - **WHEN** the spec writer and the spec reviewer both ran
 - **THEN** each continues its own session and neither sees the other's
+
+### Requirement: The decision log is one of the documents of a work
+
+The system SHALL count the log of decisions (`decisions.md` in the work's documents folder) among the documents of a piece of work, after the plan, written only by the system and never by an agent, so that whatever lists the work's documents lists it.
+
+#### Scenario: The documents of a work
+
+- **WHEN** the documents of a work are listed
+- **THEN** the request, spec, design and plan come first and the decision log last
+
+#### Scenario: Who writes it
+
+- **WHEN** an agent step runs
+- **THEN** no agent's role names the decision log as its document

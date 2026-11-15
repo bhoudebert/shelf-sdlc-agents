@@ -62,5 +62,6 @@ DOCUMENT_TITLES: dict[str, str] = {
     "spec.md": "Spec",
     "design.md": "Design",
     "plan.md": "Plan",
+    "decisions.md": "Decisions",
 }
 """The documents of a piece of work, in the order a person reads them, with their titles."""
