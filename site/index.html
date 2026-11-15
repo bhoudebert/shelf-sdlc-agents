@@ -9,7 +9,7 @@
 <body>
 <a class="skip" href="#main">Skip to content</a>
 <header class="bar"><div class="wrap"><a class="brand" href="index.html" aria-label="Shelf, home"><svg viewBox="0 0 28 28" aria-hidden="true" focusable="false"><rect width="28" height="28" rx="7" fill="#0b1233"/><path d="M14 6V3.5" stroke="#e8ebf7" stroke-width="1.6"/><circle cx="14" cy="3.4" r="2" fill="#ffa26b"/><circle cx="14" cy="15.5" r="9.5" fill="#e8ebf7"/><rect x="7.2" y="11" width="13.6" height="9" rx="4.5" fill="#0b1233"/><rect x="10.4" y="13.8" width="2" height="3" rx="1" fill="#67dcef"/><rect x="15.6" y="13.8" width="2" height="3" rx="1" fill="#67dcef"/></svg><span>Shelf</span></a>
-<nav aria-label="Main"><a href="docs/index.html">Guide</a><a href="docs/guard.html" class="hide-sm">Guard</a><a href="docs/limits.html" class="hide-sm">Limits</a><a href="https://github.com/bhoudebert/shelf-sdlc-agents" class="hide-sm">GitHub</a>
+<nav aria-label="Main"><a href="docs/index.html">Guide</a><a href="docs/guard.html" class="hide-sm">Guard</a><a href="https://github.com/bhoudebert/shelf-sdlc-agents" class="hide-sm">GitHub</a>
 <a class="btn sm" href="docs/getting-started.html">Get started</a>
 <button class="icon-btn" id="theme" type="button" aria-label="Switch between light and dark theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button></nav></div></header>
 
@@ -18,7 +18,7 @@
 <h1 class="rise">From a need to a pull request.</h1>
 <div class="hero-grid"><p class="lead rise" style="--i:1">Shelf is a software factory you host yourself. Describe what you want in a web page; agents write the spec, design, plan and code on your GitHub repository and stop where you decide. You merge.</p>
 <div class="rise" style="--i:2"><div class="actions"><a class="btn big" href="docs/getting-started.html">Get started</a><a class="link-arrow" href="#run">See a run, step by step</a></div>
-<p class="hero-facts">Open source, Apache-2.0. One <code>docker compose</code> file. Early development: <a href="#honest">what is not done yet</a>.</p></div></div>
+<p class="hero-facts">Open source, Apache-2.0. One <code>docker compose</code> file.</p></div></div>
 </div>
 <div class="stage rise" style="--i:2"><div class="wrap"><div data-ui role="img" aria-label="The board: two pieces of work need a person, one is running, one is finished."><div class="ui-bar"><span class="ui-brand"><svg viewBox="0 0 28 28" aria-hidden="true" focusable="false"><rect width="28" height="28" rx="7" fill="#0b1233"/><path d="M14 6V3.5" stroke="#e8ebf7" stroke-width="1.6"/><circle cx="14" cy="3.4" r="2" fill="#ffa26b"/><circle cx="14" cy="15.5" r="9.5" fill="#e8ebf7"/><rect x="7.2" y="11" width="13.6" height="9" rx="4.5" fill="#0b1233"/><rect x="10.4" y="13.8" width="2" height="3" rx="1" fill="#67dcef"/><rect x="15.6" y="13.8" width="2" height="3" rx="1" fill="#67dcef"/></svg>Shelf</span><span class="on">Board</span><span class="">Start</span><span>Admin</span></div><div class="ui-body">
 <h4 class="ui-h">Board</h4>
@@ -144,7 +144,7 @@ stopped most often:
 <p class="intro rise">One file in the repository says what to run for checks, how many rounds a loop gets and who may decide where. It changes through a pull request, like any other rule.</p>
 <div class="cols rise"><div><h3>Roles decide where.</h3><p>The spec gate belongs to <code>product_owner</code>, the design review to <code>architect</code> and <code>tech_lead</code>, the pull request to <code>tech_lead</code> and <code>developer</code>. Administrators, listed by the operator in <code>shelf.toml</code>, may always decide. There is no user database: access is that file plus GitHub, closed by default.</p>
 <h3 style="margin-top:1.4em">Give agents your corporate skills.</h3><p>The operator pins skills and plugins from git repositories to a full commit, and binds them to roles such as <code>implementer</code> or <code>code_reviewer</code>. A change is a change you review.</p>
-<div class="coming"><p><strong>New.</strong> The lasting results of a run go where the repository keeps them: requirements in <code>openspec/</code>, decision records in <code>docs/adr/</code>, checked against the earlier ones, and a run's own files in <code>.shelf/&lt;work-id&gt;/</code>. Set it in the <code>[results]</code> section below. Not yet tried on a real run with a model.</p></div></div>
+<div class="coming"><p><strong>New.</strong> The lasting results of a run go where the repository keeps them: requirements in <code>openspec/</code>, decision records in <code>docs/adr/</code>, checked against the earlier ones, and a run's own files in <code>.shelf/&lt;work-id&gt;/</code>. Set it in the <code>[results]</code> section below.</p></div></div>
 <pre><code># .shelf/config.toml, in the repository
 base_branch = &quot;main&quot;
 checks = [&quot;make test&quot;]            # what the checks step runs
@@ -183,27 +183,11 @@ $ sh deploy/install.sh https://shelf.example.org</code></pre>
 <p>Shelf itself is free, Apache-2.0. You pay for the server, and for the model your credential uses, at that provider's rates. A run takes more rounds and more tokens than asking one agent directly, because reviewers read cold; that is the price of the review. You bound it: <code>SHELF_MAX_TURNS</code> (40 by default) and an optional <code>SHELF_MAX_BUDGET_USD</code> per step, and the worker logs the cost of each step. A total per work item is not built yet.</p></div></div>
 </div></section>
 
-<section class="block" id="honest" aria-labelledby="honest-h"><div class="wrap">
-<h2 id="honest-h" class="rise">What is not done yet.</h2>
-<p class="intro rise">Shelf is in early development and has had no external audit. We say so here rather than after you installed it.</p>
-<div class="honest rise"><div><h3>Built and tested</h3><ul>
-<li>The pipeline as one pure function, with property tests.</li>
-<li>The Temporal workflow, on a real server, with history replay.</li>
-<li>Sign-in, repositories, tokens minted per use, pull requests through the GitHub App.</li>
-<li>The step runner, the web interface and the Docker Compose deployment, booted on real Docker.</li>
-<li>Warden, with its own Rust tests, run through Claude Code against a mock model.</li></ul></div>
-<div><h3>Not yet</h3><ul>
-<li>A full run with a real model on a real repository. The first operators will be the first test; start in observe mode.</li>
-<li>Isolation: agents run inside the worker container, not one container each.</li>
-<li>Warden checked against the real Copilot CLI and OpenCode, or against a real model.</li>
-<li>Organisation sign-in and the one-approval flow, proven on live GitHub.</li></ul><p><a href="docs/limits.html">Read the limits in full</a>, and the <a href="https://github.com/bhoudebert/shelf-sdlc-agents/blob/main/ROADMAP.md">roadmap</a>.</p></div></div>
-</div></section>
-
 <section class="cta"><div class="wrap cta-grid"><div><h2 class="rise">Try it on a spare server.</h2><p class="rise">One command, one GitHub App, one model credential. Begin with the guard in observe mode and read what it would have stopped.</p><div class="actions rise"><a class="btn big" href="docs/getting-started.html">Get started</a><a class="link-arrow" href="docs/concepts.html">Read the concepts first</a></div></div>
 <pre class="rise"><code>$ sh deploy/install.sh https://shelf.example.org</code></pre></div></section>
 </main>
 <footer class="foot"><div class="wrap"><div class="tiles">
-<div class="tile t-1"><p><strong>Shelf</strong> is open source under the Apache-2.0 licence and in early development. What it does not do yet is written down, not hidden.</p><p class="small">Read <a href="docs/limits.html">the limits</a> before you point it at a repository you care about.</p></div>
+<div class="tile t-1"><p><strong>Shelf</strong> is open source under the Apache-2.0 licence.</p></div>
 <nav class="tile t-2" aria-label="Guide"><ul><li><a href="docs/concepts.html">Concepts</a></li><li><a href="docs/getting-started.html">Get started</a></li><li><a href="docs/repository.html">Configure a repository</a></li><li><a href="docs/guard.html">The guard</a></li><li><a href="docs/operate.html">Operate</a></li></ul></nav>
 <nav class="tile t-3" aria-label="Project"><ul><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents">Repository</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents/blob/main/CONTRIBUTING.md">Contributing</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents/issues">Issues</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents/blob/main/SECURITY.md">Security policy</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents/blob/main/LICENSE">Apache-2.0</a></li></ul></nav>
 <div class="tile t-name"><p class="small" style="color:var(--on-field-2)">A software factory you host yourself.</p><b aria-hidden="true">Shelf</b></div>
