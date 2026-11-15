@@ -935,3 +935,22 @@ The system SHALL tell the developer that the last thing it runs, after its final
 
 - **WHEN** the plan touches a doc comment in a source file that the repository's rules tie to a specification
 - **THEN** the developer is told to update that specification or leave the file alone, never to rely on a label it cannot set
+
+### Requirement: A reviewer says where it stands on its earlier points
+
+The system SHALL tell every reviewer (the spec critic, the design reviewer and the code reviewer), in its first task and in the task of a round that continues its session, to write before its verdict a line `REPEATED: <n>` with the number of points it raised in an earlier round that remain unaddressed, and a line `BLOCKING: yes|no` saying whether any open point must be fixed before the work can merge; SHALL read them from the answer, taking none for `REPEATED` and yes for `BLOCKING` when a line is missing; and SHALL mark a review whose approval was held back by the CI as blocking.
+
+#### Scenario: The lines are present
+
+- **WHEN** a reviewer answers with `REPEATED: 1`, `BLOCKING: no` and `VERDICT: CHANGES`
+- **THEN** the review is reported as changes with one repeated point and nothing blocking
+
+#### Scenario: The lines are missing
+
+- **WHEN** a reviewer answers with only a verdict
+- **THEN** nothing is repeated and the review is blocking
+
+#### Scenario: Approval held back by the CI
+
+- **WHEN** a reviewer approves over a CI that is red or unfinished
+- **THEN** the review is blocking, whatever the reviewer said
