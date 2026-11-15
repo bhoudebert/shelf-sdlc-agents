@@ -3,6 +3,7 @@
 from dataclasses import dataclass, replace
 
 from shelf.domain.pipeline import FIRST_PHASE, PIPELINE, EntryPoint, Phase
+from shelf.domain.review import ReviewDepth
 
 
 @dataclass(frozen=True, slots=True)
@@ -17,6 +18,8 @@ class Policy:
     """Whether a reviewer checks the design before the plan."""
     proceed_on_deadlock: bool = False
     """Whether work goes on, open issues posted, when the spec or design review cannot settle (ADR 0013)."""
+    review_depth: ReviewDepth = ReviewDepth.QUICK
+    """How hard the spec and design reviews look."""
 
     def removed_stops(self) -> tuple[str, ...]:
         """The stops a person is not asked at, by name: ``spec``, ``design`` and ``deadlock``."""

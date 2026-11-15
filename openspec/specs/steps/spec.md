@@ -568,3 +568,22 @@ The system SHALL have the requirements of a piece of work written into the repos
 
 - **WHEN** the spec has been approved and the architect designs the change
 - **THEN** the requirements are written into `openspec/specs/` and the design says so
+
+### Requirement: The depth of a review follows the repository's choice
+
+The system SHALL tell the spec reviewer and the design reviewer how deep to look according to the repository's `review_depth`: with `quick`, one reading, only the problems that would stop the work from being built or tested, at most three, approving when a team could build from the document; with `standard`, the reviewers' own instructions unchanged; with `thorough`, a hard look at edge cases, failure modes, what is missing and what is vague, up to ten problems; and SHALL NOT change the depth of the code review, which judges correctness.
+
+#### Scenario: A quick review
+
+- **WHEN** the repository's depth is quick and the spec reviewer is started
+- **THEN** its task says to report at most three problems that would stop the work and to approve a document a team could build from
+
+#### Scenario: A thorough review
+
+- **WHEN** the depth is thorough and the design reviewer is started
+- **THEN** its task asks for edge cases, failure modes and missing parts, up to ten problems
+
+#### Scenario: The code review
+
+- **WHEN** the depth is quick and the code reviewer is started
+- **THEN** its task carries no depth instruction

@@ -152,3 +152,13 @@ def test_a_role_with_no_one_in_it_is_refused_because_it_would_lock_its_gate() ->
 
 def test_an_empty_roles_section_still_means_anyone_may_decide() -> None:
     assert parse_repo_config("[roles]").roles == {}
+
+
+def test_the_reviews_are_quick_unless_the_repository_says_otherwise() -> None:
+    assert parse_repo_config("").policy.review_depth.value == "quick"
+    assert parse_repo_config('[policy]\nreview_depth = "thorough"').policy.review_depth.value == "thorough"
+
+
+def test_a_review_depth_that_is_not_known_is_refused_with_the_choices() -> None:
+    with pytest.raises(ConfigError, match="review_depth must be one of quick, standard, thorough"):
+        parse_repo_config('[policy]\nreview_depth = "deep"')

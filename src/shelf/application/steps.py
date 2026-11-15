@@ -13,6 +13,7 @@ from shelf.domain.model import RepoRef, WorkContext, WorkId
 from shelf.domain.pipeline import EntryPoint, Phase
 from shelf.domain.result import Err, Ok
 from shelf.domain.results import Results, results_note
+from shelf.domain.review import ReviewDepth, review_note
 from shelf.domain.roles import PROVIDED_DOCUMENT, REVIEWERS, ROLES, TITLER, documents_dir, legacy_documents_dir
 from shelf.domain.story import agent_comment
 from shelf.domain.titles import clean_title, fallback_title
@@ -84,6 +85,7 @@ def task_prompt(  # noqa: PLR0913
     context: str = "",
     folder: str = "",
     results: Results | None = None,
+    depth: ReviewDepth = ReviewDepth.STANDARD,
 ) -> str:
     """What the agent is asked, built from the request, the documents so far and the feedback that sent work back."""
     folder = folder or documents_dir(work.id)
@@ -111,6 +113,7 @@ def task_prompt(  # noqa: PLR0913
         f"What the repository's CI says about this pull request right now:\n{ci}" if ci and sees_ci else "",
         context,
         results_note(results or Results(), step.phase),
+        review_note(depth, step.phase),
         TOOLCHAIN_NOTE if toolchain else "",
     ]
     lines += [part for note in notes if note for part in ("", note)]
@@ -249,6 +252,7 @@ class Steps:
             context=_context_note(work),
             folder=folder_of(workspace.path, work.id),
             results=config.results,
+            depth=config.policy.review_depth,
         )
         answer = await self._ask_agent(work, step, workspace, token, prompt)
         role = ROLES[step.phase]
