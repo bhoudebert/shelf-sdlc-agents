@@ -682,3 +682,27 @@ The system SHALL show administrators, on the admin page, a section "Guard" with 
 - **WHEN** the guard is not installed or cannot be read
 - **THEN** the Guard section says it is not available and the rest of the page is unchanged
 
+
+### Requirement: The admin page lists what the guard stopped and what the agents read, and suggests a rule
+
+The system SHALL show administrators, in the Guard section, the calls the guard stopped or would have stopped (when, which agent, what, the risks found and the reason), newest first and at most 30, and the hosts the agents fetched with how many times; and SHALL offer, for a stopped call that no rule can free, none, and for the others, a rule for the operator's policy file that would allow it (an exact match of the command) and, for a host, a line that would deny it, shown as text to copy and never applied by the page.
+
+#### Scenario: A stopped call
+
+- **WHEN** the guard reports that it denied a command for `exfil`
+- **THEN** the section lists it with its reason, and offers a rule the administrator can copy into the operator's policy file
+
+#### Scenario: A call that is always refused
+
+- **WHEN** the stopped call was a blocked domain or a tamper attempt
+- **THEN** the section lists it and offers no rule, saying that no rule can allow it
+
+#### Scenario: Hosts read
+
+- **WHEN** the agents fetched `docs.rs` three times
+- **THEN** the section lists `docs.rs` with 3 and offers the line that would deny it
+
+#### Scenario: Nothing is changed by the page
+
+- **WHEN** an administrator reads a suggested rule
+- **THEN** no file or policy has changed
