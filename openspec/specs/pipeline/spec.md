@@ -127,3 +127,17 @@ The system SHALL build the course of a piece of work with the protocol version i
 
 - **WHEN** courses are built under protocols 5 and 6
 - **THEN** only the one under protocol 6 counts a person's acceptance of an escalated review as the approval of the gate right after it
+
+### Requirement: A course says whether a person's decisions are recorded in the repository
+
+The system SHALL say, from the protocol a piece of work started under, whether the decisions a person makes on it are recorded in the repository (from the protocol that introduced it on, never for work that started under an earlier one).
+
+#### Scenario: New work
+
+- **WHEN** a course is built under the current protocol
+- **THEN** it records decisions
+
+#### Scenario: Work that started earlier
+
+- **WHEN** a course is built for work that started under the previous protocol
+- **THEN** it does not record decisions

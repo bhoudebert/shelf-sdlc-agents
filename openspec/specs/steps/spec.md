@@ -587,3 +587,41 @@ The system SHALL tell the spec reviewer and the design reviewer how deep to look
 
 - **WHEN** the depth is quick and the code reviewer is started
 - **THEN** its task carries no depth instruction
+
+### Requirement: Every decision a person makes on a piece of work is recorded in the repository
+
+The system SHALL append, for each decision a person makes while work waits for them (approve, ask for changes, resume, reject, abort), one entry to `.shelf/<work-id>/decisions.md` on the work's branch, committed by the system and not by an agent, saying when (UTC), who (their login), what they decided and at which step, the role they acted as when the repository uses roles (or that they held none), how they got to decide it (a role, the administrator, or no restriction), and their note in full; and SHALL do so before the work goes on, so that the entry is in the branch the next step starts from; a decision that cannot be recorded SHALL be reported in the log of the service and SHALL NOT stop the work.
+
+#### Scenario: A person approves the spec
+
+- **WHEN** alice approves the spec of a work in a repository that has no roles
+- **THEN** `.shelf/<work-id>/decisions.md` holds an entry with the time, `alice`, the approval of the spec, and no role
+
+#### Scenario: A person acts in a role
+
+- **WHEN** bob, a `tech_lead` in the repository's roles, asks for changes to the design with a note
+- **THEN** the entry names bob, the design review, the role `tech_lead` and his note in full
+
+#### Scenario: An administrator
+
+- **WHEN** an administrator who holds no role approves a spec in a repository with roles
+- **THEN** the entry says so, as an administrator
+
+#### Scenario: Several decisions
+
+- **WHEN** three decisions are made on the work
+- **THEN** the file holds three entries in the order they were made, and none is rewritten
+
+#### Scenario: The branch cannot be written
+
+- **WHEN** recording fails
+- **THEN** a warning is logged and the decision still takes effect
+
+### Requirement: A decision record points to the log of the decisions
+
+The system SHALL tell the architect to name, in each decision record it writes, the decision log of the work (`.shelf/<work-id>/decisions.md`) so that a reader of the record can see who approved what and when, and SHALL NOT have an agent write the names of the people who decided.
+
+#### Scenario: A new record
+
+- **WHEN** the architect writes a decision record
+- **THEN** it holds a line that points to the work's decision log

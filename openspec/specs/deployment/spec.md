@@ -574,3 +574,11 @@ The system SHALL give the web service the guard's state volume read-only and the
 - **WHEN** the compose file is read
 - **THEN** the web service mounts the `warden-state` volume read-only at the path `WARDEN_STATE_DIR` names
 
+### Requirement: The worker names the instance's administrators in the record of a decision
+
+The system SHALL give the worker the instance's administrators as they are in the access file when a decision is recorded, so that a decision made by an administrator who holds no role of the repository says so in the record, and a change of the file is seen without a restart.
+
+#### Scenario: An administrator decides
+
+- **WHEN** a login listed under `admins` in the access file approves a spec of a repository that uses roles and lists them in none
+- **THEN** the record says that the person acted as an administrator

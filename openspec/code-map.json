@@ -121,6 +121,7 @@
         "src/shelf/prompts/*.md",
         "src/shelf/ports/steps.py",
         "src/shelf/domain/context.py",
+        "src/shelf/domain/decisions.py",
         "src/shelf/domain/results.py",
         "src/shelf/domain/review.py",
         "src/shelf/domain/titles.py",

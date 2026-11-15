@@ -295,3 +295,22 @@ The system SHALL carry the depths of the spec review and of the design review th
 
 - **WHEN** work starts with thorough reviews for a repository whose file says quick
 - **THEN** the input records thorough, and a later change of the file does not alter it
+
+### Requirement: A person's decision is recorded before the work goes on, and older work replays
+
+The system SHALL, for work started under the protocol that records decisions, run an activity that records a person's decision (who, what, at which step, when) after the workflow has received it and before the commands it causes run, SHALL log and ignore a failure of that activity, and SHALL NOT run it for work started under an earlier protocol, so that a history recorded before it replays unchanged.
+
+#### Scenario: A decision on new work
+
+- **WHEN** a person approves the spec of work started under the new protocol
+- **THEN** the recording activity runs once, then the design starts
+
+#### Scenario: Older work
+
+- **WHEN** a finished history of work started under an earlier protocol is replayed
+- **THEN** it replays deterministically and the recording activity does not appear
+
+#### Scenario: Recording fails
+
+- **WHEN** the recording activity fails
+- **THEN** the decision still takes effect and a warning is logged

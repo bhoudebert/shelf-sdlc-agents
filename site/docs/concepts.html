@@ -64,6 +64,8 @@ Open question for a person: do points expire?</pre></div>
 <h2 id="where">Where a run's files go</h2>
 <p>A run writes its own documents to <code>.shelf/&lt;work-id&gt;/</code> on the work's branch (<code>request.md</code>, <code>spec.md</code>, <code>design.md</code>, <code>plan.md</code>), and the work page shows them.</p>
 <p>What lasts goes where the repository keeps it: requirements in its specs folder (<code>openspec/specs/</code> by default) and decision records in its decisions folder (<code>docs/adr/</code>), created when missing. A new record is checked against the earlier ones. <a href="repository.html#results">Set the folders and the strictness</a> in <code>.shelf/config.toml</code>. Older runs left their files in <code>docs/shelf/</code>, which is still read.</p>
+<h2 id="decisions">Who decided what</h2>
+<p>Every time a person decides something on a piece of work (approve, ask for changes, resume, reject, abort), the system adds an entry to <code>decisions.md</code> in the run's folder: when, who, what, at which step, the role they acted as when the repository uses roles, and their note in full. It is committed to the work's branch by the system, never by an agent, so it ships with the pull request and stays in the repository's history. A decision record written by a run points to it.</p>
 
 <nav class="pager" aria-label="Pages"><a href="index.html">&larr; Guide overview</a><a href="getting-started.html">Get started &rarr;</a></nav></main></div>
 <footer class="foot"><div class="wrap"><div class="tiles">
