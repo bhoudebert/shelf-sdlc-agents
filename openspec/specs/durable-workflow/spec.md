@@ -376,3 +376,12 @@ The system SHALL, for work started under the protocol that continues sessions, k
 
 - **WHEN** a finished history of older work is replayed
 - **THEN** it replays deterministically
+
+### Requirement: A step's report carries how a review stands on its earlier points
+
+The system SHALL carry, in the report a review step gives the workflow, the number of earlier points the reviewer found still open and whether any open point blocks the merge, defaulting to none and blocking for a history recorded before, so that the pure decision can end a review loop on them without changing what an older history replays to.
+
+#### Scenario: A history recorded before
+
+- **WHEN** a finished history recorded before this field existed is replayed
+- **THEN** it replays deterministically, its reviews reading as nothing repeated and blocking
