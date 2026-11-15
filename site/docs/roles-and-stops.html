@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Roles and stops · Shelf guide</title><meta name="description" content="Who may decide where, the closed list of decisions, and how much a run may do without you.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Crect width='28' height='28' rx='7' fill='%230b1233'/%3E%3Cpath d='M14 6V3.5' stroke='%23e8ebf7' stroke-width='1.6'/%3E%3Ccircle cx='14' cy='3.4' r='2' fill='%23ffa26b'/%3E%3Ccircle cx='14' cy='15.5' r='9.5' fill='%23e8ebf7'/%3E%3Crect x='7.2' y='11' width='13.6' height='9' rx='4.5' fill='%230b1233'/%3E%3Crect x='10.4' y='13.8' width='2' height='3' rx='1' fill='%2367dcef'/%3E%3Crect x='15.6' y='13.8' width='2' height='3' rx='1' fill='%2367dcef'/%3E%3C/svg%3E">
+<script>try{var t=localStorage.getItem('shelf-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&amp;display=swap"><link rel="stylesheet" href="../assets/site.css"></head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="bar"><div class="wrap"><a class="brand" href="../index.html" aria-label="Shelf, home"><svg viewBox="0 0 28 28" aria-hidden="true" focusable="false"><rect width="28" height="28" rx="7" fill="#0b1233"/><path d="M14 6V3.5" stroke="#e8ebf7" stroke-width="1.6"/><circle cx="14" cy="3.4" r="2" fill="#ffa26b"/><circle cx="14" cy="15.5" r="9.5" fill="#e8ebf7"/><rect x="7.2" y="11" width="13.6" height="9" rx="4.5" fill="#0b1233"/><rect x="10.4" y="13.8" width="2" height="3" rx="1" fill="#67dcef"/><rect x="15.6" y="13.8" width="2" height="3" rx="1" fill="#67dcef"/></svg><span>Shelf</span></a>
+<nav aria-label="Main"><a href="../docs/index.html" aria-current="page">Guide</a><a href="../docs/guard.html" class="hide-sm">Guard</a><a href="../docs/limits.html" class="hide-sm">Limits</a><a href="https://github.com/bhoudebert/shelf-sdlc-agents" class="hide-sm">GitHub</a>
+<a class="btn sm" href="../docs/getting-started.html">Get started</a>
+<button class="icon-btn" id="theme" type="button" aria-label="Switch between light and dark theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button></nav></div></header>
+<div class="wrap guide"><aside class="side"><nav aria-label="Guide"><p>The path</p><ol><li><a href="index.html">Guide overview</a></li><li><a href="concepts.html">Concepts</a></li><li><a href="getting-started.html">Get started</a></li><li><a href="github-app.html">The GitHub App</a></li><li><a href="start-work.html">Start your first work</a></li><li><a href="repository.html">Configure a repository</a></li><li><a href="roles-and-stops.html" aria-current="page">Roles and stops</a></li><li><a href="guard.html">The guard</a></li><li><a href="operate.html">Operate</a></li></ol><p>Reference</p><ul><li><a href="configuration.html">Configuration reference</a></li><li><a href="security.html">Security model</a></li><li><a href="architecture.html">Architecture</a></li><li><a href="limits.html">Limits</a></li><li><a href="contributing.html">Contributing</a></li></ul></nav></aside><main id="main" class="doc"><h1>Roles and stops</h1><p class="lead">Who decides, where a run stops, and how much it may do without you.</p>
+
+<h2 id="roles">Roles</h2>
+<p>With no <code>[roles]</code> in the repository, any signed-in person the instance allows may decide. Once you set roles, they limit who may decide:</p>
+<div class="table-wrap"><table><thead><tr><th>Gate</th><th>Who may decide</th></tr></thead><tbody>
+<tr><td>The spec</td><td><code>product_owner</code></td></tr>
+<tr><td>The design review</td><td><code>architect</code>, <code>tech_lead</code></td></tr>
+<tr><td>The pull request</td><td><code>tech_lead</code>, <code>developer</code></td></tr></tbody></table></div>
+<p>Administrators (the <code>admins</code> list of the operator's <code>shelf.toml</code>) may always decide. A decision from someone without the role is refused, in the web page and on the pull request alike.</p>
+<h2 id="access">Who gets in at all</h2>
+<p>There is no user database. A person signs in only if they are in <code>users</code> or <code>admins</code> of <code>shelf.toml</code>, or belong to an organisation in <code>orgs</code>. The same list governs <code>/shelf</code> commands on a pull request: someone outside it is ignored, whatever their rights on the repository. Shelf also shows and starts work only on repositories owned by a listed organisation, a listed user, an administrator, or the signed-in person themself, even where the App is installed on others.</p>
+<h2 id="decisions">The closed list of decisions</h2>
+<p><strong>Approve</strong>, <strong>request changes</strong> (a note is required, because it is what the agents receive), <strong>resume</strong>, <strong>reject</strong>, <strong>abort</strong>. Matched by word, never interpreted by a model.</p>
+<h2 id="stops">Where a run stops</h2>
+<ul>
+<li><strong>The spec gate.</strong> A person approves before the design starts.</li>
+<li><strong>A review that cannot settle.</strong> The writer and the reviewer disagree for good, or the loop used its rounds: a person is asked.</li>
+<li><strong>A failure.</strong> A step that still fails after its retries becomes a wait for a person, who can resume.</li>
+<li><strong>The merge.</strong> Always a person.</li></ul>
+<h2 id="autonomy">Let a run go on overnight</h2>
+<p>The start form has three boxes under "How much may this run do without you?", preset from the repository's <code>[policy]</code>. Every box is worded so that checked means more control: leave them all checked and the run is fully attended.</p>
+<div class="table-wrap"><table><thead><tr><th>Box</th><th>Unchecked means</th></tr></thead><tbody>
+<tr><td>Wait for my approval of the spec</td><td>The design starts as soon as the spec reviewer is satisfied.</td></tr>
+<tr><td>Have the design reviewed</td><td>No agent checks the design before the plan.</td></tr>
+<tr><td>Stop and ask me when a spec or design review cannot settle</td><td>The work goes on. What stayed open is posted on the pull request, and the agents write their assumptions down.</td></tr></tbody></table></div>
+<div class="callout warn"><p><strong>Fewer stops mean more autonomy, less control and potentially less quality.</strong> Nobody is asked at a stop you removed, so a spec or design can reach the pull request with open points or unchecked assumptions: read them on the pull request before you merge.</p><p><strong>What always stays:</strong> the pull request is never merged without you; the code review and the repository's checks always run; a red check or a code review that cannot decide still waits for you.</p></div>
+<p>The choice is recorded for that run, so a later edit of the file does not change work in flight. The board and the work page say which stops a run does without. The matching defaults are <code>spec_approval</code>, <code>design_review</code> and <code>proceed_on_deadlock</code> in <code>[policy]</code>; the reasons are in <a href="https://github.com/bhoudebert/shelf-sdlc-agents/blob/main/docs/adr/0013-let-a-run-go-on-without-a-person.md">decision record 0013</a>.</p>
+
+<nav class="pager" aria-label="Pages"><a href="repository.html">&larr; Configure a repository</a><a href="guard.html">The guard &rarr;</a></nav></main></div>
+<footer class="foot"><div class="wrap"><div class="tiles">
+<div class="tile t-1"><p><strong>Shelf</strong> is open source under the Apache-2.0 licence and in early development. What it does not do yet is written down, not hidden.</p><p class="small">Read <a href="../docs/limits.html">the limits</a> before you point it at a repository you care about.</p></div>
+<nav class="tile t-2" aria-label="Guide"><ul><li><a href="../docs/concepts.html">Concepts</a></li><li><a href="../docs/getting-started.html">Get started</a></li><li><a href="../docs/repository.html">Configure a repository</a></li><li><a href="../docs/guard.html">The guard</a></li><li><a href="../docs/operate.html">Operate</a></li></ul></nav>
+<nav class="tile t-3" aria-label="Project"><ul><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents">Repository</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents/blob/main/CONTRIBUTING.md">Contributing</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents/issues">Issues</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents/blob/main/SECURITY.md">Security policy</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents/blob/main/LICENSE">Apache-2.0</a></li></ul></nav>
+<div class="tile t-name"><p class="small" style="color:var(--on-field-2)">A software factory you host yourself.</p><b aria-hidden="true">Shelf</b></div>
+<a class="tile t-go" href="../docs/getting-started.html"><span>Get started: one command on a server</span><svg viewBox="0 0 56 56" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="4"><path d="M10 46L46 10M20 10h26v26"/></svg></a>
+</div></div></footer>
+<script src="../assets/site.js"></script>
+</body></html>
