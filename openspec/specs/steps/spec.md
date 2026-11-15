@@ -726,3 +726,17 @@ The system SHALL provide `shelf-cache prune`, which removes the home of every re
 
 - **WHEN** a home was used yesterday
 - **THEN** it is kept
+
+### Requirement: The documents an agent writes are formatted as the repository formats its files
+
+The system SHALL tell each agent that writes a document of the work (the spec, the design, the plan) that the document is committed to the repository and checked by the repository's own formatter and linters, and to run the formatter on the files it wrote when the repository has one, so that the work's own files never fail a check that covers the whole repository.
+
+#### Scenario: A repository that checks formatting
+
+- **WHEN** the planner is started on a repository whose CI runs `prettier --check .`
+- **THEN** its task tells it to run the repository's formatter on `plan.md` before it finishes
+
+#### Scenario: A step that writes no document
+
+- **WHEN** a reviewer is started
+- **THEN** its task carries no such note
