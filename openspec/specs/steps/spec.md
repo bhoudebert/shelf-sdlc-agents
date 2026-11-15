@@ -1124,3 +1124,22 @@ The system SHALL include in its built-in list of sites a sandboxed command may r
 
 - **WHEN** an agent's command runs `mise ls-remote java`
 - **THEN** the sandbox does not refuse `mise-java.jdx.dev`
+
+### Requirement: The worker installs only the plain tools a mise declaration names, from backends that run no code
+
+The system SHALL, when the clone declares tools for mise, read that declaration itself and install only the tools it names with a plain name (no backend prefix, no address) and a plain version (a version string, `latest`, or a list or table that holds only versions), with `mise use --global` into the repository's home and with the backends that run code at install time disabled (`asdf`, `vfox`, `npm`, `pipx`, `cargo`, `gem`, `go`, `spm`), so that the hooks, the environment scripts, the plugins and the tool options the declaration may hold never run in the worker; SHALL tell the agent which entries it ignored and why; and SHALL treat an agent's own use of the file inside its sandbox as before.
+
+#### Scenario: A plain declaration
+
+- **WHEN** `mise.toml` declares `java = "temurin-27.0.1+0"` and `maven = "3.9"`
+- **THEN** the worker installs those two with `mise use --global` and no other file of the declaration is executed
+
+#### Scenario: A declaration that would run code
+
+- **WHEN** `mise.toml` holds a `[hooks]` section, a `[plugins]` section, a tool named `npm:left-pad` or a tool with a `postinstall` option
+- **THEN** none of it is run, the tools that are plain are installed, and the agent is told what was ignored
+
+#### Scenario: Another language
+
+- **WHEN** the declaration names `rust`, `go`, `zig` or `ghc`
+- **THEN** it is installed when mise provides it from a backend that runs no code, and ignored with a reason when it needs one that does
