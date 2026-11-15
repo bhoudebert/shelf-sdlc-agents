@@ -860,3 +860,17 @@ The system SHALL record, when a work starts, how hard its spec reviewer and its 
 
 - **WHEN** the work started before the depths were kept
 - **THEN** the page says nothing about them and is otherwise unchanged
+
+### Requirement: The guard table says what happened to each call
+
+The system SHALL say, for each call in the Guard section's list, whether it was stopped or only recorded: when the decision was to allow but the policy meant to deny (the guard was only watching), the page says "Not stopped: the guard only recorded it" and, for a call no rule could free, that the policy would refuse it once the guard is enforcing, not that it always refuses; and SHALL say above the list when the profile is only watching, that nothing is being stopped.
+
+#### Scenario: A call recorded in the watching profile
+
+- **WHEN** a call has the decision allow and the policy meant deny
+- **THEN** the row says it was not stopped, and does not say that the guard always refuses it
+
+#### Scenario: A call that was stopped
+
+- **WHEN** a call has the decision deny
+- **THEN** the row says it was stopped, and for a risk no rule can free, that no rule can allow it
