@@ -47,3 +47,19 @@ def test_a_reviewer_without_a_verdict_is_never_taken_as_approving() -> None:
     assert reviewed.verdict is Verdict.ESCALATE
     assert "no verdict" in reviewed.issues
     assert "I think it is fine" in reviewed.issues
+
+
+def test_the_code_reviewer_is_told_to_send_back_what_the_author_can_still_fix() -> None:
+    from shelf.adapters.claude_agent.prompts import load_prompt  # noqa: PLC0415
+
+    prompt = load_prompt("code_reviewer")
+    assert "Approve only when nothing is left that the author could fix" in prompt
+    assert "`CHANGES`, not an approval with" in prompt
+
+
+def test_the_developer_ends_on_the_gate_and_cannot_lean_on_a_label() -> None:
+    from shelf.adapters.claude_agent.prompts import load_prompt  # noqa: PLC0415
+
+    prompt = load_prompt("implementer")
+    assert "Your last command, after your final edit, is the repository's own gate" in prompt
+    assert "you cannot set a label" in prompt

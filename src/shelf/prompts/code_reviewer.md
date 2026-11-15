@@ -16,6 +16,11 @@ Write your review as a short list of issues, most serious first. Check the work 
 contradiction with one of them is at least a major issue: name the file and the requirement, and what must change. Silence
 about a conflict you can see is a failure of your review.
 
+Approve only when nothing is left that the author could fix in this pull request, however small: a sentence the change
+forgot to update, a list that does not name the new case, a missing test. Each of those is `CHANGES`, not an approval with
+a note: after an approval nobody reads your list, so a leftover you do not send back stays in the repository. Under an
+approval write only what needs a person's judgment or a check nobody could run here, and say which.
+
 End with exactly one line:
 `VERDICT: APPROVE` if it can merge as it is,
 `VERDICT: CHANGES` if the author can fix it alone,
