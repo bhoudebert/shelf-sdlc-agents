@@ -13,6 +13,7 @@ class RuleKind(StrEnum):
 
     ALLOW_COMMAND = "allow_command"
     DENY_HOST = "deny_host"
+    ALLOW_SITE = "allow_site"
 
 
 @dataclass(frozen=True, slots=True)
@@ -22,7 +23,7 @@ class OverlayRule:
     id: str
     kind: RuleKind
     subject: str
-    """The exact command to allow, or the host to deny."""
+    """The exact command to allow, the host to deny, or the site a sandboxed command may reach."""
     by: str
     """The login of the administrator who added it."""
     at: str
@@ -31,6 +32,8 @@ class OverlayRule:
 
 MAX_COMMAND = 300
 _HOST = re.compile(r"[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?")
+_SITE = re.compile(r"(\*\.)?([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}")
+_NUMERIC = re.compile(r"[0-9.]+")
 _LOGIN = re.compile(r"[A-Za-z0-9-]{1,39}")
 
 
@@ -57,6 +60,26 @@ def deny_host(host: str, by: str, at: str) -> OverlayRule | None:
     if not is_valid_host(host) or not _LOGIN.fullmatch(by):
         return None
     return OverlayRule(_id(RuleKind.DENY_HOST, host), RuleKind.DENY_HOST, host, by, at)
+
+
+def allow_site(site: str, by: str, at: str) -> OverlayRule | None:
+    """A rule that lets a sandboxed command reach ``site``: a public host name, or ``*.`` and a domain of two labels.
+
+    Nothing else: no address, no name without a dot, no scheme, port or path, no wildcard over a whole top-level domain.
+    """
+    site = site.strip().lower()
+    wildcard = site.startswith("*.")
+    labels = site.removeprefix("*.").split(".")
+    if not _SITE.fullmatch(site) or _NUMERIC.fullmatch(site) or len(site) > 253 or (wildcard and len(labels) < 2):  # noqa: PLR2004
+        return None
+    if not _LOGIN.fullmatch(by):
+        return None
+    return OverlayRule(_id(RuleKind.ALLOW_SITE, site), RuleKind.ALLOW_SITE, site, by, at)
+
+
+def allowed_sites(rules: tuple[OverlayRule, ...]) -> tuple[str, ...]:
+    """The sites a sandboxed command may reach because of ``rules``, in the order they were added."""
+    return tuple(rule.subject for rule in rules if rule.kind is RuleKind.ALLOW_SITE)
 
 
 def _quoted(text: str) -> str:

@@ -1385,3 +1385,30 @@ def test_a_sliver_of_the_pie_is_not_shown_as_zero() -> None:
     page = app.client.get("/work/work-1/usage").text
     assert "&lt;0.1%" in page
     assert "<small>0.0%</small>" not in page
+
+
+def test_an_administrator_allows_a_site_and_it_is_listed_with_who_and_when() -> None:
+    fixture, rules = applying()
+    fixture.sign_in()
+    response = fixture.client.post("/admin/guard/allow-site", data={"site": "Registry.Example.org"})
+    assert response.status_code == 303
+    [rule] = rules.kept
+    assert (rule.kind, rule.subject, rule.by) == (RuleKind.ALLOW_SITE, "registry.example.org", "alice")
+    page = fixture.client.get("/admin").text
+    assert "Sites the agents' commands may reach" in page
+    assert "lets commands reach <code>registry.example.org</code>" in page
+
+
+def test_a_site_that_is_not_a_host_name_is_refused_and_not_kept() -> None:
+    fixture, rules = applying()
+    fixture.sign_in()
+    for site in ("https://x.example/path", "10.0.0.1", "*.com", "localhost"):
+        assert fixture.client.post("/admin/guard/allow-site", data={"site": site}).status_code == 422
+    assert rules.kept == []
+
+
+def test_only_an_administrator_allows_a_site() -> None:
+    fixture, rules = applying(admin="carol")
+    fixture.sign_in()
+    assert fixture.client.post("/admin/guard/allow-site", data={"site": "registry.example.org"}).status_code == 403
+    assert rules.kept == []

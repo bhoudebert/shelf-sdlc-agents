@@ -101,6 +101,15 @@
       </table>
     </div>
     {% endif %}
+    {% if guard.can_apply %}
+    <h3 id="sites-title">Sites the agents' commands may reach</h3>
+    <p class="muted">Besides the built-in list (GitHub, the package registries, the tool downloads) and <code>SHELF_ALLOWED_DOMAINS</code>. It applies from the next step an agent starts. Reading a web page with the fetch tool does not need this.</p>
+    <form method="post" action="/admin/guard/allow-site" class="inline-form">
+      <label for="site" class="vh">A host name</label>
+      <input id="site" name="site" type="text" required placeholder="registry.example.org or *.example.org" autocomplete="off" spellcheck="false" maxlength="253">
+      <button type="submit" class="btn-secondary button-small">Allow this site</button>
+    </form>
+    {% endif %}
     {% if guard.rules %}
     <h3 id="added-title">Rules added from this page</h3>
     <div class="table-wrap">
@@ -109,7 +118,7 @@
         <tbody>
         {% for rule in guard.rules %}
           <tr>
-            <td>{% if rule.kind == rule_kind.ALLOW_COMMAND %}allows <code>{{ rule.subject }}</code>{% else %}blocks <code>{{ rule.subject }}</code>{% endif %}</td>
+            <td>{% if rule.kind == rule_kind.ALLOW_COMMAND %}allows <code>{{ rule.subject }}</code>{% elif rule.kind == rule_kind.ALLOW_SITE %}lets commands reach <code>{{ rule.subject }}</code>{% else %}blocks <code>{{ rule.subject }}</code>{% endif %}</td>
             <td class="nowrap">{{ rule.by }}</td>
             <td class="nowrap">{{ rule.at[:16] | replace("T", " ") }}</td>
             <td>

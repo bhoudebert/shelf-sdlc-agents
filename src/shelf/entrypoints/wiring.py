@@ -27,6 +27,7 @@ from shelf.adapters.github_app.pulls import GitHubPullRequests
 from shelf.adapters.github_app.references import GitHubReferences
 from shelf.adapters.github_app.settings import GitHubAppSettings
 from shelf.adapters.temporal.runner import TemporalRunner
+from shelf.adapters.warden.rules_store import FileGuardRules
 from shelf.application.steps import Steps
 from shelf.domain.access import may_act_from_github
 from shelf.domain.model import RepoRef
@@ -114,6 +115,9 @@ def build_services(settings: Settings, github: GitHubApp, client: httpx.AsyncCli
             web=settings.web,
             catalog_dir=settings.catalog_dir,
             bindings=lambda role: file.current().roles.get(role, ()),
+            extra_domains=FileGuardRules(Path(settings.guard_rules_dir)).sites_now
+            if settings.guard_rules_dir
+            else None,
         ),
         configs=configs,
         pulls=pulls,

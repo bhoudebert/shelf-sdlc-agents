@@ -7,7 +7,7 @@ import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from shelf.domain.guard_rules import OverlayRule, RuleKind, render
+from shelf.domain.guard_rules import OverlayRule, RuleKind, allowed_sites, render
 
 RULES_FILE = "rules.json"
 OVERLAY_FILE = "warden.ui.toml"
@@ -58,6 +58,13 @@ class FileGuardRules:
         entry = {"at": at, "by": by, "change": what, "rule": rule.id, "kind": rule.kind.value, "subject": rule.subject}
         with (self.directory / CHANGES_FILE).open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(entry) + "\n")
+
+    def sites_now(self) -> tuple[str, ...]:
+        """The sites added from the page, read from the folder now; none when it cannot be read."""
+        try:
+            return allowed_sites(self._load())
+        except (OSError, ValueError, KeyError):
+            return ()
 
     async def rules(self) -> tuple[OverlayRule, ...]:
         """The rules in force, oldest first."""

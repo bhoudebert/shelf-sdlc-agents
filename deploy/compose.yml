@@ -100,6 +100,8 @@ services:
       # The rules an administrator adds from the admin page: a file the guard reads on every call (no reload), in a
       # volume this service only reads.
       WARDEN_OVERLAY_POLICY: /var/lib/shelf-guard/warden.ui.toml
+      # The sites an administrator allowed from the admin page are read from the same folder, for every agent step.
+      SHELF_GUARD_RULES_DIR: /var/lib/shelf-guard
       # A command in the agents' sandbox may write only in $TMPDIR (/tmp/claude-1000, the agent user's uid) and its working
       # directory: the session tokens and the pending audit records live there, and the hooks move the records to the log.
       WARDEN_SESSION_DIR: /tmp/claude-1000/warden

@@ -124,6 +124,8 @@ class ClaudeBackend:
     """Whether agents may read the web (``SHELF_WEB``)."""
     bindings: Callable[[str], tuple[str, ...]] | None = None
     """The skill sources the operator bound to a role, read for every step so an edit applies at once."""
+    extra_domains: Callable[[], tuple[str, ...]] | None = None
+    """The sites an administrator added from the page, read for every step so a change applies at once."""
 
     def _bundles(self, role: str) -> tuple[Path, ...]:
         if self.catalog_dir is None or self.bindings is None:
@@ -137,6 +139,15 @@ class ClaudeBackend:
                 log.warning("role %s is bound to %s, which the catalog does not have: starting without it", role, name)
         return tuple(found)
 
+    def _added_domains(self) -> tuple[str, ...]:
+        if self.extra_domains is None:
+            return ()
+        try:
+            return tuple(dict.fromkeys(self.extra_domains()))
+        except Exception:  # noqa: BLE001 - an unreadable store never stops a step: the configured sites remain
+            log.warning("could not read the sites added from the page: starting with the configured ones")
+            return ()
+
     def options(self, task: AgentTask) -> ClaudeAgentOptions:
         """The SDK options for ``task``, with the bundles bound to its role."""
         return options_for(
@@ -144,7 +155,7 @@ class ClaudeBackend:
             nested_sandbox=self.nested_sandbox,
             sandbox=self.sandbox,
             cli_path=self.cli_path,
-            allowed_domains=self.allowed_domains,
+            allowed_domains=tuple(dict.fromkeys((*self.allowed_domains, *self._added_domains()))),
             bundles=self._bundles(task.role.name),
             web=self.web,
         )
