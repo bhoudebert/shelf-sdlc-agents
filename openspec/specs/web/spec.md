@@ -1022,3 +1022,22 @@ The system SHALL add to the file of a work, when the guard can be read, a sectio
 
 - **WHEN** the oldest call the guard lists is later than the start of the work
 - **THEN** the file says that earlier calls may be missing
+
+### Requirement: A work the workflow engine has forgotten can still be downloaded while its records are kept
+
+The system SHALL, when the workflow engine no longer holds a work but run records of it are kept, still give the file of that work at the same address to a person who may see the repository it named, built from what is kept: the records (and from them the repository, who asked, how it began and what the agents used), the documents on the work's branch, and the conversation of the pull request found from the work's branch; SHALL say in the file that the engine no longer holds the work, so that the steps, its outcome and its stops are not known; SHALL refuse it as it refuses a work they may not see, and answer not found for a work with no record; and SHALL keep the records for thirty days after the last run.
+
+#### Scenario: A work that ended days ago
+
+- **WHEN** the engine has forgotten a work, its records are kept, and a person who may see its repository asks for its file
+- **THEN** they get a file with the work's facts from the records, the runs, the documents, the conversation and the usage, and a line saying the engine no longer holds it
+
+#### Scenario: A repository they may not see
+
+- **WHEN** someone who may not see the repository named in the records asks for the file
+- **THEN** it is refused as not found
+
+#### Scenario: No record
+
+- **WHEN** the engine does not hold the work and no record exists
+- **THEN** the answer is not found
