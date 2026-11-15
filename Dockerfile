@@ -75,6 +75,8 @@ RUN case "$TARGETARCH" in \
 COPY --from=warden /usr/local/bin/warden /usr/local/bin/warden
 # Warden keeps its audit log and its session tokens here; a volume mounted on it inherits the agent user's ownership.
 RUN mkdir -p /var/lib/warden && chown shelf:shelf /var/lib/warden
+# The rules an administrator adds to the guard from the admin page: the web service writes here, the worker reads.
+RUN mkdir -p /var/lib/shelf-guard && chown shelf:shelf /var/lib/shelf-guard
 # Where the synced catalog and the managed policy are mounted: owned by the agent user, so a new volume is writable by the sync.
 RUN mkdir -p /opt/shelf/catalog /etc/claude-code && chown shelf:shelf /opt/shelf/catalog /etc/claude-code
 COPY --from=build --chown=shelf:shelf /app /app

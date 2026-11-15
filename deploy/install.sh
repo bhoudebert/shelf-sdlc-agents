@@ -143,6 +143,12 @@ if [ "$(value SHELF_WARDEN)" != "off" ]; then
   elif printf '%s\n' "$doctor" | grep -q '^ok'; then
     echo "Guard: Warden is wired into the agents (docker compose exec worker warden status shows what it saw)."
   fi
+  # The admin page can allow a command or block a host: the web service must be able to write its rules.
+  if $compose exec -T web sh -c 'test -w /var/lib/shelf-guard' >/dev/null 2>&1; then
+    echo "Guard rules: the admin page can add rules (kept in the guard-rules volume, applied from the next agent call)."
+  else
+    echo "WARNING: the admin page cannot write the guard's rules: /var/lib/shelf-guard is not writable in the web container." >&2
+  fi
 fi
 echo "Open $(sed -n 's/^PUBLIC_URL=//p' "$env_file"): if the GitHub App is not registered yet, you will be guided."
 echo "Logs: $compose logs -f"

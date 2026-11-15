@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import os
+from pathlib import Path
 
 import httpx
 import uvicorn
@@ -10,6 +11,7 @@ from fastapi import FastAPI
 
 from shelf.adapters.caching.forge import CachedForge
 from shelf.adapters.warden.reader import WardenReader
+from shelf.adapters.warden.rules_store import FileGuardRules
 from shelf.adapters.web.app import create_app
 from shelf.adapters.web.context import WebDeps, WebSettings
 from shelf.adapters.web.sessions import SessionStore
@@ -58,6 +60,7 @@ async def build(settings: settings_module.Settings) -> FastAPI:
             references=services.references,
             context_sources=services.context_sources,
             guard=WardenReader(),
+            guard_rules=FileGuardRules(Path(settings.guard_rules_dir)) if settings.guard_rules_dir else None,
         )
     )
 

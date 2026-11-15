@@ -44,6 +44,11 @@ A command is classified into the categories below, and the profile decides what 
 asked where there is one; with nobody to ask it is a deny) or `deny`. `observe` carries out the `guarded` decisions in audit
 mode: nothing is blocked and everything is logged. The operator's file can only tighten a profile.
 
+A third, optional file is the **overlay** (`WARDEN_OVERLAY_POLICY`): it is read last and may hold only `[[rules]]` and
+`[network] deny_domains`. Shelf's admin page writes it. Its `allow` rules count after a locked layer but after every other
+rule, so a rule that denies a command in the operator's or the repository's file still holds, and a blocked domain can never
+be freed. Each hook call reads it, so a change applies to the next call with no reload.
+
 | Category | What it is | observe | guarded | strict | unattended | shelf |
 |---|---|---|---|---|---|---|
 | `destructive` | wipes or overwrites data beyond the workspace (`rm -r /`, `dd` to a device, `DROP DATABASE`, `kubectl delete`) | ask | ask | deny | deny | deny |

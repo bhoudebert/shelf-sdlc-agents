@@ -18,7 +18,8 @@ from shelf.domain.access import AccessRules
 from shelf.domain.app_check import REQUIRED_EVENTS, REQUIRED_PERMISSIONS, AppFacts
 from shelf.domain.config import RepoConfig, Role
 from shelf.domain.context_repo import ContextRepo
-from shelf.domain.guard import GuardReport
+from shelf.domain.guard import GuardReport, StoppedCall
+from shelf.domain.guard_rules import OverlayRule, RuleKind
 from shelf.domain.model import Identity, RepoRef, WorkId, WorkView
 from shelf.domain.pipeline import EntryPoint, Phase
 from shelf.domain.policy import Autonomy, Policy
@@ -32,6 +33,7 @@ from shelf.ports.context_sources import ContextSources
 from shelf.ports.conversation import Conversations
 from shelf.ports.documents import Documents
 from shelf.ports.guard import GuardReader
+from shelf.ports.guard_rules import GuardRules
 from shelf.ports.references import References
 from shelf.ports.runner import UnreachableWorkError
 from tests.fakes import FakeConfigs, FakeForge, FakeRunner
@@ -63,6 +65,7 @@ class Fixture:
         context_sources: ContextSources | None = None,
         access_source: Callable[[], AccessRules] | None = None,
         guard: GuardReader | None = None,
+        guard_rules: GuardRules | None = None,
     ) -> None:
         self.forge = FakeForge(identities={"token-code": ALICE}, repos={"token-code": (REPO,)})
         self.runner = FakeRunner()
@@ -81,6 +84,7 @@ class Fixture:
             conversations,
             access_source,
             guard,
+            guard_rules,
         )
         self.client = TestClient(create_app(deps), base_url="https://shelf.example.org", follow_redirects=False)
 
@@ -1064,3 +1068,125 @@ def test_the_admin_page_without_details_shows_no_empty_tables() -> None:
     page = fixture.client.get("/admin").text
     assert "Stopped, or would have been" not in page
     assert "What the agents read on the web" not in page
+
+
+class MemoryRules:
+    """A stand-in for the folder the rules are kept in."""
+
+    def __init__(self) -> None:
+        self.kept: list[OverlayRule] = []
+        self.removed: list[tuple[str, str]] = []
+
+    async def rules(self) -> tuple[OverlayRule, ...]:
+        return tuple(self.kept)
+
+    async def add(self, rule: OverlayRule) -> None:
+        if all(rule.id != existing.id for existing in self.kept):
+            self.kept.append(rule)
+
+    async def remove(self, rule_id: str, by: str, at: str) -> bool:
+        before = len(self.kept)
+        self.kept = [rule for rule in self.kept if rule.id != rule_id]
+        self.removed.append((rule_id, by))
+        return len(self.kept) < before
+
+
+STOPPED = (
+    StoppedCall(
+        "2026-11-15T10:00:00Z", "claude", "s1", "bash", "deny", "", ("exfil",), "why", "gh pr merge 5 --squash"
+    ),
+    StoppedCall(
+        "2026-11-15T10:01:00Z", "claude", "s1", "web", "deny", "", ("blocked_domain",), "why", "http://10.0.0.1/"
+    ),
+)
+
+
+def applying(*, admin: str = "alice") -> tuple[Fixture, MemoryRules]:
+    rules = MemoryRules()
+    report = GuardReport(9, 2, 0, chain_intact=True, recent=STOPPED, web_hosts={"docs.rs": 3})
+    fixture = Fixture(
+        AccessRules(admins=frozenset({admin}), users=frozenset({"alice", "bob"})),
+        guard=FakeGuard(Ok(report)),
+        guard_rules=rules,
+    )
+    return fixture, rules
+
+
+def test_an_administrator_allows_a_stopped_command_and_the_rule_is_kept_with_who_added_it() -> None:
+    fixture, rules = applying()
+    fixture.sign_in()
+    page = fixture.client.get("/admin").text
+    assert 'action="/admin/guard/allow"' in page
+    response = fixture.client.post("/admin/guard/allow", data={"command": "gh pr merge 5 --squash"})
+    assert response.status_code == 303
+    assert response.headers["location"] == "/admin#guard-title"
+    [rule] = rules.kept
+    assert (rule.kind, rule.subject, rule.by) == (RuleKind.ALLOW_COMMAND, "gh pr merge 5 --squash", "alice")
+
+
+def test_an_administrator_blocks_a_host_the_agents_read() -> None:
+    fixture, rules = applying()
+    fixture.sign_in()
+    assert fixture.client.post("/admin/guard/deny-host", data={"host": "docs.rs"}).status_code == 303
+    assert [(r.kind, r.subject) for r in rules.kept] == [(RuleKind.DENY_HOST, "docs.rs")]
+
+
+def test_a_command_the_page_did_not_list_is_refused_and_nothing_is_written() -> None:
+    fixture, rules = applying()
+    fixture.sign_in()
+    assert fixture.client.post("/admin/guard/allow", data={"command": "rm -rf /"}).status_code == 422
+    assert fixture.client.post("/admin/guard/deny-host", data={"host": "example.org"}).status_code == 422
+    assert rules.kept == []
+
+
+def test_a_call_that_is_always_refused_cannot_be_allowed() -> None:
+    fixture, rules = applying()
+    fixture.sign_in()
+    assert fixture.client.post("/admin/guard/allow", data={"command": "http://10.0.0.1/"}).status_code == 422
+    assert rules.kept == []
+
+
+def test_somebody_who_is_not_an_administrator_cannot_change_the_guard() -> None:
+    fixture, rules = applying(admin="carol")
+    fixture.sign_in()
+    for path, data in (
+        ("/admin/guard/allow", {"command": "gh pr merge 5 --squash"}),
+        ("/admin/guard/deny-host", {"host": "docs.rs"}),
+        ("/admin/guard/remove", {"rule_id": "ui-x"}),
+    ):
+        assert fixture.client.post(path, data=data).status_code == 403
+    assert rules.kept == []
+
+
+def test_a_request_from_another_site_is_refused() -> None:
+    fixture, rules = applying()
+    fixture.sign_in()
+    response = fixture.client.post(
+        "/admin/guard/allow", data={"command": "gh pr merge 5 --squash"}, headers={"origin": "https://evil.example"}
+    )
+    assert response.status_code in (400, 403)
+    assert rules.kept == []
+
+
+def test_the_rules_added_from_the_page_are_listed_and_can_be_removed() -> None:
+    fixture, rules = applying()
+    fixture.sign_in()
+    fixture.client.post("/admin/guard/deny-host", data={"host": "docs.rs"})
+    page = fixture.client.get("/admin").text
+    assert "Rules added from this page" in page
+    assert "blocks <code>docs.rs</code>" in page
+    rule_id = rules.kept[0].id
+    assert fixture.client.post("/admin/guard/remove", data={"rule_id": rule_id}).status_code == 303
+    assert rules.kept == []
+    assert fixture.client.post("/admin/guard/remove", data={"rule_id": rule_id}).status_code == 404
+
+
+def test_without_a_place_for_the_rules_the_page_shows_the_text_and_no_button() -> None:
+    report = GuardReport(9, 2, 0, chain_intact=True, recent=STOPPED, web_hosts={"docs.rs": 3})
+    fixture = Fixture(AccessRules(admins=frozenset({"alice"})), guard=FakeGuard(Ok(report)))
+    fixture.sign_in()
+    page = fixture.client.get("/admin").text
+    assert "/admin/guard/allow" not in page
+    assert "Allow it next time" in page
+    assert "not set up on this instance" in page
+    assert fixture.client.post("/admin/guard/allow", data={"command": "gh pr merge 5 --squash"}).status_code == 409

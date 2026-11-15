@@ -905,3 +905,37 @@ The system SHALL judge every fetch of an address and every web search before it 
 
 - **WHEN** an agent searches the web for text that contains a credential
 - **THEN** it is refused as an exfiltration
+
+### Requirement: An overlay file holds the rules an administrator adds from the web page
+
+The system SHALL read an optional overlay policy file named by `WARDEN_OVERLAY_POLICY`, after the operator's and the repository's files, that holds only `[[rules]]` and `[network] deny_domains` (and an optional `version`); SHALL refuse a file that holds anything else, like any other invalid policy file; SHALL apply its `allow` rules although a locked layer came before, but only for a command that no earlier rule matched, so that an operator's or a repository's rule that denies it still holds; SHALL apply its `deny` rules and its denied domains; and SHALL never let it free what no rule can free (a blocked domain, a change to a protected file).
+
+#### Scenario: An administrator allows a command
+
+- **WHEN** the operator's file is locked, the profile asks about `git push --force origin shelf/work-1`, and the overlay allows exactly that command
+- **THEN** the command is allowed
+
+#### Scenario: An earlier deny still holds
+
+- **WHEN** the operator's file has a rule that denies a command and the overlay allows the same command
+- **THEN** the command is denied
+
+#### Scenario: A host denied from the page
+
+- **WHEN** the overlay lists `example.org` under `deny_domains`
+- **THEN** a fetch of `https://example.org/x` is refused as a blocked domain
+
+#### Scenario: More than rules and domains
+
+- **WHEN** the overlay sets a category or a profile
+- **THEN** the file is refused and the message names what it may hold
+
+#### Scenario: What no rule can free
+
+- **WHEN** the overlay allows a command that fetches a blocked domain
+- **THEN** the command is still denied
+
+#### Scenario: No overlay
+
+- **WHEN** `WARDEN_OVERLAY_POLICY` is not set or names no file
+- **THEN** the policy is what it was without it

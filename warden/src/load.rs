@@ -16,6 +16,8 @@ pub struct Sources {
     /// The operator's policy: a file an organisation controls, always locked, between the global and the repository's.
     /// Taken from `WARDEN_OPERATOR_POLICY` when not given.
     pub operator: Option<PathBuf>,
+    /// The overlay: the rules an administrator adds from the web page. Taken from `WARDEN_OVERLAY_POLICY` when not given.
+    pub overlay: Option<PathBuf>,
     /// The directory to look for the repository file from.
     pub cwd: PathBuf,
     /// The home directory.
@@ -38,6 +40,11 @@ fn operator_path(sources: &Sources) -> Option<PathBuf> {
     sources.operator.clone().or_else(|| std::env::var_os("WARDEN_OPERATOR_POLICY").map(PathBuf::from))
 }
 
+/// The overlay file: the one given, or `$WARDEN_OVERLAY_POLICY`.
+fn overlay_path(sources: &Sources) -> Option<PathBuf> {
+    sources.overlay.clone().or_else(|| std::env::var_os("WARDEN_OVERLAY_POLICY").map(PathBuf::from))
+}
+
 /// The nearest `.warden/policy.toml` from `start` up to the root of the repository (or the filesystem).
 fn repo_path(start: &Path) -> Option<PathBuf> {
     for dir in start.ancestors() {
@@ -58,7 +65,7 @@ fn read_layer(path: &Path) -> Result<(String, Layer), String> {
     Ok((path.display().to_string(), layer))
 }
 
-/// Build the policy: the preset, then the global file, then the repository file.
+/// Build the policy: the preset, then the global, operator and repository files, then the overlay.
 pub fn policy(sources: &Sources) -> Result<Policy, String> {
     let mut layers: Vec<(String, Layer)> = Vec::new();
     if let Some(profile) = sources.profile {
@@ -77,6 +84,11 @@ pub fn policy(sources: &Sources) -> Result<Policy, String> {
         }
         if let Some(repo) = repo_path(&sources.cwd) {
             layers.push(read_layer(&repo)?);
+        }
+        if let Some(overlay) = overlay_path(sources).filter(|path| path.is_file()) {
+            let (name, layer) = read_layer(&overlay)?;
+            let layer = layer.into_overlay().map_err(|error| format!("{name}: {error}"))?;
+            layers.push((format!("overlay:{name}"), layer));
         }
     }
     Policy::resolve(&layers, &sources.home).map_err(|error| error.to_string())
@@ -170,6 +182,96 @@ mod tests {
             Sources { files: true, global: Some(file), cwd: root.clone(), home: root.clone(), ..Sources::default() };
         let error = policy(&sources).expect_err("refused");
         assert!(error.contains("p.toml"), "{error}");
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    fn overlay_sources(root: &Path, operator: &str, overlay: Option<&str>) -> Sources {
+        let operator_file = root.join("operator.toml");
+        std::fs::write(&operator_file, operator).expect("operator file");
+        let overlay_file = root.join("overlay.toml");
+        if let Some(text) = overlay {
+            std::fs::write(&overlay_file, text).expect("overlay file");
+        }
+        Sources {
+            profile: Some(Profile::Shelf),
+            files: true,
+            operator: Some(operator_file),
+            overlay: Some(overlay_file),
+            cwd: root.to_path_buf(),
+            home: root.to_path_buf(),
+            global: Some(root.join("none.toml")),
+        }
+    }
+
+    const FORCE: &str = "git push --force origin shelf/work-1";
+
+    fn rule_for(command: &str, decision: &str) -> String {
+        let pattern = command.replace('.', "\\.");
+        format!("[[rules]]\nid = \"ui\"\nmatch = '^{pattern}$'\ndecision = \"{decision}\"\nreason = \"approved\"\n")
+    }
+
+    #[test]
+    fn an_overlay_rule_allows_a_command_although_the_operators_file_is_locked() {
+        let root = temp_dir("overlay-allow");
+        let sources = overlay_sources(
+            &root,
+            "profile = \"guarded\"\n[categories]\nvcs_force = \"deny\"",
+            Some(&rule_for(FORCE, "allow")),
+        );
+        let policy = policy(&sources).expect("policy");
+        assert!(policy.sources.iter().any(|s| s.starts_with("overlay:")), "{:?}", policy.sources);
+        let rule = policy.rule_for(FORCE).expect("the overlay rule matches");
+        assert_eq!(rule.decision, warden_policy::Decision::Allow);
+        assert!(rule.source.starts_with("overlay:"));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn an_earlier_rule_that_denies_beats_the_overlays_allow() {
+        let root = temp_dir("overlay-earlier");
+        let operator = format!("profile = \"guarded\"\n{}", rule_for(FORCE, "deny").replace("\"ui\"", "\"never\""));
+        let sources = overlay_sources(&root, &operator, Some(&rule_for(FORCE, "allow")));
+        let policy = policy(&sources).expect("policy");
+        let rule = policy.rule_for(FORCE).expect("a rule matches");
+        assert_eq!(rule.decision, warden_policy::Decision::Deny);
+        assert_eq!(rule.id, "never");
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn an_overlay_can_deny_a_host() {
+        let root = temp_dir("overlay-host");
+        let sources =
+            overlay_sources(&root, "profile = \"shelf\"", Some("[network]\ndeny_domains = [\"example.org\"]"));
+        let policy = policy(&sources).expect("policy");
+        assert!(policy.network.denies("example.org").is_some());
+        assert!(policy.network.denies("docs.rs").is_none());
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn an_overlay_that_holds_more_than_rules_and_domains_is_refused_with_what_it_may_hold() {
+        let root = temp_dir("overlay-more");
+        for text in [
+            "[categories]\nexfil = \"allow\"",
+            "profile = \"observe\"",
+            "locked = false",
+            "[network]\nallow_domains = [\"example.org\"]",
+            "[paths]\ndeny_read = [\"x\"]",
+        ] {
+            let sources = overlay_sources(&root, "profile = \"shelf\"", Some(text));
+            let error = policy(&sources).expect_err(text);
+            assert!(error.contains("an overlay may hold only [[rules]] and [network] deny_domains"), "{text}: {error}");
+        }
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn no_overlay_file_changes_nothing() {
+        let root = temp_dir("overlay-none");
+        let with = policy(&overlay_sources(&root, "profile = \"shelf\"", None)).expect("policy");
+        let _ = std::fs::remove_file(root.join("overlay.toml"));
+        assert!(!with.sources.iter().any(|s| s.starts_with("overlay:")));
         let _ = std::fs::remove_dir_all(root);
     }
 }

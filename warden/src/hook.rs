@@ -61,6 +61,7 @@ pub fn run(agent: &str, event: &str, stdin: &str, setting: &Setting) -> Rendered
         files: true,
         global: None,
         operator: None,
+        overlay: None,
         cwd: setting.cwd.clone(),
         home: setting.home.clone(),
     };

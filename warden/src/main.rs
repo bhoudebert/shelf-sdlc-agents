@@ -242,6 +242,7 @@ fn sources(from: &Where, ctx: &Context, default_profile: Option<Profile>) -> Sou
         files: from.files || from.policy.is_some(),
         global: from.policy.clone(),
         operator: None,
+        overlay: None,
         cwd: ctx.cwd.clone(),
         home: ctx.home.clone(),
     }
