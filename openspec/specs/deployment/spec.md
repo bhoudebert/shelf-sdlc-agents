@@ -677,3 +677,17 @@ The system SHALL read `SHELF_NIX` from the environment, `off` by default, SHALL 
 
 - **WHEN** `SHELF_NIX=maybe`
 - **THEN** the service does not start and the message names `SHELF_NIX`
+
+### Requirement: The worker reads the rules the page keeps
+
+The system SHALL give the worker the folder where the web page keeps its rules, read-only, and its location in `SHELF_GUARD_RULES_DIR`, so that the sites an administrator added reach the agents' sandboxes; and SHALL run without them when the folder is not set.
+
+#### Scenario: A deployment with the compose file
+
+- **WHEN** the stack starts from the compose file
+- **THEN** the worker has the rules folder read-only and the variable that names it
+
+#### Scenario: No folder
+
+- **WHEN** `SHELF_GUARD_RULES_DIR` is empty on the worker
+- **THEN** only the built-in and configured sites are reachable
