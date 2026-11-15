@@ -247,3 +247,38 @@ The system SHALL give the pull request the title it is given when opening it, an
 
 - **WHEN** the work reaches the merge with a different proposed title
 - **THEN** the pull request is retitled
+
+### Requirement: Ending a work by a person closes the pull request it opened
+
+The system SHALL, when a person rejects or aborts a piece of work that opened its own pull request, or an administrator closes it from the work page, post a comment on that pull request saying who ended the work and how, and close the pull request (a draft as well), leaving its branch; SHALL NOT close a pull request the work did not open (a review of someone else's pull request, or work on a pull request that already existed), nor one that is already merged or closed; and SHALL log and ignore a failure to close, so that the work still ends.
+
+#### Scenario: A person aborts
+
+- **WHEN** a person aborts a work whose draft pull request is open
+- **THEN** a comment says who aborted it, the pull request is closed, and its branch is kept
+
+#### Scenario: An administrator closes a work that cannot be read
+
+- **WHEN** an administrator closes a work that cannot be steered, from the work page
+- **THEN** the workflow is terminated and its pull request is closed with a comment saying so
+
+#### Scenario: A pull request that is not ours
+
+- **WHEN** a person aborts a review of a pull request someone else opened
+- **THEN** that pull request stays open
+
+#### Scenario: Nothing opened yet
+
+- **WHEN** a person aborts a work before its pull request exists
+- **THEN** the work ends and nothing else happens
+
+#### Scenario: Closing fails
+
+- **WHEN** GitHub refuses to close the pull request
+- **THEN** a warning is logged and the work still ends
+
+#### Scenario: Work started under an earlier protocol
+
+- **WHEN** a work that started under an earlier protocol is aborted
+- **THEN** its pull request is left as it was
+
