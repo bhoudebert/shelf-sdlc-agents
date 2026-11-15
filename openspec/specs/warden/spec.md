@@ -939,3 +939,27 @@ The system SHALL read an optional overlay policy file named by `WARDEN_OVERLAY_P
 
 - **WHEN** `WARDEN_OVERLAY_POLICY` is not set or names no file
 - **THEN** the policy is what it was without it
+
+### Requirement: An overlay may free a named project agent file from the protected list
+
+The system SHALL let the overlay policy file hold, besides its rules and denied domains, `[paths] unprotect`, a list of the protected patterns it frees; SHALL honour an entry only when it is one of a fixed set of project-level agent files (`**/opencode.json`, `**/opencode.jsonc`, `**/.opencode`, `**/.opencode/**`, `**/.codex`, `**/.codex/**`, `**/.github/copilot/**`, `**/.github/hooks/**`) and ignore, with a warning, any other entry, so that the settings and hooks of Claude Code, Warden's own files, the shell start-up files and the git hooks can never be freed; SHALL stop treating a write to a freed file as a change to a protected file, in a command and in a file tool; and SHALL refuse an overlay whose `[paths]` holds anything but `unprotect`.
+
+#### Scenario: A freed file
+
+- **WHEN** the overlay lists `**/opencode.json` under `unprotect` and an agent writes `opencode.json`
+- **THEN** the write is not refused as a change to a protected file, in a shell command or with the Write tool
+
+#### Scenario: A file that can never be freed
+
+- **WHEN** the overlay lists `**/.claude/settings.json` under `unprotect`
+- **THEN** the entry is ignored with a warning and a write to that file is still refused
+
+#### Scenario: The other protected files
+
+- **WHEN** `**/opencode.json` is freed
+- **THEN** a write to `**/.codex/config.toml` or to a file of Warden is still refused
+
+#### Scenario: An overlay that holds more
+
+- **WHEN** the overlay's `[paths]` holds `protected`, `deny_write` or a scope
+- **THEN** the file is refused like any invalid policy file

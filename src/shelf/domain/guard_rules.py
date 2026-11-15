@@ -14,6 +14,7 @@ class RuleKind(StrEnum):
     ALLOW_COMMAND = "allow_command"
     DENY_HOST = "deny_host"
     ALLOW_SITE = "allow_site"
+    ALLOW_FILE = "allow_file"
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,6 +30,19 @@ class OverlayRule:
     at: str
     """When, ISO, UTC."""
 
+
+FREEABLE_FILES: dict[str, str] = {
+    "**/opencode.json": "opencode.json (OpenCode's project configuration)",
+    "**/opencode.jsonc": "opencode.jsonc (OpenCode's project configuration)",
+    "**/.opencode/**": "the .opencode folder (OpenCode's plugins and agents)",
+    "**/.codex/**": "the .codex folder (Codex's project configuration)",
+    "**/.github/copilot/**": "the .github/copilot folder (Copilot's project configuration)",
+    "**/.github/hooks/**": "the .github/hooks folder (hooks of Copilot's agent)",
+}
+"""The project agent files an administrator may free for the agents' writes, and how the page names them.
+
+Warden honours this list and nothing else: the settings and hooks of Claude Code, its own files and the git hooks are
+never in it."""
 
 MAX_COMMAND = 300
 _HOST = re.compile(r"[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?")
@@ -102,6 +116,13 @@ def allow_site(site: str, by: str, at: str) -> OverlayRule | None:
     return OverlayRule(_id(RuleKind.ALLOW_SITE, site), RuleKind.ALLOW_SITE, site, by, at)
 
 
+def allow_file(pattern: str, by: str, at: str) -> OverlayRule | None:
+    """A rule that frees a project agent file for the agents' writes; ``None`` for what is not in ``FREEABLE_FILES``."""
+    if pattern not in FREEABLE_FILES or not _LOGIN.fullmatch(by):
+        return None
+    return OverlayRule(_id(RuleKind.ALLOW_FILE, pattern), RuleKind.ALLOW_FILE, pattern, by, at)
+
+
 def allowed_sites(rules: tuple[OverlayRule, ...]) -> tuple[str, ...]:
     """The sites a sandboxed command may reach because of ``rules``, in the order they were added."""
     return tuple(rule.subject for rule in rules if rule.kind is RuleKind.ALLOW_SITE)
@@ -131,6 +152,9 @@ def render(rules: tuple[OverlayRule, ...]) -> str:
                 f"reason = {_quoted(f'allowed by {rule.by} on {rule.at[:10]}')}",
                 "",
             ]
+    freed = [rule.subject for rule in rules if rule.kind is RuleKind.ALLOW_FILE]
+    if freed:
+        lines += ["[paths]", f"unprotect = [{', '.join(_quoted(pattern) for pattern in freed)}]", ""]
     hosts = [rule.subject for rule in rules if rule.kind is RuleKind.DENY_HOST]
     if hosts:
         lines += ["[network]", f"deny_domains = [{', '.join(_quoted(host) for host in hosts)}]", ""]

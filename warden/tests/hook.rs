@@ -462,3 +462,43 @@ fn an_overlay_cannot_free_a_fetch_of_a_blocked_domain() {
     let out = hook.bash("curl https://webhook.site/abc");
     assert_eq!(decision(&out), Some("deny"), "{out}");
 }
+
+fn overlay_with(hook: &mut Hook, text: &str) {
+    let overlay = hook.state.join("warden.ui.toml");
+    std::fs::write(&overlay, text).expect("overlay");
+    hook.overlay = Some(overlay);
+}
+
+#[test]
+fn an_overlay_can_free_opencode_json_in_a_command_and_in_a_file_tool() {
+    let mut hook = Hook::new("overlay-unprotect", "shelf");
+    let write = json!({ "file_path": "/work/app/opencode.json", "content": "{}" });
+    assert_eq!(decision(&tool(&hook, "Write", &write)), Some("deny"), "protected before");
+    assert_eq!(decision(&hook.bash("cat > opencode.json <<'EOF'\n{}\nEOF")), Some("deny"), "protected before");
+    overlay_with(&mut hook, "[paths]\nunprotect = [\"**/opencode.json\"]\n");
+    assert_ne!(decision(&tool(&hook, "Write", &write)), Some("deny"), "freed in the file tool");
+    assert_ne!(decision(&hook.bash("cat > opencode.json <<'EOF'\n{}\nEOF")), Some("deny"), "freed in a command");
+}
+
+#[test]
+fn freeing_one_file_leaves_the_other_protected_files_protected() {
+    let mut hook = Hook::new("overlay-unprotect-others", "shelf");
+    overlay_with(&mut hook, "[paths]\nunprotect = [\"**/opencode.json\"]\n");
+    for path in ["/work/app/.codex/config.toml", "/work/app/.warden/policy.toml", "/work/app/.git/hooks/pre-push"] {
+        let out = tool(&hook, "Write", &json!({ "file_path": path, "content": "x" }));
+        assert_eq!(decision(&out), Some("deny"), "{path}: {out}");
+    }
+}
+
+#[test]
+fn a_file_that_can_never_be_freed_stays_protected_whatever_the_overlay_says() {
+    let mut hook = Hook::new("overlay-unprotect-never", "shelf");
+    overlay_with(
+        &mut hook,
+        "[paths]\nunprotect = [\"**/.claude/settings.json\", \"**/.warden/**\", \"**/.git/hooks/**\"]\n",
+    );
+    for path in ["/work/app/.claude/settings.json", "/work/app/.warden/policy.toml", "/work/app/.git/hooks/pre-push"] {
+        let out = tool(&hook, "Write", &json!({ "file_path": path, "content": "x" }));
+        assert_eq!(decision(&out), Some("deny"), "{path}: {out}");
+    }
+}

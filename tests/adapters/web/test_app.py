@@ -1412,3 +1412,29 @@ def test_only_an_administrator_allows_a_site() -> None:
     fixture.sign_in()
     assert fixture.client.post("/admin/guard/allow-site", data={"site": "registry.example.org"}).status_code == 403
     assert rules.kept == []
+
+
+def test_an_administrator_frees_opencode_json_and_the_page_lists_it() -> None:
+    fixture, rules = applying()
+    fixture.sign_in()
+    assert fixture.client.post("/admin/guard/allow-file", data={"pattern": "**/opencode.json"}).status_code == 303
+    [rule] = rules.kept
+    assert (rule.kind, rule.subject, rule.by) == (RuleKind.ALLOW_FILE, "**/opencode.json", "alice")
+    page = fixture.client.get("/admin").text
+    assert "Project agent files the agents may write" in page
+    assert "lets agents write <code>**/opencode.json</code>" in page
+
+
+def test_a_file_outside_the_list_cannot_be_freed_from_the_page() -> None:
+    fixture, rules = applying()
+    fixture.sign_in()
+    for pattern in ("**/.claude/settings.json", "~/.bashrc", "**/.warden/**", "**/*"):
+        assert fixture.client.post("/admin/guard/allow-file", data={"pattern": pattern}).status_code == 422
+    assert rules.kept == []
+
+
+def test_only_an_administrator_frees_a_file() -> None:
+    fixture, rules = applying(admin="carol")
+    fixture.sign_in()
+    assert fixture.client.post("/admin/guard/allow-file", data={"pattern": "**/opencode.json"}).status_code == 403
+    assert rules.kept == []

@@ -258,10 +258,15 @@ mod tests {
             "locked = false",
             "[network]\nallow_domains = [\"example.org\"]",
             "[paths]\ndeny_read = [\"x\"]",
+            "[paths]\nprotected = [\"x\"]",
+            "[paths]\nscope = [\"/\"]",
         ] {
             let sources = overlay_sources(&root, "profile = \"shelf\"", Some(text));
             let error = policy(&sources).expect_err(text);
-            assert!(error.contains("an overlay may hold only [[rules]] and [network] deny_domains"), "{text}: {error}");
+            assert!(
+                error.contains("an overlay may hold only [[rules]], [network] deny_domains and [paths] unprotect"),
+                "{text}: {error}"
+            );
         }
         let _ = std::fs::remove_dir_all(root);
     }
