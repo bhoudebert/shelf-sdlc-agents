@@ -247,3 +247,23 @@ The system SHALL give the pull request the title it is given when opening it, an
 
 - **WHEN** the work reaches the merge with a different proposed title
 - **THEN** the pull request is retitled
+
+### Requirement: Only the latest run of each check counts
+
+The system SHALL sum up the CI of a commit from the latest run of each check, so that a run which GitHub cancelled because a newer run of the same check superseded it, or an earlier failure that a later run of the same check fixed, does not count.
+
+#### Scenario: A superseded run
+
+- **WHEN** a check has a cancelled run followed by a successful run of the same check on the same commit
+- **THEN** the CI is green
+
+#### Scenario: A later failure
+
+- **WHEN** a check has a successful run followed by a failed run of the same check
+- **THEN** the CI is red and lists that run
+
+#### Scenario: Two different checks
+
+- **WHEN** two checks with different names each have one run, one red and one green
+- **THEN** the CI is red
+
