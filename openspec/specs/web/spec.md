@@ -922,3 +922,27 @@ The system SHALL let an administrator, in the Guard section of the admin page an
 
 - **WHEN** someone who is not an administrator posts a file
 - **THEN** it is refused and nothing changes
+
+### Requirement: A decision that ends the work asks in a themed dialog, never in the browser's own
+
+The system SHALL ask before a decision that ends a work (reject, abort, and closing a work as an administrator) in a dialog of the interface itself, in the light and the dark theme, that says what is about to happen and that it cannot be undone and offers a cancel and a confirm button named for the action; SHALL open it with the cancel button focused, close it with Escape, a click outside it or the cancel button without sending anything, keep the keyboard inside it while it is open, and return the focus to the button that opened it; SHALL send the decision only when the person confirms it; and SHALL NOT use a dialog of the browser (`confirm`, `alert` or `prompt`) anywhere in the interface.
+
+#### Scenario: Rejecting a work
+
+- **WHEN** a person presses Reject on the page of a work
+- **THEN** a themed dialog says the work will be rejected and cannot be recovered, and nothing is sent until they confirm
+
+#### Scenario: Cancelling
+
+- **WHEN** the person presses Cancel, Escape or the backdrop
+- **THEN** the dialog closes, nothing is sent and the focus returns to the Reject button
+
+#### Scenario: Confirming
+
+- **WHEN** the person confirms
+- **THEN** the decision is sent exactly as it would have been from the button
+
+#### Scenario: No native dialog
+
+- **WHEN** the interface's own scripts and templates are searched
+- **THEN** none calls the browser's `confirm`, `alert` or `prompt`
