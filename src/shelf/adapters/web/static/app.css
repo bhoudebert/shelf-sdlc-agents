@@ -682,3 +682,6 @@ details.rule pre code { background: none; padding: 0; box-shadow: none; }
 .usage { margin-top: 40px; }
 .usage h3 { margin: 28px 0 8px; font-size: 1.05rem; }
 .usage .facts { margin-bottom: 8px; }
+.usage h2 { margin-bottom: 12px; }
+.usage .table-wrap { overflow-x: auto; }
+.usage .admin-table th, .usage .admin-table td { white-space: nowrap; padding-right: 20px; }
