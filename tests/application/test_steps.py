@@ -862,12 +862,13 @@ async def test_an_installation_that_takes_too_long_is_given_up_and_told(monkeypa
 @pytest.mark.parametrize("phase", [Phase.INTAKE, Phase.DESIGN, Phase.PLAN])
 def test_an_agent_that_writes_a_document_is_told_to_format_it_as_the_repository_does(phase: Phase) -> None:
     prompt = task_prompt(NEED, RunStep(phase, 0, ""))
-    assert "run it on the file you wrote before you finish" in prompt
+    assert "The system keeps Prettier off this folder" in prompt
+    assert "do not spend turns installing it" in prompt
 
 
 @pytest.mark.parametrize("phase", [Phase.SPEC_REVIEW, Phase.DESIGN_REVIEW, Phase.CODE_REVIEW, Phase.IMPLEMENT])
 def test_a_step_that_writes_no_document_is_not_told_to_format_one(phase: Phase) -> None:
-    assert "run it on the file you wrote" not in task_prompt(NEED, RunStep(phase, 0, ""))
+    assert "keeps Prettier off this folder" not in task_prompt(NEED, RunStep(phase, 0, ""))
 
 
 def sent_back(phase: Phase, feedback: str = "Cut R10.", attempt: int = 1, session: str = "sess-1") -> RunStep:
@@ -1030,3 +1031,24 @@ async def test_a_ci_that_never_finishes_still_asks_a_person_at_the_code_review()
     result = await runner.run(NEED, RunStep(Phase.CODE_REVIEW, 0, ""))
     assert isinstance(result, Reviewed)
     assert result.verdict is Verdict.ESCALATE
+
+
+async def test_a_repository_that_uses_prettier_has_shelfs_folder_ignored_before_the_first_commit() -> None:
+    workspaces = with_files(FakeWorkspaces(), {"package.json": '{"devDependencies": {"prettier": "3.8.1"}}'})
+    await steps(FakeAgents(), workspaces).run(NEED, RunStep(Phase.INTAKE, 0, ""))
+    assert (workspaces.workspace.path / ".prettierignore").read_text().endswith(".shelf/\n")
+    assert workspaces.workspace.pushed, "it rides with the first commit"
+
+
+async def test_the_ignore_line_is_not_added_again_by_the_next_step() -> None:
+    workspaces = with_files(FakeWorkspaces(), {"package.json": '{"devDependencies": {"prettier": "3.8.1"}}'})
+    runner = steps(FakeAgents(), workspaces)
+    await runner.run(NEED, RunStep(Phase.INTAKE, 0, ""))
+    await runner.run(NEED, RunStep(Phase.SPEC_REVIEW, 0, ""))
+    assert (workspaces.workspace.path / ".prettierignore").read_text().count(".shelf/") == 1
+
+
+async def test_a_repository_without_prettier_gets_no_ignore_file() -> None:
+    workspaces = FakeWorkspaces()
+    await steps(FakeAgents(), workspaces).run(NEED, RunStep(Phase.INTAKE, 0, ""))
+    assert not (workspaces.workspace.path / ".prettierignore").exists()
