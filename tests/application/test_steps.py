@@ -851,3 +851,14 @@ async def test_an_installation_that_takes_too_long_is_given_up_and_told(monkeypa
     agents = FakeAgents()
     await steps(agents, workspaces, cache_dir="/cache").run(NEED, RunStep(Phase.IMPLEMENT, 0, ""))
     assert "could not: it took longer than" in agents.tasks[0].prompt
+
+
+@pytest.mark.parametrize("phase", [Phase.INTAKE, Phase.DESIGN, Phase.PLAN])
+def test_an_agent_that_writes_a_document_is_told_to_format_it_as_the_repository_does(phase: Phase) -> None:
+    prompt = task_prompt(NEED, RunStep(phase, 0, ""))
+    assert "run it on the file you wrote before you finish" in prompt
+
+
+@pytest.mark.parametrize("phase", [Phase.SPEC_REVIEW, Phase.DESIGN_REVIEW, Phase.CODE_REVIEW, Phase.IMPLEMENT])
+def test_a_step_that_writes_no_document_is_not_told_to_format_one(phase: Phase) -> None:
+    assert "run it on the file you wrote" not in task_prompt(NEED, RunStep(phase, 0, ""))

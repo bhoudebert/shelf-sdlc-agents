@@ -87,6 +87,12 @@ CI_PHASES = frozenset({Phase.IMPLEMENT, Phase.CODE_REVIEW})
 """The steps that are told what the CI says: the code. A spec or a design is not judged by the checks of a draft."""
 
 
+DOCUMENT_FORMAT_NOTE = (
+    "The document is committed to the repository and its CI checks it like any other file. If the repository has a "
+    "formatter (Prettier, markdownlint, dprint...), run it on the file you wrote before you finish, so that a check "
+    "that covers the whole repository does not fail on your document."
+)
+
 TOOL_PHASES = frozenset({Phase.IMPLEMENT, Phase.CODE_REVIEW})
 """The steps that build and test, and so need the repository's tools."""
 
@@ -178,7 +184,7 @@ def task_prompt(  # noqa: PLR0913
     ]
     lines += [part for note in notes if note for part in ("", note)]
     if role.document:
-        lines += ["", f"Write your result to `{folder}/{role.document}`."]
+        lines += ["", f"Write your result to `{folder}/{role.document}`.", "", DOCUMENT_FORMAT_NOTE]
     if step.phase in REVIEWERS:
         lines += [
             "",
