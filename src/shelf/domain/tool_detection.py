@@ -23,6 +23,7 @@ SOURCES = (
     ".python-version",
     "package.json",
     "go.mod",
+    "flake.nix",
 )
 """The files read to find the versions, as glob patterns."""
 

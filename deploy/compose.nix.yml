@@ -1,0 +1,39 @@
+# Adds a persistent Nix store, so that a repository whose environment is a Nix flake can give its agents that environment.
+# `sh deploy/install.sh` uses this file when SHELF_NIX=on in deploy/.env; it is not part of a normal install.
+#
+# - `nix` runs the Nix daemon. It owns the store and does every build, as root in its own container, with no secret in it.
+# - The worker mounts the same store READ-ONLY and talks to the daemon over its socket: nothing the worker or an agent runs
+#   can write the store. The worker's Nix client is the one in the store.
+# - The store is a named volume that outlives every update. To keep it in a folder of the host instead, set
+#   SHELF_NIX_STORE=/var/lib/shelf-nix in deploy/.env (the folder is filled on first start).
+# - The daemon collects garbage by itself when the disk gets low (min-free / max-free). To empty it by hand:
+#     docker compose -f deploy/compose.yml -f deploy/compose.nix.yml exec nix nix-collect-garbage -d
+services:
+  nix:
+    image: nixos/nix:2.24.11
+    command: ["nix", "daemon"]
+    restart: unless-stopped
+    environment:
+      NIX_CONFIG: |
+        allowed-users = *
+        trusted-users = root
+        experimental-features = nix-command flakes
+        min-free = 5368709120
+        max-free = 21474836480
+    volumes:
+      - ${SHELF_NIX_STORE:-nix-store}:/nix
+    healthcheck:
+      test: ["CMD", "test", "-S", "/nix/var/nix/daemon-socket/socket"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  worker:
+    depends_on:
+      nix:
+        condition: service_healthy
+    volumes:
+      - ${SHELF_NIX_STORE:-nix-store}:/nix:ro
+
+volumes:
+  nix-store:

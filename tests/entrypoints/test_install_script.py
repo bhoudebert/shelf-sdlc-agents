@@ -235,3 +235,44 @@ def test_the_script_warns_when_the_web_service_cannot_write_the_rules(server: Pa
 def test_the_script_does_not_look_at_the_rules_when_the_guard_is_switched_off(server: Path) -> None:
     write_env(server, SHELF_WARDEN="off")
     assert "Guard rules" not in run(server).stdout
+
+
+def test_the_nix_overlay_gives_the_daemon_the_store_and_the_worker_only_a_read_only_copy() -> None:
+    overlay = (DEPLOY / "compose.nix.yml").read_text()
+    daemon = overlay.split("\n  nix:\n", 1)[1].split("\n  worker:\n", 1)[0]
+    worker = overlay.split("\n  worker:\n", 1)[1].split("\nvolumes:\n", 1)[0]
+    assert "${SHELF_NIX_STORE:-nix-store}:/nix\n" in daemon
+    assert "${SHELF_NIX_STORE:-nix-store}:/nix:ro" in worker
+    assert "trusted-users = root" in daemon
+    assert "min-free" in daemon
+    assert "service_healthy" in worker
+    assert "  nix-store:" in overlay.split("\nvolumes:\n", 1)[1]
+    assert "env_file" not in daemon, "no secret reaches the daemon"
+
+
+def test_nix_is_not_part_of_a_normal_install(server: Path) -> None:
+    write_env(server)
+    run(server)
+    assert "compose.nix.yml" not in (server / "docker.log").read_text()
+
+
+def test_asking_for_nix_adds_the_overlay_and_the_script_says_the_worker_reaches_the_daemon(server: Path) -> None:
+    write_env(server, SHELF_NIX="on")
+    done = run(server)
+    assert "compose.nix.yml" in (server / "docker.log").read_text()
+    assert "Nix: the worker reaches the Nix daemon" in done.stdout
+
+
+def test_the_script_warns_when_the_worker_cannot_reach_the_nix_daemon(server: Path) -> None:
+    write_env(server, SHELF_NIX="on")
+    fake = server / "bin" / "docker"
+    fake.write_text(
+        '#!/bin/sh\necho "$@" >> "${DOCKER_LOG:-/dev/null}"\ncase "$*" in *"store info"*) exit 1;; esac\nexit 0\n'
+    )
+    done = run(server)
+    assert done.returncode == 0
+    assert "the worker cannot reach the Nix daemon" in done.stderr
+
+
+def test_the_overlay_is_a_file_next_to_the_install_script() -> None:
+    assert (DEPLOY / "compose.nix.yml").is_file()

@@ -1,4 +1,5 @@
 import asyncio
+import json
 import tempfile
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -38,6 +39,8 @@ class FakeWorkspace:
     """Any command that holds this text exits with 1 and says why."""
     slow_when: str = ""
     """Any command that holds this text never finishes."""
+    prints: dict[str, str] = field(default_factory=dict[str, str])
+    """Any command that holds a key prints the value."""
 
     async def run(self, command: str) -> CheckResult:
         self.ran.append(command)
@@ -45,6 +48,9 @@ class FakeWorkspace:
             await asyncio.sleep(3600)
         if self.fail_when and self.fail_when in command:
             return CheckResult(command, 1, "mise ERROR download of node@24 failed: 404")
+        for key, printed in self.prints.items():
+            if key in command:
+                return CheckResult(command, 0, printed)
         code = self.commands.get(command, 0)
         return CheckResult(command, code, f"output of {command}")
 
@@ -906,3 +912,82 @@ async def test_a_person_sending_the_work_back_also_continues_the_session() -> No
     agents = FakeAgents()
     await steps(agents).run(NEED, sent_back(Phase.INTAKE, feedback="More detail.", attempt=0))
     assert "You have been sent back." in agents.tasks[0].prompt
+
+
+FLAKE = "{ outputs = { self }: {}; }\n"
+CI_NIX = "      - uses: cachix/install-nix-action@v27\n      - run: nix develop --command npm test\n"
+DEV_ENV = json.dumps(
+    {
+        "variables": {
+            "PATH": {"type": "exported", "value": "/nix/store/n/bin:/nix/store/j/bin"},
+            "JAVA_HOME": {"type": "exported", "value": "/nix/store/jdk"},
+            "GH_TOKEN": {"type": "exported", "value": "stolen"},
+        }
+    }
+)
+
+
+def nix_steps(workspaces: FakeWorkspaces, agents: FakeAgents, *, nix: bool = True) -> Steps:
+    return replace(steps(agents, workspaces, cache_dir="/cache"), nix=nix)
+
+
+async def test_a_repository_whose_ci_runs_through_nix_gives_the_agent_its_flake_environment() -> None:
+    workspaces = with_files(FakeWorkspaces(), {"flake.nix": FLAKE, ".github/workflows/ci.yml": CI_NIX})
+    workspaces.workspace.prints = {"print-dev-env": DEV_ENV}
+    agents = FakeAgents()
+    await nix_steps(workspaces, agents).run(NEED, RunStep(Phase.IMPLEMENT, 0, ""))
+    env = agents.tasks[0].env
+    assert env["PATH"].startswith("/nix/store/n/bin:/nix/store/j/bin:")
+    assert env["JAVA_HOME"] == "/nix/store/jdk"
+    assert "GH_TOKEN" not in env or env["GH_TOKEN"] != "stolen"
+    assert "Nix development shell available" in agents.tasks[0].prompt
+    assert not any("mise use" in c for c in workspaces.workspace.ran)
+
+
+async def test_a_flake_with_no_ci_tools_is_used_when_nix_is_on_and_ignored_when_it_is_off() -> None:
+    files = {"flake.nix": FLAKE}
+    on, off = with_files(FakeWorkspaces(), files), with_files(FakeWorkspaces(), files)
+    on.workspace.prints = {"print-dev-env": DEV_ENV}
+    await nix_steps(on, FakeAgents()).run(NEED, RunStep(Phase.IMPLEMENT, 0, ""))
+    await nix_steps(off, FakeAgents(), nix=False).run(NEED, RunStep(Phase.IMPLEMENT, 0, ""))
+    assert any("print-dev-env" in c for c in on.workspace.ran)
+    assert not any("print-dev-env" in c for c in off.workspace.ran)
+
+
+async def test_a_repository_whose_ci_sets_up_node_gets_node_and_its_flake_is_not_evaluated() -> None:
+    workspaces = with_files(FakeWorkspaces(), {"flake.nix": FLAKE, ".github/workflows/ci.yml": CI_NODE_24})
+    await nix_steps(workspaces, FakeAgents()).run(NEED, RunStep(Phase.IMPLEMENT, 0, ""))
+    assert any("mise use --global --yes node@24" in c for c in workspaces.workspace.ran)
+    assert not any("print-dev-env" in c for c in workspaces.workspace.ran)
+
+
+async def test_a_repository_that_declares_its_tools_for_mise_never_has_its_flake_evaluated() -> None:
+    workspaces = with_files(
+        FakeWorkspaces(), {"flake.nix": FLAKE, "mise.toml": "[tools]\n", ".github/workflows/ci.yml": CI_NIX}
+    )
+    await nix_steps(workspaces, FakeAgents()).run(NEED, RunStep(Phase.IMPLEMENT, 0, ""))
+    assert not any("print-dev-env" in c for c in workspaces.workspace.ran)
+
+
+async def test_a_flake_that_does_not_evaluate_is_told_to_the_agent_and_never_stops_the_step() -> None:
+    workspaces = with_files(FakeWorkspaces(), {"flake.nix": FLAKE})
+    workspaces.workspace.fail_when = "print-dev-env"
+    agents = FakeAgents()
+    result = await nix_steps(workspaces, agents).run(NEED, RunStep(Phase.IMPLEMENT, 0, ""))
+    assert result == Produced()
+    assert "tried to use the repository's Nix development shell and could not" in agents.tasks[0].prompt
+    assert "/nix/store" not in agents.tasks[0].env["PATH"]
+
+
+async def test_a_shell_that_prints_nothing_usable_is_told_to_the_agent() -> None:
+    workspaces = with_files(FakeWorkspaces(), {"flake.nix": FLAKE})
+    workspaces.workspace.prints = {"print-dev-env": "not json"}
+    agents = FakeAgents()
+    await nix_steps(workspaces, agents).run(NEED, RunStep(Phase.IMPLEMENT, 0, ""))
+    assert "it printed no usable environment" in agents.tasks[0].prompt
+
+
+async def test_the_planner_is_not_given_a_flake_environment() -> None:
+    workspaces = with_files(FakeWorkspaces(), {"flake.nix": FLAKE})
+    await nix_steps(workspaces, FakeAgents()).run(NEED, RunStep(Phase.PLAN, 0, ""))
+    assert not any("print-dev-env" in c for c in workspaces.workspace.ran)

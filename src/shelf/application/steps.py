@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable, Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from shelf.domain.ci import Ci, CiState
@@ -13,6 +13,15 @@ from shelf.domain.context_repo import FOLDER, note_for, parse_context
 from shelf.domain.decisions import FILE as DECISIONS_FILE
 from shelf.domain.decisions import DecisionRecord, acted_as, append_entry
 from shelf.domain.model import RepoRef, WorkContext, WorkId
+from shelf.domain.nix import (
+    TIME_LIMIT,
+    ci_uses_nix,
+    dev_environment,
+    has_flake,
+    nix_failed,
+    nix_ready,
+    print_dev_env_command,
+)
 from shelf.domain.pipeline import EntryPoint, Phase
 from shelf.domain.result import Err, Ok
 from shelf.domain.results import Results, results_note
@@ -113,6 +122,14 @@ def _read_sources(root: Path) -> dict[str, str]:
     return found
 
 
+@dataclass(frozen=True, slots=True)
+class ToolSetup:
+    """What the worker made available before an agent starts: what to tell it, and what to add to its environment."""
+
+    note: str = ""
+    env: Mapping[str, str] = field(default_factory=dict[str, str])
+
+
 def _mark_used(env: Mapping[str, str]) -> None:
     """Note that this home is in use, so that ``shelf-cache prune`` keeps it."""
     home = Path(env.get("HOME", ""))
@@ -123,12 +140,6 @@ def _mark_used(env: Mapping[str, str]) -> None:
         (home / ".shelf-used").touch()
     except OSError:  # a home that cannot be written is the installation's problem to report, not this note's
         log.warning("could not mark %s as used", home)
-
-
-def _tools_to_set_up(root: Path) -> dict[str, str]:
-    """What CI uses that the worker should install; nothing for a repository that declares its tools for mise."""
-    files = _read_sources(root)
-    return {} if is_declared(files) else detect_tools(files)
 
 
 def continuation_prompt(step: RunStep, folder: str, *, ci: str = "") -> str:
@@ -250,6 +261,8 @@ class Steps:
     context_sources: ContextSources | None = None
     web: bool = False
     """Whether the agents may read the web: their prompts then say how to treat what they read."""
+    nix: bool = False
+    """Whether a repository's Nix flake may give the agent its environment (a daemon and a store are then running)."""
     administrators: Callable[[], frozenset[str]] = frozenset[str]
     """The logins of the instance's administrators now, for the record of who decided what."""
     """Where other repositories are read from, as reference material put next to the clone (none without it)."""
@@ -342,13 +355,14 @@ class Steps:
         sees_ci = step.phase in CI_PHASES
         ci = await self._ci_now(work) if sees_ci else Ci(CiState.NONE)
         ci_report = ci.report() if ci.state is not CiState.NONE else ""
+        setup = await self._set_up_tools(work, step, workspace)
         prompt = task_prompt(
             work,
             step,
             config.base_branch,
             self._picture(work, workspace),
             toolchain=bool(self.cache_dir),
-            setup=await self._set_up_tools(work, step, workspace),
+            setup=setup.note,
             ci=ci_report,
             context=_context_note(work),
             folder=folder_of(workspace.path, work.id),
@@ -358,7 +372,9 @@ class Steps:
         )
         sink = RunSink()
         asked = continuation_prompt(step, folder_of(workspace.path, work.id), ci=ci_report) if step.session else prompt
-        answer = await self._ask_agent(work, step, workspace, token, (asked, prompt if step.session else ""), sink)
+        answer = await self._ask_agent(
+            work, step, workspace, token, (asked, prompt if step.session else ""), sink, setup.env
+        )
         role = ROLES[step.phase]
         if step.phase in REVIEWERS:
             reviewed = replace(parse_verdict(answer), usage=sink.usage, session=sink.session_id)
@@ -439,6 +455,7 @@ class Steps:
         token: str,
         prompts: tuple[str, str],
         sink: RunSink,
+        more_env: Mapping[str, str],
     ) -> str:
         """Ask the agent: ``prompts`` is what to ask and, for a session continued, the whole task to fall back on."""
         prompt, fallback = prompts
@@ -453,6 +470,7 @@ class Steps:
                 workdir=workspace.path,
                 env={
                     **(self._toolchain_env(work, workspace)),
+                    **more_env,
                     **({"GH_TOKEN": token} if step.phase is Phase.IMPLEMENT else {}),
                 },
                 max_turns=self.max_turns,
@@ -462,30 +480,62 @@ class Steps:
             )
         )
 
-    async def _set_up_tools(self, work: WorkContext, step: RunStep, workspace: Workspace) -> str:
-        """Install what the repository's CI uses, before the agent starts, when it declares no tools of its own.
+    async def _set_up_tools(self, work: WorkContext, step: RunStep, workspace: Workspace) -> ToolSetup:
+        """Make the repository's tools available before the agent starts, when it declares none of its own.
 
         It runs here in the worker, outside the agent's sandbox, which can write nothing but its working directory, and
         installs into the repository's own home, so the next piece of work on this repository finds it there. Only plain
-        versions of node, python, go and java are ever installed. The answer is what the agent is told: empty when
-        there is nothing to say.
+        versions of node, python, go and java are ever installed, and a Nix flake is used only when Nix is on and the
+        repository's CI runs through Nix or sets up nothing else. The answer is what the agent is told and what is
+        added to its environment: nothing when there is nothing to say.
         """
-        tools = _tools_to_set_up(workspace.path) if self.cache_dir and step.phase in TOOL_PHASES else {}
-        if not tools:
-            return ""
+        if not self.cache_dir or step.phase not in TOOL_PHASES:
+            return ToolSetup()
+        files = _read_sources(workspace.path)
+        if is_declared(files):
+            return ToolSetup()
+        tools = detect_tools(files)
         env = self._toolchain_env(work, workspace)
+        if self.nix and has_flake(files) and (ci_uses_nix(files) or not tools):
+            _mark_used(env)
+            return await self._flake_environment(work, workspace, env)
+        if not tools:
+            return ToolSetup()
         _mark_used(env)
+        return await self._install_tools(work, workspace, env, tools)
+
+    async def _install_tools(
+        self, work: WorkContext, workspace: Workspace, env: Mapping[str, str], tools: Mapping[str, str]
+    ) -> ToolSetup:
+        """Install ``tools`` into the repository's home with mise, and say how it went."""
         try:
             done = await asyncio.wait_for(workspace.run(setup_command(env, tools)), SETUP_TIMEOUT)
         except TimeoutError:
-            return tools_failed(tools, f"it took longer than {int(SETUP_TIMEOUT // 60)} minutes")
+            return ToolSetup(tools_failed(tools, f"it took longer than {int(SETUP_TIMEOUT // 60)} minutes"))
         except Exception as error:  # noqa: BLE001 - tools that did not install are told to the agent, never fatal
             log.warning("could not set up the tools of %s: %s", work.request.repo.full_name, error)
-            return tools_failed(tools, "it could not be run")
+            return ToolSetup(tools_failed(tools, "it could not be run"))
         if done.exit_code != 0:
             last = next((line for line in reversed(done.output.strip().splitlines()) if line.strip()), "no output")
-            return tools_failed(tools, last[:200])
-        return tools_ready(tools)
+            return ToolSetup(tools_failed(tools, last[:200]))
+        return ToolSetup(tools_ready(tools))
+
+    async def _flake_environment(self, work: WorkContext, workspace: Workspace, env: Mapping[str, str]) -> ToolSetup:
+        """The environment of the repository's flake development shell, asked of Nix without entering the shell."""
+        try:
+            done = await asyncio.wait_for(workspace.run(print_dev_env_command(env["HOME"])), TIME_LIMIT + 30)
+        except TimeoutError:
+            return ToolSetup(nix_failed(f"it took longer than {TIME_LIMIT // 60} minutes"))
+        except Exception as error:  # noqa: BLE001 - told to the agent, never fatal
+            log.warning("could not use the flake of %s: %s", work.request.repo.full_name, error)
+            return ToolSetup(nix_failed("it could not be run"))
+        if done.exit_code != 0:
+            last = next((line for line in reversed(done.output.strip().splitlines()) if line.strip()), "no output")
+            return ToolSetup(nix_failed(last[:200]))
+        path, variables = dev_environment(done.output)
+        if not path:
+            return ToolSetup(nix_failed("it printed no usable environment"))
+        return ToolSetup(nix_ready(len(variables)), {**variables, "PATH": f"{path}:{env['PATH']}"})
 
     def _toolchain_env(self, work: WorkContext, workspace: Workspace) -> dict[str, str]:
         """The repository's own home, caches and tool shims for this step (nothing when no cache directory is set)."""

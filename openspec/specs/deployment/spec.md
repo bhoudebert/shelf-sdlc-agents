@@ -629,3 +629,51 @@ The system SHALL give the web service the same access to pull requests as the wo
 
 - **WHEN** an administrator closes a work from its page
 - **THEN** the pull request is closed with the App's token, as the worker would
+
+### Requirement: An operator can add a persistent Nix store that the worker only reads
+
+The system SHALL, when the operator sets `SHELF_NIX=on`, run a Nix daemon as a service of its own with its store in a volume (a named volume, or a folder of the host the operator names in `SHELF_NIX_STORE`) that outlives every update, and give the worker that store read-only and the daemon's socket, so that the worker's client builds through the daemon and nothing the worker or an agent runs can write the store; SHALL leave the daemon out entirely, and change nothing else, when the operator has not set it; SHALL have the daemon collect garbage by itself when the disk runs low, and say how to empty the store by hand; SHALL have the install script bring the service up only when asked, and say whether the worker reaches the daemon.
+
+#### Scenario: Not asked for
+
+- **WHEN** `SHELF_NIX` is not set
+- **THEN** no Nix service runs, and the worker's volumes and environment are what they were
+
+#### Scenario: Asked for
+
+- **WHEN** `SHELF_NIX=on` and the install script runs
+- **THEN** the daemon runs with its store in a volume, the worker has the store read-only, and the script says that the worker reaches the daemon
+
+#### Scenario: The worker cannot write the store
+
+- **WHEN** a command in the worker's container tries to write in `/nix`
+- **THEN** it cannot
+
+#### Scenario: An update
+
+- **WHEN** the operator updates and runs the install script again
+- **THEN** the store is kept, so nothing is downloaded again
+
+#### Scenario: The daemon does not answer
+
+- **WHEN** the worker cannot reach the daemon
+- **THEN** the install script warns, and the agents work as they do without it
+
+#### Scenario: A host folder
+
+- **WHEN** the operator sets `SHELF_NIX_STORE` to a folder of the host
+- **THEN** the store lives there, so that it can be kept, copied or emptied from the host
+
+### Requirement: The operator can switch Nix on, and nothing else changes
+
+The system SHALL read `SHELF_NIX` from the environment, `off` by default, SHALL accept `on` and `off` only and refuse any other value by name, and SHALL not change what the worker does with a repository that has no flake when it is on.
+
+#### Scenario: The default
+
+- **WHEN** `SHELF_NIX` is not set
+- **THEN** it is off
+
+#### Scenario: A value that is not understood
+
+- **WHEN** `SHELF_NIX=maybe`
+- **THEN** the service does not start and the message names `SHELF_NIX`
