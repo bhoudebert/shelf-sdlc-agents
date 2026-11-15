@@ -912,3 +912,17 @@ The system SHALL, for the developer and the code reviewer on a repository whose 
 
 - **WHEN** the repository has no `package-lock.json`, or `node_modules` already exists
 - **THEN** the worker installs nothing
+
+### Requirement: The code reviewer asks for what the author can still fix
+
+The system SHALL tell the code reviewer that it approves only when it has nothing left that the author could fix in this pull request, however small (a stale sentence, a list that does not name the new case, a missing test), that every such item is a request for changes, and that what it writes under an approval is only what needs a person's judgment or a check nobody could run, so that an approval is never followed by a list of leftovers that no agent will read.
+
+#### Scenario: A minor leftover
+
+- **WHEN** the code reviewer finds a wording the change forgot to update
+- **THEN** it is told to answer changes requested, not approve with a note
+
+#### Scenario: Something only a person can judge
+
+- **WHEN** what remains is a behaviour nobody could run in this environment
+- **THEN** it may approve and say what a person has to confirm
