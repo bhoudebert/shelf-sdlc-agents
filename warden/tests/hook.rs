@@ -17,11 +17,12 @@ struct Hook {
     state: PathBuf,
     profile: &'static str,
     policy: Option<PathBuf>,
+    overlay: Option<PathBuf>,
 }
 
 impl Hook {
     fn new(name: &str, profile: &'static str) -> Self {
-        Self { state: temp_dir(name), profile, policy: None }
+        Self { state: temp_dir(name), profile, policy: None, overlay: None }
     }
 
     fn call(&self, event: &str, payload: &Value) -> Output {
@@ -36,6 +37,9 @@ impl Hook {
             .stderr(Stdio::piped());
         if let Some(policy) = &self.policy {
             cmd.env("WARDEN_POLICY", policy);
+        }
+        if let Some(overlay) = &self.overlay {
+            cmd.env("WARDEN_OVERLAY_POLICY", overlay);
         }
         let mut child = cmd.spawn().expect("spawns");
         child.stdin.take().expect("stdin").write_all(payload.to_string().as_bytes()).expect("writes");
@@ -428,4 +432,33 @@ fn a_fetch_or_a_search_that_would_carry_something_out_is_refused_under_the_shelf
         let out = tool(&hook, name, &input);
         assert_eq!(decision(&out), Some("deny"), "{name} {input}: {out}");
     }
+}
+
+#[test]
+fn a_rule_written_to_the_overlay_applies_to_the_next_call_without_a_reload() {
+    let mut hook = Hook::new("overlay-live", "shelf");
+    let overlay = hook.state.join("warden.ui.toml");
+    hook.overlay = Some(overlay.clone());
+    let command = "gh pr merge 5 --squash";
+    assert_eq!(decision(&hook.bash(command)), Some("deny"), "the shelf profile keeps agents off the default branch");
+    std::fs::write(
+        &overlay,
+        "[[rules]]\nid = \"ui-1\"\nmatch = '^gh pr merge 5 --squash$'\ndecision = \"allow\"\nreason = \"approved by the administrator\"\n",
+    )
+    .expect("overlay");
+    let out = hook.bash(command);
+    assert_ne!(decision(&out), Some("deny"), "the next call sees the file: {out}");
+    std::fs::remove_file(&overlay).expect("remove");
+    assert_eq!(decision(&hook.bash(command)), Some("deny"), "and the call after the file is gone sees that too");
+}
+
+#[test]
+fn an_overlay_cannot_free_a_fetch_of_a_blocked_domain() {
+    let mut hook = Hook::new("overlay-blocked", "shelf");
+    let overlay = hook.state.join("warden.ui.toml");
+    std::fs::write(&overlay, "[[rules]]\nid = \"all\"\nmatch = '.*'\ndecision = \"allow\"\nreason = \"everything\"\n")
+        .expect("overlay");
+    hook.overlay = Some(overlay);
+    let out = hook.bash("curl https://webhook.site/abc");
+    assert_eq!(decision(&out), Some("deny"), "{out}");
 }

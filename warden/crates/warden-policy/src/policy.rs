@@ -375,6 +375,8 @@ struct Fold {
     on_error: OnError,
     categories: BTreeMap<Category, Decision>,
     rules: Vec<(usize, Rule)>,
+    /// The overlay's rules: they count last, after every rule of every other layer.
+    overlay_rules: Vec<Rule>,
     rewrites: Vec<Rewrite>,
     lists: Lists,
     scope: Option<Vec<String>>,
@@ -404,6 +406,7 @@ impl Fold {
             on_error: OnError::Closed,
             categories: BTreeMap::new(),
             rules: Vec::new(),
+            overlay_rules: Vec::new(),
             rewrites: Vec::new(),
             lists: Lists::default(),
             scope: None,
@@ -429,7 +432,7 @@ impl Fold {
         self.scalars(name, layer);
         self.decisions(name, layer);
         for spec in &layer.rules {
-            if self.floor.is_some() && spec.decision == Decision::Allow {
+            if self.floor.is_some() && spec.decision == Decision::Allow && !layer.overlay {
                 self.warnings
                     .push(format!("{name}: rule {} ignored: a locked layer does not allow `allow` rules", spec.id));
                 continue;
@@ -441,7 +444,11 @@ impl Fold {
                 reason: spec.reason.clone(),
                 source: name.to_owned(),
             };
-            self.rules.push((index, rule));
+            if layer.overlay {
+                self.overlay_rules.push(rule);
+            } else {
+                self.rules.push((index, rule));
+            }
         }
         for spec in &layer.rewrites {
             self.rewrites.push(Rewrite {
@@ -653,7 +660,7 @@ impl Fold {
             on_error: self.on_error,
             locked: self.locked,
             categories: self.categories,
-            rules: rules.into_iter().map(|(_, rule)| rule).collect(),
+            rules: rules.into_iter().map(|(_, rule)| rule).chain(self.overlay_rules).collect(),
             rewrites: self.rewrites,
             paths: Paths {
                 deny_read: PathSet::new(&self.lists.deny_read, home)?,
