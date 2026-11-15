@@ -926,3 +926,12 @@ The system SHALL tell the code reviewer that it approves only when it has nothin
 
 - **WHEN** what remains is a behaviour nobody could run in this environment
 - **THEN** it may approve and say what a person has to confirm
+
+### Requirement: The developer ends on the repository's own gate and its spec rule
+
+The system SHALL tell the developer that the last thing it runs, after its final edit, is the repository's own gate as the repository's instructions name it (and the repository's spec-drift check when it has one), that a rule of the repository about changing code only together with its specification binds the developer too, and that it cannot add a label or a commit line: so a change to a source file that the repository's rules tie to a specification either updates that specification or is not made.
+
+#### Scenario: A comment-only change in source
+
+- **WHEN** the plan touches a doc comment in a source file that the repository's rules tie to a specification
+- **THEN** the developer is told to update that specification or leave the file alone, never to rely on a label it cannot set
