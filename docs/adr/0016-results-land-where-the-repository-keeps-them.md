@@ -15,8 +15,9 @@ keeps it. Repositories also differ: some keep decisions elsewhere, some have no 
 
 - The run's own files move to `.shelf/<work-id>/` and stay after the merge. `docs/shelf/<work-id>/` of earlier runs is still read.
 - What lasts is written where the repository keeps it: requirements in its specs folder, decisions in its decisions folder.
-- A repository may set the two folders, which results a run writes, and the strictness of the conflict check in
-  `.shelf/config.toml`. The defaults are `openspec/specs`, `docs/adr`, both, `block`.
+- A repository may set the two folders, which results a run writes, and the strictness of the conflict check in a new
+  `[results]` section of its existing `.shelf/config.toml` (`specs`, `decisions`, `write`, `conflicts`). The defaults are
+  `openspec/specs`, `docs/adr`, both, `block`. The file's reader already refuses unknown keys and values.
 - A missing folder is created, in the repository's own convention or the standard one, never skipped.
 - The design reviewer compares a new record with every accepted one and refuses a contradiction that the request or the
   new record does not state. A superseded record changes only its status.

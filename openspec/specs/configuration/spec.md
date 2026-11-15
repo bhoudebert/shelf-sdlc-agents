@@ -53,6 +53,25 @@ The system SHALL read from a repository's `.shelf/config.toml` the enabled entry
 - **WHEN** the file sets `proceed_on_deadlock = true` in its policy
 - **THEN** the policy lets work go on past a spec or design review that cannot settle, and without the key it does not
 
+### Requirement: A repository says in its file where the results of a run go
+
+The system SHALL read from a `[results]` section of a repository's `.shelf/config.toml` the folder of the specs (`specs`), the folder of the decision records (`decisions`), which results a run writes into them (`write`: `spec`, `adr`, both or none) and how a conflict between decision records is treated (`conflicts`: `block`, `warn` or `off`), using `openspec/specs`, `docs/adr`, both and `block` for what is missing, and SHALL refuse a value it does not understand like any other mistake in the file.
+
+#### Scenario: A repository that keeps its decisions elsewhere
+
+- **WHEN** `[results]` sets `decisions = "docs/decisions"`
+- **THEN** the architect numbers and writes its record there and reads the earlier ones there
+
+#### Scenario: A repository that wants no decision records from the factory
+
+- **WHEN** `[results]` sets `write = ["spec"]`
+- **THEN** no decision record is written and the review does not ask for one
+
+#### Scenario: A value that is not understood
+
+- **WHEN** `conflicts` is `maybe`
+- **THEN** the run does not start and the message names the file and the key
+
 ### Requirement: Mistakes in configuration are reported, not ignored
 
 The system SHALL refuse a configuration file that is not valid TOML, has unknown keys or sections, names an unknown mode, entry point or role, or sets fewer than one round, and SHALL say why.

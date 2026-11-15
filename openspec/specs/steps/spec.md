@@ -499,25 +499,6 @@ The system SHALL keep the documents of a piece of work (the request, the spec, t
 - **WHEN** a repository holds `docs/shelf/work-0/spec.md` from an earlier run
 - **THEN** it is still offered to the agents as earlier work
 
-### Requirement: A repository can say where results go and how strict the pipeline is
-
-The system SHALL read an optional `.shelf/config.toml` of the repository that sets the folder of the specs, the folder of the decision records, which results a run writes into them (`spec`, `adr`, both or none), and how a conflict between decision records is treated (`block`, `warn` or `off`); a missing file or key SHALL mean `openspec/specs`, `docs/adr`, both results and `block`; and a value that is not understood SHALL be reported to the person and SHALL NOT be guessed.
-
-#### Scenario: A repository that keeps its decisions elsewhere
-
-- **WHEN** `.shelf/config.toml` sets the decisions folder to `docs/decisions`
-- **THEN** the architect numbers and writes its record there and reads the earlier ones there
-
-#### Scenario: A repository that wants no decision records from the factory
-
-- **WHEN** `.shelf/config.toml` lists only `spec` as the results to write
-- **THEN** no decision record is written and the review does not ask for one
-
-#### Scenario: A value that is not understood
-
-- **WHEN** the conflict setting is `maybe`
-- **THEN** the run stops with a message that names the file and the key
-
 ### Requirement: A repository with no specs or no decision records gets them started
 
 The system SHALL, when a run has to write a spec or a decision record and the repository has no such folder, create it in the form the project's own conventions describe, or in the standard form (a `README.md` that says how to write one; for decisions the template and the first record that decides to keep records), and SHALL NOT drop the result because the folder is missing.
