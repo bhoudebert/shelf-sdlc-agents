@@ -121,3 +121,14 @@ def test_the_time_given_to_the_ci_has_defaults_and_can_be_changed() -> None:
 def test_the_catalog_is_where_the_worker_mounts_it_unless_told_otherwise() -> None:
     assert from_environ(BASE).catalog_dir == Path("/opt/shelf/catalog")
     assert from_environ({**BASE, "SHELF_CATALOG_DIR": "/srv/catalog"}).catalog_dir == Path("/srv/catalog")
+
+
+def test_agents_may_read_the_web_unless_the_operator_says_off() -> None:
+    assert from_environ(BASE).web is True
+    assert from_environ({**BASE, "SHELF_WEB": "on"}).web is True
+    assert from_environ({**BASE, "SHELF_WEB": "OFF"}).web is False
+
+
+def test_a_web_setting_that_is_not_on_or_off_is_refused_by_name() -> None:
+    with pytest.raises(ValueError, match="SHELF_WEB must be on or off, not 'maybe'"):
+        from_environ({**BASE, "SHELF_WEB": "maybe"})

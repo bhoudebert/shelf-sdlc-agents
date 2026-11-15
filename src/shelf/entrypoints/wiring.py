@@ -111,6 +111,7 @@ def build_services(settings: Settings, github: GitHubApp, client: httpx.AsyncCli
             sandbox=settings.sandbox,
             cli_path=settings.claude_cli,
             allowed_domains=allowed_domains(settings.allowed_domains),
+            web=settings.web,
             catalog_dir=settings.catalog_dir,
             bindings=lambda role: file.current().roles.get(role, ()),
         ),

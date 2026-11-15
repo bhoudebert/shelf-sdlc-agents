@@ -42,6 +42,8 @@ class Settings:
     catalog_dir: Path
     cache_dir: str
     allowed_domains: tuple[str, ...]
+    web: bool
+    """Whether agents may read the web (fetch an address, search); ``SHELF_WEB=off`` turns it off."""
     ci_wait: float
     ci_grace: float
     port: int
@@ -111,6 +113,17 @@ def exit_with(error: Exception) -> NoReturn:
     raise SystemExit(message)
 
 
+def _switch(environ: Mapping[str, str], name: str, *, default: bool) -> bool:
+    """An ``on`` or ``off`` variable; anything else is refused by name, not guessed."""
+    value = environ.get(name, "").strip().lower()
+    if not value:
+        return default
+    if value not in {"on", "off"}:
+        message = f"{name} must be on or off, not {value!r}"
+        raise ValueError(message)
+    return value == "on"
+
+
 def from_environ(environ: Mapping[str, str]) -> Settings:
     """Read the settings from ``environ``; raise ``MissingSettingError`` naming what is missing."""
     budget = environ.get("SHELF_MAX_BUDGET_USD", "").strip()
@@ -132,6 +145,7 @@ def from_environ(environ: Mapping[str, str]) -> Settings:
         allowed_domains=tuple(
             domain.strip() for domain in environ.get("SHELF_ALLOWED_DOMAINS", "").split(",") if domain.strip()
         ),
+        web=_switch(environ, "SHELF_WEB", default=True),
         ci_wait=float(environ.get("SHELF_CI_WAIT", "1800")),
         ci_grace=float(environ.get("SHELF_CI_GRACE", "120")),
         sandbox=environ.get("SHELF_SANDBOX_DISABLED", "").strip().lower() not in {"1", "true", "yes"},

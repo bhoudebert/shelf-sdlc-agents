@@ -125,6 +125,7 @@
         "src/shelf/domain/results.py",
         "src/shelf/domain/review.py",
         "src/shelf/domain/titles.py",
+        "src/shelf/domain/web.py",
         "src/shelf/domain/toolchain.py",
         "src/shelf/domain/ci.py",
         "src/shelf/domain/secrets.py"

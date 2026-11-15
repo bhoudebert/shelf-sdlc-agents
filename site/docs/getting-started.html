@@ -52,6 +52,7 @@ admins = [&quot;alice&quot;]</code></pre></li>
 <tr><td>the private key file</td><td>Not a variable: put the <code>.pem</code> at <code>deploy/secrets/github-app.pem</code>. Mounted read-only.</td></tr>
 <tr><td><code>CLAUDE_CODE_OAUTH_TOKEN</code>, <code>ANTHROPIC_API_KEY</code> or <code>ANTHROPIC_BASE_URL</code></td><td>How the agents get a model. Set one. The agents run inside the worker container, so the <code>claude</code> login on your server is not visible to them. Without one, steps fail with "Not logged in".</td></tr>
 <tr><td><code>SHELF_MODEL</code>, <code>SHELF_MAX_TURNS</code>, <code>SHELF_MAX_BUDGET_USD</code></td><td>Optional: force a model, and bound what one step may use.</td></tr>
+<tr><td><code>SHELF_WEB</code></td><td>Optional: <code>on</code> by default. Agents may read the web to check documentation and versions; <code>off</code> forbids it. See <a href="guard.html">the guard</a>.</td></tr>
 <tr><td><code>SHELF_WARDEN_PROFILE</code>, <code>SHELF_WARDEN</code></td><td>The guard's profile (<code>shelf</code> by default, <code>strict</code>, <code>observe</code>), and whether it is on. See <a href="guard.html">the guard</a>.</td></tr>
 <tr><td><code>TEMPORAL_ADDRESS</code>, <code>TEMPORAL_NAMESPACE</code></td><td>Use your own Temporal instead of the bundled one (and delete that service).</td></tr></tbody></table></div>
 <h2 id="mode">Local or server mode</h2>
