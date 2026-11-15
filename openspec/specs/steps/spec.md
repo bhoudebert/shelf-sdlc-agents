@@ -484,3 +484,64 @@ The system SHALL have every agent's tool calls judged by Warden through the mana
 
 - **WHEN** a repository's `.warden/policy.toml` allows what the operator's file denies
 - **THEN** the operator's rule holds
+
+### Requirement: The work's own files live in a `.shelf` folder, and what lasts goes where the repository keeps it
+
+The system SHALL keep the documents of a piece of work (the request, the spec, the design and the plan) in `.shelf/<work-id>/` of the repository, and SHALL still read the `docs/shelf/<work-id>/` folders that earlier runs left. The result of the work that is meant to last SHALL be written where the repository keeps such things: a change of behaviour as a requirement with scenarios in the repository's specs folder (`openspec/specs/<capability>/spec.md` by default), and a lasting architectural choice as a decision record in its decisions folder (`docs/adr/` by default, numbered after the last one and following its template).
+
+#### Scenario: A run that changes behaviour
+
+- **WHEN** a run for a repository that keeps its specs in `openspec/specs/` changes what the software does
+- **THEN** the pull request changes the requirement of that capability in `openspec/specs/`, and the run's own documents are under `.shelf/<work-id>/`
+
+#### Scenario: An older run
+
+- **WHEN** a repository holds `docs/shelf/work-0/spec.md` from an earlier run
+- **THEN** it is still offered to the agents as earlier work
+
+### Requirement: A repository can say where results go and how strict the pipeline is
+
+The system SHALL read an optional `.shelf/config.toml` of the repository that sets the folder of the specs, the folder of the decision records, which results a run writes into them (`spec`, `adr`, both or none), and how a conflict between decision records is treated (`block`, `warn` or `off`); a missing file or key SHALL mean `openspec/specs`, `docs/adr`, both results and `block`; and a value that is not understood SHALL be reported to the person and SHALL NOT be guessed.
+
+#### Scenario: A repository that keeps its decisions elsewhere
+
+- **WHEN** `.shelf/config.toml` sets the decisions folder to `docs/decisions`
+- **THEN** the architect numbers and writes its record there and reads the earlier ones there
+
+#### Scenario: A repository that wants no decision records from the factory
+
+- **WHEN** `.shelf/config.toml` lists only `spec` as the results to write
+- **THEN** no decision record is written and the review does not ask for one
+
+#### Scenario: A value that is not understood
+
+- **WHEN** the conflict setting is `maybe`
+- **THEN** the run stops with a message that names the file and the key
+
+### Requirement: A repository with no specs or no decision records gets them started
+
+The system SHALL, when a run has to write a spec or a decision record and the repository has no such folder, create it in the form the project's own conventions describe, or in the standard form (a `README.md` that says how to write one; for decisions the template and the first record that decides to keep records), and SHALL NOT drop the result because the folder is missing.
+
+#### Scenario: A repository with no `openspec`
+
+- **WHEN** a run changes behaviour in a repository that has no `openspec/` folder
+- **THEN** the pull request creates `openspec/specs/<capability>/spec.md` and the folder's `README.md`
+
+### Requirement: A new decision record must not contradict an earlier one by accident
+
+The system SHALL have the design reviewer compare a new decision record with every earlier accepted record and refuse the design when they conflict, unless the request says the earlier decision is to be changed or the new record states that it supersedes it, in which case the earlier record's status SHALL be changed to superseded and nothing else in it rewritten; with the conflict setting `warn` the conflict SHALL be reported without refusing, and with `off` it SHALL NOT be checked.
+
+#### Scenario: A silent contradiction
+
+- **WHEN** a design's record chooses a database that an accepted record rules out, and neither the request nor the record mentions it
+- **THEN** the design reviewer's verdict is a refusal that names both records
+
+#### Scenario: A stated change
+
+- **WHEN** the request says to replace the earlier choice and the new record says `supersedes 0007`
+- **THEN** the design is not refused, and record 0007's status becomes `superseded by` the new record
+
+#### Scenario: A conflict under `warn`
+
+- **WHEN** the setting is `warn` and a record conflicts with an earlier one
+- **THEN** the conflict is written in the review and the verdict is not a refusal
