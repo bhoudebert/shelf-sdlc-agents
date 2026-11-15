@@ -397,6 +397,8 @@ class Steps:
             if (
                 step.phase is Phase.CODE_REVIEW
             ):  # a document is not judged by what the repository's CI says of its draft
+                if reviewed.verdict is Verdict.APPROVE:  # a run may have started while the reviewer worked
+                    ci = await self._wait_for_ci(work)
                 reviewed = hold_back_for_ci(reviewed, ci)
             return reviewed, role.name, f"**Verdict: {reviewed.verdict}**\n\n{reviewed.issues}".strip()
         await workspace.commit_and_push(f"chore(shelf): {role.name} for {work.id}")

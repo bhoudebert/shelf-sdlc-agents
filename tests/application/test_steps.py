@@ -1067,3 +1067,11 @@ async def test_the_steps_that_build_and_test_are_still_told_about_tools(phase: P
     agents = FakeAgents()
     await steps(agents, cache_dir="/cache").run(NEED, RunStep(phase, 0, ""))
     assert "Tools:" in agents.tasks[0].prompt
+
+
+async def test_an_approval_waits_for_a_run_that_started_while_the_reviewer_worked() -> None:
+    pulls = FakePulls(cis=[GREEN, RUNNING, GREEN])
+    result = await steps(FakeAgents("Fine.\nVERDICT: APPROVE"), pulls=pulls).run(
+        REVIEW, RunStep(Phase.CODE_REVIEW, 0, "")
+    )
+    assert result == Reviewed(Verdict.APPROVE, "Fine.")
