@@ -27,6 +27,7 @@ def test_the_environment_puts_the_repositorys_tools_in_front_and_trusts_only_its
     assert env == {
         "HOME": "/cache/home/acme__shop",
         "MISE_YES": "1",
+        "MISE_LOCKFILE": "false",
         "MISE_TRUSTED_CONFIG_PATHS": "/work/clone",
         "PATH": "/cache/home/acme__shop/.local/share/mise/shims:/usr/bin:/bin",
     }
@@ -56,3 +57,39 @@ def test_a_repository_that_declares_no_tools_is_still_told_to_run_what_its_ci_ru
     assert "mise exec <tool>@<version> -- <command>" in TOOLCHAIN_NOTE
     assert "never `mise use`" in TOOLCHAIN_NOTE
     assert "which command and why" in TOOLCHAIN_NOTE
+
+
+def test_what_a_repository_declares_is_installed_by_the_worker_into_its_own_home() -> None:
+    from shelf.domain.toolchain import declared_command  # noqa: PLC0415
+
+    command = declared_command(toolchain_env("/cache", REPO, "/work/clone", "/usr/bin"))
+    assert command.startswith("mkdir -p /cache/home/acme__shop && env ")
+    assert "HOME=/cache/home/acme__shop" in command
+    assert "MISE_LOCKFILE=false" in command
+    assert command.endswith("mise install --yes")
+
+
+def test_a_check_runs_with_the_tools_on_its_path_and_a_compound_command_stays_whole() -> None:
+    from shelf.domain.toolchain import with_environment  # noqa: PLC0415
+
+    env = toolchain_env("/cache", REPO, "/work/clone", "/usr/bin")
+    wrapped = with_environment(env, "./mvnw -B verify && echo done")
+    assert wrapped.startswith("env ")
+    assert wrapped.endswith("sh -c './mvnw -B verify && echo done'")
+    assert with_environment({}, "make test") == "make test"
+
+
+def test_the_note_about_tools_says_how_the_sandbox_behaves_and_that_there_is_no_docker() -> None:
+    from shelf.domain.toolchain import SANDBOX_RECIPES, TOOLCHAIN_NOTE  # noqa: PLC0415
+
+    for text in (SANDBOX_RECIPES, TOOLCHAIN_NOTE):
+        assert "XDG_DATA_HOME=$TMPDIR/d" in text
+        assert "-Dhttps.proxyHost" in text
+        assert "Docker is not available" in text
+
+
+def test_the_sandbox_may_reach_the_hosts_a_jdk_and_maven_come_from() -> None:
+    from shelf.domain.toolchain import DEFAULT_ALLOWED_DOMAINS  # noqa: PLC0415
+
+    for host in ("mise-java.jdx.dev", "api.adoptium.net", "cdn.azul.com", "corretto.aws", "archive.apache.org"):
+        assert host in DEFAULT_ALLOWED_DOMAINS

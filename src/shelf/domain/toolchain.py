@@ -16,6 +16,14 @@ DEFAULT_ALLOWED_DOMAINS: tuple[str, ...] = (
     "*.githubusercontent.com",
     "mise.jdx.dev",
     "mise-versions.jdx.dev",
+    "mise-java.jdx.dev",
+    "api.adoptium.net",
+    "cdn.azul.com",
+    "corretto.aws",
+    "download.java.net",
+    "download.oracle.com",
+    "archive.apache.org",
+    "dlcdn.apache.org",
     "repo.maven.apache.org",
     "repo1.maven.org",
     "services.gradle.org",
@@ -56,6 +64,7 @@ def toolchain_env(cache_dir: str, repo: RepoRef, workdir: str, path: str) -> dic
     return {
         "HOME": home,
         "MISE_YES": "1",
+        "MISE_LOCKFILE": "false",
         "MISE_TRUSTED_CONFIG_PATHS": workdir,
         "PATH": f"{home}/.local/share/mise/shims:{path}",
     }
@@ -65,6 +74,15 @@ def allowed_domains(extra: tuple[str, ...] = ()) -> tuple[str, ...]:
     """The sites a sandboxed command may reach: the defaults and the operator's own, without repeats."""
     return tuple(dict.fromkeys((*DEFAULT_ALLOWED_DOMAINS, *extra)))
 
+
+SANDBOX_RECIPES = (
+    "How this sandbox behaves: a command may write only the clone and `$TMPDIR`, so a tool that keeps data, cache or "
+    "state in the home (mise among them) needs `export XDG_DATA_HOME=$TMPDIR/d XDG_CACHE_HOME=$TMPDIR/c "
+    "XDG_STATE_HOME=$TMPDIR/s` first. Java build tools do not read `HTTPS_PROXY`: give Maven or Gradle the sandbox's "
+    "proxy from it, as `-Dhttps.proxyHost`, `-Dhttps.proxyPort` and the `http.*`, user and password properties. "
+    "Docker is not available and must not be tried: a compose file is for people, so tests have to run without it "
+    "(an embedded database, or a test that is skipped when the service is missing, and say so)."
+)
 
 TOOLCHAIN_NOTE = (
     "Tools: this environment has no JDK, Node, Maven or similar until you ask for them. If the repository declares its "
@@ -78,7 +96,7 @@ TOOLCHAIN_NOTE = (
     "`mise exec node@24 -- npm run quality`): it installs the version into this sandbox and writes nothing into the "
     "repository, so never `mise use`. "
     "If a check still cannot run here, say which command and why in your answer instead of claiming a result you could "
-    "not check."
+    "not check. " + SANDBOX_RECIPES
 )
 
 
@@ -114,6 +132,36 @@ def dependencies_failed(reason: str) -> str:
     return (
         f"Dependencies: the worker tried `npm ci --ignore-scripts` and it failed: {reason}. `node_modules` is missing."
     )
+
+
+def declared_command(env: Mapping[str, str]) -> str:
+    """The shell command that installs what the repository's own ``mise.toml`` declares, into the home ``env`` names."""
+    home = env["HOME"]
+    assignments = " ".join(f"{name}={shlex.quote(value)}" for name, value in env.items())
+    return f"mkdir -p {shlex.quote(home)} && env {assignments} mise install --yes"
+
+
+def with_environment(env: Mapping[str, str], command: str) -> str:
+    """``command`` run with ``env`` set, for a check of the repository's own; ``sh -c`` keeps a compound one whole."""
+    if not env:
+        return command
+    assignments = " ".join(f"{name}={shlex.quote(value)}" for name, value in env.items())
+    return f"env {assignments} sh -c {shlex.quote(command)}"
+
+
+def declared_ready() -> str:
+    """What the agent is told once the worker has installed what the repository declares for mise."""
+    return (
+        "Tools: the worker has run `mise install` for what the repository declares, into your home, and they are on "
+        "your path. Do not install them again. Do what a developer does: run the repository's own build and tests (see "
+        "its README, CLAUDE.md or AGENTS.md) and fix what fails before you finish. If a check still cannot run here, "
+        "say which command and why instead of claiming a result. " + SANDBOX_RECIPES
+    )
+
+
+def declared_failed(reason: str) -> str:
+    """What the agent is told when the worker could not install what the repository declares for mise."""
+    return f"Tools: `mise install` by the worker for what the repository declares failed: {reason}. {TOOLCHAIN_NOTE}"
 
 
 def tools_ready(tools: Mapping[str, str]) -> str:

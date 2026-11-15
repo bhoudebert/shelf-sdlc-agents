@@ -845,14 +845,37 @@ async def test_the_code_reviewer_gets_the_tools_too_and_the_planner_does_not() -
     assert any("mise use" in c for c in workspaces.workspace.ran)
 
 
-async def test_a_repository_that_declares_its_tools_for_mise_is_left_to_the_agent() -> None:
+async def test_a_repository_that_declares_its_tools_for_mise_has_them_installed_by_the_worker() -> None:
     workspaces = with_files(
         FakeWorkspaces(), {"mise.toml": '[tools]\nnode = "22"\n', ".github/workflows/ci.yml": CI_NODE_24}
     )
     agents = FakeAgents()
     await steps(agents, workspaces, cache_dir="/cache").run(NEED, RunStep(Phase.IMPLEMENT, 0, ""))
-    assert not any("mise use" in c for c in workspaces.workspace.ran)
-    assert "run `mise install` first" in agents.tasks[0].prompt
+    assert not any("mise use" in c for c in workspaces.workspace.ran)  # nothing detected is imposed on it
+    [command] = [c for c in workspaces.workspace.ran if c.endswith("mise install --yes")]
+    assert "HOME=/cache/home/acme__shop" in command
+    assert "MISE_LOCKFILE=false" in command
+    assert "the worker has run `mise install` for what the repository declares" in agents.tasks[0].prompt
+    assert "XDG_DATA_HOME=$TMPDIR/d" in agents.tasks[0].prompt
+
+
+async def test_a_declared_installation_that_fails_is_told_to_the_agent_and_stops_nothing() -> None:
+    workspaces = with_files(FakeWorkspaces(), {"mise.toml": '[tools]\njava = "temurin-27"\n'})
+    workspaces.workspace.fail_when = "mise install"
+    agents = FakeAgents()
+    result = await steps(agents, workspaces, cache_dir="/cache").run(NEED, RunStep(Phase.IMPLEMENT, 0, ""))
+    assert result == Produced()
+    assert "by the worker for what the repository declares failed:" in agents.tasks[0].prompt
+
+
+async def test_the_configured_checks_run_with_the_installed_tools_on_their_path() -> None:
+    workspaces = FakeWorkspaces()
+    config = RepoConfig(checks=("./mvnw -B verify",))
+    await steps(workspaces=workspaces, config=config, cache_dir="/cache").run(NEED, RunStep(Phase.VERIFY, 0, ""))
+    [command] = [c for c in workspaces.workspace.ran if "mvnw" in c]
+    assert command.startswith("env HOME=/cache/home/acme__shop")
+    assert "mise/shims" in command
+    assert command.endswith("sh -c './mvnw -B verify'")
 
 
 async def test_nothing_is_installed_without_a_cache_directory() -> None:
