@@ -963,6 +963,18 @@ def test_the_board_and_the_work_page_say_which_stops_a_run_does_without() -> Non
     assert "Unattended" not in fixture.client.get("/work/work-2").text
 
 
+def test_the_work_page_says_how_hard_each_review_looks_and_older_work_says_nothing() -> None:
+    fixture = Fixture()
+    fixture.sign_in()
+    depths = (("spec", "quick"), ("design", "off"))
+    fixture.runner.views[WorkId("work-1")] = WorkView(
+        WorkId("work-1"), REPO, "alice", EntryPoint.NEED, Phase.DESIGN, review_depths=depths
+    )
+    fixture.runner.views[WorkId("work-2")] = WorkView(WorkId("work-2"), REPO, "alice", EntryPoint.NEED, Phase.DESIGN)
+    assert "Reviews: spec review quick, design review off" in fixture.client.get("/work/work-1").text
+    assert "Reviews:" not in fixture.client.get("/work/work-2").text
+
+
 class FakeGuard:
     def __init__(self, result: Result[GuardReport, str]) -> None:
         self.result = result

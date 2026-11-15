@@ -79,6 +79,9 @@ class WorkView:
     """For each phase (by name), when something last happened there."""
     unattended: tuple[str, ...] = ()
     """The stops this run does without a person (``spec``, ``design``, ``deadlock``); none for older work."""
+    review_depths: tuple[tuple[str, str], ...] = ()
+    """How hard each review looks, as (``spec`` or ``design``, depth) pairs; the design is ``off`` when not reviewed;
+    none for work started before they were kept."""
     """A line of the request, to tell this work from another on the board; empty for work started before it was kept."""
 
 

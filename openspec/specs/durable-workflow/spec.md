@@ -385,3 +385,12 @@ The system SHALL carry, in the report a review step gives the workflow, the numb
 
 - **WHEN** a finished history recorded before this field existed is replayed
 - **THEN** it replays deterministically, its reviews reading as nothing repeated and blocking
+
+### Requirement: A work's memo keeps how hard its reviews look
+
+The system SHALL keep in the memo of a work, when it starts, the depth of its spec review and of its design review (the design review as off when the design is not reviewed), and SHALL read them back for the board and the work page, reading none from the memo of a work that started before they were kept.
+
+#### Scenario: A work started before
+
+- **WHEN** the memo of a work has no depths
+- **THEN** the work is shown without them and nothing else changes

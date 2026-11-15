@@ -188,3 +188,12 @@ The system SHALL give the board's view of a work the names of the stops its run 
 - **WHEN** the board reads a work started with the spec approval removed
 - **THEN** its view carries `spec`
 
+
+### Requirement: A work as the board reads it carries how hard its reviews look
+
+The system SHALL let the view of a work that the board and the work page read carry, as pairs of a review (spec or design) and its depth, how hard its reviews look, empty for work that started before they were kept.
+
+#### Scenario: A view without depths
+
+- **WHEN** a work's view is built from a memo that has none
+- **THEN** its depths are empty
