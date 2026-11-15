@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Configure a repository · Shelf guide</title><meta name="description" content="What goes in .shelf/config.toml: checks, rounds, entry points and roles.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Crect width='28' height='28' rx='7' fill='%230b1233'/%3E%3Cpath d='M14 6V3.5' stroke='%23e8ebf7' stroke-width='1.6'/%3E%3Ccircle cx='14' cy='3.4' r='2' fill='%23ffa26b'/%3E%3Ccircle cx='14' cy='15.5' r='9.5' fill='%23e8ebf7'/%3E%3Crect x='7.2' y='11' width='13.6' height='9' rx='4.5' fill='%230b1233'/%3E%3Crect x='10.4' y='13.8' width='2' height='3' rx='1' fill='%2367dcef'/%3E%3Crect x='15.6' y='13.8' width='2' height='3' rx='1' fill='%2367dcef'/%3E%3C/svg%3E">
+<script>try{var t=localStorage.getItem('shelf-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&amp;display=swap"><link rel="stylesheet" href="../assets/site.css"></head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="bar"><div class="wrap"><a class="brand" href="../index.html" aria-label="Shelf, home"><svg viewBox="0 0 28 28" aria-hidden="true" focusable="false"><rect width="28" height="28" rx="7" fill="#0b1233"/><path d="M14 6V3.5" stroke="#e8ebf7" stroke-width="1.6"/><circle cx="14" cy="3.4" r="2" fill="#ffa26b"/><circle cx="14" cy="15.5" r="9.5" fill="#e8ebf7"/><rect x="7.2" y="11" width="13.6" height="9" rx="4.5" fill="#0b1233"/><rect x="10.4" y="13.8" width="2" height="3" rx="1" fill="#67dcef"/><rect x="15.6" y="13.8" width="2" height="3" rx="1" fill="#67dcef"/></svg><span>Shelf</span></a>
+<nav aria-label="Main"><a href="../docs/index.html" aria-current="page">Guide</a><a href="../docs/guard.html" class="hide-sm">Guard</a><a href="../docs/limits.html" class="hide-sm">Limits</a><a href="https://github.com/bhoudebert/shelf-sdlc-agents" class="hide-sm">GitHub</a>
+<a class="btn sm" href="../docs/getting-started.html">Get started</a>
+<button class="icon-btn" id="theme" type="button" aria-label="Switch between light and dark theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button></nav></div></header>
+<div class="wrap guide"><aside class="side"><nav aria-label="Guide"><p>The path</p><ol><li><a href="index.html">Guide overview</a></li><li><a href="concepts.html">Concepts</a></li><li><a href="getting-started.html">Get started</a></li><li><a href="github-app.html">The GitHub App</a></li><li><a href="start-work.html">Start your first work</a></li><li><a href="repository.html" aria-current="page">Configure a repository</a></li><li><a href="roles-and-stops.html">Roles and stops</a></li><li><a href="guard.html">The guard</a></li><li><a href="operate.html">Operate</a></li></ol><p>Reference</p><ul><li><a href="configuration.html">Configuration reference</a></li><li><a href="security.html">Security model</a></li><li><a href="architecture.html">Architecture</a></li><li><a href="limits.html">Limits</a></li><li><a href="contributing.html">Contributing</a></li></ul></nav></aside><main id="main" class="doc"><h1>Configure a repository</h1><p class="lead">One optional file in the repository, reviewed like any other change.</p>
+
+<p>Every repository can carry <code>.shelf/config.toml</code>. It lives in the repository, so a change to who may do what is reviewed like any other change. <strong>Every key is optional</strong>; a repository with no file gets the defaults.</p>
+<pre><code># .shelf/config.toml
+entries = [&quot;need&quot;, &quot;spec&quot;, &quot;design&quot;, &quot;plan&quot;, &quot;implement&quot;, &quot;pull_request_review&quot;, &quot;pull_request_work&quot;]
+base_branch = &quot;main&quot;
+checks = [&quot;make test&quot;]            # what the checks step runs
+
+[policy]
+max_rounds = 3                    # how many times a loop may send work back before a person is asked
+spec_approval = true              # a person approves the spec before the design starts
+design_review = true              # a reviewer checks the design before the plan
+proceed_on_deadlock = false       # go on, with the open points posted, when a spec or design review cannot settle
+
+[roles]                           # without roles, any signed-in person may decide
+product_owner = [&quot;alice&quot;]         # decides at the spec gate
+architect     = [&quot;bob&quot;]
+tech_lead     = [&quot;bob&quot;, &quot;carol&quot;]
+developer     = [&quot;dan&quot;]</code></pre>
+<h2 id="keys">The keys</h2>
+<div class="table-wrap"><table><thead><tr><th>Key</th><th>Meaning</th></tr></thead><tbody>
+<tr><td><code>entries</code></td><td>Which entry points the start form offers for this repository.</td></tr>
+<tr><td><code>base_branch</code></td><td>The branch pull requests target.</td></tr>
+<tr><td><code>checks</code></td><td>The commands the checks step runs. They run in the worker, outside the sandbox, through a shell. Configure only repositories whose checks you trust (<a href="limits.html#isolation">Limits</a>).</td></tr>
+<tr><td><code>[policy]</code></td><td>Defaults for rounds and stops. See <a href="roles-and-stops.html">Roles and stops</a>. The start form shows them and what you leave checked is what that work runs with, so editing the file never changes a run already in flight.</td></tr>
+<tr><td><code>[roles]</code></td><td>Who may decide where. See <a href="roles-and-stops.html#roles">Roles and stops</a>.</td></tr></tbody></table></div>
+<p>An invalid file is reported on the page that needs it, with what is wrong. Per-repository settings edited in the web interface, for people who cannot edit the file, are on the <a href="https://github.com/bhoudebert/shelf-sdlc-agents/blob/main/ROADMAP.md">roadmap</a>, not built.</p>
+<h2 id="read">What agents already read</h2>
+<p>Agents read what a repository tells them: <code>CLAUDE.md</code>, <code>AGENTS.md</code>, its skills and rules, and the title convention of its pull requests (a titler role names the pull request by it). Put your conventions there; they apply to the agents as to any contributor.</p>
+<h2 id="tools">Toolchains</h2>
+<p>The worker image carries no JDK, Maven or Node. If a repository declares what it needs in <code>mise.toml</code> or <code>.tool-versions</code>, the agent runs <code>mise install</code> and then the repository's own build and tests, as a developer would. Downloads and package caches live in a volume, one home per repository, so nothing one repository downloads is used by another. The sandbox may reach GitHub, the tool downloads and the common registries; add a private mirror with <code>SHELF_ALLOWED_DOMAINS</code> in <code>deploy/.env</code>. A repository with no declaration gets no tools: the agent says so instead of pretending it ran the tests.</p>
+<h2 id="ci">Checks and CI</h2>
+<p>After the repository's own <code>checks</code> pass, the checks step reads the pull request's CI as the App. A run that failed, timed out or was cancelled sends the work back to the implementer with what it reported. A run still going makes the work wait (one step looks every minute for half an hour, <code>SHELF_CI_WAIT</code>, then again later without losing a round). A commit with no CI run within two minutes (<code>SHELF_CI_GRACE</code>) counts as a repository without CI. The code reviewer is told what the CI says and cannot approve over a red or unfinished one.</p>
+<h2 id="guard">The guard in a repository</h2>
+<p>A repository may add its own <code>.warden/policy.toml</code> to tighten the operator's policy. It can never loosen it. See <a href="guard.html#tune">the guard</a>.</p>
+<div class="callout planned"><p><strong>Coming, not shipped.</strong> A <code>[results]</code> section here (<code>specs</code>, <code>decisions</code>, <code>write</code>, <code>conflicts</code>) will say where the lasting results of a run land: requirements under <code>openspec/</code>, decision records under <code>docs/adr/</code>, a run's own files under <code>.shelf/&lt;work-id&gt;/</code>, with a check of a new decision record against earlier ones. It is specified in <a href="https://github.com/bhoudebert/shelf-sdlc-agents/pull/133">open pull request 133</a> and is being built. Do not rely on it yet.</p></div>
+
+<nav class="pager" aria-label="Pages"><a href="start-work.html">&larr; Start your first work</a><a href="roles-and-stops.html">Roles and stops &rarr;</a></nav></main></div>
+<footer class="foot"><div class="wrap"><div class="tiles">
+<div class="tile t-1"><p><strong>Shelf</strong> is open source under the Apache-2.0 licence and in early development. What it does not do yet is written down, not hidden.</p><p class="small">Read <a href="../docs/limits.html">the limits</a> before you point it at a repository you care about.</p></div>
+<nav class="tile t-2" aria-label="Guide"><ul><li><a href="../docs/concepts.html">Concepts</a></li><li><a href="../docs/getting-started.html">Get started</a></li><li><a href="../docs/repository.html">Configure a repository</a></li><li><a href="../docs/guard.html">The guard</a></li><li><a href="../docs/operate.html">Operate</a></li></ul></nav>
+<nav class="tile t-3" aria-label="Project"><ul><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents">Repository</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents/blob/main/CONTRIBUTING.md">Contributing</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents/issues">Issues</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents/blob/main/SECURITY.md">Security policy</a></li><li><a href="https://github.com/bhoudebert/shelf-sdlc-agents/blob/main/LICENSE">Apache-2.0</a></li></ul></nav>
+<div class="tile t-name"><p class="small" style="color:var(--on-field-2)">A software factory you host yourself.</p><b aria-hidden="true">Shelf</b></div>
+<a class="tile t-go" href="../docs/getting-started.html"><span>Get started: one command on a server</span><svg viewBox="0 0 56 56" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="4"><path d="M10 46L46 10M20 10h26v26"/></svg></a>
+</div></div></footer>
+<script src="../assets/site.js"></script>
+</body></html>
