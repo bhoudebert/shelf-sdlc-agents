@@ -28,6 +28,8 @@ def test_the_architect_is_told_where_decision_records_go_and_how_to_replace_one(
     assert "`docs/decisions/`" in note
     assert "Supersedes: NNNN" in note
     assert "superseded by NNNN" in note
+    assert "Decision log:" in note
+    assert "Never write the names of the people who decided" in note
 
 
 def test_the_design_reviewer_refuses_an_unstated_contradiction_by_default() -> None:

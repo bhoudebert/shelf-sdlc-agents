@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from typing import Protocol
 
 from shelf.domain.ci import Ci
+from shelf.domain.decisions import DecisionRecord
 from shelf.domain.model import PullInfo, WorkContext
 from shelf.domain.pipeline import Phase
 from shelf.domain.stage import Stage
@@ -19,6 +20,10 @@ class StepRunner(Protocol):
 
     async def title(self, work: WorkContext) -> str:
         """The title of the work's pull request by the repository's own convention; never fails, falls back."""
+        ...
+
+    async def record_decision(self, work: WorkContext, record: DecisionRecord) -> None:
+        """Append a person's decision to the work's decision log on its branch."""
         ...
 
 

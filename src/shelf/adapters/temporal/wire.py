@@ -119,6 +119,18 @@ class ProgressInput:
 
 
 @dataclass(frozen=True, slots=True)
+class DecisionRecordInput:
+    """The input of the activity that records a person's decision in the repository."""
+
+    work: WorkInput
+    phase: str
+    login: str
+    kind: str
+    note: str
+    at: str
+
+
+@dataclass(frozen=True, slots=True)
 class ReadyInput:
     """The input of the activity that marks the pull request ready for review or back to draft."""
 

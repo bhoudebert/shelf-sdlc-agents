@@ -2,13 +2,15 @@
 
 import asyncio
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from shelf.domain.ci import Ci, CiState
-from shelf.domain.config import RepoConfig
+from shelf.domain.config import InvalidConfigError, RepoConfig
 from shelf.domain.context import CATEGORIES, EARLIER_WORK, context_brief
 from shelf.domain.context_repo import FOLDER, note_for, parse_context
+from shelf.domain.decisions import FILE as DECISIONS_FILE
+from shelf.domain.decisions import DecisionRecord, acted_as, append_entry
 from shelf.domain.model import RepoRef, WorkContext, WorkId
 from shelf.domain.pipeline import EntryPoint, Phase
 from shelf.domain.result import Err, Ok
@@ -161,6 +163,8 @@ class Steps:
     seconds after a push, not at once."""
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep
     context_sources: ContextSources | None = None
+    administrators: Callable[[], frozenset[str]] = frozenset[str]
+    """The logins of the instance's administrators now, for the record of who decided what."""
     """Where other repositories are read from, as reference material put next to the clone (none without it)."""
 
     async def run(self, work: WorkContext, step: RunStep) -> StepResult:
@@ -269,6 +273,22 @@ class Steps:
             return reviewed, role.name, f"**Verdict: {reviewed.verdict}**\n\n{reviewed.issues}".strip()
         await workspace.commit_and_push(f"chore(shelf): {role.name} for {work.id}")
         return Produced(), role.name, await self._story(work, step, workspace, config, answer)
+
+    async def record_decision(self, work: WorkContext, record: DecisionRecord) -> None:
+        """Append a person's decision to the work's decision log on its branch, committed by the system."""
+        repo = work.request.repo
+        try:
+            config = await self.configs.load(repo)
+        except InvalidConfigError:
+            config = RepoConfig()
+        acting = acted_as(config, record.login, record.phase, admin=record.login in self.administrators())
+        token = await self.token_for(repo)
+        async with self.workspaces.open(Checkout(repo, token, branch_of(work), config.base_branch)) as workspace:
+            target = workspace.path / folder_of(workspace.path, work.id) / DECISIONS_FILE
+            target.parent.mkdir(parents=True, exist_ok=True)
+            existing = target.read_text(encoding="utf-8") if target.exists() else ""
+            target.write_text(append_entry(existing, replace(record, acting=acting)), encoding="utf-8")
+            await workspace.commit_and_push(f"chore(shelf): record {record.login}'s decision for {work.id}")
 
     async def title(self, work: WorkContext) -> str:
         """The pull request's title by the repository's own convention; any failure falls back to the request."""

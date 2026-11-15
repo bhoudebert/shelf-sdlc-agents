@@ -665,3 +665,47 @@ async def test_the_depth_chosen_for_the_work_wins_over_the_repositorys() -> None
     [task] = agents.tasks
     assert "This is a thorough review" in task.prompt
     assert "quick review" not in task.prompt
+
+
+async def test_a_decision_is_appended_to_the_works_log_and_committed_by_the_system() -> None:
+    from shelf.domain.decisions import DecisionRecord  # noqa: PLC0415
+    from shelf.domain.work import DecisionKind  # noqa: PLC0415
+
+    workspaces = FakeWorkspaces()
+    runner = steps(workspaces=workspaces)
+    for login in ("alice", "bob"):
+        await runner.record_decision(
+            NEED, DecisionRecord("2026-11-15T10:00:00+00:00", login, DecisionKind.APPROVE, Phase.SPEC_APPROVAL, "ok")
+        )
+    log = (workspaces.workspace.path / ".shelf/work-1/decisions.md").read_text()
+    assert log.index("alice approved the spec") < log.index("bob approved the spec")
+    assert log.count("## ") == 2
+    assert "chore(shelf): record bob's decision for work-1" in workspaces.workspace.pushed[-1]
+
+
+async def test_a_decision_in_a_work_that_began_in_the_old_folder_goes_to_that_folder() -> None:
+    from shelf.domain.decisions import DecisionRecord  # noqa: PLC0415
+    from shelf.domain.work import DecisionKind  # noqa: PLC0415
+
+    workspaces = FakeWorkspaces()
+    old = workspaces.workspace.path / "docs/shelf/work-1/spec.md"
+    old.parent.mkdir(parents=True)
+    old.write_text("x")
+    await steps(workspaces=workspaces).record_decision(
+        NEED, DecisionRecord("2026-11-15T10:00:00+00:00", "alice", DecisionKind.APPROVE, Phase.SPEC_APPROVAL)
+    )
+    assert (workspaces.workspace.path / "docs/shelf/work-1/decisions.md").exists()
+
+
+async def test_the_record_names_the_instance_administrator() -> None:
+    from dataclasses import replace  # noqa: PLC0415
+
+    from shelf.domain.decisions import DecisionRecord  # noqa: PLC0415
+    from shelf.domain.work import DecisionKind  # noqa: PLC0415
+
+    workspaces = FakeWorkspaces()
+    runner = replace(steps(workspaces=workspaces), administrators=lambda: frozenset({"root"}))
+    await runner.record_decision(
+        NEED, DecisionRecord("2026-11-15T10:00:00+00:00", "root", DecisionKind.APPROVE, Phase.SPEC_APPROVAL)
+    )
+    assert "Acting as: administrator" in (workspaces.workspace.path / ".shelf/work-1/decisions.md").read_text()

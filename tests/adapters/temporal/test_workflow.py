@@ -12,6 +12,7 @@ from shelf.adapters.temporal import wire
 from shelf.adapters.temporal.activities import build_activities
 from shelf.adapters.temporal.workflow import WorkItemWorkflow
 from shelf.domain.ci import Ci, CiState
+from shelf.domain.decisions import DecisionRecord
 from shelf.domain.model import PullInfo, WorkContext
 from shelf.domain.pipeline import KIND, Kind, Phase
 from shelf.domain.policy import CURRENT_PROTOCOL
@@ -51,6 +52,14 @@ class FakeSteps:
     script: dict[tuple[Phase, int], StepResult] = field(default_factory=dict[tuple[Phase, int], StepResult])
     ran: list[RunStep] = field(default_factory=list[RunStep])
     behaviour: Callable[[RunStep], Awaitable[StepResult]] | None = None
+    recorded: list[DecisionRecord] = field(default_factory=list[DecisionRecord])
+    record_fails: bool = False
+
+    async def record_decision(self, work: WorkContext, record: DecisionRecord) -> None:
+        if self.record_fails:
+            message = "the branch cannot be written"
+            raise RuntimeError(message)
+        self.recorded.append(record)
 
     async def title(self, work: WorkContext) -> str:
         return "feat: loyalty points"
@@ -324,3 +333,45 @@ async def test_work_that_does_not_go_on_waits_at_the_same_deadlock(env: Workflow
         await handle.signal(WorkItemWorkflow.decided, wire.DecisionDto("alice", DecisionKind.ABORT, ""))
         await handle.result()
     assert not [body for body in pulls.commented if "read them before you merge" in body]
+
+
+async def test_a_decision_is_recorded_before_the_work_goes_on(env: WorkflowEnvironment) -> None:
+    steps = FakeSteps()
+    async with worker(env, steps, FakePulls()):
+        handle = await start(env, work_input("need"))
+        await until(handle, lambda s: s.waiting_for == "gate")
+        await handle.signal(WorkItemWorkflow.decided, wire.DecisionDto("carol", DecisionKind.APPROVE, "go"))
+        await until(handle, lambda s: s.waiting_for == "merge")
+        await handle.signal(WorkItemWorkflow.pull_request_closed, True)
+        await handle.result()
+    [record] = steps.recorded
+    assert (record.login, record.kind, record.phase, record.note) == (
+        "carol",
+        DecisionKind.APPROVE,
+        Phase.SPEC_APPROVAL,
+        "go",
+    )
+    assert record.at.endswith("+00:00")
+
+
+async def test_a_decision_that_cannot_be_recorded_still_takes_effect(env: WorkflowEnvironment) -> None:
+    steps = FakeSteps(record_fails=True)
+    async with worker(env, steps, FakePulls()):
+        handle = await start(env, work_input("need"))
+        await until(handle, lambda s: s.waiting_for == "gate")
+        await handle.signal(WorkItemWorkflow.decided, wire.DecisionDto("carol", DecisionKind.APPROVE, ""))
+        await until(handle, lambda s: s.waiting_for == "merge")
+        await handle.signal(WorkItemWorkflow.pull_request_closed, True)
+        assert await handle.result() == "merged"
+
+
+async def test_work_started_under_the_previous_protocol_records_nothing(env: WorkflowEnvironment) -> None:
+    steps = FakeSteps()
+    async with worker(env, steps, FakePulls()):
+        handle = await start(env, work_input("need", protocol=6))
+        await until(handle, lambda s: s.waiting_for == "gate")
+        await handle.signal(WorkItemWorkflow.decided, wire.DecisionDto("carol", DecisionKind.APPROVE, ""))
+        await until(handle, lambda s: s.waiting_for == "merge")
+        await handle.signal(WorkItemWorkflow.pull_request_closed, True)
+        await handle.result()
+    assert steps.recorded == []

@@ -134,12 +134,17 @@ class Course:
         return self.protocol >= ONE_APPROVAL
 
     @property
+    def records_decisions(self) -> bool:
+        """Whether a person's decision is written into the repository before the work goes on (protocol 7)."""
+        return self.protocol >= RECORDS_DECISIONS
+
+    @property
     def readies_pull_request(self) -> bool:
         """Whether the pull request leaves the draft state when the work asks for the merge: ours, or adopted."""
         return self.opens_early and (self.publishes_pull_request or self.adopts_pull_request)
 
 
-CURRENT_PROTOCOL = 6
+CURRENT_PROTOCOL = 7
 """The behaviour new work starts with. Raise it, and gate the new behaviour on it, whenever a change would alter what
 the workflow does for a history recorded before: protocol 1 is the original behaviour, which old work keeps."""
 
@@ -164,6 +169,10 @@ existing pull request can be adopted."""
 ONE_APPROVAL = 6
 """The protocol under which accepting an escalated review also approves the gate right after it, so that a person is
 not asked twice for the same decision."""
+
+
+RECORDS_DECISIONS = 7
+"""The protocol under which every decision a person makes is recorded in the work's decision log in the repository."""
 
 
 def course_for(entry: EntryPoint, policy: Policy, protocol: int = CURRENT_PROTOCOL) -> Course:

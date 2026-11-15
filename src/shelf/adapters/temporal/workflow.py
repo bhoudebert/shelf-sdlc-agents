@@ -48,6 +48,7 @@ STAGE = "shelf_set_stage"
 READY = "shelf_set_ready"
 PROGRESS = "shelf_progress"
 OPEN_POINTS = "shelf_note_open_points"
+RECORD_DECISION = "shelf_record_decision"
 
 STEP_TIMEOUT = timedelta(minutes=45)
 STEP_HEARTBEAT = timedelta(seconds=60)
@@ -105,6 +106,7 @@ class WorkItemWorkflow:
                 event = await self._events.get()
                 self._quiet_interval = timedelta(seconds=work.poll_base_seconds)
                 self._note(self._state, event)
+                await self._record(work, self._state, event)
                 self._touch(self._phase)
                 self._state, commands = decide(course, self._state, event)
                 await self._execute(work, commands)
@@ -162,6 +164,24 @@ class WorkItemWorkflow:
                 self._log.append(wire.LogEntryDto(phase, f"failed: {reason[:80]}", self._now()))
             case AwaitingPerson(phase), PersonDecided(_, kind):
                 self._log.append(wire.LogEntryDto(phase, f"you: {kind}", self._now()))
+            case _:
+                pass
+
+    async def _record(self, work: wire.WorkInput, state: State, event: Event) -> None:
+        """Write a person's decision into the repository before the work goes on; a failure is logged, never fatal."""
+        if not wire.course_of(work).records_decisions:  # work started under an earlier protocol keeps its history
+            return
+        match state, event:
+            case AwaitingPerson(phase), PersonDecided(login, kind, note):
+                try:
+                    await workflow.execute_activity(
+                        RECORD_DECISION,
+                        wire.DecisionRecordInput(work, phase, login, kind, note, self._now()),
+                        start_to_close_timeout=PUBLISH_TIMEOUT,
+                        retry_policy=RetryPolicy(maximum_attempts=2),
+                    )
+                except ActivityError:
+                    workflow.logger.warning("could not record the decision of %s at %s", login, phase)
             case _:
                 pass
 

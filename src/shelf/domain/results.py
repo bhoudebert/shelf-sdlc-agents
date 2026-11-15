@@ -48,7 +48,10 @@ def _records(results: Results) -> str:
         "when it would be expensive to reverse or when a newcomer would ask why. If it replaces an earlier decision, "
         "write `Supersedes: NNNN` in the new record and change only the status line of the earlier one to "
         f"`superseded by NNNN`; never rewrite an accepted record. If `{results.decisions}/` does not exist, create it: "
-        "a `README.md`, the template, and a first record that decides to keep records, then yours."
+        "a `README.md`, the template, and a first record that decides to keep records, then yours. In the record, name "
+        "the work's decision log (`decisions.md` in the documents folder of this work) on a line of its own, such as "
+        "`Decision log: <that path>`: the system writes there who approved what and when. Never write the names of "
+        "the people who decided yourself."
     )
 
 
