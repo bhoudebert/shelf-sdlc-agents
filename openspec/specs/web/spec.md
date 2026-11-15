@@ -746,6 +746,20 @@ The system SHALL let an administrator, from the Guard section of the admin page,
 - **WHEN** the instance has no overlay location
 - **THEN** the page shows the text to copy as before and says that applying it from here is not set up
 
+### Requirement: Closing a work from its page also closes the pull request it opened
+
+The system SHALL, when an administrator closes a work from its page, also close the pull request that work opened (with a comment saying who closed it), unless the work was a review of, or work on, a pull request someone else opened; and SHALL log and ignore a failure to close the pull request, so that the work is still closed.
+
+#### Scenario: A stuck work is closed
+
+- **WHEN** an administrator closes a work whose draft pull request is open
+- **THEN** the work is closed and its pull request is closed with a comment
+
+#### Scenario: GitHub refuses
+
+- **WHEN** closing the pull request fails
+- **THEN** the work is still closed and the page goes back to the board
+
 ### Requirement: The work page shows what the agents used
 
 The system SHALL show on the page of a piece of work a table of what each agent step used (agent, round, turns, time, tokens read and written, cache, cost), the totals of each agent with its number of rounds, and the total of the work, and SHALL say plainly when nothing was reported, as for work that predates it, without hiding the rest of the page.

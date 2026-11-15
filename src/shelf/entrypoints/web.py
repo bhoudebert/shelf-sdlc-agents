@@ -60,6 +60,7 @@ async def build(settings: settings_module.Settings) -> FastAPI:
             references=services.references,
             context_sources=services.context_sources,
             guard=WardenReader(),
+            pulls=services.pulls,
             guard_rules=FileGuardRules(Path(settings.guard_rules_dir)) if settings.guard_rules_dir else None,
         )
     )

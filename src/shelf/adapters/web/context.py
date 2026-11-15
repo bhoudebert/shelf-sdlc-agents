@@ -30,6 +30,7 @@ from shelf.ports.guard import GuardReader
 from shelf.ports.guard_rules import GuardRules
 from shelf.ports.references import References
 from shelf.ports.runner import WorkRunner
+from shelf.ports.steps import PullRequests
 
 SESSION_COOKIE = "shelf_session"
 STATE_COOKIE = "shelf_oauth_state"
@@ -97,6 +98,8 @@ class WebDeps:
 
     guard: GuardReader | None = None
     """Where the guard's findings are read from, for the administrator's page; the section says so without it."""
+    pulls: PullRequests | None = None
+    """The pull requests, so that closing a work from its page also closes the pull request it opened."""
     guard_rules: GuardRules | None = None
     """Where the rules an administrator adds from the page are kept; the page offers text to copy without it."""
 

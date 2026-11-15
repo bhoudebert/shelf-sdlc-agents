@@ -88,6 +88,14 @@ class FakePulls:
     pull: PullInfo = field(default_factory=lambda: PullInfo("feat/x", "abc", open=True, same_repository=True))
 
     outdated: list[Phase | None] = field(default_factory=list[Phase | None])
+    closed: list[str] = field(default_factory=list[str])
+    close_fails: bool = False
+
+    async def close(self, work: WorkContext, reason: str) -> None:
+        if self.close_fails:
+            message = "GitHub refused"
+            raise RuntimeError(message)
+        self.closed.append(reason)
 
     async def outdate(self, work: WorkContext, rerun_from: Phase | None) -> None:
         self.outdated.append(rerun_from)
@@ -376,6 +384,66 @@ async def test_work_started_under_the_previous_protocol_records_nothing(env: Wor
         await handle.signal(WorkItemWorkflow.pull_request_closed, True)
         await handle.result()
     assert steps.recorded == []
+
+
+async def test_a_person_aborting_the_work_closes_the_pull_request_it_opened(env: WorkflowEnvironment) -> None:
+    pulls = FakePulls()
+    async with worker(env, FakeSteps(), pulls):
+        handle = await start(env, work_input("need"))
+        await until(handle, lambda s: s.waiting_for == "gate")
+        await handle.signal(WorkItemWorkflow.decided, wire.DecisionDto("carol", DecisionKind.ABORT, ""))
+        assert await handle.result() == "aborted"
+    assert pulls.closed == ["carol aborted the work"]
+
+
+async def test_a_person_rejecting_the_work_closes_its_pull_request(env: WorkflowEnvironment) -> None:
+    pulls = FakePulls()
+    async with worker(env, FakeSteps(), pulls):
+        handle = await start(env, work_input("need"))
+        await until(handle, lambda s: s.waiting_for == "gate")
+        await handle.signal(WorkItemWorkflow.decided, wire.DecisionDto("carol", DecisionKind.REJECT, ""))
+        await handle.result()
+    assert pulls.closed == ["carol rejected the work"]
+
+
+async def test_a_pull_request_that_is_not_the_works_own_is_left_open(env: WorkflowEnvironment) -> None:
+    pulls = FakePulls()
+    async with worker(env, FakeSteps(), pulls):
+        handle = await start(env, work_input("pull_request_review"))
+        await until(handle, lambda s: bool(s.phase))
+        await handle.signal(WorkItemWorkflow.decided, wire.DecisionDto("carol", DecisionKind.ABORT, ""))
+        await handle.result()
+    assert pulls.closed == []
+
+
+async def test_work_started_under_the_previous_protocol_leaves_the_pull_request(env: WorkflowEnvironment) -> None:
+    pulls = FakePulls()
+    async with worker(env, FakeSteps(), pulls):
+        handle = await start(env, work_input("need", protocol=7))
+        await until(handle, lambda s: s.waiting_for == "gate")
+        await handle.signal(WorkItemWorkflow.decided, wire.DecisionDto("carol", DecisionKind.ABORT, ""))
+        await handle.result()
+    assert pulls.closed == []
+
+
+async def test_a_pull_request_that_cannot_be_closed_never_stops_the_work_from_ending(env: WorkflowEnvironment) -> None:
+    async with worker(env, FakeSteps(), FakePulls(close_fails=True)):
+        handle = await start(env, work_input("need"))
+        await until(handle, lambda s: s.waiting_for == "gate")
+        await handle.signal(WorkItemWorkflow.decided, wire.DecisionDto("carol", DecisionKind.ABORT, ""))
+        assert await handle.result() == "aborted"
+
+
+async def test_a_merge_does_not_close_anything(env: WorkflowEnvironment) -> None:
+    pulls = FakePulls()
+    async with worker(env, FakeSteps(), pulls):
+        handle = await start(env, work_input("need"))
+        await until(handle, lambda s: s.waiting_for == "gate")
+        await handle.signal(WorkItemWorkflow.decided, wire.DecisionDto("carol", DecisionKind.APPROVE, ""))
+        await until(handle, lambda s: s.waiting_for == "merge")
+        await handle.signal(WorkItemWorkflow.pull_request_closed, True)
+        await handle.result()
+    assert pulls.closed == []
 
 
 async def test_the_workflow_keeps_what_each_step_used_in_order_and_answers_for_it(env: WorkflowEnvironment) -> None:
