@@ -86,6 +86,19 @@ class Ci:
         return "\n".join(lines)
 
 
+def latest_of_each(runs: Sequence[tuple[int, CiRun]]) -> list[CiRun]:
+    """The latest run of each check, given ``(id, run)`` pairs: a later id is a later run.
+
+    A run cancelled because a newer run of the same check started, or a failure that a newer run fixed, says nothing
+    about the commit any more.
+    """
+    latest: dict[str, tuple[int, CiRun]] = {}
+    for run_id, run in runs:
+        if run.name not in latest or run_id >= latest[run.name][0]:
+            latest[run.name] = (run_id, run)
+    return [run for _, run in latest.values()]
+
+
 def judge(runs: Sequence[CiRun]) -> Ci:
     """Sum up ``runs``. Red wins over pending, because there is no reason to wait for a commit that already failed."""
     found = tuple(runs)
