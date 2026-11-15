@@ -154,11 +154,17 @@ def test_an_empty_roles_section_still_means_anyone_may_decide() -> None:
     assert parse_repo_config("[roles]").roles == {}
 
 
-def test_the_reviews_are_quick_unless_the_repository_says_otherwise() -> None:
-    assert parse_repo_config("").policy.review_depth.value == "quick"
-    assert parse_repo_config('[policy]\nreview_depth = "thorough"').policy.review_depth.value == "thorough"
+def test_the_spec_review_is_quick_and_the_design_review_standard_unless_the_repository_says_otherwise() -> None:
+    policy = parse_repo_config("").policy
+    assert (policy.spec_review_depth.value, policy.design_review_depth.value) == ("quick", "standard")
+
+
+def test_the_two_reviews_can_have_different_depths() -> None:
+    text = '[policy]\nspec_review_depth = "quick"\ndesign_review_depth = "thorough"'
+    policy = parse_repo_config(text).policy
+    assert (policy.spec_review_depth.value, policy.design_review_depth.value) == ("quick", "thorough")
 
 
 def test_a_review_depth_that_is_not_known_is_refused_with_the_choices() -> None:
-    with pytest.raises(ConfigError, match="review_depth must be one of quick, standard, thorough"):
-        parse_repo_config('[policy]\nreview_depth = "deep"')
+    with pytest.raises(ConfigError, match="design_review_depth must be one of quick, standard, thorough"):
+        parse_repo_config('[policy]\ndesign_review_depth = "deep"')

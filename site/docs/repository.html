@@ -24,7 +24,8 @@ checks = [&quot;make test&quot;]            # what the checks step runs
 max_rounds = 3                    # how many times a loop may send work back before a person is asked
 spec_approval = true              # a person approves the spec before the design starts
 design_review = true              # a reviewer checks the design before the plan
-review_depth = &quot;quick&quot;           # quick | standard | thorough: how hard the spec and design reviews look
+spec_review_depth = &quot;quick&quot;     # quick | standard | thorough: how hard the spec review looks
+design_review_depth = &quot;standard&quot;  # the same for the design review
 proceed_on_deadlock = false       # go on, with the open points posted, when a spec or design review cannot settle
 
 [roles]                           # without roles, any signed-in person may decide
@@ -37,7 +38,7 @@ developer     = [&quot;dan&quot;]</code></pre>
 <tr><td><code>entries</code></td><td>Which entry points the start form offers for this repository.</td></tr>
 <tr><td><code>base_branch</code></td><td>The branch pull requests target.</td></tr>
 <tr><td><code>checks</code></td><td>The commands the checks step runs. They run in the worker, outside the sandbox, through a shell. Configure only repositories whose checks you trust (<a href="limits.html#isolation">Limits</a>).</td></tr>
-<tr><td><code>[policy]</code></td><td>Defaults for rounds, stops and how deep the spec and design reviews look (<code>review_depth</code>: <code>quick</code> by default, <code>standard</code>, or <code>thorough</code> for risky work). See <a href="roles-and-stops.html">Roles and stops</a>. The start form shows them and what you leave checked is what that work runs with, so editing the file never changes a run already in flight.</td></tr>
+<tr><td><code>[policy]</code></td><td>Defaults for rounds, stops and how deep the spec and design reviews look (<code>spec_review_depth</code>, <code>quick</code> by default, and <code>design_review_depth</code>, <code>standard</code> by default; each can be <code>quick</code>, <code>standard</code> or <code>thorough</code> for risky work). See <a href="roles-and-stops.html">Roles and stops</a>. The start form shows them and what you leave checked is what that work runs with, so editing the file never changes a run already in flight.</td></tr>
 <tr><td><code>[roles]</code></td><td>Who may decide where. See <a href="roles-and-stops.html#roles">Roles and stops</a>.</td></tr>
 <tr><td><code>[results]</code></td><td>Where a run puts its specs and decision records, and how strictly they are checked. See <a href="#results">below</a>.</td></tr></tbody></table></div>
 <p>An invalid file is reported on the page that needs it, with what is wrong. Per-repository settings edited in the web interface, for people who cannot edit the file, are on the <a href="https://github.com/bhoudebert/shelf-sdlc-agents/blob/main/ROADMAP.md">roadmap</a>, not built.</p>

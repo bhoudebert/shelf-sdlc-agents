@@ -18,8 +18,10 @@ class Policy:
     """Whether a reviewer checks the design before the plan."""
     proceed_on_deadlock: bool = False
     """Whether work goes on, open issues posted, when the spec or design review cannot settle (ADR 0013)."""
-    review_depth: ReviewDepth = ReviewDepth.QUICK
-    """How hard the spec and design reviews look."""
+    spec_review_depth: ReviewDepth = ReviewDepth.QUICK
+    """How hard the spec review looks."""
+    design_review_depth: ReviewDepth = ReviewDepth.STANDARD
+    """How hard the design review looks."""
 
     def removed_stops(self) -> tuple[str, ...]:
         """The stops a person is not asked at, by name: ``spec``, ``design`` and ``deadlock``."""
@@ -47,6 +49,10 @@ class Autonomy:
     spec_approval: bool
     design_review: bool
     proceed_on_deadlock: bool
+    spec_review_depth: ReviewDepth | None = None
+    """How deep the spec review looks for this work; ``None`` leaves it to the repository's file."""
+    design_review_depth: ReviewDepth | None = None
+    """How deep the design review looks for this work; ``None`` leaves it to the repository's file."""
 
     @classmethod
     def strictest(cls) -> "Autonomy":
@@ -56,15 +62,23 @@ class Autonomy:
     @classmethod
     def of(cls, policy: Policy) -> "Autonomy":
         """What a repository's policy says."""
-        return cls(policy.spec_approval, policy.design_review, policy.proceed_on_deadlock)
+        return cls(
+            policy.spec_approval,
+            policy.design_review,
+            policy.proceed_on_deadlock,
+            policy.spec_review_depth,
+            policy.design_review_depth,
+        )
 
     def over(self, policy: Policy) -> Policy:
-        """``policy`` with these three choices in place of its own; the round limit stays the repository's."""
+        """``policy`` with these choices in place of its own; the round limit stays the repository's."""
         return replace(
             policy,
             spec_approval=self.spec_approval,
             design_review=self.design_review,
             proceed_on_deadlock=self.proceed_on_deadlock,
+            spec_review_depth=self.spec_review_depth or policy.spec_review_depth,
+            design_review_depth=self.design_review_depth or policy.design_review_depth,
         )
 
     @property
