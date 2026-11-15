@@ -863,7 +863,7 @@ The system SHALL record, when a work starts, how hard its spec reviewer and its 
 
 ### Requirement: The guard table says what happened to each call
 
-The system SHALL say, for each call in the Guard section's list, whether it was stopped or only recorded: when the decision was to allow but the policy meant to deny (the guard was only watching), the page says "Not stopped: the guard only recorded it" and, for a call no rule could free, that the policy would refuse it once the guard is enforcing, not that it always refuses; and SHALL say above the list when the profile is only watching, that nothing is being stopped.
+The system SHALL say, for each call in the Guard section's list, whether it was stopped or only recorded: when the decision was to allow but the policy meant to deny (the guard was only watching), the page says "Not stopped: the guard only recorded it" and, for a call no rule could free, that the policy would refuse it once the guard is enforcing, not that it always refuses; and SHALL say above the list, when any listed call was only recorded, that the guard is only watching and nothing is being stopped.
 
 #### Scenario: A call recorded in the watching profile
 
