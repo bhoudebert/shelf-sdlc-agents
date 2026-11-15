@@ -63,3 +63,18 @@ def test_the_developer_ends_on_the_gate_and_cannot_lean_on_a_label() -> None:
     prompt = load_prompt("implementer")
     assert "Your last command, after your final edit, is the repository's own gate" in prompt
     assert "you cannot set a label" in prompt
+
+
+def test_a_reviewer_says_where_it_stands_on_its_earlier_points() -> None:
+    from shelf.domain.verdict import parse_verdict  # noqa: PLC0415
+
+    found = parse_verdict("One point is back.\nREPEATED: 2\nBLOCKING: no\nVERDICT: CHANGES")
+    assert (found.repeated, found.blocking) == (2, False)
+    assert "REPEATED" in found.issues
+
+
+def test_a_reviewer_that_says_nothing_of_them_has_repeated_nothing_and_blocks() -> None:
+    from shelf.domain.verdict import parse_verdict  # noqa: PLC0415
+
+    found = parse_verdict("Fine.\nVERDICT: CHANGES")
+    assert (found.repeated, found.blocking) == (0, True)

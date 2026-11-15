@@ -21,6 +21,11 @@ forgot to update, a list that does not name the new case, a missing test. Each o
 a note: after an approval nobody reads your list, so a leftover you do not send back stays in the repository. Under an
 approval write only what needs a person's judgment or a check nobody could run here, and say which.
 
+After your first review, say in two lines before the verdict where you stand on your earlier points:
+`REPEATED: <n>` is how many points you raised in an earlier round that the author did not address (0 when none, or on a
+first review); a point that is fixed, or that is new, is not repeated. `BLOCKING: yes|no` is whether any point still open
+must be fixed before this can merge (`no` when only minor ones remain).
+
 End with exactly one line:
 `VERDICT: APPROVE` if it can merge as it is,
 `VERDICT: CHANGES` if the author can fix it alone,

@@ -152,7 +152,7 @@ def test_a_reviewer_asking_for_changes_sends_work_back_with_the_issues() -> None
 
 
 def test_the_loop_gives_up_after_the_policy_limit_and_asks_a_person() -> None:
-    course = course_for(EntryPoint.SPEC, Policy(max_rounds=2))
+    course = course_for(EntryPoint.SPEC, Policy(max_rounds=2), protocol=9)
     reject = StepDone(Reviewed(Verdict.CHANGES, "still wrong"))
 
     def answer(state: State) -> Event | None:
@@ -175,7 +175,7 @@ def test_failing_checks_send_work_back_to_the_implementer_with_the_report() -> N
 
 
 def test_the_round_budget_survives_the_trip_through_the_checks() -> None:
-    course = course_for(EntryPoint.IMPLEMENT, Policy(max_rounds=1))
+    course = course_for(EntryPoint.IMPLEMENT, Policy(max_rounds=1), protocol=9)
     state, _ = decide(course, Running(Phase.IMPLEMENT, 1), approve(Phase.IMPLEMENT))
     state, _ = decide(course, state, approve(Phase.VERIFY))
     assert state == Running(Phase.CODE_REVIEW, 1)
@@ -451,7 +451,9 @@ def deadlocked(phase: Phase, verdict: Verdict = Verdict.CHANGES) -> Callable[[St
 
 
 def test_a_deadlocked_spec_review_goes_on_when_the_policy_says_so_and_notes_what_stayed_open() -> None:
-    course = course_for(EntryPoint.SPEC, Policy(max_rounds=1, spec_approval=False, proceed_on_deadlock=True))
+    course = course_for(
+        EntryPoint.SPEC, Policy(max_rounds=1, spec_approval=False, proceed_on_deadlock=True), protocol=9
+    )
     log, state = drive(course, deadlocked(Phase.SPEC_REVIEW))
     notes = [c for c in log if isinstance(c, NoteOpenPoints)]
     assert [n.phase for n in notes] == [Phase.SPEC_REVIEW]
@@ -511,3 +513,51 @@ def test_a_work_that_proceeds_never_waits_at_a_review_of_a_document(verdicts: li
 
     _, state = drive(course, answer)
     assert state == Finished(Outcome.MERGED)
+
+
+def _course_at(protocol: int, **policy: int | bool) -> Course:
+    return course_for(EntryPoint.IMPLEMENT, Policy(**policy), protocol=protocol)  # type: ignore[arg-type]
+
+
+def test_a_repeated_point_stops_the_loop_at_once_and_asks_a_person() -> None:
+    course = _course_at(CURRENT_PROTOCOL)
+    result = Reviewed(Verdict.CHANGES, "same as before", repeated=1)
+    state, commands = decide(course, Running(Phase.CODE_REVIEW, 1), StepDone(result))
+    assert isinstance(state, AwaitingPerson)
+    assert state.reason is Reason.ESCALATION
+    assert "disagree" in state.detail
+    assert not any(isinstance(c, RunStep) for c in commands)
+
+
+def test_new_points_each_round_may_go_on_up_to_twice_the_limit() -> None:
+    course = _course_at(CURRENT_PROTOCOL, max_rounds=2)
+    new = Reviewed(Verdict.CHANGES, "something new")
+    state, _ = decide(course, Running(Phase.CODE_REVIEW, 2), StepDone(new))
+    assert state == Running(Phase.IMPLEMENT, 3, "something new")
+    state, _ = decide(course, Running(Phase.CODE_REVIEW, 4), StepDone(new))
+    assert isinstance(state, AwaitingPerson)
+    assert "limit of 4 rounds" in state.detail
+
+
+def test_a_code_review_with_only_minor_points_left_goes_to_the_gate_with_them_posted() -> None:
+    course = _course_at(CURRENT_PROTOCOL, max_rounds=1)
+    minor = Reviewed(Verdict.CHANGES, "a stale sentence", repeated=1, blocking=False)
+    state, commands = decide(course, Running(Phase.CODE_REVIEW, 1), StepDone(minor))
+    assert not isinstance(state, AwaitingPerson) or state.reason is not Reason.ESCALATION
+    assert [c.phase for c in commands if isinstance(c, NoteOpenPoints)] == [Phase.CODE_REVIEW]
+
+
+def test_a_blocking_point_that_came_back_is_never_passed_on() -> None:
+    course = _course_at(CURRENT_PROTOCOL)
+    state, _ = decide(course, Running(Phase.CODE_REVIEW, 1), StepDone(Reviewed(Verdict.CHANGES, "x", repeated=1)))
+    assert isinstance(state, AwaitingPerson)
+
+
+def test_work_that_began_earlier_is_judged_by_the_count_alone() -> None:
+    course = _course_at(9, max_rounds=2)
+    repeated = Reviewed(Verdict.CHANGES, "same", repeated=1)
+    state, _ = decide(course, Running(Phase.CODE_REVIEW, 1), StepDone(repeated))
+    assert state == Running(Phase.IMPLEMENT, 2, "same")
+    state, _ = decide(course, Running(Phase.CODE_REVIEW, 2), StepDone(repeated))
+    assert isinstance(state, AwaitingPerson)
+    assert "limit of 2 rounds" in state.detail

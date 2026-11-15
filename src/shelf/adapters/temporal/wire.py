@@ -94,6 +94,10 @@ class StepOutput:
     """What the agent used; absent for the checks and for a provider that said nothing."""
     session: str = ""
     """The session the agent ran in; empty for the checks and for a backend that has none."""
+    repeated: int = 0
+    """For a review: how many points raised before are still open."""
+    blocking: bool = True
+    """For a review: whether any open point must be fixed before the work can merge."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -253,7 +257,7 @@ def result_of(output: StepOutput) -> StepResult:
         case "produced":
             return Produced()
         case "reviewed":
-            return Reviewed(Verdict(output.verdict), output.text)
+            return Reviewed(Verdict(output.verdict), output.text, repeated=output.repeated, blocking=output.blocking)
         case "verified":
             return Verified(output.passed, output.text, output.waiting)
         case other:
@@ -266,8 +270,16 @@ def output_of(result: StepResult) -> StepOutput:
     match result:
         case Produced(usage, session):
             return StepOutput("produced", usage=usage_dto(usage), session=session)
-        case Reviewed(verdict, issues, usage, session):
-            return StepOutput("reviewed", verdict=verdict, text=issues, usage=usage_dto(usage), session=session)
+        case Reviewed(verdict, issues, usage, session, repeated, blocking):
+            return StepOutput(
+                "reviewed",
+                verdict=verdict,
+                text=issues,
+                usage=usage_dto(usage),
+                session=session,
+                repeated=repeated,
+                blocking=blocking,
+            )
         case Verified(passed, report, waiting):
             return StepOutput("verified", passed=passed, text=report, waiting=waiting)
 
