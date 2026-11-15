@@ -49,6 +49,10 @@ class Counting:
         self.calls += 1
         return "the request"
 
+    async def pull_request_of(self, repo: RepoRef, branch: str) -> int | None:
+        self.calls += 1
+        return 7
+
 
 async def test_a_conversation_is_remembered_for_a_few_seconds() -> None:
     inner, now = Counting(), [0.0]
@@ -82,3 +86,11 @@ async def test_the_description_of_the_pull_request_is_read(settings: GitHubAppSe
 
     reader = GitHubConversations(httpx.AsyncClient(transport=httpx.MockTransport(handler)), settings, token_for)
     assert (await reader.description(REPO, 12)).endswith("Add points")
+
+
+async def test_the_pull_request_of_a_branch_is_never_cached() -> None:
+    inner = Counting()
+    cached = CachedConversations(inner, ttl_seconds=10, clock=lambda: 0.0)
+    assert await cached.pull_request_of(REPO, "shelf/work-1") == 7
+    assert await cached.pull_request_of(REPO, "shelf/work-1") == 7
+    assert inner.calls == 2

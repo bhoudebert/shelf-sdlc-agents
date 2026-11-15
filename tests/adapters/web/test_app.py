@@ -645,9 +645,15 @@ def test_work_without_a_kept_title_is_still_listed_under_its_repository(app: Fix
 
 
 class FakeConversations:
-    def __init__(self, story: list[Message], *, fail: bool = False, body: str = "") -> None:
+    def __init__(
+        self, story: list[Message], *, fail: bool = False, body: str = "", branches: dict[str, int] | None = None
+    ) -> None:
         self.story, self.fail, self.body = story, fail, body
+        self.branches = branches or {}
         self.read_for: list[tuple[RepoRef, int]] = []
+
+    async def pull_request_of(self, repo: RepoRef, branch: str) -> int | None:
+        return self.branches.get(branch)
 
     async def description(self, repo: RepoRef, pull_request: int) -> str:
         return self.body
@@ -1600,3 +1606,61 @@ def test_a_downloaded_file_from_an_instance_with_no_run_records_says_so() -> Non
     fixture.sign_in()
     fixture.runner.views[WorkId("work-1")] = WorkView(WorkId("work-1"), REPO, "alice", EntryPoint.NEED, Phase.DESIGN)
     assert "keeps no record of agent runs" in fixture.client.get("/work/work-1/export").text
+
+
+def archived(
+    records: list[Any], conversations: FakeConversations | None = None, repos: tuple[RepoRef, ...] = ()
+) -> Any:
+    fixture = Fixture(
+        documents=FakeDocuments({"spec.md": "# the spec"}),
+        conversations=conversations
+        or FakeConversations(STORY, body="Please add OpenCode.", branches={"shelf/work-9": 12}),
+        run_records=MemoryRuns(records),
+    )
+    fixture.sign_in()
+    return fixture
+
+
+def test_a_work_the_engine_forgot_is_still_downloaded_from_its_records_the_branch_and_the_pull_request() -> None:
+    from shelf.domain.runlog import RunRecord  # noqa: PLC0415
+    from shelf.domain.usage import Usage  # noqa: PLC0415
+
+    run = RunRecord(
+        "work-9",
+        "implement",
+        0,
+        "implementer",
+        "2026-11-14T10:00:00+00:00",
+        "2026-11-14T10:05:00+00:00",
+        "finished",
+        repo="acme/shop",
+        requester="alice",
+        entry="need",
+        usage=Usage(input_tokens=500, turns=3),
+    )
+    fixture = archived([run])
+    response = fixture.client.get("/work/work-9/export")
+    assert response.status_code == 200
+    text = response.text
+    assert "**Repository:** acme/shop" in text
+    assert "**Requested by:** alice" in text
+    assert "no longer holds this work" in text
+    assert "https://github.com/acme/shop/pull/12" in text
+    assert "Please add OpenCode." in text
+    assert "I wrote the **spec**." in text
+    assert "# the spec" in text
+    assert "implementer · implement, round 0 · finished" in text
+    assert "Not known: the workflow engine no longer holds this work" in text
+    assert "Total: 500 tokens" in text
+
+
+def test_a_forgotten_work_with_no_record_or_of_a_repository_they_may_not_see_is_not_found() -> None:
+    from shelf.domain.runlog import RunRecord  # noqa: PLC0415
+
+    assert archived([]).client.get("/work/work-9/export").status_code == 404
+    secret = RunRecord(
+        "work-9", "plan", 0, "planner", "t0", "t1", "finished", repo="acme/secret", requester="x", entry="need"
+    )
+    assert archived([secret]).client.get("/work/work-9/export").status_code == 404
+    unnamed = RunRecord("work-9", "plan", 0, "planner", "t0", "t1", "finished")
+    assert archived([unnamed]).client.get("/work/work-9/export").status_code == 404

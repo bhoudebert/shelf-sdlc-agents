@@ -104,6 +104,10 @@ class RunRecord:
     web: bool = False
     max_turns: int = 0
     answer_chars: int = 0
+    repo: str = ""
+    """``owner/name``, so that the work can be found and checked for visibility after the engine forgot it."""
+    requester: str = ""
+    entry: str = ""
 
 
 def keep_events(events: Sequence[ToolEvent]) -> tuple[ToolEvent, ...]:
@@ -155,6 +159,9 @@ def to_data(record: RunRecord) -> dict[str, Any]:
         "web": record.web,
         "max_turns": record.max_turns,
         "answer_chars": record.answer_chars,
+        "repo": record.repo,
+        "requester": record.requester,
+        "entry": record.entry,
     }
 
 
@@ -197,4 +204,7 @@ def from_data(data: Mapping[str, Any]) -> RunRecord:
         web=bool(data.get("web", False)),
         max_turns=int(data.get("max_turns", 0)),
         answer_chars=int(data.get("answer_chars", 0)),
+        repo=str(data.get("repo", "")),
+        requester=str(data.get("requester", "")),
+        entry=str(data.get("entry", "")),
     )

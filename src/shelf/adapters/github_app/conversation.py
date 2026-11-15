@@ -19,6 +19,28 @@ class GitHubConversations:
     settings: GitHubAppSettings
     token_for: TokenFor
 
+    async def pull_request_of(self, repo: RepoRef, branch: str) -> int | None:
+        """The pull request whose head is ``branch``, open or closed; the newest when there are several."""
+        token = await self.token_for(repo)
+        response = await self.client.get(
+            f"{self.settings.api_url}/repos/{repo.full_name}/pulls",
+            params={
+                "head": f"{repo.owner}:{branch}",
+                "state": "all",
+                "per_page": 1,
+                "sort": "created",
+                "direction": "desc",
+            },
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28",
+            },
+        )
+        response.raise_for_status()
+        found = response.json()
+        return int(found[0]["number"]) if found else None
+
     async def description(self, repo: RepoRef, pull_request: int) -> str:
         """The description of the pull request."""
         token = await self.token_for(repo)
