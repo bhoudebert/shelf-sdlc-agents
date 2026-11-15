@@ -46,4 +46,13 @@ def test_the_operators_domains_are_added_to_the_defaults_without_repeats() -> No
 def test_the_note_tells_the_agent_to_install_then_run_the_repositorys_own_tests() -> None:
     assert "mise install" in TOOLCHAIN_NOTE
     assert "run the repository's own build and tests" in TOOLCHAIN_NOTE
-    assert "instead of claiming a result you could not check" in TOOLCHAIN_NOTE
+    assert "instead of claiming a result you could not check" in " ".join(TOOLCHAIN_NOTE.split())
+
+
+def test_a_repository_that_declares_no_tools_is_still_told_to_run_what_its_ci_runs_with_the_versions_ci_uses() -> None:
+    from shelf.domain.toolchain import TOOLCHAIN_NOTE  # noqa: PLC0415
+
+    assert ".github/workflows/" in TOOLCHAIN_NOTE
+    assert "mise exec <tool>@<version> -- <command>" in TOOLCHAIN_NOTE
+    assert "never `mise use`" in TOOLCHAIN_NOTE
+    assert "which command and why" in TOOLCHAIN_NOTE

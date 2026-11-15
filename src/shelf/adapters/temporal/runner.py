@@ -17,6 +17,7 @@ from shelf.domain.pipeline import EntryPoint, Phase
 from shelf.domain.policy import CURRENT_PROTOCOL
 from shelf.domain.polling import Mode, poll_bounds
 from shelf.domain.titles import summary
+from shelf.domain.usage import StepUsage
 from shelf.domain.work import Outcome, PersonDecided, Reason
 from shelf.ports.configs import RepoConfigs
 from shelf.ports.runner import UnreachableWorkError
@@ -122,6 +123,14 @@ class TemporalRunner:
         """The current picture of one piece of work."""
         handle = self.client.get_workflow_handle_for(WorkItemWorkflow.run, work_id)
         return await self._view(handle)
+
+    async def usage(self, work_id: WorkId) -> tuple[StepUsage, ...]:
+        """What each agent step of the work used, from the workflow's own record; nothing when it cannot be asked."""
+        handle = self.client.get_workflow_handle_for(WorkItemWorkflow.run, work_id)
+        try:
+            return wire.step_usages(await handle.query(WorkItemWorkflow.usage))
+        except Exception:  # noqa: BLE001 - older work has no such query, and a closed one may not answer
+            return ()
 
     async def list(self, repos: Collection[RepoRef] | None) -> Sequence[WorkView]:
         """Every piece of work on ``repos`` (on every repository when ``None``), most recent first."""

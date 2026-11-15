@@ -10,6 +10,7 @@ from shelf.domain.model import RepoRef, WorkContext, WorkId, WorkRequest
 from shelf.domain.pipeline import EntryPoint, Phase
 from shelf.domain.policy import Autonomy, Course, Policy, course_for
 from shelf.domain.review import ReviewDepth
+from shelf.domain.usage import StepUsage, Usage
 from shelf.domain.work import (
     AwaitingPerson,
     DecisionKind,
@@ -65,6 +66,20 @@ class StepInput:
 
 
 @dataclass(frozen=True, slots=True)
+class UsageDto:
+    """What an agent step used, as the workflow records it."""
+
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
+    cost_usd: float | None = None
+    turns: int = 0
+    seconds: float = 0.0
+    models: list[str] = field(default_factory=list[str])
+
+
+@dataclass(frozen=True, slots=True)
 class StepOutput:
     """What a step reports, as a tagged record."""
 
@@ -73,6 +88,18 @@ class StepOutput:
     passed: bool = False
     text: str = ""
     waiting: bool = False
+    usage: UsageDto | None = None
+    """What the agent used; absent for the checks and for a provider that said nothing."""
+
+
+@dataclass(frozen=True, slots=True)
+class StepUsageDto:
+    """What one step used and which step it was, as the workflow answers its query."""
+
+    phase: str
+    attempt: int
+    agent: str
+    usage: UsageDto
 
 
 @dataclass(frozen=True, slots=True)
@@ -233,12 +260,47 @@ def result_of(output: StepOutput) -> StepResult:
 def output_of(result: StepResult) -> StepOutput:
     """Write a step's report."""
     match result:
-        case Produced():
-            return StepOutput("produced")
-        case Reviewed(verdict, issues):
-            return StepOutput("reviewed", verdict=verdict, text=issues)
+        case Produced(usage):
+            return StepOutput("produced", usage=usage_dto(usage))
+        case Reviewed(verdict, issues, usage):
+            return StepOutput("reviewed", verdict=verdict, text=issues, usage=usage_dto(usage))
         case Verified(passed, report, waiting):
             return StepOutput("verified", passed=passed, text=report, waiting=waiting)
+
+
+def usage_dto(usage: Usage | None) -> UsageDto | None:
+    """Write what a step used for the workflow; nothing when the provider said nothing."""
+    if usage is None:
+        return None
+    return UsageDto(
+        usage.input_tokens,
+        usage.output_tokens,
+        usage.cache_read_tokens,
+        usage.cache_write_tokens,
+        usage.cost_usd,
+        usage.turns,
+        usage.seconds,
+        list(usage.models),
+    )
+
+
+def usage_of(dto: UsageDto) -> Usage:
+    """Read what a step used."""
+    return Usage(
+        dto.input_tokens,
+        dto.output_tokens,
+        dto.cache_read_tokens,
+        dto.cache_write_tokens,
+        dto.cost_usd,
+        dto.turns,
+        dto.seconds,
+        tuple(dto.models),
+    )
+
+
+def step_usages(entries: list[StepUsageDto]) -> tuple[StepUsage, ...]:
+    """Read the answer to the usage query."""
+    return tuple(StepUsage(e.phase, e.attempt, e.agent, usage_of(e.usage)) for e in entries)
 
 
 def event_of(dto: EventDto) -> Event | None:

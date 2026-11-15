@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from shelf.domain.config import RepoConfig
 from shelf.domain.model import Identity, PullInfo, RepoRef, WorkId, WorkRequest, WorkView
 from shelf.domain.pipeline import Phase
+from shelf.domain.usage import StepUsage
 from shelf.domain.work import PersonDecided
 
 
@@ -46,6 +47,10 @@ class FakeRunner:
     closed: list[tuple[WorkId, bool]] = field(default_factory=list[tuple[WorkId, bool]])
     terminated: list[tuple[WorkId, str]] = field(default_factory=list[tuple[WorkId, str]])
     started: list[WorkRequest] = field(default_factory=list[WorkRequest])
+    usages: dict[WorkId, tuple[StepUsage, ...]] = field(default_factory=dict[WorkId, tuple[StepUsage, ...]])
+
+    async def usage(self, work_id: WorkId) -> tuple[StepUsage, ...]:
+        return self.usages.get(work_id, ())
 
     async def start(self, request: WorkRequest) -> WorkId:
         self.started.append(request)

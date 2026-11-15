@@ -1,0 +1,51 @@
+<section id="usage" class="usage" hx-get="{{ request.url.path }}" hx-trigger="every 30s" hx-swap="outerHTML" aria-label="What the agents used">
+  <h2>What the agents used</h2>
+  {% if not used.steps %}
+  <p class="muted">Nothing was recorded for this work: it has not run an agent yet, or it started before usage was kept.</p>
+  {% else %}
+  <dl class="facts">
+    <dt>Agent steps</dt><dd>{{ used.steps | length }}</dd>
+    <dt>Tokens</dt><dd>{{ "{:,}".format(used.total.tokens) }} <small>({{ "{:,}".format(used.total.input_tokens) }} read, {{ "{:,}".format(used.total.output_tokens) }} written, {{ "{:,}".format(used.total.cache_read_tokens) }} from cache, {{ "{:,}".format(used.total.cache_write_tokens) }} into cache)</small></dd>
+    <dt>Cost</dt><dd>{{ "$%.2f"|format(used.total.cost_usd) if used.total.cost_usd is not none else "not reported" }}</dd>
+    <dt>Agent time</dt><dd>{{ used.total.seconds | round | int }} s, {{ used.total.turns }} turns</dd>
+  </dl>
+  <h3 id="usage-agents">By agent</h3>
+  <div class="table-wrap">
+    <table class="admin-table" aria-labelledby="usage-agents">
+      <thead><tr><th>Agent</th><th>Ran</th><th>Turns</th><th>Time</th><th>Tokens</th><th>Cost</th></tr></thead>
+      <tbody>
+      {% for agent in used.agents %}
+        <tr>
+          <td>{{ agent.agent }}</td>
+          <td>{{ agent.runs }}{% if agent.runs > 1 %} <small>({{ agent.runs - 1 }} sent back)</small>{% endif %}</td>
+          <td>{{ agent.usage.turns }}</td>
+          <td class="nowrap">{{ agent.usage.seconds | round | int }} s</td>
+          <td>{{ "{:,}".format(agent.usage.tokens) }}</td>
+          <td>{{ "$%.2f"|format(agent.usage.cost_usd) if agent.usage.cost_usd is not none else "n/a" }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <h3 id="usage-steps">Step by step</h3>
+  <div class="table-wrap">
+    <table class="admin-table wide" aria-labelledby="usage-steps">
+      <thead><tr><th>Step</th><th>Round</th><th>Turns</th><th>Time</th><th>Read</th><th>Written</th><th>Cache</th><th>Cost</th></tr></thead>
+      <tbody>
+      {% for step in used.steps %}
+        <tr>
+          <td>{{ step.agent }}</td>
+          <td>{{ step.attempt }}</td>
+          <td>{{ step.usage.turns }}</td>
+          <td class="nowrap">{{ step.usage.seconds | round | int }} s</td>
+          <td>{{ "{:,}".format(step.usage.input_tokens) }}</td>
+          <td>{{ "{:,}".format(step.usage.output_tokens) }}</td>
+          <td>{{ "{:,}".format(step.usage.cache_read_tokens + step.usage.cache_write_tokens) }}</td>
+          <td>{{ "$%.2f"|format(step.usage.cost_usd) if step.usage.cost_usd is not none else "n/a" }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>

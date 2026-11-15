@@ -198,3 +198,17 @@ The system SHALL derive from the work's protocol whether the pull request opens 
 
 - **WHEN** work on protocol 1 finishes its first step
 - **THEN** no publication is ordered until the merge
+
+### Requirement: A step's result can carry what the agent used
+
+The system SHALL let the result of a producing or reviewing step carry what its agent used (tokens, cost, turns, time), without that changing what the result means: two results that differ only in what they used SHALL lead to the same decision, and a result with no usage SHALL behave as it always did.
+
+#### Scenario: A verdict with usage
+
+- **WHEN** a reviewer's result approves and carries what it used
+- **THEN** the work moves on exactly as it does for the same verdict with no usage
+
+#### Scenario: A result with no usage
+
+- **WHEN** a step's result carries no usage
+- **THEN** the work behaves as before

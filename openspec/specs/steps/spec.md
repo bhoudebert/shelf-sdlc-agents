@@ -87,12 +87,17 @@ The system SHALL take the last `VERDICT:` line of a reviewer's answer as its ver
 
 ### Requirement: Agents get the tools the repository declares, and caches of its own
 
-The system SHALL, when a cache directory is configured, give each step the home directory of its repository under that directory, with the tool shims of `mise` first on its path, trust only that step's clone, and tell the agent to install the declared tools, run the repository's own build and tests, and fix what fails before finishing; and SHALL NOT share a home or a cache between repositories.
+The system SHALL, when a cache directory is configured, give each step the home directory of its repository under that directory, with the tool shims of `mise` first on its path, trust only that step's clone, and tell the agent to install the declared tools, run the repository's own build and tests, and fix what fails before finishing; and, for a repository that declares no tools, tell the agent to find what the repository's CI runs (its workflows, and the tool versions they set up), run the same commands with those versions through `mise exec <tool>@<version> -- <command>`, which writes nothing into the repository, and say exactly which command it could not run and why instead of claiming a result; and SHALL NOT share a home or a cache between repositories.
 
 #### Scenario: A repository with declared tools
 
 - **WHEN** a step runs for a repository that declares its tools in `mise.toml`
 - **THEN** the agent's home is that repository's own directory in the cache and its prompt tells it to run `mise install` and then the repository's tests
+
+#### Scenario: A repository that declares no tools
+
+- **WHEN** a step runs for a repository whose CI sets up Node 24 and runs `npm run quality`, and no `mise.toml` exists
+- **THEN** the prompt tells the agent to run `mise exec node@24 -- npm run quality` and to name any command it could not run
 
 #### Scenario: Two repositories
 
@@ -663,3 +668,37 @@ The system SHALL let the work ask its pull requests to close the pull request it
 
 - **WHEN** the work is a review of a pull request someone else opened
 - **THEN** nothing is posted and the pull request is left open
+
+### Requirement: The spec review and the design review are never judged by the CI
+
+The system SHALL NOT give the CI of the pull request to the spec reviewer or the design reviewer and SHALL NOT change their verdict because of it, so that an approval of a document stands whatever a check says about the draft that holds it; only the code review is held back by the CI.
+
+#### Scenario: A spec approved over a red CI
+
+- **WHEN** the spec reviewer answers APPROVE while a check of the draft pull request is red
+- **THEN** the verdict recorded is the approval, and the spec writer is not sent back because of the CI
+
+#### Scenario: A design approved while the CI runs
+
+- **WHEN** the design reviewer answers APPROVE while the CI has not finished
+- **THEN** the verdict recorded is the approval and no person is asked about the CI
+
+#### Scenario: The code review
+
+- **WHEN** the code reviewer answers APPROVE over a red CI
+- **THEN** the verdict recorded is changes requested, as before
+
+
+### Requirement: Every agent step reports what it used
+
+The system SHALL report, for each step an agent carried out, the tokens it read and wrote (and those read from and written to the cache), the cost the model provider reported, the number of turns, the time it took and the models used, SHALL leave the usage empty rather than guess when the provider reported none, and SHALL NOT let a failure to read it change the result of the step.
+
+#### Scenario: A step finishes
+
+- **WHEN** the spec writer finishes a step and the provider reported 12,000 tokens read, 900 written and a cost of $0.41
+- **THEN** the step's report carries those figures with its turns and duration
+
+#### Scenario: No usage reported
+
+- **WHEN** the provider reports no usage for a step
+- **THEN** the step's usage is empty and the step's result is unchanged

@@ -202,3 +202,54 @@ def test_agents_can_read_the_web_when_the_operator_allows_it_and_never_otherwise
     assert "WebSearch" not in off.allowed_tools
     assert {"WebFetch", "WebSearch"} <= set(on.allowed_tools)
     assert {"Read", "Glob", "Grep", "Write", "Edit", "Bash"} <= set(on.allowed_tools)
+
+
+def test_what_the_provider_reported_becomes_the_usage_of_the_step() -> None:
+    from claude_agent_sdk import ResultMessage  # noqa: PLC0415
+
+    from shelf.adapters.claude_agent.backend import usage_of  # noqa: PLC0415
+
+    message = ResultMessage(
+        subtype="success",
+        duration_ms=12_340,
+        duration_api_ms=9_000,
+        is_error=False,
+        num_turns=7,
+        session_id="s1",
+        total_cost_usd=0.4123,
+        usage={
+            "input_tokens": 1200,
+            "output_tokens": 340,
+            "cache_read_input_tokens": 50_000,
+            "cache_creation_input_tokens": 2_000,
+        },
+        model_usage={"claude-sonnet-5-5": {"inputTokens": 1200}},  # type: ignore[dict-item]
+    )
+    used = usage_of(message)
+    assert (used.input_tokens, used.output_tokens, used.cache_read_tokens, used.cache_write_tokens) == (
+        1200,
+        340,
+        50_000,
+        2_000,
+    )
+    assert (used.cost_usd, used.turns, used.seconds) == (0.4123, 7, 12.3)
+    assert used.models == ("claude-sonnet-5-5",)
+
+
+def test_a_provider_that_reports_nothing_gives_zeroes_and_no_cost() -> None:
+    from claude_agent_sdk import ResultMessage  # noqa: PLC0415
+
+    from shelf.adapters.claude_agent.backend import usage_of  # noqa: PLC0415
+
+    message = ResultMessage(
+        subtype="success",
+        duration_ms=0,
+        duration_api_ms=0,
+        is_error=False,
+        num_turns=0,
+        session_id="s",
+        total_cost_usd=None,
+    )
+    used = usage_of(message)
+    assert used.tokens == 0
+    assert used.cost_usd is None

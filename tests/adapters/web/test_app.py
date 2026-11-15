@@ -1223,3 +1223,31 @@ def test_a_pull_request_that_cannot_be_closed_does_not_undo_closing_the_work() -
     response = app.client.post("/work/work-1/close")
     assert response.status_code == 303
     assert [work_id for work_id, _ in app.runner.terminated] == [WorkId("work-1")]
+
+
+def test_the_work_page_lists_what_the_agents_used_per_step_per_agent_and_in_total() -> None:
+    from shelf.domain.usage import StepUsage, Usage  # noqa: PLC0415
+
+    spent = Usage(1000, 100, 2000, 200, 0.25, 5, 9.0, ("m",))
+    app = Fixture()
+    waiting(app)
+    app.runner.usages[WorkId("work-1")] = (
+        StepUsage("intake", 0, "intake", spent),
+        StepUsage("spec_review", 0, "spec_critic", spent),
+        StepUsage("intake", 1, "intake", spent),
+    )
+    page = app.client.get("/work/work-1/usage").text
+    assert "By agent" in page
+    assert "1 sent back" in page
+    assert "$0.75" in page
+    assert "9,900" in page or "9,600" in page
+    assert page.count("<td>spec_critic</td>") == 2
+    assert 'hx-get="/work/work-1/usage"' in app.client.get("/work/work-1").text
+
+
+def test_a_work_with_nothing_recorded_says_so_and_the_page_still_loads() -> None:
+    app = Fixture()
+    waiting(app)
+    page = app.client.get("/work/work-1/usage").text
+    assert "Nothing was recorded for this work" in page
+    assert app.client.get("/work/work-1").status_code == 200

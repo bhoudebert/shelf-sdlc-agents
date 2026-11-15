@@ -17,6 +17,7 @@ with workflow.unsafe.imports_passed_through():
     from shelf.domain.pipeline import Phase
     from shelf.domain.polling import next_interval
     from shelf.domain.progress import describe
+    from shelf.domain.roles import ROLES
     from shelf.domain.work import (
         AskPerson,
         AwaitingPerson,
@@ -75,6 +76,7 @@ class WorkItemWorkflow:
         self._log: list[wire.LogEntryDto] = []
         self._updated_at = ""
         self._times: dict[str, str] = {}
+        self._usage: list[wire.StepUsageDto] = []
 
     @workflow.signal
     def decided(self, decision: wire.DecisionDto) -> None:
@@ -85,6 +87,11 @@ class WorkItemWorkflow:
     def pull_request_closed(self, merged: bool) -> None:  # noqa: FBT001 - signal arguments are positional
         """GitHub told us the pull request was merged or closed."""
         self._events.put_nowait(PullRequestClosed(merged=merged))
+
+    @workflow.query
+    def usage(self) -> list[wire.StepUsageDto]:
+        """What each agent step used, in the order they ran."""
+        return list(self._usage)
 
     @workflow.query
     def snapshot(self) -> wire.Snapshot:
@@ -292,6 +299,10 @@ class WorkItemWorkflow:
                 heartbeat_timeout=STEP_HEARTBEAT,
                 retry_policy=RetryPolicy(maximum_attempts=2),
             )
+            if output.usage is not None:
+                self._usage.append(
+                    wire.StepUsageDto(command.phase, command.attempt, ROLES[command.phase].name, output.usage)
+                )
             event: Event = StepDone(wire.result_of(output))
         except ActivityError as error:
             event = StepFailed(str(error.cause or error))
