@@ -963,3 +963,17 @@ The system SHALL let the overlay policy file hold, besides its rules and denied 
 
 - **WHEN** the overlay's `[paths]` holds `protected`, `deny_write` or a scope
 - **THEN** the file is refused like any invalid policy file
+
+### Requirement: `warden report --json` says the mode of the latest call
+
+The system SHALL include in the JSON report the mode (`enforce` or `audit`) that the most recent recorded call was judged in, and an empty text when nothing was recorded, so that a page can say whether the guard is enforcing now and not only what it did before the operator changed its profile.
+
+#### Scenario: A guard that now enforces
+
+- **WHEN** the latest recorded call was judged in enforce mode, whatever the earlier ones were
+- **THEN** the JSON report says `enforce`
+
+#### Scenario: Nothing recorded
+
+- **WHEN** the log holds no call
+- **THEN** the report's mode is an empty text

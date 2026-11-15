@@ -1007,7 +1007,7 @@ def test_a_call_the_guard_only_recorded_is_not_said_to_have_been_refused() -> No
         "cat redirects output to opencode.json",
         "cat > x",
     )
-    report = GuardReport(3, 1, 0, chain_intact=True, recent=(recorded,))
+    report = GuardReport(3, 1, 0, chain_intact=True, recent=(recorded,), mode="audit")
     fixture = Fixture(AccessRules(admins=frozenset({"alice"})), guard=FakeGuard(Ok(report)))
     fixture.sign_in()
     page = fixture.client.get("/admin").text
@@ -1015,6 +1015,16 @@ def test_a_call_the_guard_only_recorded_is_not_said_to_have_been_refused() -> No
     assert "The guard is only watching." in page
     assert "the guard always refuses it" not in page
     assert "once the guard is enforcing, it refuses it" in page
+
+
+def test_a_guard_switched_to_enforcing_is_not_said_to_be_watching_because_of_an_old_call() -> None:
+    old = StoppedCall("10:00", "claude", "s1", "bash", "allow", "deny", ("tamper",), "protected file", "cat > x")
+    report = GuardReport(3, 1, 0, chain_intact=True, recent=(old,), mode="enforce")
+    fixture = Fixture(AccessRules(admins=frozenset({"alice"})), guard=FakeGuard(Ok(report)))
+    fixture.sign_in()
+    page = fixture.client.get("/admin").text
+    assert "Not stopped: the guard only recorded it." in page
+    assert "The guard is only watching." not in page
 
 
 def test_a_call_the_guard_stopped_says_so_and_there_is_no_watching_note() -> None:

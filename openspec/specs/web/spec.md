@@ -946,3 +946,17 @@ The system SHALL ask before a decision that ends a work (reject, abort, and clos
 
 - **WHEN** the interface's own scripts and templates are searched
 - **THEN** none calls the browser's `confirm`, `alert` or `prompt`
+
+### Requirement: The guard's note about only watching follows its current mode
+
+The system SHALL show the note that the guard is only watching, above the list of stopped calls, only when the guard's latest recorded call was judged in audit mode, and not because an older call in the list was only recorded, so that an operator who switched the profile to enforcing is not told it is still watching.
+
+#### Scenario: A guard switched to enforcing
+
+- **WHEN** the list holds a call that was only recorded earlier and the guard's latest call was judged in enforce mode
+- **THEN** the row says the call was not stopped and the note about only watching is not shown
+
+#### Scenario: A guard that still only watches
+
+- **WHEN** the guard's latest call was judged in audit mode
+- **THEN** the note is shown
