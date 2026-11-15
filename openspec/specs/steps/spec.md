@@ -783,3 +783,37 @@ The system SHALL, when an agent runs again on the same work (sent back by a revi
 
 - **WHEN** the spec writer and the spec reviewer both ran
 - **THEN** each continues its own session and neither sees the other's
+
+### Requirement: When Nix is on, the worker turns a repository's flake into the environment of the agent
+
+The system SHALL, when `SHELF_NIX` is on and before the developer or the code reviewer starts, use the repository's own `flake.nix` development shell when its CI runs through Nix (a workflow that installs Nix or runs `nix develop`) or when it declares no tools for mise and its CI sets up none the system knows; SHALL ask Nix for that shell's environment without entering it, in a scrubbed environment that holds no credential, with a time limit, and without writing into the repository (no lock file, no shell hook run); SHALL give the agent the `PATH` of that environment before its other paths, and the plain exported variables it sets that are safe to pass (never the home, the shell, a Nix variable or a value that is not plain text); SHALL tell the agent what was made available, or why not, and never stop the step; and SHALL do nothing of this when the repository declares its tools for mise.
+
+#### Scenario: A repository whose CI runs through Nix
+
+- **WHEN** the developer starts on a repository with a `flake.nix` whose workflow runs `nix develop`
+- **THEN** the agent's path holds the tools of the flake's development shell and its task says so
+
+#### Scenario: A repository whose CI sets up Node
+
+- **WHEN** the repository has a `flake.nix` and its workflow sets up Node 24 with `setup-node`, and does not use Nix
+- **THEN** the worker installs Node 24 as before and does not evaluate the flake
+
+#### Scenario: Nix is off
+
+- **WHEN** `SHELF_NIX` is not on
+- **THEN** the flake is not looked at
+
+#### Scenario: The flake does not evaluate
+
+- **WHEN** Nix fails on the flake, or takes longer than the time limit
+- **THEN** the step goes on and the agent is told why nothing was made available
+
+#### Scenario: Nothing leaks into the evaluation
+
+- **WHEN** the worker's environment holds a token
+- **THEN** the process that evaluates the flake does not receive it
+
+#### Scenario: The repository is left as it was
+
+- **WHEN** the flake has no lock file and a shell hook
+- **THEN** no lock file is written and the hook does not run
