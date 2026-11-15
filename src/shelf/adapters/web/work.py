@@ -71,7 +71,7 @@ def router(web: Web) -> APIRouter:  # noqa: C901 - one small closure per route
         """What the agents used on this work: the table, the totals of each agent and of the work."""
         await web.visible_work(session, work_id)
         used = summarize(await deps.runner.usage(WorkId(work_id)))
-        return web.render(request, "_usage.html", session, used=used)
+        return web.render(request, "_usage.html", session, used=used, pie=views.token_pie(used))
 
     @routes.get("/work/{work_id}/panel", response_class=HTMLResponse)
     async def panel(

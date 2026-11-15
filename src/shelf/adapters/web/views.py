@@ -1,6 +1,7 @@
 """What the templates show: plain view models built from domain values, with the words people read."""
 
 import hashlib
+import math
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -16,6 +17,7 @@ from shelf.domain.pipeline import PIPELINE, EntryPoint, Phase
 from shelf.domain.progress import clock
 from shelf.domain.roles import DOCUMENT_TITLES
 from shelf.domain.story import Message, Voice
+from shelf.domain.usage import UsageSummary
 from shelf.domain.work import DecisionKind, Outcome, Reason
 
 DAY = 86400
@@ -433,3 +435,53 @@ def delivery_rows(deliveries: Sequence[Delivery], now: datetime | None = None) -
         )
         for d in deliveries
     ]
+
+
+PIE_CENTER = 60.0
+PIE_RADIUS = 56.0
+PIE_COLOURS = 8
+"""How many distinct slice colours the stylesheet defines; more agents than that reuse them in turn."""
+
+
+@dataclass(frozen=True, slots=True)
+class PieSlice:
+    """One agent's share of the tokens, ready to draw and to list."""
+
+    agent: str
+    tokens: int
+    percent: float
+    colour: int
+    """Which of the stylesheet's slice colours, from 1."""
+    path: str
+    """The slice as an SVG path; empty for a lone agent, which is drawn as a whole disc."""
+
+
+def token_pie(summary: UsageSummary) -> tuple[PieSlice, ...]:
+    """Each agent's share of the tokens, largest first, as slices of a pie; nothing when no tokens were counted."""
+    total = sum(agent.usage.tokens for agent in summary.agents)
+    if total <= 0:
+        return ()
+    ranked = sorted((a for a in summary.agents if a.usage.tokens > 0), key=lambda a: a.usage.tokens, reverse=True)
+    slices: list[PieSlice] = []
+    start = 0.0
+    for index, agent in enumerate(ranked):
+        share = agent.usage.tokens / total
+        end = start + share
+        path = "" if len(ranked) == 1 else _arc(start, end)
+        slices.append(PieSlice(agent.agent, agent.usage.tokens, round(share * 100, 1), index % PIE_COLOURS + 1, path))
+        start = end
+    return tuple(slices)
+
+
+def _arc(start: float, end: float) -> str:
+    """The path of the slice between two fractions of the circle, clockwise from the top."""
+
+    def point(fraction: float) -> tuple[float, float]:
+        angle = 2 * math.pi * fraction - math.pi / 2
+        return PIE_CENTER + PIE_RADIUS * math.cos(angle), PIE_CENTER + PIE_RADIUS * math.sin(angle)
+
+    (x1, y1), (x2, y2) = point(start), point(end)
+    large = 1 if end - start > 0.5 else 0  # noqa: PLR2004 - more than half the circle
+    return (
+        f"M {PIE_CENTER} {PIE_CENTER} L {x1:.2f} {y1:.2f} A {PIE_RADIUS} {PIE_RADIUS} 0 {large} 1 {x2:.2f} {y2:.2f} Z"
+    )
