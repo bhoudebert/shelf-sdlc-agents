@@ -87,12 +87,17 @@ The system SHALL take the last `VERDICT:` line of a reviewer's answer as its ver
 
 ### Requirement: Agents get the tools the repository declares, and caches of its own
 
-The system SHALL, when a cache directory is configured, give each step the home directory of its repository under that directory, with the tool shims of `mise` first on its path, trust only that step's clone, and tell the agent to install the declared tools, run the repository's own build and tests, and fix what fails before finishing; and SHALL NOT share a home or a cache between repositories.
+The system SHALL, when a cache directory is configured, give each step the home directory of its repository under that directory, with the tool shims of `mise` first on its path, trust only that step's clone, and tell the agent to install the declared tools, run the repository's own build and tests, and fix what fails before finishing; and, for a repository that declares no tools, tell the agent to find what the repository's CI runs (its workflows, and the tool versions they set up), run the same commands with those versions through `mise exec <tool>@<version> -- <command>`, which writes nothing into the repository, and say exactly which command it could not run and why instead of claiming a result; and SHALL NOT share a home or a cache between repositories.
 
 #### Scenario: A repository with declared tools
 
 - **WHEN** a step runs for a repository that declares its tools in `mise.toml`
 - **THEN** the agent's home is that repository's own directory in the cache and its prompt tells it to run `mise install` and then the repository's tests
+
+#### Scenario: A repository that declares no tools
+
+- **WHEN** a step runs for a repository whose CI sets up Node 24 and runs `npm run quality`, and no `mise.toml` exists
+- **THEN** the prompt tells the agent to run `mise exec node@24 -- npm run quality` and to name any command it could not run
 
 #### Scenario: Two repositories
 
