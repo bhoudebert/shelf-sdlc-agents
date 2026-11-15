@@ -11,13 +11,16 @@ from shelf.adapters.web.context import Web
 from shelf.adapters.web.sessions import Session
 from shelf.application.work import decide_work
 from shelf.domain.config import InvalidConfigError
-from shelf.domain.model import WorkContext, WorkId, WorkRequest
+from shelf.domain.model import WorkContext, WorkId, WorkRequest, WorkView
 from shelf.domain.result import Ok
 from shelf.domain.usage import summarize
 from shelf.domain.work import DecisionKind
 from shelf.ports.runner import UnreachableWorkError
+from shelf.ports.steps import PullRequests
 
 log = logging.getLogger(__name__)
+
+HTTP_OK = 200
 
 type Panel = tuple[views.ItemView, list[views.TimelineStep], list[views.DecisionOption]]
 
@@ -25,6 +28,16 @@ UNREACHABLE = (
     "This work cannot take a decision: it is finished or was started by an older release. "
     "An administrator can close it."
 )
+
+
+async def close_its_pull_request(pulls: PullRequests | None, work: WorkView, reason: str) -> None:
+    """Close the pull request the work opened, whichever release it started under. Never fatal, harmless twice."""
+    if pulls is None:
+        return
+    try:
+        await pulls.close(WorkContext(work.id, WorkRequest(work.repo, "", work.entry)), reason)
+    except Exception:
+        log.warning("could not close the pull request of the work %s", work.id, exc_info=True)
 
 
 def router(web: Web) -> APIRouter:  # noqa: C901 - one small closure per route
@@ -110,11 +123,7 @@ def router(web: Web) -> APIRouter:  # noqa: C901 - one small closure per route
             await deps.runner.terminate(WorkId(work_id), reason)
         except UnreachableWorkError:
             raise HTTPException(status_code=409, detail="this work is already finished") from None
-        if deps.pulls is not None:
-            try:
-                await deps.pulls.close(WorkContext(item.id, WorkRequest(item.repo, "", item.entry)), reason)
-            except Exception:
-                log.warning("could not close the pull request of the work %s", work_id, exc_info=True)
+        await close_its_pull_request(deps.pulls, item, reason)
         return RedirectResponse("/board", status_code=303)  # a fixed target: never built from the request
 
     @routes.post("/work/{work_id}/decide", dependencies=guarded)
@@ -131,6 +140,11 @@ def router(web: Web) -> APIRouter:  # noqa: C901 - one small closure per route
         except ValueError:
             raise HTTPException(status_code=422, detail="unknown decision") from None
         flash, status = await outcome_of(session, work_id, decision, note)
+        if status == HTTP_OK and decision in (DecisionKind.REJECT, DecisionKind.ABORT):
+            verb = "aborted" if decision is DecisionKind.ABORT else "rejected"
+            await close_its_pull_request(
+                deps.pulls, await web.visible_work(session, work_id), f"{session.identity.login} {verb} the work"
+            )
         response = web.render(
             request, "_work_panel.html", session, item=item, timeline=timeline, decisions=decisions, flash=flash
         )
