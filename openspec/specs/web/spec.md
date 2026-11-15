@@ -947,6 +947,30 @@ The system SHALL ask before a decision that ends a work (reject, abort, and clos
 - **WHEN** the interface's own scripts and templates are searched
 - **THEN** none calls the browser's `confirm`, `alert` or `prompt`
 
+### Requirement: The page of a work can be downloaded as one file for debugging
+
+The system SHALL offer, on the page of a work, a button that downloads one Markdown file about that work, named `shelf-<work id>.md`, holding: what the work is (repository, requester, how it began, its phase and outcome, its pull request, the stops it does without a person and how hard its reviews look); the pipeline's steps with their state and when; the request as written; the whole conversation of the pull request in order, each comment with who spoke, when and what they wrote, without the cut that keeps the page short; every document of the work as written; and what the agents used per agent and in total; SHALL give it only to a person who may see that work, exactly as the page is; SHALL put each document in a fence that nothing inside it can close; and SHALL say plainly, in the file, a part that could not be read, without failing the download.
+
+#### Scenario: Downloading a work
+
+- **WHEN** a person who may see a work presses Download
+- **THEN** they get `shelf-<work id>.md` with the facts, the steps, the request, every comment, every document and the usage
+
+#### Scenario: A comment or document that holds a code fence
+
+- **WHEN** a comment or a document contains a fenced block
+- **THEN** it is placed in a longer fence so that it stays one block in the file
+
+#### Scenario: GitHub cannot be read
+
+- **WHEN** the conversation or the documents cannot be read
+- **THEN** the file says which part is missing and the rest is still delivered
+
+#### Scenario: Somebody who may not see the work
+
+- **WHEN** a person who may not see the work asks for the file
+- **THEN** they are refused as they are for the page
+
 ### Requirement: The guard's note about only watching follows its current mode
 
 The system SHALL show the note that the guard is only watching, above the list of stopped calls, only when the guard's latest recorded call was judged in audit mode, and not because an older call in the list was only recorded, so that an operator who switched the profile to enforcing is not told it is still watching.
