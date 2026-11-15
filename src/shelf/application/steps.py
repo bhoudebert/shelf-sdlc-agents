@@ -377,7 +377,7 @@ class Steps:
             step,
             config.base_branch,
             self._picture(work, workspace),
-            toolchain=bool(self.cache_dir),
+            toolchain=bool(self.cache_dir) and step.phase in TOOL_PHASES,
             setup=setup.note,
             ci=ci_report,
             context=_context_note(work),

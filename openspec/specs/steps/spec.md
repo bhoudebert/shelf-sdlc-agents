@@ -874,3 +874,17 @@ The system SHALL, when a repository uses Prettier (a Prettier configuration file
 
 - **WHEN** a second step starts on the same work
 - **THEN** nothing is added again
+
+### Requirement: Only the steps that build and test are told about tools
+
+The system SHALL tell an agent about the repository's tools, and to install and run them, only when its step builds or tests (the developer and the code reviewer), and SHALL NOT give the spec writer, the architect, the planner or the reviewers of the spec and the design any such instruction, since they run no build and the tools are not available to them, so that they never spend turns trying to install a toolchain.
+
+#### Scenario: The architect
+
+- **WHEN** the architect is started on a repository with a cache directory
+- **THEN** its task says nothing about installing tools
+
+#### Scenario: The developer
+
+- **WHEN** the developer is started on the same repository
+- **THEN** its task carries the note about the repository's tools as before

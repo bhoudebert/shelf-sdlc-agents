@@ -1052,3 +1052,18 @@ async def test_a_repository_without_prettier_gets_no_ignore_file() -> None:
     workspaces = FakeWorkspaces()
     await steps(FakeAgents(), workspaces).run(NEED, RunStep(Phase.INTAKE, 0, ""))
     assert not (workspaces.workspace.path / ".prettierignore").exists()
+
+
+@pytest.mark.parametrize("phase", [Phase.INTAKE, Phase.SPEC_REVIEW, Phase.DESIGN, Phase.DESIGN_REVIEW, Phase.PLAN])
+async def test_an_agent_that_builds_nothing_is_not_told_to_install_tools(phase: Phase) -> None:
+    agents = FakeAgents()
+    await steps(agents, cache_dir="/cache").run(NEED, RunStep(phase, 0, ""))
+    assert "mise install" not in agents.tasks[0].prompt
+    assert "Tools:" not in agents.tasks[0].prompt
+
+
+@pytest.mark.parametrize("phase", [Phase.IMPLEMENT, Phase.CODE_REVIEW])
+async def test_the_steps_that_build_and_test_are_still_told_about_tools(phase: Phase) -> None:
+    agents = FakeAgents()
+    await steps(agents, cache_dir="/cache").run(NEED, RunStep(phase, 0, ""))
+    assert "Tools:" in agents.tasks[0].prompt
