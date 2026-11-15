@@ -1509,3 +1509,47 @@ def test_nobody_downloads_a_work_they_may_not_see() -> None:
 def test_the_work_page_offers_the_download() -> None:
     fixture = with_work(FakeDocuments({}))
     assert 'href="/work/work-1/export"' in fixture.client.get("/work/work-1").text
+
+
+def test_the_downloaded_file_lists_what_the_guard_flagged_while_the_work_ran() -> None:
+    during = StoppedCall(
+        "2026-11-15T16:39:14",
+        "claude",
+        "s1",
+        "bash",
+        "allow",
+        "deny",
+        ("tamper",),
+        "protected file",
+        "cat > opencode.json",
+    )
+    before = StoppedCall("2026-11-10T10:00:00", "claude", "s1", "bash", "deny", "deny", ("exfil",), "exfil", "curl x")
+    report = GuardReport(9, 2, 0, chain_intact=True, recent=(during, before), mode="enforce")
+    fixture = Fixture(documents=FakeDocuments({}), conversations=FakeConversations(STORY), guard=FakeGuard(Ok(report)))
+    fixture.sign_in()
+    fixture.runner.views[WorkId("work-1")] = WorkView(
+        WorkId("work-1"),
+        REPO,
+        "alice",
+        EntryPoint.NEED,
+        Phase.DESIGN,
+        pull_request_url="https://github.com/acme/shop/pull/12",
+        updated_at="2026-11-15T17:00:00+00:00",
+        times=(("spec", "2026-11-15T15:00:00+00:00"),),
+    )
+    text = fixture.client.get("/work/work-1/export").text
+    assert "## What the guard flagged while the work ran" in text
+    assert "cat > opencode.json" in text
+    assert "curl x" not in text  # made before the work began
+    assert "not stopped (recorded; the policy meant deny)" in text
+
+
+def test_a_guard_that_cannot_be_read_is_said_in_the_downloaded_file() -> None:
+    fixture = Fixture(
+        documents=FakeDocuments({}), conversations=FakeConversations(STORY), guard=FakeGuard(Err("not installed"))
+    )
+    fixture.sign_in()
+    fixture.runner.views[WorkId("work-1")] = WorkView(WorkId("work-1"), REPO, "alice", EntryPoint.NEED, Phase.DESIGN)
+    response = fixture.client.get("/work/work-1/export")
+    assert response.status_code == 200
+    assert "The guard could not be read" in response.text
