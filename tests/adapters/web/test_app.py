@@ -1251,3 +1251,49 @@ def test_a_work_with_nothing_recorded_says_so_and_the_page_still_loads() -> None
     page = app.client.get("/work/work-1/usage").text
     assert "Nothing was recorded for this work" in page
     assert app.client.get("/work/work-1").status_code == 200
+
+
+def test_rejecting_from_the_page_closes_the_pull_request_of_work_from_any_release() -> None:
+    pulls = ClosingPulls()
+    app = Fixture(pulls=pulls)  # type: ignore[arg-type]
+    waiting(app)
+    response = app.client.post("/work/work-1/decide", data={"kind": "reject", "note": ""})
+    assert response.status_code == 200
+    assert pulls.closed == [(WorkId("work-1"), "alice rejected the work")]
+
+
+def test_aborting_from_the_page_closes_the_pull_request_too() -> None:
+    pulls = ClosingPulls()
+    app = Fixture(pulls=pulls)  # type: ignore[arg-type]
+    waiting(app)
+    app.client.post("/work/work-1/decide", data={"kind": "abort", "note": ""})
+    assert pulls.closed == [(WorkId("work-1"), "alice aborted the work")]
+
+
+def test_a_decision_that_does_not_end_the_work_closes_nothing() -> None:
+    pulls = ClosingPulls()
+    app = Fixture(pulls=pulls)  # type: ignore[arg-type]
+    waiting(app)
+    app.client.post("/work/work-1/decide", data={"kind": "approve", "note": ""})
+    app.client.post("/work/work-1/decide", data={"kind": "changes", "note": "more"})
+    assert pulls.closed == []
+
+
+def test_a_pull_request_that_cannot_be_closed_does_not_undo_the_decision() -> None:
+    app = Fixture(pulls=ClosingPulls(fails=True))  # type: ignore[arg-type]
+    waiting(app)
+    response = app.client.post("/work/work-1/decide", data={"kind": "reject", "note": ""})
+    assert response.status_code == 200
+    assert [(w, d.kind) for w, d in app.runner.decisions] == [(WorkId("work-1"), DecisionKind.REJECT)]
+
+
+def test_a_decision_that_is_refused_closes_nothing() -> None:
+    pulls = ClosingPulls()
+    app = Fixture(AccessRules(users=frozenset({"alice"})), pulls=pulls)  # type: ignore[arg-type]
+    app.sign_in()
+    app.runner.views[WorkId("work-1")] = WorkView(
+        WorkId("work-1"), REPO, "alice", EntryPoint.NEED, Phase.SPEC_APPROVAL, waiting_for=Reason.GATE
+    )
+    app.client.cookies.clear()
+    app.client.post("/work/work-1/decide", data={"kind": "reject", "note": ""}, follow_redirects=False)
+    assert pulls.closed == []
