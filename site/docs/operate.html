@@ -37,6 +37,8 @@
 <li><strong>This instance.</strong> The facts of the deployment.</li></ul>
 <h2 id="spend">Keep spend in check</h2>
 <p>Bound one step with <code>SHELF_MAX_TURNS</code> and <code>SHELF_MAX_BUDGET_USD</code>, and force a model with <code>SHELF_MODEL</code>. The worker logs the cost of each step. Shelf also starts agents with telemetry and Claude Code's automatic memory off, so nothing one step learns is carried into another.</p>
+<h2 id="cache">Clean the tools cache</h2>
+<p>Each repository's tools and package caches live in its own home in the <code>worker-cache</code> volume. They grow. Remove the homes nothing used for 30 days with <code>docker compose -f deploy/compose.yml exec worker shelf-cache prune</code> (add <code>--older-than 7</code> for a different age, or <code>--dry-run</code> to see what would go). It says what it removed and how much space that freed; the tools are installed again, in seconds, the next time a repository needs them.</p>
 <h2 id="skills">Skills and plugins for agents</h2>
 <p>Pinned sources and role bindings live in <code>deploy/config/catalog.toml</code> and <code>shelf.toml</code>; <code>sh deploy/install.sh</code> fetches them. See <a href="configuration.html#catalog">Configuration</a>.</p>
 <h2 id="reference">Read another repository as reference</h2>

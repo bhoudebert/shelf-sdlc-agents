@@ -1,6 +1,8 @@
 """The environment an agent works in: where its tools and caches live, and which sites its commands may reach. Pure."""
 
 import re
+import shlex
+from collections.abc import Mapping
 from pathlib import PurePosixPath
 
 from shelf.domain.model import RepoRef
@@ -78,3 +80,35 @@ TOOLCHAIN_NOTE = (
     "If a check still cannot run here, say which command and why in your answer instead of claiming a result you could "
     "not check."
 )
+
+
+def setup_command(env: Mapping[str, str], tools: Mapping[str, str]) -> str:
+    """The shell command that installs ``tools`` (tool to version) into the home ``env`` names, as its default.
+
+    ``mise use --global`` writes the versions into that home's own configuration, never into the repository, and
+    installs them. Every word is quoted, although the versions were already checked to be plain.
+    """
+    home = env["HOME"]
+    assignments = " ".join(f"{name}={shlex.quote(value)}" for name, value in env.items())
+    versions = " ".join(shlex.quote(f"{tool}@{version}") for tool, version in tools.items())
+    return f"mkdir -p {shlex.quote(home)} && env {assignments} mise use --global --yes {versions}"
+
+
+def tools_ready(tools: Mapping[str, str]) -> str:
+    """What the agent is told once the worker has installed what the repository's CI uses."""
+    names = ", ".join(f"{tool} {version}" for tool, version in tools.items())
+    return (
+        f"Tools: the worker has installed what the repository's CI uses ({names}) into your home, and they are on your "
+        "path. Do not install them again. Do what a developer does: run the checks the repository's CI runs, as CI "
+        "runs them (find them in `.github/workflows/`, and see its README, CLAUDE.md or AGENTS.md), and fix what fails "
+        "before you finish. If a check still cannot run here, say which command and why instead of claiming a result."
+    )
+
+
+def tools_failed(tools: Mapping[str, str], reason: str) -> str:
+    """What the agent is told when the worker could not install what the repository's CI uses."""
+    names = ", ".join(f"{tool} {version}" for tool, version in tools.items())
+    return (
+        f"Tools: the worker tried to install what the repository's CI uses ({names}) and could not: {reason}. "
+        f"{TOOLCHAIN_NOTE}"
+    )

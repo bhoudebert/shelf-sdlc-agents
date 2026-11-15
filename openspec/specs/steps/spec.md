@@ -702,3 +702,60 @@ The system SHALL report, for each step an agent carried out, the tokens it read 
 
 - **WHEN** the provider reports no usage for a step
 - **THEN** the step's usage is empty and the step's result is unchanged
+
+### Requirement: The worker sets up the tools the repository's CI uses, before the code steps, when the repository declares none
+
+The system SHALL, when a cache directory is configured and before the developer or the code reviewer starts, read the repository's CI workflows and version files (the versions its `setup-node`, `setup-python`, `setup-go` and `setup-java` steps use, `.nvmrc`, `.node-version`, `.python-version`, the `engines` of `package.json` and the `go` line of `go.mod`) and install those versions of Node, Python, Go and Java itself, outside the agent's sandbox, into the repository's own home so that the agent finds them on its path; SHALL do nothing of the kind, and leave the agent to run `mise install`, when the repository declares its tools in `mise.toml`, `.mise.toml` or `.tool-versions`; SHALL install only those four tools and only from a plain version number or `lts`, never a name or an address the repository wrote; SHALL tell the agent what was installed, or why nothing was, instead of letting it find out; and SHALL NOT stop the step when the installation fails.
+
+#### Scenario: A repository whose CI sets up Node 24
+
+- **WHEN** the developer starts on a repository with no `mise.toml` whose workflow sets up Node 24
+- **THEN** Node 24 is installed into the repository's home before the agent starts, and the agent's task says so
+
+#### Scenario: A repository that declares its tools
+
+- **WHEN** the repository has a `mise.toml`
+- **THEN** nothing is detected or installed by the worker and the agent is told to run `mise install` as before
+
+#### Scenario: A version that is not a plain version
+
+- **WHEN** a workflow sets the Node version from an expression or a URL
+- **THEN** it is ignored
+
+#### Scenario: The installation fails
+
+- **WHEN** the installation fails or takes too long
+- **THEN** the step goes on and the agent is told which tool could not be installed
+
+#### Scenario: The second time
+
+- **WHEN** another piece of work starts on the same repository
+- **THEN** the tools are already in its home and nothing is downloaded again
+
+### Requirement: An operator can clear the caches the agents' tools live in
+
+The system SHALL provide `shelf-cache prune`, which removes the home of every repository that nothing used for a number of days (30 unless told otherwise), says what it removed and how much space that freed, and removes nothing outside the cache directory.
+
+#### Scenario: An old home
+
+- **WHEN** the home of a repository was last used 40 days ago and `shelf-cache prune` runs with the default
+- **THEN** it is removed and the output says so with its size
+
+#### Scenario: A recent home
+
+- **WHEN** a home was used yesterday
+- **THEN** it is kept
+
+### Requirement: The documents an agent writes are formatted as the repository formats its files
+
+The system SHALL tell each agent that writes a document of the work (the spec, the design, the plan) that the document is committed to the repository and checked by the repository's own formatter and linters, and to run the formatter on the files it wrote when the repository has one, so that the work's own files never fail a check that covers the whole repository.
+
+#### Scenario: A repository that checks formatting
+
+- **WHEN** the planner is started on a repository whose CI runs `prettier --check .`
+- **THEN** its task tells it to run the repository's formatter on `plan.md` before it finishes
+
+#### Scenario: A step that writes no document
+
+- **WHEN** a reviewer is started
+- **THEN** its task carries no such note

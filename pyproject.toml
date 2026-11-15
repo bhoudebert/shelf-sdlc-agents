@@ -24,6 +24,7 @@ shelf-worker = "shelf.entrypoints.worker:main"
 shelf-doctor = "shelf.entrypoints.doctor:main"
 shelf-diagnose = "shelf.entrypoints.diagnose:main"
 shelf-catalog = "shelf.entrypoints.catalog:main"
+shelf-cache = "shelf.entrypoints.cache:main"
 
 [dependency-groups]
 dev = [
