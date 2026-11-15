@@ -47,10 +47,68 @@
   document.body.addEventListener("htmx:sseMessage", function () { setTimeout(count, 0); });
   document.body.addEventListener("htmx:afterSwap", count);
 
-  // Ask before a decision that ends the work.
+  // Ask before a decision that ends the work, in a dialog of the interface (never the browser's own): Cancel is
+  // focused first, Escape or a click outside cancels, the keyboard stays inside, and the focus goes back to the button.
+  var dialog = null;
+  function build() {
+    var d = document.createElement("dialog");
+    d.className = "modal";
+    d.setAttribute("aria-labelledby", "modal-title");
+    d.setAttribute("aria-describedby", "modal-text");
+    d.innerHTML =
+      '<form method="dialog" class="modal-body">' +
+      '<h2 id="modal-title"></h2><p id="modal-text"></p>' +
+      '<div class="modal-actions">' +
+      '<button type="button" class="btn-secondary" data-act="cancel">Cancel</button>' +
+      '<button type="button" class="btn-danger" data-act="ok"></button>' +
+      "</div></form>";
+    document.body.appendChild(d);
+    return d;
+  }
+  function ask(title, text, label, danger) {
+    dialog = dialog || build();
+    var ok = dialog.querySelector('[data-act="ok"]');
+    var cancel = dialog.querySelector('[data-act="cancel"]');
+    dialog.querySelector("#modal-title").textContent = title;
+    dialog.querySelector("#modal-text").textContent = text;
+    ok.textContent = label;
+    ok.className = danger ? "btn-danger" : "btn";
+    return new Promise(function (resolve) {
+      var answer = false;
+      function done(value) { answer = value; dialog.close(); }
+      function onOk() { done(true); }
+      function onCancel() { done(false); }
+      function onBackdrop(event) { if (event.target === dialog) done(false); }
+      function onClose() {
+        ok.removeEventListener("click", onOk);
+        cancel.removeEventListener("click", onCancel);
+        dialog.removeEventListener("click", onBackdrop);
+        dialog.removeEventListener("close", onClose);
+        resolve(answer);
+      }
+      ok.addEventListener("click", onOk);
+      cancel.addEventListener("click", onCancel);
+      dialog.addEventListener("click", onBackdrop);
+      dialog.addEventListener("close", onClose);
+      dialog.showModal();
+      cancel.focus();
+    });
+  }
   document.addEventListener("click", function (event) {
     var button = event.target.closest && event.target.closest("[data-confirm]");
-    if (button && !window.confirm(button.getAttribute("data-confirm"))) event.preventDefault();
+    if (!button) return;
+    event.preventDefault();
+    var label = (button.textContent || "").trim() || "Confirm";
+    // "Reject this work? This cannot be undone." is a question and what follows it: the question is the title.
+    var parts = /^([^?]+\?)\s*([\s\S]*)$/.exec(button.getAttribute("data-confirm") || "");
+    var title = parts ? parts[1] : label + "?";
+    var text = parts && parts[2] ? parts[2] : "This cannot be undone.";
+    ask(title, text, label, button.classList.contains("btn-danger")).then(
+      function (confirmed) {
+        if (confirmed && button.form) button.form.requestSubmit(button);
+        else if (button.focus) button.focus();
+      }
+    );
   });
 
   // Sections that refresh themselves (the work panel, the documents) must never fight the person using them:
