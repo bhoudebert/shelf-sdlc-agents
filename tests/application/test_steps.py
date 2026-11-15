@@ -604,3 +604,15 @@ async def test_a_run_that_began_in_the_old_folder_goes_on_there() -> None:
     await steps(agents, workspaces).run(NEED, RunStep(Phase.DESIGN, 0, ""))
     [task] = agents.tasks
     assert "Write your result to `docs/shelf/work-1/design.md`" in task.prompt
+
+
+def test_the_writers_and_reviewers_prompts_keep_the_work_to_the_size_of_the_request() -> None:
+    from shelf.adapters.claude_agent.prompts import load_prompt  # noqa: PLC0415
+
+    assert "size the spec to the request" in load_prompt("intake")
+    assert "no new test frameworks" in load_prompt("intake")
+    assert "never build a requirement or a gate" in load_prompt("intake")
+    assert "at most five" in load_prompt("spec_critic")
+    assert "beyond the request" in load_prompt("spec_critic") or "bigger than the" in load_prompt("spec_critic")
+    assert "at most five" in load_prompt("design_reviewer")
+    assert "goes beyond the spec" in load_prompt("design_reviewer")

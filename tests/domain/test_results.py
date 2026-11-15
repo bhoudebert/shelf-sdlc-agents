@@ -11,10 +11,16 @@ def test_a_run_keeps_its_files_in_the_shelf_folder_and_older_ones_are_still_know
     assert legacy_documents_dir(WorkId("work-1")) == "docs/shelf/work-1"
 
 
-def test_the_agent_that_writes_the_spec_is_told_to_put_the_requirements_in_the_repositorys_specs() -> None:
-    note = results_note(Results(), Phase.INTAKE)
+def test_the_architect_writes_the_repositorys_specs_after_the_spec_is_approved() -> None:
+    note = results_note(Results(), Phase.DESIGN)
+    assert "has been approved" in note
     assert "`openspec/specs/`" in note
     assert "does not exist, create it" in note
+
+
+def test_the_spec_writer_and_reviewer_are_told_nothing_about_the_repositorys_specs() -> None:
+    assert results_note(Results(), Phase.INTAKE) == ""
+    assert results_note(Results(), Phase.SPEC_REVIEW) == ""
 
 
 def test_the_architect_is_told_where_decision_records_go_and_how_to_replace_one() -> None:
@@ -41,9 +47,9 @@ def test_the_conflict_check_can_be_switched_off() -> None:
 
 def test_a_repository_that_wants_no_records_gets_no_record_instructions() -> None:
     results = Results(write=frozenset({"spec"}))
-    assert results_note(results, Phase.DESIGN) == ""
+    assert "decision" not in results_note(results, Phase.DESIGN)
     assert results_note(results, Phase.DESIGN_REVIEW) == ""
-    assert results_note(results, Phase.INTAKE) != ""
+    assert "`openspec/specs/`" in results_note(results, Phase.DESIGN)
 
 
 @pytest.mark.parametrize("phase", [Phase.PLAN, Phase.IMPLEMENT, Phase.VERIFY])

@@ -526,3 +526,45 @@ The system SHALL have the design reviewer compare a new decision record with eve
 
 - **WHEN** the setting is `warn` and a record conflicts with an earlier one
 - **THEN** the conflict is written in the review and the verdict is not a refusal
+
+### Requirement: A spec is as large as the request
+
+The system SHALL tell the spec writer that the size of the spec follows the size of the request: a small request gets a handful of requirements, each describing behaviour a person can observe; it SHALL NOT add requirements for tests, tooling, lint rules or process that the request did not ask for; a section with nothing to say is left out or reduced to one line; and a fact it cannot check (a tool it cannot run, a document it cannot read) goes under open questions in one line, never into a requirement.
+
+#### Scenario: A two-sentence request
+
+- **WHEN** the request asks to support one more client the way two others are supported
+- **THEN** the spec states what changes for that client and where it is named, in a few requirements, with no new test framework
+
+#### Scenario: Something it cannot check
+
+- **WHEN** the writer cannot read the documentation of a tool the request names
+- **THEN** it says so in one line under open questions, and no requirement depends on it
+
+### Requirement: The spec and design reviewers approve what can be built and do not add scope
+
+The system SHALL tell the spec reviewer and the design reviewer to approve a document a team could build from, to list only problems that would stop the work (an untestable requirement, a contradiction with a specification or decision that binds the repository, a requirement the request does not imply that makes the work bigger), at most five, most serious first, and to treat a requirement or design element that goes beyond the request as a major issue; and SHALL NOT have them ask for more tests, tooling, edge cases or process than the request calls for, nor repeat a point the author has fixed.
+
+#### Scenario: A document that is buildable
+
+- **WHEN** a spec has a few testable requirements that match the request and one minor wording issue
+- **THEN** the verdict is to approve
+
+#### Scenario: A spec that grew past the request
+
+- **WHEN** a spec adds a lint test and a tool the request never asked for
+- **THEN** the review names them as a major issue and asks for their removal, not for more detail
+
+### Requirement: The repository's own specs are written after the spec is approved
+
+The system SHALL have the requirements of a piece of work written into the repository's own specs folder by the architect, after the spec has been approved, and SHALL keep the run's own `spec.md` as the only copy of the spec while it is being reviewed, so that two copies are never kept in step during review.
+
+#### Scenario: A spec in review
+
+- **WHEN** the spec writer and the spec reviewer go through their rounds
+- **THEN** only `.shelf/<work-id>/spec.md` changes
+
+#### Scenario: After approval
+
+- **WHEN** the spec has been approved and the architect designs the change
+- **THEN** the requirements are written into `openspec/specs/` and the design says so
