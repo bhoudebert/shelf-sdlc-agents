@@ -841,3 +841,22 @@ The system SHALL show on the page of a piece of work, with its usage, a pie char
 
 - **WHEN** no step reported tokens
 - **THEN** no pie is shown and the rest of the usage section is unchanged
+
+### Requirement: The work page says how hard each review looks
+
+The system SHALL record, when a work starts, how hard its spec reviewer and its design reviewer look (quick, standard or thorough, as chosen for the work or taken from the repository's file), and SHALL show it on the page of the work next to what it does without a person, naming the design review as off when the design is not reviewed; and SHALL show nothing for work that started before it was kept.
+
+#### Scenario: A work with a thorough design review
+
+- **WHEN** a work was started with the design review on at thorough
+- **THEN** its page says that the spec review looks quick and the design review thorough
+
+#### Scenario: A work without a design review
+
+- **WHEN** a work was started with the design review off
+- **THEN** its page says the design review is off, not a depth
+
+#### Scenario: Older work
+
+- **WHEN** the work started before the depths were kept
+- **THEN** the page says nothing about them and is otherwise unchanged
