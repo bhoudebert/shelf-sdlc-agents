@@ -3,7 +3,9 @@
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
+from shelf.domain.guard import StoppedCall
 from shelf.domain.roles import DOCUMENT_TITLES
 from shelf.domain.story import Message
 from shelf.domain.usage import UsageSummary
@@ -45,6 +47,12 @@ class WorkExport:
     documents: Mapping[str, str] | None
     usage: UsageSummary | None
     generated: str
+    guard: Sequence[StoppedCall] | None = None
+    """The calls the guard flagged, newest first; ``None`` when it could not be read."""
+    started: str = ""
+    """When the work's first step happened (ISO), the start of the window the guard's calls are kept from."""
+    ended: str = ""
+    """When the work last did anything (ISO); empty while it runs, so the window ends now."""
 
 
 def _facts(facts: Sequence[tuple[str, str]]) -> list[str]:
@@ -120,6 +128,50 @@ def _usage(usage: UsageSummary | None) -> list[str]:
     return [*lines, ""]
 
 
+def _moment(iso: str) -> datetime | None:
+    """An ISO time as an aware UTC moment; a time with no zone is UTC, and nothing readable gives ``None``."""
+    try:
+        moment = datetime.fromisoformat(iso)
+    except ValueError:
+        return None
+    return moment if moment.tzinfo else moment.replace(tzinfo=UTC)
+
+
+def in_window(calls: Sequence[StoppedCall], started: str, ended: str) -> list[StoppedCall]:
+    """The calls made between ``started`` and ``ended`` (open ends when unknown), oldest first."""
+    begin, end = _moment(started), _moment(ended)
+    kept: list[tuple[datetime, StoppedCall]] = []
+    for call in calls:
+        when = _moment(call.at)
+        if when is None or (begin and when < begin) or (end and when > end):
+            continue
+        kept.append((when, call))
+    return [call for _, call in sorted(kept, key=lambda pair: pair[0])]
+
+
+def _guard(export: WorkExport) -> list[str]:
+    lines = ["## What the guard flagged while the work ran", ""]
+    if export.guard is None:
+        return [*lines, "_The guard could not be read when this file was made._", ""]
+    found = in_window(export.guard, export.started, export.ended)
+    begin = _moment(export.started)
+    oldest = min((m for call in export.guard if (m := _moment(call.at)) is not None), default=None)
+    if begin and oldest and oldest > begin and export.guard:
+        lines += ["_The guard keeps only its latest flagged calls: earlier ones may be missing from this list._", ""]
+    if not found:
+        return [*lines, "_The guard flagged nothing in that time._", ""]
+    lines += ["| When (UTC) | Agent | What | Risks | Why | Result |", "| --- | --- | --- | --- | --- | --- |"]
+    for call in found:
+        stopped = call.decision in ("deny", "ask")
+        result = "stopped" if stopped else f"not stopped (recorded; the policy meant {call.intended or call.decision})"
+        what = call.summary.replace("|", "\\|").replace("\n", " ")
+        lines.append(
+            f"| {call.at[:19].replace('T', ' ')} | {call.agent} | `{what}` | {', '.join(call.categories)} | "
+            f"{call.reason.replace('|', '/')} | {result} |"
+        )
+    return [*lines, ""]
+
+
 def render(export: WorkExport) -> str:
     """The whole file."""
     lines = [
@@ -136,5 +188,6 @@ def render(export: WorkExport) -> str:
         *_conversation(export.conversation),
         *_documents(export.documents),
         *_usage(export.usage),
+        *_guard(export),
     ]
     return "\n".join(lines).rstrip() + "\n"

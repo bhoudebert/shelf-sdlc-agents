@@ -984,3 +984,27 @@ The system SHALL show the note that the guard is only watching, above the list o
 
 - **WHEN** the guard's latest call was judged in audit mode
 - **THEN** the note is shown
+
+### Requirement: The downloaded file says what the guard flagged while the work ran
+
+The system SHALL add to the file of a work, when the guard can be read, a section listing the calls the guard stopped or would have stopped between the first step of the work and its last activity (or now, while it runs), each with its time, the agent, what it was (the command or the address, as the guard shortens it), the risks found, the reason, and whether it was stopped or only recorded; SHALL say that the guard keeps only its latest calls when the oldest it lists is later than the start of the work, so that a missing call is not taken for none; and SHALL say plainly, without failing the download, when the guard cannot be read, and when it flagged nothing in that time.
+
+#### Scenario: Calls flagged during the work
+
+- **WHEN** the guard flagged two calls between the first step and the last activity of the work, and one before it started
+- **THEN** the file lists the two, each with its time, command, risks, reason and whether it was stopped, and not the third
+
+#### Scenario: Nothing flagged
+
+- **WHEN** the guard flagged nothing in that time
+- **THEN** the file says so
+
+#### Scenario: The guard cannot be read
+
+- **WHEN** the guard is not installed or does not answer
+- **THEN** the file says it could not be read and the rest of the file is unchanged
+
+#### Scenario: The guard keeps only its latest calls
+
+- **WHEN** the oldest call the guard lists is later than the start of the work
+- **THEN** the file says that earlier calls may be missing

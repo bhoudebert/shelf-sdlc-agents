@@ -1,4 +1,7 @@
-from shelf.domain.export import ExportStep, WorkExport, fenced, filename, render
+from dataclasses import replace
+
+from shelf.domain.export import ExportStep, WorkExport, fenced, filename, in_window, render
+from shelf.domain.guard import StoppedCall
 from shelf.domain.story import Message, Voice
 from shelf.domain.usage import StepUsage, Usage, summarize
 
@@ -46,3 +49,42 @@ def test_the_usage_is_totalled_per_agent_and_per_step() -> None:
     assert "Total: 2,200 tokens" in text
     assert "| implementer | 2 | 10 | 18 | 2,200 | $0.50 |" in text
     assert "| implement | 1 | implementer |" in text
+
+
+def _call(
+    at: str, decision: str = "allow", intended: str = "deny", summary: str = "cat > opencode.json"
+) -> "StoppedCall":
+    return StoppedCall(at, "claude", "s1", "bash", decision, intended, ("tamper",), "protected file", summary)
+
+
+def test_only_the_calls_made_during_the_work_are_listed_oldest_first() -> None:
+    calls = [
+        _call("2026-11-15T16:39:14"),
+        _call("2026-11-15T15:16:57"),
+        _call("2026-11-14T10:58:43", summary="before"),
+        _call("2026-11-15T19:00:00", summary="after"),
+    ]
+    kept = in_window(calls, "2026-11-15T15:00:00+00:00", "2026-11-15T17:00:00+00:00")
+    assert [c.at for c in kept] == ["2026-11-15T15:16:57", "2026-11-15T16:39:14"]
+    assert len(in_window(calls, "", "")) == 4  # unknown ends: nothing is cut
+
+
+def test_the_guard_section_says_stopped_or_only_recorded_and_when_nothing_was_flagged() -> None:
+    base = WorkExport("w", [], [], "r", [], {}, None, "now", guard=[], started="2026-11-15T15:00:00+00:00")
+    assert "flagged nothing in that time" in render(base)
+    flagged = [_call("2026-11-15T16:00:00", "deny", "deny"), _call("2026-11-15T16:01:00", summary="a|b")]
+    text = render(replace(base, guard=flagged))
+    assert "| stopped |" in text
+    assert "not stopped (recorded; the policy meant deny)" in text
+    assert "a\\|b" in text  # a pipe in a command does not break the table
+    assert "flagged nothing" not in text
+
+
+def test_the_guard_section_warns_when_earlier_calls_may_be_missing_and_when_it_cannot_be_read() -> None:
+    base = WorkExport(
+        "w", [], [], "r", [], {}, None, "now", guard=[_call("2026-11-15T16:00:00")], started="2026-11-15T15:00:00+00:00"
+    )
+    assert "earlier ones may be missing" in render(base)
+    early = replace(base, guard=[_call("2026-11-15T14:00:00")])
+    assert "earlier ones may be missing" not in render(early)
+    assert "The guard could not be read" in render(replace(base, guard=None))

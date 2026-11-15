@@ -10,9 +10,23 @@ from shelf.adapters.web import views
 from shelf.adapters.web.context import Web
 from shelf.adapters.web.sessions import Session
 from shelf.domain.export import ExportStep, WorkExport, filename, render
+from shelf.domain.guard import StoppedCall
 from shelf.domain.model import WorkId
+from shelf.domain.result import Ok
 from shelf.domain.story import request_in
 from shelf.domain.usage import summarize
+
+
+async def _guard_calls(web: Web) -> tuple[StoppedCall, ...] | None:
+    """The calls the guard flagged, newest first, or ``None`` when it cannot be read: never an error."""
+    reader = web.deps.guard
+    if reader is None:
+        return None
+    try:
+        result = await reader.report()
+    except Exception:  # noqa: BLE001 - the file is still delivered, and says the guard could not be read
+        return None
+    return result.value.recent if isinstance(result, Ok) else None
 
 
 def router(web: Web) -> APIRouter:
@@ -39,6 +53,8 @@ def router(web: Web) -> APIRouter:
             except Exception:  # noqa: BLE001 - the same
                 documents = None
         usage = summarize(await web.deps.runner.usage(WorkId(work_id)))
+        guard = await _guard_calls(web)
+        started = min((at for _, at in work.times if at), default="")
         facts = [
             ("Repository", item.repo),
             ("Title", item.title),
@@ -64,6 +80,9 @@ def router(web: Web) -> APIRouter:
                 documents=documents,
                 usage=usage,
                 generated=datetime.now(UTC).strftime("%d %b %Y %H:%M UTC"),
+                guard=guard,
+                started=started,
+                ended=work.updated_at if work.outcome else "",
             )
         )
         return Response(
