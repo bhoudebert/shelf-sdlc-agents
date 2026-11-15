@@ -845,3 +845,32 @@ The system SHALL, before the code reviewer is asked, wait for the CI of the pull
 
 - **WHEN** the CI is still running when the waiting ends
 - **THEN** the code review proceeds with the unfinished CI and its approval asks a person, as before
+
+### Requirement: A repository's formatter does not check Shelf's own files
+
+The system SHALL, when a repository uses Prettier (a Prettier configuration file, or `prettier` in its `package.json`), make sure its `.prettierignore` names the `.shelf/` folder, creating the file or adding one line, before the first step commits, so that a check that formats or checks the whole repository never fails on the request, the spec, the design, the plan or the decision log of a piece of work; SHALL change nothing when the folder is already ignored or when the repository does not use Prettier; and SHALL NOT download or run any program to do it.
+
+#### Scenario: A repository that checks formatting with Prettier
+
+- **WHEN** a work starts on a repository whose `package.json` lists `prettier` and has no `.prettierignore`
+- **THEN** the first commit adds a `.prettierignore` that ignores `.shelf/`
+
+#### Scenario: An existing ignore file
+
+- **WHEN** the repository's `.prettierignore` lists other folders
+- **THEN** a line for `.shelf/` is added after them and nothing else changes
+
+#### Scenario: Already ignored
+
+- **WHEN** the repository's `.prettierignore` already ignores `.shelf`
+- **THEN** it is left as it is
+
+#### Scenario: No Prettier
+
+- **WHEN** the repository does not use Prettier
+- **THEN** no file is created
+
+#### Scenario: Run twice
+
+- **WHEN** a second step starts on the same work
+- **THEN** nothing is added again
