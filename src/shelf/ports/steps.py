@@ -50,6 +50,13 @@ class PullRequests(Protocol):
         """Make ``stage`` the pull request's one ``shelf:`` label, replacing the previous one."""
         ...
 
+    async def close(self, work: WorkContext, reason: str) -> None:
+        """Say why on the work's pull request and close it, a draft too, leaving the branch.
+
+        Leaves alone a pull request that is not the work's own, or that is no longer open.
+        """
+        ...
+
     async def comment(self, work: WorkContext, body: str) -> None:
         """Post ``body`` on the pull request (a review, for work that reviews an existing pull request)."""
         ...

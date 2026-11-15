@@ -23,6 +23,7 @@ with workflow.unsafe.imports_passed_through():
         CancelStep,
         Command,
         Conclude,
+        DecisionKind,
         Event,
         Finished,
         NoteOpenPoints,
@@ -49,6 +50,7 @@ READY = "shelf_set_ready"
 PROGRESS = "shelf_progress"
 OPEN_POINTS = "shelf_note_open_points"
 RECORD_DECISION = "shelf_record_decision"
+CLOSE_PULL_REQUEST = "shelf_close_pull_request"
 
 STEP_TIMEOUT = timedelta(minutes=45)
 STEP_HEARTBEAT = timedelta(seconds=60)
@@ -110,6 +112,7 @@ class WorkItemWorkflow:
                 self._touch(self._phase)
                 self._state, commands = decide(course, self._state, event)
                 await self._execute(work, commands)
+                await self._close_pull_request(work, event)
                 await self._progress(work)
         finally:
             poller.cancel()
@@ -166,6 +169,25 @@ class WorkItemWorkflow:
                 self._log.append(wire.LogEntryDto(phase, f"you: {kind}", self._now()))
             case _:
                 pass
+
+    async def _close_pull_request(self, work: wire.WorkInput, event: Event) -> None:
+        """When a person ended the work, close the pull request it opened. A failure is logged and never fatal."""
+        if not (wire.course_of(work).closes_pull_request and isinstance(self._state, Finished)):
+            return
+        if not (isinstance(event, PersonDecided) and event.kind in (DecisionKind.REJECT, DecisionKind.ABORT)):
+            return
+        verb = "aborted" if event.kind is DecisionKind.ABORT else "rejected"
+        try:
+            await workflow.execute_activity(
+                CLOSE_PULL_REQUEST,
+                wire.ClosePullRequestInput(work, f"{event.by} {verb} the work"),
+                start_to_close_timeout=GITHUB_TIMEOUT,
+                retry_policy=RetryPolicy(maximum_attempts=3),
+            )
+        except ActivityError:
+            workflow.logger.warning(
+                "could not close the pull request of the work %s ended by %s", work.work_id, event.by
+            )
 
     async def _record(self, work: wire.WorkInput, state: State, event: Event) -> None:
         """Write a person's decision into the repository before the work goes on; a failure is logged, never fatal."""

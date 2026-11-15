@@ -20,7 +20,7 @@ from shelf.domain.config import RepoConfig, Role
 from shelf.domain.context_repo import ContextRepo
 from shelf.domain.guard import GuardReport, StoppedCall
 from shelf.domain.guard_rules import OverlayRule, RuleKind
-from shelf.domain.model import Identity, RepoRef, WorkId, WorkView
+from shelf.domain.model import Identity, RepoRef, WorkContext, WorkId, WorkView
 from shelf.domain.pipeline import EntryPoint, Phase
 from shelf.domain.policy import Autonomy, Policy
 from shelf.domain.reference import Imported, Reference
@@ -36,6 +36,7 @@ from shelf.ports.guard import GuardReader
 from shelf.ports.guard_rules import GuardRules
 from shelf.ports.references import References
 from shelf.ports.runner import UnreachableWorkError
+from shelf.ports.steps import PullRequests
 from tests.fakes import FakeConfigs, FakeForge, FakeRunner
 
 REPO = RepoRef("acme", "shop")
@@ -66,6 +67,7 @@ class Fixture:
         access_source: Callable[[], AccessRules] | None = None,
         guard: GuardReader | None = None,
         guard_rules: GuardRules | None = None,
+        pulls: PullRequests | None = None,
     ) -> None:
         self.forge = FakeForge(identities={"token-code": ALICE}, repos={"token-code": (REPO,)})
         self.runner = FakeRunner()
@@ -84,6 +86,7 @@ class Fixture:
             conversations,
             access_source,
             guard,
+            pulls,
             guard_rules,
         )
         self.client = TestClient(create_app(deps), base_url="https://shelf.example.org", follow_redirects=False)
@@ -1190,3 +1193,33 @@ def test_without_a_place_for_the_rules_the_page_shows_the_text_and_no_button() -
     assert "Allow it next time" in page
     assert "not set up on this instance" in page
     assert fixture.client.post("/admin/guard/allow", data={"command": "gh pr merge 5 --squash"}).status_code == 409
+
+
+class ClosingPulls:
+    """Only what closing a work from its page asks of the pull requests."""
+
+    def __init__(self, *, fails: bool = False) -> None:
+        self.closed: list[tuple[WorkId, str]] = []
+        self.fails = fails
+
+    async def close(self, work: WorkContext, reason: str) -> None:
+        if self.fails:
+            message = "GitHub refused"
+            raise RuntimeError(message)
+        self.closed.append((work.id, reason))
+
+
+def test_closing_a_work_from_its_page_also_closes_the_pull_request_it_opened() -> None:
+    pulls = ClosingPulls()
+    app = Fixture(AccessRules(admins=frozenset({"alice"})), pulls=pulls)  # type: ignore[arg-type]
+    waiting(app)
+    assert app.client.post("/work/work-1/close").status_code == 303
+    assert pulls.closed == [(WorkId("work-1"), "closed by alice from the work page")]
+
+
+def test_a_pull_request_that_cannot_be_closed_does_not_undo_closing_the_work() -> None:
+    app = Fixture(AccessRules(admins=frozenset({"alice"})), pulls=ClosingPulls(fails=True))  # type: ignore[arg-type]
+    waiting(app)
+    response = app.client.post("/work/work-1/close")
+    assert response.status_code == 303
+    assert [work_id for work_id, _ in app.runner.terminated] == [WorkId("work-1")]

@@ -10,6 +10,7 @@ from temporalio import activity
 from shelf.adapters.temporal import wire
 from shelf.adapters.temporal.workflow import (
     ANNOUNCE,
+    CLOSE_PULL_REQUEST,
     OPEN_POINTS,
     POLL,
     PROGRESS,
@@ -42,8 +43,8 @@ async def keep_alive(beat: Callable[[], None], every: float) -> None:
         await asyncio.sleep(every)
 
 
-def build_activities(steps: StepRunner, pulls: PullRequests) -> Sequence[Callable[..., Any]]:
-    """Bind the activities to the adapters that carry them out. No globals: the composition root calls this."""
+def _steps_activities(steps: StepRunner, pulls: PullRequests) -> Sequence[Callable[..., Any]]:
+    """The activities that run a step, announce, publish and look at the pull request for a decision."""
 
     @activity.defn(name=RUN_STEP)
     async def run_step(step: wire.StepInput) -> wire.StepOutput:
@@ -72,6 +73,12 @@ def build_activities(steps: StepRunner, pulls: PullRequests) -> Sequence[Callabl
         events = await pulls.poll(wire.context_of(work))
         return [dto for event in events if (dto := wire.dto_of(event)) is not None]
 
+    return [run_step, announce, publish, poll]
+
+
+def _pull_request_activities(pulls: PullRequests) -> Sequence[Callable[..., Any]]:
+    """The activities that show the work on its pull request: stage, draft state, progress, open points, closing."""
+
     @activity.defn(name=STAGE)
     async def set_stage(stage: wire.StageInput) -> None:
         waiting = Reason(stage.reason) if stage.reason else None
@@ -99,6 +106,16 @@ def build_activities(steps: StepRunner, pulls: PullRequests) -> Sequence[Callabl
         body = open_points_comment(note.work.work_id, ROLES[phase].name, phase.value.replace("_", " "), note.issues)
         await pulls.comment(wire.context_of(note.work), body)
 
+    @activity.defn(name=CLOSE_PULL_REQUEST)
+    async def close_pull_request(close: wire.ClosePullRequestInput) -> None:
+        await pulls.close(wire.context_of(close.work), close.reason)
+
+    return [set_stage, set_ready, progress, note_open_points, close_pull_request]
+
+
+def _record_activities(steps: StepRunner) -> Sequence[Callable[..., Any]]:
+    """The activity that writes a person's decision into the repository."""
+
     @activity.defn(name=RECORD_DECISION)
     async def record_decision(record: wire.DecisionRecordInput) -> None:
         await steps.record_decision(
@@ -106,4 +123,9 @@ def build_activities(steps: StepRunner, pulls: PullRequests) -> Sequence[Callabl
             DecisionRecord(record.at, record.login, DecisionKind(record.kind), Phase(record.phase), record.note),
         )
 
-    return [run_step, announce, publish, poll, set_stage, set_ready, progress, note_open_points, record_decision]
+    return [record_decision]
+
+
+def build_activities(steps: StepRunner, pulls: PullRequests) -> Sequence[Callable[..., Any]]:
+    """Bind the activities to the adapters that carry them out. No globals: the composition root calls this."""
+    return [*_steps_activities(steps, pulls), *_pull_request_activities(pulls), *_record_activities(steps)]

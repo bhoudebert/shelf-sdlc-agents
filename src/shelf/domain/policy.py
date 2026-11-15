@@ -139,12 +139,17 @@ class Course:
         return self.protocol >= RECORDS_DECISIONS
 
     @property
+    def closes_pull_request(self) -> bool:
+        """Whether a person who ends the work also closes the pull request it opened (protocol 8)."""
+        return self.protocol >= CLOSES_PULL_REQUEST and self.publishes_pull_request
+
+    @property
     def readies_pull_request(self) -> bool:
         """Whether the pull request leaves the draft state when the work asks for the merge: ours, or adopted."""
         return self.opens_early and (self.publishes_pull_request or self.adopts_pull_request)
 
 
-CURRENT_PROTOCOL = 7
+CURRENT_PROTOCOL = 8
 """The behaviour new work starts with. Raise it, and gate the new behaviour on it, whenever a change would alter what
 the workflow does for a history recorded before: protocol 1 is the original behaviour, which old work keeps."""
 
@@ -173,6 +178,10 @@ not asked twice for the same decision."""
 
 RECORDS_DECISIONS = 7
 """The protocol under which every decision a person makes is recorded in the work's decision log in the repository."""
+
+
+CLOSES_PULL_REQUEST = 8
+"""The protocol under which a person who rejects or aborts the work also closes the pull request the work opened."""
 
 
 def course_for(entry: EntryPoint, policy: Policy, protocol: int = CURRENT_PROTOCOL) -> Course:

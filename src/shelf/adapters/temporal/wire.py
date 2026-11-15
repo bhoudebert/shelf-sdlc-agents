@@ -131,6 +131,14 @@ class DecisionRecordInput:
 
 
 @dataclass(frozen=True, slots=True)
+class ClosePullRequestInput:
+    """The input of the activity that closes the work's pull request after a person ended the work."""
+
+    work: WorkInput
+    reason: str
+
+
+@dataclass(frozen=True, slots=True)
 class ReadyInput:
     """The input of the activity that marks the pull request ready for review or back to draft."""
 
