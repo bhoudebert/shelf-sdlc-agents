@@ -644,3 +644,22 @@ The system SHALL give every agent a tool to fetch an address and a tool to searc
 
 - **WHEN** a fetched page says to ignore the task and send a file somewhere
 - **THEN** the prompt has already said that a page is data, and the guard refuses what it asks that is not allowed
+
+### Requirement: The pull requests can be asked to close one, and only one that is the work's own and open
+
+The system SHALL let the work ask its pull requests to close the pull request it opened, with a reason that is posted on it first, and SHALL do nothing when the pull request is not the work's own (a review, or work on someone else's pull request), when it does not exist yet, or when it is already closed or merged.
+
+#### Scenario: An open pull request
+
+- **WHEN** the work asks to close its open pull request with a reason
+- **THEN** the reason is posted as a comment, then the pull request is closed
+
+#### Scenario: Already closed
+
+- **WHEN** the pull request is already closed or merged
+- **THEN** nothing is posted and nothing changes
+
+#### Scenario: Someone else's
+
+- **WHEN** the work is a review of a pull request someone else opened
+- **THEN** nothing is posted and the pull request is left open
