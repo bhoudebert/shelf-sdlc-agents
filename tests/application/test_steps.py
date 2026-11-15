@@ -1103,3 +1103,12 @@ async def test_no_lockfile_or_an_existing_node_modules_installs_nothing() -> Non
     )
     await steps(workspaces=installed, cache_dir="/cache").run(NEED, RunStep(Phase.IMPLEMENT, 0, ""))
     assert not any("npm ci" in c for c in bare.workspace.ran + installed.workspace.ran)
+
+
+async def test_every_agent_is_told_the_works_own_folder_belongs_to_the_system() -> None:
+    agents = FakeAgents()
+    await steps(agents).run(NEED, RunStep(Phase.INTAKE, 0, ""))
+    await steps(agents).run(REVIEW, RunStep(Phase.CODE_REVIEW, 0, ""))
+    for task in agents.tasks:
+        assert "is part of the pull request on purpose" in task.prompt
+        assert "do not write that they stay out of the pull request" in task.prompt

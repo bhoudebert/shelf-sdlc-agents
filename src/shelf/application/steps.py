@@ -113,6 +113,13 @@ DOCUMENT_FORMAT_NOTE = (
     "installing it: say so in one line."
 )
 
+SYSTEM_FILES_NOTE = (
+    "The work's folder under `.shelf/` (the request, the spec, the design, the plan, the decision log) is part of the "
+    "pull request on purpose: the system commits it. The `.shelf/` line it adds to a repository's `.prettierignore` is "
+    "the system's too. Do not ask to remove them, do not write that they stay out of the pull request, and do not "
+    "judge them as a change to the repository."
+)
+
 TOOL_PHASES = frozenset({Phase.IMPLEMENT, Phase.CODE_REVIEW})
 """The steps that build and test, and so need the repository's tools."""
 
@@ -247,6 +254,7 @@ def task_prompt(  # noqa: PLR0913
         review_note(depth, step.phase),
         setup or (TOOLCHAIN_NOTE if toolchain else ""),
         WEB_NOTE if web else "",
+        SYSTEM_FILES_NOTE,
     ]
     lines += [part for note in notes if note for part in ("", note)]
     if role.document:
