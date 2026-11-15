@@ -284,7 +284,7 @@ The system SHALL keep, with the workflow's memo and not in its history, the name
 
 ### Requirement: The depth of the reviews is fixed when the work starts and older work still replays
 
-The system SHALL carry the depth of the spec and design reviews that was chosen when a piece of work started in the workflow's input, with an empty value for work that started before it existed (which then follows the repository's file when its steps run), and SHALL NOT let it change the course of a run, so that a history recorded without it replays unchanged.
+The system SHALL carry the depths of the spec review and of the design review that were chosen when a piece of work started in the workflow's input, with an empty value for each for work that started before they existed (which then follows the repository's file when its steps run), and SHALL NOT let it change the course of a run, so that a history recorded without it replays unchanged.
 
 #### Scenario: Work that predates the choice
 

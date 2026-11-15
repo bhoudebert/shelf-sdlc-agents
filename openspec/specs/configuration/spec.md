@@ -72,19 +72,24 @@ The system SHALL read from a `[results]` section of a repository's `.shelf/confi
 - **WHEN** `conflicts` is `maybe`
 - **THEN** the run does not start and the message names the file and the key
 
-### Requirement: A repository chooses how deep the spec and design reviews look
+### Requirement: A repository chooses how deep the spec review and the design review look
 
-The system SHALL read `review_depth` from the `[policy]` section of a repository's `.shelf/config.toml`, one of `quick`, `standard` or `thorough`, using `quick` when it is missing, and SHALL refuse any other value like any other mistake in the file.
+The system SHALL read `spec_review_depth` and `design_review_depth` from the `[policy]` section of a repository's `.shelf/config.toml`, each one of `quick`, `standard` or `thorough`, using `quick` for the spec review and `standard` for the design review when missing, and SHALL refuse any other value like any other mistake in the file.
 
 #### Scenario: The default
 
-- **WHEN** a repository has no `review_depth`
-- **THEN** its spec and design reviews are quick
+- **WHEN** a repository has neither key
+- **THEN** its spec review is quick and its design review is standard
 
 #### Scenario: A value that is not understood
 
-- **WHEN** the file sets `review_depth = "deep"`
-- **THEN** it is refused, saying the choices are quick, standard and thorough
+- **WHEN** the file sets `spec_review_depth = "deep"`
+- **THEN** it is refused, naming the key and saying the choices are quick, standard and thorough
+
+#### Scenario: The two reviews differ
+
+- **WHEN** the file sets `spec_review_depth = "quick"` and `design_review_depth = "thorough"`
+- **THEN** the spec review is quick and the design review is thorough
 
 ### Requirement: Mistakes in configuration are reported, not ignored
 

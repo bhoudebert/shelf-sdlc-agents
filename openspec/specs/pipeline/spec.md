@@ -54,7 +54,7 @@ The system SHALL give each phase a kind (produce, review, verify, gate or merge)
 
 ### Requirement: A policy shapes the course
 
-The system SHALL let a policy turn off the spec approval and the design review, and SHALL set how many rounds a loop may take, which SHALL be at least one, and how deep the spec and design reviews look (`quick`, `standard` or `thorough`, `quick` by default), which shapes what the reviewers are told and never the course.
+The system SHALL let a policy turn off the spec approval and the design review, and SHALL set how many rounds a loop may take, which SHALL be at least one, and how deep the spec review and the design review look (each `quick`, `standard` or `thorough`; `quick` and `standard` by default), which shapes what the reviewers are told and never the course.
 
 #### Scenario: Optional phases off
 
@@ -68,7 +68,7 @@ The system SHALL let a policy turn off the spec approval and the design review, 
 
 ### Requirement: A policy may let work go on past a review that cannot settle
 
-The system SHALL carry in the course whether the policy lets work go on past a spec or design review that cannot settle, SHALL let a person's choices for one piece of work replace the policy's spec approval, design review, that choice and the depth of the reviews (when the person made one) while keeping the policy's round limit, and SHALL default to waiting.
+The system SHALL carry in the course whether the policy lets work go on past a spec or design review that cannot settle, SHALL let a person's choices for one piece of work replace the policy's spec approval, design review, that choice and the depth of each review (when the person made one) while keeping the policy's round limit, and SHALL default to waiting.
 
 #### Scenario: The default
 

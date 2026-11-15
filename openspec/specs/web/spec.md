@@ -201,17 +201,17 @@ The system SHALL show on the start form three choices, each worded so that check
 
 ### Requirement: The start form lets a person choose how deep the reviews look for this work
 
-The system SHALL show on the start form a choice of how deep the spec and design reviews look (quick, standard or thorough) with a line on what each means, preset from the chosen repository's `review_depth`, SHALL change the preset when another repository is chosen, and SHALL start the work with what the form shows.
+The system SHALL show on the start form two choices, one for the spec review and one for the design review, each of how deep it looks (quick, standard or thorough) with a line on what each means, preset from the chosen repository's `spec_review_depth` and `design_review_depth`, SHALL change the preset when another repository is chosen, and SHALL start the work with what the form shows.
 
 #### Scenario: The repository's default
 
-- **WHEN** a person opens the form for a repository that sets `review_depth = "thorough"`
-- **THEN** thorough is selected
+- **WHEN** a person opens the form for a repository that sets `design_review_depth = "thorough"`
+- **THEN** thorough is selected for the design review and the spec review shows the repository's own value
 
 #### Scenario: A choice for this work
 
-- **WHEN** the person selects quick and starts the work
-- **THEN** the work's spec and design reviews are quick whatever the repository's file says
+- **WHEN** the person selects quick for the design review and starts the work
+- **THEN** the work's design review is quick whatever the repository's file says, and its spec review is what the form showed for it
 
 ### Requirement: The work page shows the timeline and takes decisions
 
