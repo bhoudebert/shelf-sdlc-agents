@@ -268,7 +268,13 @@ class GitHubPullRequests:
             return Ci(CiState.NONE)
         pull = (await self._call("GET", repo, f"/repos/{repo.full_name}/pulls/{number}")).json()
         sha = str(pull["head"]["sha"])
-        return judge([*await self._check_runs(repo, sha), *await self._statuses(repo, sha)])
+        return judge(
+            [
+                *await self._check_runs(repo, sha),
+                *await self._statuses(repo, sha),
+                *await self._unfinished_workflows(repo, sha),
+            ]
+        )
 
     async def _check_runs(self, repo: RepoRef, sha: str) -> list[CiRun]:
         runs: list[tuple[int, CiRun]] = []
@@ -319,6 +325,19 @@ class GitHubPullRequests:
             return "(the job's log is no longer available on GitHub)"
         tail = _NOISE.sub("", response.text).strip().splitlines()[-LOG_LINES:]
         return "Log (end of the job):\n" + "\n".join(tail)
+
+    async def _unfinished_workflows(self, repo: RepoRef, sha: str) -> list[CiRun]:
+        """The workflow runs of the commit that have not completed: GitHub shows their checks a little later."""
+        path = f"/repos/{repo.full_name}/actions/runs?head_sha={sha}&per_page={COMMENTS_PER_PAGE}"
+        response = await self._call("GET", repo, path, tolerate=(FORBIDDEN, NOT_FOUND))
+        if not response.is_success:
+            return []
+        found: list[Mapping[str, Any]] = response.json().get("workflow_runs", [])
+        return [
+            CiRun(f"workflow {run.get('name', 'run')}", "in_progress", "", str(run.get("html_url") or ""))
+            for run in found
+            if run.get("status") != "completed"
+        ]
 
     async def _statuses(self, repo: RepoRef, sha: str) -> list[CiRun]:
         """Commit statuses (older CI systems report these); none when the App may not read them."""

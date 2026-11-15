@@ -325,3 +325,17 @@ The system SHALL NOT count a run that was cancelled as a failure of the commit, 
 
 - **WHEN** the waiting for the CI ends and the only runs left are cancelled
 - **THEN** the CI is red and lists the cancelled runs, so that a person or the developer is told
+
+### Requirement: A workflow run that has no check yet is an unfinished CI
+
+The system SHALL, when it reads the CI of a pull request's head commit, count every workflow run of that commit that has not completed (queued, waiting or in progress) as a CI run that is still running, even when GitHub has not yet shown any check for it, so that a workflow that was started a moment ago (by a push or by a label change) is never read as an absent CI or a green one; and SHALL read that list with the permission it already has, treating a refusal as no such runs.
+
+#### Scenario: A run started a moment ago
+
+- **WHEN** a workflow run of the head commit is queued and none of its checks exists yet
+- **THEN** the CI is reported as still running, and names the workflow
+
+#### Scenario: No permission to list runs
+
+- **WHEN** GitHub refuses the list of workflow runs
+- **THEN** the CI is read from its checks and statuses alone

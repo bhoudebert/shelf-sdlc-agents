@@ -1,4 +1,5 @@
 import json
+from collections.abc import Mapping, Sequence
 
 import httpx
 import pytest
@@ -258,13 +259,19 @@ def test_a_gate_announcement_links_the_document_to_judge() -> None:
     assert "Read it" not in announcement(NEED, AskPerson(Phase.IMPLEMENT, Reason.FAILURE, "boom"))
 
 
-def ci_handler(runs: list[dict[str, object]], statuses: list[dict[str, object]] | None = None) -> httpx.MockTransport:
-    def handler(request: httpx.Request) -> httpx.Response:
+def ci_handler(
+    runs: list[dict[str, object]],
+    statuses: list[dict[str, object]] | None = None,
+    queued: Sequence[Mapping[str, object]] = (),
+) -> httpx.MockTransport:
+    def handler(request: httpx.Request) -> httpx.Response:  # noqa: PLR0911 - one answer per path the adapter reads
         path = request.url.path
         if path.endswith("/pulls/7"):
             return httpx.Response(200, json={"head": {"sha": "abc"}})
         if path.endswith("/check-runs"):
             return httpx.Response(200, json={"check_runs": runs})
+        if path.endswith("/actions/runs"):
+            return httpx.Response(200, json={"workflow_runs": queued})
         if path.endswith("/annotations"):
             return httpx.Response(200, json=[{"path": "a.py", "start_line": 3, "message": "boom"}])
         if path.endswith("/status"):
@@ -293,6 +300,13 @@ async def test_commit_statuses_count_too_and_a_pending_one_means_wait(settings: 
     runs: list[dict[str, object]] = [{"id": 1, "name": "lint", "status": "completed", "conclusion": "success"}]
     statuses: list[dict[str, object]] = [{"context": "legacy", "state": "pending"}]
     assert (await adapter(settings, ci_handler(runs, statuses)).ci(REVIEW)).state is CiState.PENDING
+
+
+async def test_a_workflow_run_with_no_check_yet_is_a_ci_still_running(settings: GitHubAppSettings) -> None:
+    queued = [{"name": "Specs", "status": "queued", "html_url": "https://x/1"}]
+    ci = await adapter(settings, ci_handler([], queued=queued)).ci(REVIEW)
+    assert ci.state is CiState.PENDING
+    assert "workflow Specs" in ci.report()
 
 
 async def test_a_repository_without_any_run_has_no_ci(settings: GitHubAppSettings) -> None:
