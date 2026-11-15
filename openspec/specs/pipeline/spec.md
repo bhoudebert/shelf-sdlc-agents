@@ -156,3 +156,16 @@ The system SHALL say, from the protocol a piece of work started under, whether a
 - **WHEN** a course is built for work that started under the previous protocol
 - **THEN** it leaves the pull request
 
+### Requirement: A course says whether agents continue their sessions
+
+The system SHALL say, from the protocol a piece of work started under, whether an agent that runs again on it continues its earlier session (from the protocol that introduced it on, never for work that started under an earlier one).
+
+#### Scenario: New work
+
+- **WHEN** a course is built under the current protocol
+- **THEN** its agents continue their sessions
+
+#### Scenario: Work that started earlier
+
+- **WHEN** a course is built for work that started under the previous protocol
+- **THEN** its agents start fresh each time

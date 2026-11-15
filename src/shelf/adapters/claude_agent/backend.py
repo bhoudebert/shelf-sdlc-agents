@@ -4,7 +4,7 @@ import json
 import logging
 import os
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -85,6 +85,7 @@ def options_for(  # noqa: PLR0913 - one argument per setting the operator contro
         cwd=task.workdir,
         system_prompt={"type": "preset", "preset": "claude_code", "append": task.system_prompt},
         allowed_tools=[*task.role.tools, *(WEB_TOOLS if web else ())],
+        resume=task.resume or None,
         permission_mode="acceptEdits",
         max_turns=task.max_turns,
         max_budget_usd=task.max_budget_usd,
@@ -149,7 +150,16 @@ class ClaudeBackend:
         )
 
     async def run(self, task: AgentTask) -> str:
-        """Run ``task`` and return the final answer."""
+        """Run ``task`` and return the final answer; a session that cannot be continued starts again from scratch."""
+        if task.resume:
+            try:
+                return await self._run_once(task)
+            except Exception as error:  # noqa: BLE001 - whatever stopped the continuation, the step must still run
+                log.warning("could not continue the session of %s (%s): starting again", task.role.name, error)
+                task = replace(task, resume="", prompt=task.fallback_prompt or task.prompt)
+        return await self._run_once(task)
+
+    async def _run_once(self, task: AgentTask) -> str:
         answer = ""
         async for message in query(
             prompt=task.prompt,
@@ -159,6 +169,7 @@ class ClaudeBackend:
                 log.info(step_summary(task.role.name, message))
                 if task.sink is not None:
                     task.sink.usage = usage_of(message)
+                    task.sink.session_id = message.session_id or ""
                 if message.is_error:
                     raise AgentFailedError(task.role.name, message.result or message.subtype)
                 answer = message.result or ""

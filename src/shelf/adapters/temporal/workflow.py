@@ -77,6 +77,7 @@ class WorkItemWorkflow:
         self._updated_at = ""
         self._times: dict[str, str] = {}
         self._usage: list[wire.StepUsageDto] = []
+        self._sessions: dict[str, str] = {}
 
     @workflow.signal
     def decided(self, decision: wire.DecisionDto) -> None:
@@ -293,12 +294,15 @@ class WorkItemWorkflow:
         try:
             output = await workflow.execute_activity(
                 RUN_STEP,
-                wire.StepInput(work, command.phase, command.attempt, command.feedback),
+                wire.StepInput(
+                    work, command.phase, command.attempt, command.feedback, self._session_for(work, command.phase)
+                ),
                 result_type=wire.StepOutput,
                 start_to_close_timeout=STEP_TIMEOUT,
                 heartbeat_timeout=STEP_HEARTBEAT,
                 retry_policy=RetryPolicy(maximum_attempts=2),
             )
+            self._keep_session(work, command.phase, output.session)
             if output.usage is not None:
                 self._usage.append(
                     wire.StepUsageDto(command.phase, command.attempt, ROLES[command.phase].name, output.usage)
@@ -307,6 +311,24 @@ class WorkItemWorkflow:
         except ActivityError as error:
             event = StepFailed(str(error.cause or error))
         self._events.put_nowait(event)
+
+    @staticmethod
+    def _agent_of(phase: str) -> str:
+        """The agent of a phase; empty for the checks and the pull request, which run no agent."""
+        role = ROLES.get(Phase(phase))
+        return role.name if role else ""
+
+    def _session_for(self, work: wire.WorkInput, phase: str) -> str:
+        """The session an agent continues: the latest it ran in on this work, for work that resumes; else none."""
+        if not wire.course_of(work).resumes_sessions:
+            return ""
+        agent = self._agent_of(phase)
+        return self._sessions.get(agent, "") if agent else ""
+
+    def _keep_session(self, work: wire.WorkInput, phase: str, session: str) -> None:
+        agent = self._agent_of(phase)
+        if session and agent and wire.course_of(work).resumes_sessions:
+            self._sessions[agent] = session
 
     async def _announce(self, work: wire.WorkInput, phase: Phase, reason: str, detail: str) -> None:
         try:

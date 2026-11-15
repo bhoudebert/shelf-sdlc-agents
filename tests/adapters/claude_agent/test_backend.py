@@ -253,3 +253,89 @@ def test_a_provider_that_reports_nothing_gives_zeroes_and_no_cost() -> None:
     used = usage_of(message)
     assert used.tokens == 0
     assert used.cost_usd is None
+
+
+def test_a_task_that_continues_a_session_asks_the_sdk_to_resume_it_and_a_new_one_does_not() -> None:
+    from dataclasses import replace  # noqa: PLC0415
+
+    assert options_for(task(Phase.IMPLEMENT)).resume is None
+    assert options_for(replace(task(Phase.IMPLEMENT), resume="sess-1")).resume == "sess-1"
+
+
+def result(session: str = "sess-2") -> ResultMessage:
+    return ResultMessage(
+        subtype="success",
+        duration_ms=1000,
+        duration_api_ms=900,
+        is_error=False,
+        num_turns=1,
+        session_id=session,
+        total_cost_usd=0.1,
+        result="done",
+    )
+
+
+async def test_the_session_of_a_run_is_reported_so_that_a_later_round_can_continue_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from collections.abc import AsyncIterator  # noqa: PLC0415
+    from dataclasses import replace  # noqa: PLC0415
+
+    from shelf.adapters.claude_agent import backend as module  # noqa: PLC0415
+    from shelf.ports.agents import RunSink  # noqa: PLC0415
+
+    async def fake_query(*, prompt: str, options: object) -> AsyncIterator[ResultMessage]:
+        yield result("sess-9")
+
+    monkeypatch.setattr(module, "query", fake_query)
+    sink = RunSink()
+    assert await ClaudeBackend().run(replace(task(Phase.IMPLEMENT), sink=sink)) == "done"
+    assert sink.session_id == "sess-9"
+    assert sink.usage is not None
+
+
+async def test_a_session_that_cannot_be_continued_is_started_again_from_the_whole_task(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    from collections.abc import AsyncIterator  # noqa: PLC0415
+    from dataclasses import replace  # noqa: PLC0415
+
+    from shelf.adapters.claude_agent import backend as module  # noqa: PLC0415
+
+    asked: list[tuple[str, str | None]] = []
+
+    async def fake_query(*, prompt: str, options: module.ClaudeAgentOptions) -> AsyncIterator[ResultMessage]:
+        asked.append((prompt, options.resume))
+        if options.resume:
+            message = "No conversation found with session ID"
+            raise RuntimeError(message)
+        yield result()
+
+    monkeypatch.setattr(module, "query", fake_query)
+    sent = replace(task(Phase.IMPLEMENT), prompt="round 1", resume="gone", fallback_prompt="the whole task")
+    with caplog.at_level(logging.WARNING):
+        assert await ClaudeBackend().run(sent) == "done"
+    assert asked == [("round 1", "gone"), ("the whole task", None)]
+    assert "could not continue the session" in caplog.text
+
+
+async def test_a_task_with_no_session_to_continue_is_asked_once_and_its_failure_is_not_retried(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from collections.abc import AsyncIterator  # noqa: PLC0415
+
+    from shelf.adapters.claude_agent import backend as module  # noqa: PLC0415
+
+    calls = 0
+
+    async def failing(*, prompt: str, options: object) -> AsyncIterator[ResultMessage]:
+        nonlocal calls
+        calls += 1
+        message = "boom"
+        raise RuntimeError(message)
+        yield result()
+
+    monkeypatch.setattr(module, "query", failing)
+    with pytest.raises(RuntimeError, match="boom"):
+        await ClaudeBackend().run(task(Phase.IMPLEMENT))
+    assert calls == 1

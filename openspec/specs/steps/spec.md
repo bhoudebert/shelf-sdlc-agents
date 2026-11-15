@@ -759,3 +759,27 @@ The system SHALL tell each agent that writes a document of the work (the spec, t
 
 - **WHEN** a reviewer is started
 - **THEN** its task carries no such note
+
+### Requirement: An agent that is sent back continues its own session
+
+The system SHALL, when an agent runs again on the same work (sent back by a reviewer, by the checks or by a person), continue the session it ran before instead of starting a new one, and tell it that this is round N, that the working copy is a fresh checkout of the work's branch holding what everyone pushed since, to re-read what changed before answering and to address the feedback first, without repeating the whole task; SHALL start a new session for an agent that has none, and when the session cannot be continued (it is gone, or the agent refuses it) SHALL run it again from the whole task, with the failure logged, so that a step never fails because a session could not be found.
+
+#### Scenario: The spec writer is sent back
+
+- **WHEN** the spec reviewer asks for changes and the spec writer runs its second round
+- **THEN** it continues its first session, its task says it is round 1 and carries the reviewer's feedback, and it is not given the whole request again
+
+#### Scenario: The first round
+
+- **WHEN** an agent runs for the first time on a work
+- **THEN** it starts a new session and the session's id is kept
+
+#### Scenario: The session is gone
+
+- **WHEN** the session of an earlier round cannot be continued
+- **THEN** the step runs from the whole task and the work goes on
+
+#### Scenario: Two agents
+
+- **WHEN** the spec writer and the spec reviewer both ran
+- **THEN** each continues its own session and neither sees the other's

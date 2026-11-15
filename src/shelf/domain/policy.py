@@ -144,12 +144,17 @@ class Course:
         return self.protocol >= CLOSES_PULL_REQUEST and self.publishes_pull_request
 
     @property
+    def resumes_sessions(self) -> bool:
+        """Whether an agent that runs again on the work continues its earlier session (protocol 9)."""
+        return self.protocol >= RESUMES_SESSIONS
+
+    @property
     def readies_pull_request(self) -> bool:
         """Whether the pull request leaves the draft state when the work asks for the merge: ours, or adopted."""
         return self.opens_early and (self.publishes_pull_request or self.adopts_pull_request)
 
 
-CURRENT_PROTOCOL = 8
+CURRENT_PROTOCOL = 9
 """The behaviour new work starts with. Raise it, and gate the new behaviour on it, whenever a change would alter what
 the workflow does for a history recorded before: protocol 1 is the original behaviour, which old work keeps."""
 
@@ -182,6 +187,10 @@ RECORDS_DECISIONS = 7
 
 CLOSES_PULL_REQUEST = 8
 """The protocol under which a person who rejects or aborts the work also closes the pull request the work opened."""
+
+
+RESUMES_SESSIONS = 9
+"""The protocol under which an agent sent back continues its own session instead of starting a new one."""
 
 
 def course_for(entry: EntryPoint, policy: Policy, protocol: int = CURRENT_PROTOCOL) -> Course:
