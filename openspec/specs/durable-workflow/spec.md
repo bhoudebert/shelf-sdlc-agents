@@ -314,3 +314,22 @@ The system SHALL, for work started under the protocol that records decisions, ru
 
 - **WHEN** the recording activity fails
 - **THEN** the decision still takes effect and a warning is logged
+
+### Requirement: The workflow keeps what each step used and answers for it
+
+The system SHALL keep, in the workflow, one entry for each agent step in the order they ran (the phase, the round, the agent, and the usage the step reported), and SHALL answer a query for them, for finished work as well as running work; and SHALL do so without any new command or activity, so that a history recorded before it replays unchanged and has no entries.
+
+#### Scenario: A run of three steps
+
+- **WHEN** the spec writer, the spec reviewer and the spec writer again have run
+- **THEN** the query returns three entries in that order, the writer's two with rounds 0 and 1
+
+#### Scenario: An older history
+
+- **WHEN** a history recorded before usage was kept is replayed
+- **THEN** it replays deterministically and the query returns no entries
+
+#### Scenario: Finished work
+
+- **WHEN** the work has ended
+- **THEN** the query still returns its entries

@@ -745,3 +745,17 @@ The system SHALL let an administrator, from the Guard section of the admin page,
 
 - **WHEN** the instance has no overlay location
 - **THEN** the page shows the text to copy as before and says that applying it from here is not set up
+
+### Requirement: The work page shows what the agents used
+
+The system SHALL show on the page of a piece of work a table of what each agent step used (agent, round, turns, time, tokens read and written, cache, cost), the totals of each agent with its number of rounds, and the total of the work, and SHALL say plainly when nothing was reported, as for work that predates it, without hiding the rest of the page.
+
+#### Scenario: A work with rounds
+
+- **WHEN** a person opens the page of a work whose spec writer ran three rounds
+- **THEN** the table lists each of its steps with its round and the spec writer's total shows three rounds and what they cost together
+
+#### Scenario: Older work
+
+- **WHEN** the work predates usage
+- **THEN** the section says that nothing was recorded for it and the rest of the page is unchanged
