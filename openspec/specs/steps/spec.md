@@ -571,7 +571,7 @@ The system SHALL have the requirements of a piece of work written into the repos
 
 ### Requirement: The depth of a review follows the repository's choice
 
-The system SHALL tell the spec reviewer and the design reviewer how deep to look according to the repository's `review_depth`: with `quick`, one reading, only the problems that would stop the work from being built or tested, at most three, approving when a team could build from the document; with `standard`, the reviewers' own instructions unchanged; with `thorough`, a hard look at edge cases, failure modes, what is missing and what is vague, up to ten problems; and SHALL NOT change the depth of the code review, which judges correctness.
+The system SHALL tell the spec reviewer and the design reviewer how deep to look according to the depth chosen for the work when it was started, or else the repository's `review_depth`: with `quick`, one reading, only the problems that would stop the work from being built or tested, at most three, approving when a team could build from the document; with `standard`, the reviewers' own instructions unchanged; with `thorough`, a hard look at edge cases, failure modes, what is missing and what is vague, up to ten problems; and SHALL NOT change the depth of the code review, which judges correctness.
 
 #### Scenario: A quick review
 

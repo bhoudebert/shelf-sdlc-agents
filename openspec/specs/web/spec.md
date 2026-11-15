@@ -198,6 +198,21 @@ The system SHALL show on the start form three choices, each worded so that check
 - **WHEN** a person leaves the three choices checked
 - **THEN** the work waits at the spec approval, has its design reviewed and waits at a deadlock
 
+
+### Requirement: The start form lets a person choose how deep the reviews look for this work
+
+The system SHALL show on the start form a choice of how deep the spec and design reviews look (quick, standard or thorough) with a line on what each means, preset from the chosen repository's `review_depth`, SHALL change the preset when another repository is chosen, and SHALL start the work with what the form shows.
+
+#### Scenario: The repository's default
+
+- **WHEN** a person opens the form for a repository that sets `review_depth = "thorough"`
+- **THEN** thorough is selected
+
+#### Scenario: A choice for this work
+
+- **WHEN** the person selects quick and starts the work
+- **THEN** the work's spec and design reviews are quick whatever the repository's file says
+
 ### Requirement: The work page shows the timeline and takes decisions
 
 The system SHALL show where the work stands in the pipeline and offer only the decisions that fit what it waits for, and SHALL refuse a decision from someone whose role does not allow it.

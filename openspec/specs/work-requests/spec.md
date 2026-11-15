@@ -26,7 +26,7 @@ The system SHALL start work only on a repository that the app is installed on an
 
 ### Requirement: A start request may choose how much the run does without a person
 
-The system SHALL start work with the spec approval, the design review and the going on past a deadlock exactly as the request chose, and with the repository's policy for what the request left unsaid, and SHALL keep the choice with the work so that a later change of the repository's file does not alter work already running.
+The system SHALL start work with the spec approval, the design review, the going on past a deadlock and the depth of the spec and design reviews exactly as the request chose, and with the repository's policy for what the request left unsaid, and SHALL keep the choice with the work so that a later change of the repository's file does not alter work already running.
 
 #### Scenario: The request chooses
 
@@ -37,6 +37,11 @@ The system SHALL start work with the spec approval, the design review and the go
 
 - **WHEN** a request carries no choice
 - **THEN** the work follows the repository's policy
+
+#### Scenario: The request chooses the depth of the reviews
+
+- **WHEN** a request chooses thorough reviews for a repository whose policy says quick
+- **THEN** the work's spec and design reviews are thorough, and stay so if the repository's file changes
 
 ### Requirement: A start request must match the entry point
 
