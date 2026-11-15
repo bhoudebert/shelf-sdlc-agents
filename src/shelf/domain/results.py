@@ -30,25 +30,18 @@ class Results:
     conflicts: Conflicts = Conflicts.BLOCK
 
 
-def _intake(results: Results) -> str:
+def _specs(results: Results) -> str:
     return (
-        f"Besides `spec.md`, the requirements of this work belong in the repository's own specs, `{results.specs}/`: "
-        "one folder per capability with a `spec.md` of requirements, each with scenarios (WHEN / THEN). Change the "
-        "requirement that already exists when behaviour changes, add one when it is new, and follow the format of the "
-        f"specs you find there. If `{results.specs}/` does not exist, create it in the form the repository's "
-        "conventions describe (`AGENTS.md`, `CONTRIBUTING.md`), or in the standard form, with a `README.md` that says "
-        "how to write a requirement. Do not skip it because the folder is missing."
+        f"The spec has been approved: write its requirements into the repository's own specs, `{results.specs}/`, in "
+        "the same terms as `spec.md`. One folder per capability with a `spec.md` of requirements, each with scenarios "
+        "(WHEN / THEN). Change the requirement that already exists when behaviour changes, add one when it is new, and "
+        f"follow the format of the specs you find there. If `{results.specs}/` does not exist, create it in the form "
+        "the repository's conventions describe (`AGENTS.md`, `CONTRIBUTING.md`), or in the standard form, with a "
+        "`README.md` that says how to write a requirement. Do not skip it because the folder is missing."
     )
 
 
-def _spec_review(results: Results) -> str:
-    return (
-        f"The requirements of this work must also be in the repository's specs, `{results.specs}/`, in the same terms "
-        "as `spec.md`. Missing or different is an issue."
-    )
-
-
-def _design(results: Results) -> str:
+def _records(results: Results) -> str:
     return (
         f"If the change makes a lasting architectural decision, write its record in `{results.decisions}/`, numbered "
         "after the last one and following the repository's template (its status is `proposed`). A decision is lasting "
@@ -88,12 +81,10 @@ def results_note(results: Results, phase: Phase) -> str:
     """What the agent of ``phase`` is told about specs and decision records; empty when it has nothing to do there."""
     spec, adr = SPEC in results.write, ADR in results.write
     match phase:
-        case Phase.INTAKE if spec:
-            return _intake(results)
-        case Phase.SPEC_REVIEW if spec:
-            return _spec_review(results)
-        case Phase.DESIGN if adr:
-            return _design(results)
+        case Phase.DESIGN if spec or adr:
+            return "\n\n".join(
+                part for part in (_specs(results) if spec else "", _records(results) if adr else "") if part
+            )
         case Phase.DESIGN_REVIEW if adr:
             return _design_review(results)
         case Phase.CODE_REVIEW if spec or adr:

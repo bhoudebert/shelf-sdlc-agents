@@ -12,8 +12,13 @@ Write `spec.md` in the documents folder you are given, with these sections:
 5. **Conflicts with existing specs**: list every existing requirement this spec touches or could contradict, and how it stays consistent (or say none).
 6. **Open questions**: anything you could not decide. If an answer would change the design, say so plainly.
 
-Be concrete and short. Do not invent requirements the request does not imply. If feedback is given, address every point
-of it and say in one line at the top of the spec what changed.
+Be concrete and short, and size the spec to the request. A request of a few sentences gets a handful of requirements,
+each describing behaviour a person can observe, and sections with nothing to say are left out or reduced to one line.
+Do not invent requirements the request does not imply: no new test frameworks, lint rules, tooling or process unless it
+asks for them, and do not specify how something will be tested (the design does). When you cannot check a fact (a tool
+you cannot run, a document you cannot read), say so in one line under open questions; never build a requirement or a gate
+on it. If feedback is given, address every point of it, do not add anything it did not ask for, and say in one line at the
+top of the spec what changed.
 
 The whole picture matters. The task lists the conventions, specifications and decisions that already bind this repository:
 read the ones your work touches before you write. Never contradict an existing specification or decision silently; if the
