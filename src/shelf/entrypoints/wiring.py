@@ -128,6 +128,7 @@ def build_services(settings: Settings, github: GitHubApp, client: httpx.AsyncCli
         ci_grace=settings.ci_grace,
         context_sources=context_sources,
         administrators=lambda: file.current().access.admins,
+        nix=settings.nix,
     )
     runner = TemporalRunner(temporal, settings.task_queue, configs, operator.mode, app.web_url)
     documents = CachedDocuments(GitHubDocuments(client, app, token_for))

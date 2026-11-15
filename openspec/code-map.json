@@ -131,7 +131,8 @@
         "src/shelf/domain/secrets.py",
         "src/shelf/domain/usage.py",
         "src/shelf/domain/tool_detection.py",
-        "src/shelf/entrypoints/cache.py"
+        "src/shelf/entrypoints/cache.py",
+        "src/shelf/domain/nix.py"
       ],
       "tests": [
         "tests/application/test_steps.py",
@@ -179,7 +180,8 @@
         "deploy/*",
         "src/shelf/entrypoints/diagnose.py",
         "deploy/compose.yml",
-        "deploy/install.sh"
+        "deploy/install.sh",
+        "deploy/compose.nix.yml"
       ],
       "tests": [
         "tests/entrypoints/*.py",

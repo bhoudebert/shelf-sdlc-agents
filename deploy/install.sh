@@ -30,6 +30,8 @@ value() { sed -n "s/^$1=//p" "$env_file" | tail -n 1 | sed -e 's/^"//' -e 's/"$/
 if [ -f "$here/../.env" ]; then
   echo "WARNING: there is a .env at the repository root. Docker Compose reads only $env_file: move what you need there." >&2
 fi
+# SHELF_NIX=on adds a persistent Nix store and its daemon (compose.nix.yml): see the operate page of the guide.
+if [ "$(value SHELF_NIX)" = "on" ]; then compose="$compose -f $here/compose.nix.yml"; fi
 for name in PUBLIC_URL SESSION_SECRET; do
   [ -n "$(value $name)" ] || { echo "ERROR: $name is empty in $env_file." >&2; exit 1; }
 done
@@ -142,6 +144,14 @@ if [ "$(value SHELF_WARDEN)" != "off" ]; then
     printf '%s\n' "$doctor" | grep -E '^(warn|fail|error)' | sed 's/^/  /' >&2
   elif printf '%s\n' "$doctor" | grep -q '^ok'; then
     echo "Guard: Warden is wired into the agents (docker compose exec worker warden status shows what it saw)."
+  fi
+  # Nix is optional: say whether the worker reaches the daemon whose store it reads.
+  if [ "$(value SHELF_NIX)" = "on" ]; then
+    if $compose exec -T worker sh -c 'NIX_REMOTE=daemon /nix/var/nix/profiles/default/bin/nix --extra-experimental-features nix-command store info' >/dev/null 2>&1; then
+      echo "Nix: the worker reaches the Nix daemon (the store is kept between updates; docker compose exec nix nix-collect-garbage -d empties it)."
+    else
+      echo "WARNING: SHELF_NIX=on but the worker cannot reach the Nix daemon: flakes will not give the agents their tools. Check: $compose logs nix" >&2
+    fi
   fi
   # The admin page can allow a command or block a host: the web service must be able to write its rules.
   if $compose exec -T web sh -c 'test -w /var/lib/shelf-guard' >/dev/null 2>&1; then

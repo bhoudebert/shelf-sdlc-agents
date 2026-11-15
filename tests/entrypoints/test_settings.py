@@ -132,3 +132,14 @@ def test_agents_may_read_the_web_unless_the_operator_says_off() -> None:
 def test_a_web_setting_that_is_not_on_or_off_is_refused_by_name() -> None:
     with pytest.raises(ValueError, match="SHELF_WEB must be on or off, not 'maybe'"):
         from_environ({**BASE, "SHELF_WEB": "maybe"})
+
+
+def test_nix_is_off_unless_the_operator_says_on() -> None:
+    assert from_environ(BASE).nix is False
+    assert from_environ({**BASE, "SHELF_NIX": "on"}).nix is True
+    assert from_environ({**BASE, "SHELF_NIX": "off"}).nix is False
+
+
+def test_a_nix_setting_that_is_not_on_or_off_is_refused_by_name() -> None:
+    with pytest.raises(ValueError, match="SHELF_NIX must be on or off, not 'maybe'"):
+        from_environ({**BASE, "SHELF_NIX": "maybe"})
