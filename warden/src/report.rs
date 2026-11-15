@@ -176,17 +176,45 @@ pub fn adoption_json(records: &[warden_audit::Record]) -> String {
     let calls: Vec<&warden_audit::Record> = records.iter().filter(|r| r.entry.kind != "run").collect();
     let mut would_stop = 0_usize;
     let mut by_category: BTreeMap<&str, usize> = BTreeMap::new();
+    let mut stopped: Vec<&warden_audit::Record> = Vec::new();
+    let mut web_hosts: BTreeMap<String, usize> = BTreeMap::new();
     for record in &calls {
         let entry = &record.entry;
         let intended = if entry.intended.is_empty() { entry.decision.as_str() } else { entry.intended.as_str() };
         if intended == "ask" || intended == "deny" {
             would_stop += 1;
+            stopped.push(record);
             for category in &entry.categories {
                 *by_category.entry(category.as_str()).or_default() += 1;
             }
         }
+        if entry.kind == "web"
+            && entry.tool.to_ascii_lowercase().contains("fetch")
+            && let Some(host) = host_of(&entry.summary)
+        {
+            *web_hosts.entry(host).or_default() += 1;
+        }
     }
     let summary = warden_audit::summarize(records);
+    let recent: Vec<serde_json::Value> = stopped
+        .iter()
+        .rev()
+        .take(RECENT)
+        .map(|record| {
+            let entry = &record.entry;
+            serde_json::json!({
+                "at": record.ts,
+                "agent": entry.agent,
+                "session": entry.session,
+                "kind": entry.kind,
+                "decision": entry.decision,
+                "intended": entry.intended,
+                "categories": entry.categories,
+                "reason": entry.reason,
+                "summary": entry.summary.chars().take(SUMMARY).collect::<String>(),
+            })
+        })
+        .collect();
     let object = serde_json::json!({
         "records": summary.total,
         "calls": calls.len(),
@@ -194,8 +222,26 @@ pub fn adoption_json(records: &[warden_audit::Record]) -> String {
         "by_category": by_category,
         "by_decision": summary.decisions,
         "redactions": summary.redactions,
+        "recent": recent,
+        "web_hosts": web_hosts,
     });
     format!("{object}\n")
+}
+
+/// How many stopped calls the JSON report lists, and how much of each command it keeps.
+const RECENT: usize = 30;
+const SUMMARY: usize = 160;
+
+/// The host of a fetched address, without its scheme, credentials, port, path or query.
+fn host_of(address: &str) -> Option<String> {
+    let rest = address.split_once("://").map_or(address, |(_, rest)| rest);
+    let authority = rest.split(['/', '?', '#']).next()?;
+    let hostport = authority.rsplit('@').next()?;
+    let host = match hostport.strip_prefix('[') {
+        Some(inside) => inside.split(']').next()?,
+        None => hostport.split(':').next()?,
+    };
+    (!host.is_empty()).then(|| host.to_ascii_lowercase())
 }
 
 /// `warden audit verify`.
