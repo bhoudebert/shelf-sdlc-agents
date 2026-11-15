@@ -107,6 +107,10 @@ def parse_repo_config(text: str) -> RepoConfig:
     try:
         entries = frozenset(EntryPoint(name) for name in document.get("entries", [e.value for e in EntryPoint]))
         role_map = {Role(name): _names(roles, name) for name in roles}
+        empty = sorted(role.value for role, people in role_map.items() if not people)
+        if empty:
+            message = f"[roles] {', '.join(empty)} has no one: list the people, or leave the role out"
+            raise ConfigError(message)
         built = Policy(**policy)
     except (ValueError, TypeError) as error:
         raise ConfigError(str(error)) from error

@@ -143,3 +143,12 @@ def test_without_a_results_section_the_standard_places_apply() -> None:
 def test_a_mistake_in_the_results_section_is_refused_with_a_reason(text: str, message: str) -> None:
     with pytest.raises(ConfigError, match=message):
         parse_repo_config(text)
+
+
+def test_a_role_with_no_one_in_it_is_refused_because_it_would_lock_its_gate() -> None:
+    with pytest.raises(ConfigError, match=r"product_owner has no one: list the people, or leave the role out"):
+        parse_repo_config("[roles]\nproduct_owner = []\ntech_lead = ['bob']")
+
+
+def test_an_empty_roles_section_still_means_anyone_may_decide() -> None:
+    assert parse_repo_config("[roles]").roles == {}
