@@ -32,8 +32,11 @@ class OverlayRule:
 
 MAX_COMMAND = 300
 _HOST = re.compile(r"[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?")
-_SITE = re.compile(r"(\*\.)?([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}")
-_NUMERIC = re.compile(r"[0-9.]+")
+_LABEL_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789-")
+MAX_SITE = 253
+MAX_LABEL = 63
+MIN_LABELS = 2
+MIN_TOP_LEVEL = 2
 _LOGIN = re.compile(r"[A-Za-z0-9-]{1,39}")
 
 
@@ -62,17 +65,39 @@ def deny_host(host: str, by: str, at: str) -> OverlayRule | None:
     return OverlayRule(_id(RuleKind.DENY_HOST, host), RuleKind.DENY_HOST, host, by, at)
 
 
-def allow_site(site: str, by: str, at: str) -> OverlayRule | None:
-    """A rule that lets a sandboxed command reach ``site``: a public host name, or ``*.`` and a domain of two labels.
+def _is_label(label: str) -> bool:
+    """One part of a host name: letters, digits and hyphens, not starting or ending with a hyphen."""
+    return (
+        0 < len(label) <= MAX_LABEL
+        and not label.startswith("-")
+        and not label.endswith("-")
+        and all(char in _LABEL_CHARS for char in label)
+    )
 
-    Nothing else: no address, no name without a dot, no scheme, port or path, no wildcard over a whole top-level domain.
+
+def is_valid_site(site: str) -> bool:
+    """Whether ``site`` is a public host name, or ``*.`` and a domain of two labels at least; nothing else.
+
+    No address, no name without a dot, no scheme, port or path, no wildcard over a whole top-level domain. It is checked
+    label by label, with no regular expression, because the text comes from a form.
     """
-    site = site.strip().lower()
-    wildcard = site.startswith("*.")
+    if not site or len(site) > MAX_SITE:
+        return False
     labels = site.removeprefix("*.").split(".")
-    if not _SITE.fullmatch(site) or _NUMERIC.fullmatch(site) or len(site) > 253 or (wildcard and len(labels) < 2):  # noqa: PLR2004
-        return None
-    if not _LOGIN.fullmatch(by):
+    top = labels[-1]
+    return (
+        len(labels) >= MIN_LABELS
+        and all(_is_label(label) for label in labels)
+        and len(top) >= MIN_TOP_LEVEL
+        and top.isascii()
+        and top.isalpha()
+    )
+
+
+def allow_site(site: str, by: str, at: str) -> OverlayRule | None:
+    """A rule that lets a sandboxed command reach ``site``; ``None`` when it is not a valid site or the login is odd."""
+    site = site.strip().lower()
+    if not is_valid_site(site) or not _LOGIN.fullmatch(by):
         return None
     return OverlayRule(_id(RuleKind.ALLOW_SITE, site), RuleKind.ALLOW_SITE, site, by, at)
 
