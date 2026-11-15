@@ -26,6 +26,7 @@ from shelf.adapters.github_app.inspector import GitHubAppInspector
 from shelf.adapters.github_app.pulls import GitHubPullRequests
 from shelf.adapters.github_app.references import GitHubReferences
 from shelf.adapters.github_app.settings import GitHubAppSettings
+from shelf.adapters.runs.files import FileRunRecords
 from shelf.adapters.temporal.runner import TemporalRunner
 from shelf.adapters.warden.rules_store import FileGuardRules
 from shelf.application.steps import Steps
@@ -132,6 +133,7 @@ def build_services(settings: Settings, github: GitHubApp, client: httpx.AsyncCli
         ci_grace=settings.ci_grace,
         context_sources=context_sources,
         administrators=lambda: file.current().access.admins,
+        run_records=FileRunRecords(Path(settings.runs_dir)) if settings.runs_dir else None,
         nix=settings.nix,
     )
     runner = TemporalRunner(temporal, settings.task_queue, configs, operator.mode, app.web_url)

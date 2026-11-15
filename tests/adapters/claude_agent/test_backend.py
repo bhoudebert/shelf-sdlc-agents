@@ -359,3 +359,61 @@ def test_an_unreadable_store_of_sites_leaves_the_configured_ones() -> None:
     sandbox = backend.options(task(Phase.IMPLEMENT)).sandbox
     assert sandbox is not None
     assert sandbox.get("network") == {"allowedDomains": ["github.com"]}
+
+
+def test_the_tool_calls_of_a_run_are_noted_and_a_failed_one_keeps_what_it_said() -> None:
+    from claude_agent_sdk import AssistantMessage, ToolResultBlock, ToolUseBlock, UserMessage  # noqa: PLC0415
+
+    from shelf.adapters.claude_agent.backend import watch_run  # noqa: PLC0415
+    from shelf.ports.agents import RunSink  # noqa: PLC0415
+
+    sink = RunSink()
+    pending: dict[str, int] = {}
+    ask = AssistantMessage(
+        content=[
+            ToolUseBlock("t1", "Bash", {"command": "npx prettier --check ."}),
+            ToolUseBlock("t2", "Read", {"file_path": "a.ts"}),
+        ],
+        model="m",
+    )
+    watch_run(ask, sink, pending)
+    answer = UserMessage(
+        content=[
+            ToolResultBlock(
+                "t1", "EROFS: read-only file system ghp_abcdefghijklmnopqrstuvwxyz0123456789", is_error=True
+            ),
+            ToolResultBlock("t2", "ok", is_error=False),
+        ]
+    )
+    watch_run(answer, sink, pending)
+    assert [(e.name, e.summary, e.ok) for e in sink.tools] == [
+        ("Bash", "npx prettier --check .", False),
+        ("Read", "a.ts", True),
+    ]
+    assert "EROFS" in sink.tools[0].note
+    assert "ghp_abcdef" not in sink.tools[0].note
+
+
+def test_how_a_run_ended_and_what_it_was_refused_are_kept() -> None:
+    from claude_agent_sdk import ResultMessage  # noqa: PLC0415
+
+    from shelf.adapters.claude_agent.backend import note_result  # noqa: PLC0415
+    from shelf.ports.agents import RunSink  # noqa: PLC0415
+
+    sink = RunSink()
+    message = ResultMessage(
+        subtype="error_max_turns",
+        duration_ms=1,
+        duration_api_ms=1,
+        is_error=True,
+        num_turns=40,
+        session_id="s",
+        stop_reason="max_turns",
+        terminal_reason="max_turns",
+        permission_denials=[{"tool_name": "Bash", "tool_input": {"command": "cat > opencode.json"}}],
+        errors=["too many turns"],
+    )
+    note_result(message, sink)
+    assert (sink.subtype, sink.stop_reason, sink.terminal_reason) == ("error_max_turns", "max_turns", "max_turns")
+    assert sink.denials == ["Bash: cat > opencode.json"]
+    assert sink.errors == ["too many turns"]

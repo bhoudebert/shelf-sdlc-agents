@@ -54,6 +54,7 @@ def router(web: Web) -> APIRouter:
                 documents = None
         usage = summarize(await web.deps.runner.usage(WorkId(work_id)))
         guard = await _guard_calls(web)
+        runs = await web.deps.run_records.read(work_id) if web.deps.run_records is not None else None
         started = min((at for _, at in work.times if at), default="")
         facts = [
             ("Repository", item.repo),
@@ -82,6 +83,7 @@ def router(web: Web) -> APIRouter:
                 generated=datetime.now(UTC).strftime("%d %b %Y %H:%M UTC"),
                 guard=guard,
                 started=started,
+                runs=runs,
                 ended=work.updated_at if work.outcome else "",
             )
         )

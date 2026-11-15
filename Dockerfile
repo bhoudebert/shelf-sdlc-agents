@@ -77,6 +77,8 @@ COPY --from=warden /usr/local/bin/warden /usr/local/bin/warden
 RUN mkdir -p /var/lib/warden && chown shelf:shelf /var/lib/warden
 # The rules an administrator adds to the guard from the admin page: the web service writes here, the worker reads.
 RUN mkdir -p /var/lib/shelf-guard && chown shelf:shelf /var/lib/shelf-guard
+# What each agent run did, for diagnosing a work: the worker writes it, the web service reads it.
+RUN mkdir -p /var/lib/shelf-runs && chown shelf:shelf /var/lib/shelf-runs
 # Where the synced catalog and the managed policy are mounted: owned by the agent user, so a new volume is writable by the sync.
 RUN mkdir -p /opt/shelf/catalog /etc/claude-code && chown shelf:shelf /opt/shelf/catalog /etc/claude-code
 COPY --from=build --chown=shelf:shelf /app /app

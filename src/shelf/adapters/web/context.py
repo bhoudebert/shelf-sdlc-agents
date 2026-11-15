@@ -29,6 +29,7 @@ from shelf.ports.forge import Forge
 from shelf.ports.guard import GuardReader
 from shelf.ports.guard_rules import GuardRules
 from shelf.ports.references import References
+from shelf.ports.run_records import RunRecords
 from shelf.ports.runner import WorkRunner
 from shelf.ports.steps import PullRequests
 
@@ -102,6 +103,8 @@ class WebDeps:
     """The pull requests, so that closing a work from its page also closes the pull request it opened."""
     guard_rules: GuardRules | None = None
     """Where the rules an administrator adds from the page are kept; the page offers text to copy without it."""
+    run_records: RunRecords | None = None
+    """Where the records of agent runs are read from, for the file of a work; the file says so without it."""
 
     def access(self) -> AccessRules:
         """The access rules in force now."""

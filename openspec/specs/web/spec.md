@@ -985,6 +985,20 @@ The system SHALL show the note that the guard is only watching, above the list o
 - **WHEN** the guard's latest call was judged in audit mode
 - **THEN** the note is shown
 
+### Requirement: The downloaded file holds the record of every agent run
+
+The system SHALL add to the file of a work, when run records are kept, a section for each agent run in order with: the step, the round and the role, when it began and ended, how it ended and why it stopped, the model, what it used, whether it continued a session or started again, what the worker had told it about tools and the CI, the errors it reported, the calls its permissions refused, the number of tool calls, and the calls that failed with the start of what each said, then the other calls in order; SHALL say plainly when no record exists (a work from before they were kept, or an instance that keeps none) without failing the download.
+
+#### Scenario: A work with failed commands
+
+- **WHEN** an agent's command failed during a run
+- **THEN** the file lists that command under the run, marked as failed with the start of the error
+
+#### Scenario: A work with no records
+
+- **WHEN** no record exists for the work
+- **THEN** the file says that no run record was kept and the rest is unchanged
+
 ### Requirement: The downloaded file says what the guard flagged while the work ran
 
 The system SHALL add to the file of a work, when the guard can be read, a section listing the calls the guard stopped or would have stopped between the first step of the work and its last activity (or now, while it runs), each with its time, the agent, what it was (the command or the address, as the guard shortens it), the risks found, the reason, and whether it was stopped or only recorded; SHALL say that the guard keeps only its latest calls when the oldest it lists is later than the start of the work, so that a missing call is not taken for none; and SHALL say plainly, without failing the download, when the guard cannot be read, and when it flagged nothing in that time.

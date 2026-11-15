@@ -65,12 +65,15 @@ services:
       WARDEN_STATE_DIR: /var/lib/warden
       # Where the admin page keeps the rules an administrator adds to the guard: the one place this service writes.
       SHELF_GUARD_RULES_DIR: /var/lib/shelf-guard
+      # What each agent run did, kept for diagnosing a work: the worker writes it, the web page reads it.
+      SHELF_RUNS_DIR: /var/lib/shelf-runs
     # A `volumes` key replaces the shared one, so the shared mounts are repeated here.
     volumes:
       - ./config:/etc/shelf:ro
       - ./secrets:/run/secrets:ro
       - warden-state:/var/lib/warden:ro
       - guard-rules:/var/lib/shelf-guard
+      - run-records:/var/lib/shelf-runs:ro
     ports:
       # Every interface unless WEB_BIND says otherwise (127.0.0.1 when your reverse proxy runs on this server).
       - "${WEB_BIND:-0.0.0.0}:${WEB_PORT:-8080}:8080"
@@ -102,6 +105,8 @@ services:
       WARDEN_OVERLAY_POLICY: /var/lib/shelf-guard/warden.ui.toml
       # The sites an administrator allowed from the admin page are read from the same folder, for every agent step.
       SHELF_GUARD_RULES_DIR: /var/lib/shelf-guard
+      # What each agent run did, kept for diagnosing a work: the worker writes it, the web page reads it.
+      SHELF_RUNS_DIR: /var/lib/shelf-runs
       # A command in the agents' sandbox may write only in $TMPDIR (/tmp/claude-1000, the agent user's uid) and its working
       # directory: the session tokens and the pending audit records live there, and the hooks move the records to the log.
       WARDEN_SESSION_DIR: /tmp/claude-1000/warden
@@ -116,6 +121,7 @@ services:
       - catalog-plugins:/opt/shelf/catalog:ro
       - claude-policy:/etc/claude-code:ro
       - guard-rules:/var/lib/shelf-guard:ro
+      - run-records:/var/lib/shelf-runs
     # The agents' sandbox (bubblewrap) needs user namespaces, which the default seccomp profile blocks. This is the only
     # service that relaxes it, and the agents it runs only ever see a clone of the repository and a one-hour token.
     security_opt:
@@ -142,6 +148,7 @@ volumes:
   temporal-data:
   worker-cache:
   warden-state:
+  run-records:
   guard-rules:
   catalog-plugins:
   claude-policy:

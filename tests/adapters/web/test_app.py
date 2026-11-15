@@ -36,6 +36,7 @@ from shelf.ports.documents import Documents
 from shelf.ports.guard import GuardReader
 from shelf.ports.guard_rules import GuardRules
 from shelf.ports.references import References
+from shelf.ports.run_records import RunRecords
 from shelf.ports.runner import UnreachableWorkError
 from shelf.ports.steps import PullRequests
 from tests.fakes import FakeConfigs, FakeForge, FakeRunner
@@ -69,6 +70,7 @@ class Fixture:
         guard: GuardReader | None = None,
         guard_rules: GuardRules | None = None,
         pulls: PullRequests | None = None,
+        run_records: RunRecords | None = None,
     ) -> None:
         self.forge = FakeForge(identities={"token-code": ALICE}, repos={"token-code": (REPO,)})
         self.runner = FakeRunner()
@@ -89,6 +91,7 @@ class Fixture:
             guard,
             pulls,
             guard_rules,
+            run_records,
         )
         self.client = TestClient(create_app(deps), base_url="https://shelf.example.org", follow_redirects=False)
 
@@ -1553,3 +1556,47 @@ def test_a_guard_that_cannot_be_read_is_said_in_the_downloaded_file() -> None:
     response = fixture.client.get("/work/work-1/export")
     assert response.status_code == 200
     assert "The guard could not be read" in response.text
+
+
+class MemoryRuns:
+    def __init__(self, found: list[Any]) -> None:
+        self.found = found
+
+    async def write(self, record: Any) -> None:
+        self.found.append(record)
+
+    async def read(self, work_id: str) -> list[Any]:
+        return self.found
+
+
+def test_the_downloaded_file_holds_the_run_records_with_the_failed_commands() -> None:
+    from shelf.domain.runlog import RunRecord, ToolEvent  # noqa: PLC0415
+
+    run = RunRecord(
+        "work-1",
+        "implement",
+        0,
+        "implementer",
+        "t0",
+        "t1",
+        "failed",
+        error="boom",
+        tools=(ToolEvent("Bash", "npm ci", ok=False, note="EACCES"),),
+        tool_calls=1,
+    )
+    fixture = Fixture(
+        documents=FakeDocuments({}), conversations=FakeConversations(STORY), run_records=MemoryRuns([run])
+    )
+    fixture.sign_in()
+    fixture.runner.views[WorkId("work-1")] = WorkView(WorkId("work-1"), REPO, "alice", EntryPoint.NEED, Phase.DESIGN)
+    text = fixture.client.get("/work/work-1/export").text
+    assert "FAILED: EACCES" in text
+    assert "implementer · implement, round 0 · failed" in text
+    assert "**Error:** boom" in text
+
+
+def test_a_downloaded_file_from_an_instance_with_no_run_records_says_so() -> None:
+    fixture = Fixture(documents=FakeDocuments({}), conversations=FakeConversations(STORY))
+    fixture.sign_in()
+    fixture.runner.views[WorkId("work-1")] = WorkView(WorkId("work-1"), REPO, "alice", EntryPoint.NEED, Phase.DESIGN)
+    assert "keeps no record of agent runs" in fixture.client.get("/work/work-1/export").text

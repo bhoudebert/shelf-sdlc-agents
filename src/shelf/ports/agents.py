@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Protocol
 
 from shelf.domain.roles import AgentRole
+from shelf.domain.runlog import ToolEvent
 from shelf.domain.usage import Usage
 
 
@@ -16,6 +17,18 @@ class RunSink:
     usage: Usage | None = None
     session_id: str = ""
     """The agent's session, so that a later run can continue it."""
+    tools: list[ToolEvent] = field(default_factory=list[ToolEvent])
+    """Every tool call the agent made, in order, shortened and redacted."""
+    denials: list[str] = field(default_factory=list[str])
+    """The tool calls its permissions refused."""
+    subtype: str = ""
+    stop_reason: str = ""
+    terminal_reason: str = ""
+    api_error_status: int | None = None
+    errors: list[str] = field(default_factory=list[str])
+    fell_back: bool = False
+    """Whether a session that could not be continued was started again from the whole task."""
+    error: str = ""
 
 
 @dataclass(frozen=True, slots=True)

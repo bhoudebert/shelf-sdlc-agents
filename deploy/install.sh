@@ -159,6 +159,12 @@ if [ "$(value SHELF_WARDEN)" != "off" ]; then
   else
     echo "WARNING: the admin page cannot write the guard's rules: /var/lib/shelf-guard is not writable in the web container." >&2
   fi
+  # Each agent run leaves a record the downloaded file of a work shows: the worker must be able to write them.
+  if $compose exec -T worker sh -c 'test -w /var/lib/shelf-runs' >/dev/null 2>&1; then
+    echo "Run records: each agent run is kept for 30 days and shown in the file of a work (Download on its page)."
+  else
+    echo "WARNING: the worker cannot write the run records: /var/lib/shelf-runs is not writable in the worker container." >&2
+  fi
 fi
 echo "Open $(sed -n 's/^PUBLIC_URL=//p' "$env_file"): if the GitHub App is not registered yet, you will be guided."
 echo "Logs: $compose logs -f"

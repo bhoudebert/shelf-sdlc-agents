@@ -4,6 +4,7 @@ import asyncio
 import logging
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field, replace
+from datetime import UTC, datetime
 from pathlib import Path
 
 from shelf.domain.ci import Ci, CiState
@@ -28,6 +29,7 @@ from shelf.domain.result import Err, Ok
 from shelf.domain.results import Results, results_note
 from shelf.domain.review import ReviewDepth, review_note
 from shelf.domain.roles import PROVIDED_DOCUMENT, REVIEWERS, ROLES, TITLER, documents_dir, legacy_documents_dir
+from shelf.domain.runlog import RunRecord, keep_events, redact
 from shelf.domain.story import agent_comment
 from shelf.domain.titles import clean_title, fallback_title
 from shelf.domain.tool_detection import DECLARED, SOURCES, detect_tools, is_declared
@@ -41,12 +43,14 @@ from shelf.domain.toolchain import (
     tools_failed,
     tools_ready,
 )
+from shelf.domain.usage import Usage
 from shelf.domain.verdict import parse_verdict
 from shelf.domain.web import WEB_NOTE
 from shelf.domain.work import WAITING_FOR_CI, Produced, Reviewed, RunStep, StepResult, Verdict, Verified
 from shelf.ports.agents import AgentBackend, AgentTask, RunSink
 from shelf.ports.configs import RepoConfigs
 from shelf.ports.context_sources import ContextSources
+from shelf.ports.run_records import RunRecords
 from shelf.ports.steps import PullRequests
 from shelf.ports.workspace import Checkout, Workspace, Workspaces
 
@@ -304,6 +308,9 @@ class Steps:
     """Whether a repository's Nix flake may give the agent its environment (a daemon and a store are then running)."""
     administrators: Callable[[], frozenset[str]] = frozenset[str]
     """The logins of the instance's administrators now, for the record of who decided what."""
+    run_records: RunRecords | None = None
+    """Where what each agent run did is kept, for diagnosing a work afterwards; none keeps nothing."""
+    now: Callable[[], datetime] = lambda: datetime.now(UTC)
     """Where other repositories are read from, as reference material put next to the clone (none without it)."""
 
     async def run(self, work: WorkContext, step: RunStep) -> StepResult:
@@ -415,8 +422,8 @@ class Steps:
         )
         sink = RunSink()
         asked = continuation_prompt(step, folder_of(workspace.path, work.id), ci=ci_report) if step.session else prompt
-        answer = await self._ask_agent(
-            work, step, workspace, token, (asked, prompt if step.session else ""), sink, setup.env
+        answer = await self._ask_recorded(
+            (work, step, workspace, token), (asked, prompt if step.session else ""), sink, (setup, ci_report)
         )
         role = ROLES[step.phase]
         if step.phase in REVIEWERS:
@@ -491,6 +498,77 @@ class Steps:
             lines += ["", "The request:", work.request.text.strip()[:2000]]
         picture = self._picture(work, workspace)
         return "\n".join([*lines, "", picture] if picture else lines)
+
+    async def _ask_recorded(
+        self,
+        where: tuple[WorkContext, RunStep, Workspace, str],
+        prompts: tuple[str, str],
+        sink: RunSink,
+        told: tuple[ToolSetup, str],
+    ) -> str:
+        """Ask the agent and keep what the run did, whether it finished or failed; keeping it never stops the step."""
+        work, step, workspace, token = where
+        setup, ci_report = told
+        started = self.now()
+        try:
+            answer = await self._ask_agent(work, step, workspace, token, prompts, sink, setup.env)
+        except Exception as error:
+            await self._keep_run(
+                work, step, sink, started, (setup, ci_report), outcome="failed", answer="", error=error
+            )
+            raise
+        await self._keep_run(work, step, sink, started, (setup, ci_report), outcome="finished", answer=answer)
+        return answer
+
+    async def _keep_run(  # noqa: PLR0913 - what one record is made of
+        self,
+        work: WorkContext,
+        step: RunStep,
+        sink: RunSink,
+        started: datetime,
+        told: tuple[ToolSetup, str],
+        *,
+        outcome: str,
+        answer: str,
+        error: Exception | None = None,
+    ) -> None:
+        if self.run_records is None:
+            return
+        setup, ci_report = told
+        try:
+            used = sink.usage or Usage()
+            await self.run_records.write(
+                RunRecord(
+                    work_id=str(work.id),
+                    phase=step.phase.name.lower(),
+                    attempt=step.attempt,
+                    role=ROLES[step.phase].name,
+                    started=started.isoformat(timespec="seconds"),
+                    ended=self.now().isoformat(timespec="seconds"),
+                    outcome=outcome,
+                    model=self.model or (used.models[0] if used.models else ""),
+                    usage=used,
+                    session=sink.session_id,
+                    resumed=bool(step.session) and not sink.fell_back,
+                    fell_back=sink.fell_back,
+                    subtype=sink.subtype,
+                    stop_reason=sink.stop_reason,
+                    terminal_reason=sink.terminal_reason,
+                    api_error_status=sink.api_error_status,
+                    error=sink.error or (redact(" ".join(str(error).split()))[:400] if error else ""),
+                    errors=tuple(sink.errors),
+                    denials=tuple(sink.denials),
+                    setup=setup.note,
+                    ci=ci_report,
+                    tools=keep_events(sink.tools),
+                    tool_calls=len(sink.tools),
+                    web=self.web,
+                    max_turns=self.max_turns,
+                    answer_chars=len(answer),
+                )
+            )
+        except Exception:
+            log.warning("could not keep the record of a run of %s", work.id, exc_info=True)
 
     async def _ask_agent(  # noqa: PLR0913, PLR0917 - one argument per thing the agent needs
         self,
