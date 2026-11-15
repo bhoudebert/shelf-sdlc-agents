@@ -36,6 +36,50 @@
       <dt>Audit chain</dt><dd>{{ "intact" if g.chain_intact else "BROKEN" }}</dd>
       {% if g.top_categories() %}<dt>Risks found most</dt><dd>{% for name, count in g.top_categories() %}{{ name }} ({{ count }}){{ ", " if not loop.last }}{% endfor %}</dd>{% endif %}
     </dl>
+    {% if g.recent %}
+    <h3 id="stopped-title">Stopped, or would have been</h3>
+    <p class="muted">The latest {{ g.recent | length }}, newest first. A rule is text to copy into your operator policy file (<code>deploy/config/warden.toml</code>): nothing here changes the guard.</p>
+    <div class="table-wrap">
+      <table class="admin-table wide" aria-labelledby="stopped-title">
+        <thead><tr><th>When (UTC)</th><th>Agent</th><th>What</th><th>Risks</th><th>Why</th></tr></thead>
+        <tbody>
+        {% for call in g.recent %}
+          <tr>
+            <td class="nowrap">{{ call.at[:16] | replace("T", " ") }}</td>
+            <td class="nowrap">{{ call.agent }}</td>
+            <td><code>{{ call.summary }}</code>
+              {% set rule = call.rule_to_allow() %}
+              {% if rule %}
+              <details class="rule"><summary>Allow it next time</summary><pre><code>{{ rule }}</code></pre></details>
+              {% elif not call.can_be_allowed %}
+              <br><small>No rule can allow this: the guard always refuses it.</small>
+              {% endif %}
+            </td>
+            <td class="nowrap">{{ call.categories | join(", ") }}</td>
+            <td>{{ call.reason }}<br><small>{{ call.decision }}{% if call.intended and call.intended != call.decision %}, the policy meant {{ call.intended }}{% endif %}</small></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+    {% if g.web_hosts %}
+    <h3 id="hosts-title">What the agents read on the web</h3>
+    <div class="table-wrap">
+      <table class="admin-table wide" aria-labelledby="hosts-title">
+        <thead><tr><th>Host</th><th>Fetched</th><th></th></tr></thead>
+        <tbody>
+        {% for host, count in g.web_hosts | dictsort(by="value", reverse=true) %}
+          <tr>
+            <td><code>{{ host }}</code></td>
+            <td>{{ count }}</td>
+            <td><details class="rule"><summary>Block it next time</summary><pre><code>{{ deny_host_rule(host) }}</code></pre></details></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
     {% else %}
     <p class="muted">{{ guard.why_not }}</p>
     {% endif %}
