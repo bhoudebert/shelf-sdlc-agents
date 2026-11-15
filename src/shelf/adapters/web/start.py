@@ -39,7 +39,12 @@ def depth_of(value: str) -> ReviewDepth | None:
 
 
 def chosen_by(
-    form: str, spec_approval: str, design_review: str, stop_on_deadlock: str, review_depth: str = ""
+    form: str,
+    spec_approval: str,
+    design_review: str,
+    stop_on_deadlock: str,
+    spec_review_depth: str = "",
+    design_review_depth: str = "",
 ) -> Autonomy | None:
     """What the form's three boxes say, or ``None`` when the form did not show them.
 
@@ -52,7 +57,8 @@ def chosen_by(
         spec_approval=bool(spec_approval),
         design_review=bool(design_review),
         proceed_on_deadlock=not stop_on_deadlock,
-        review_depth=depth_of(review_depth),
+        spec_review_depth=depth_of(spec_review_depth),
+        design_review_depth=depth_of(design_review_depth),
     )
 
 
@@ -122,9 +128,12 @@ def router(web: Web) -> APIRouter:
         spec_approval: Annotated[str, Form()] = "",
         design_review: Annotated[str, Form()] = "",
         stop_on_deadlock: Annotated[str, Form()] = "",
-        review_depth: Annotated[str, Form()] = "",
+        spec_review_depth: Annotated[str, Form()] = "",
+        design_review_depth: Annotated[str, Form()] = "",
     ) -> Response:
-        chosen = chosen_by(autonomy_form, spec_approval, design_review, stop_on_deadlock, review_depth)
+        chosen = chosen_by(
+            autonomy_form, spec_approval, design_review, stop_on_deadlock, spec_review_depth, design_review_depth
+        )
         try:
             asked = WorkRequest(
                 RepoRef.parse(repo),

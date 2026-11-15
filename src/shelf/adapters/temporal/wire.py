@@ -42,8 +42,10 @@ class WorkInput:
     design_review: bool = True
     proceed_on_deadlock: bool = False
     """Whether a spec or design review that cannot settle lets the work go on; older work has False."""
-    review_depth: str = ""
-    """How deep the spec and design reviews look, chosen when the work started; empty for work that predates it."""
+    spec_review_depth: str = ""
+    """How deep the spec review looks, chosen when the work started; empty for work that predates it."""
+    design_review_depth: str = ""
+    """How deep the design review looks, chosen when the work started; empty for work that predates it."""
     poll_base_seconds: float = 30.0
     poll_ceiling_seconds: float = 900.0
     protocol: int = 1
@@ -187,7 +189,8 @@ def context_of(work: WorkInput) -> WorkContext:
             work.spec_approval,
             work.design_review,
             work.proceed_on_deadlock,
-            ReviewDepth(work.review_depth) if work.review_depth else None,
+            ReviewDepth(work.spec_review_depth) if work.spec_review_depth else None,
+            ReviewDepth(work.design_review_depth) if work.design_review_depth else None,
         ),
     )
     return WorkContext(WorkId(work.work_id), request)

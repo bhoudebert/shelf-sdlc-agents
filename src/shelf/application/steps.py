@@ -68,6 +68,14 @@ def adopted_note(number: int | None, base: str) -> str:
     )
 
 
+def _depth_for(work: WorkContext, phase: Phase, config: RepoConfig) -> ReviewDepth:
+    """How deep this review looks: what was chosen for the work, else the repository's file."""
+    chosen = work.request.autonomy
+    if phase is Phase.SPEC_REVIEW:
+        return (chosen and chosen.spec_review_depth) or config.policy.spec_review_depth
+    return (chosen and chosen.design_review_depth) or config.policy.design_review_depth
+
+
 def folder_of(root: Path, work_id: WorkId) -> str:
     """The folder a work keeps its documents in: the one it already has (a run that began before ``.shelf``)."""
     old = legacy_documents_dir(work_id)
@@ -252,7 +260,7 @@ class Steps:
             context=_context_note(work),
             folder=folder_of(workspace.path, work.id),
             results=config.results,
-            depth=(work.request.autonomy and work.request.autonomy.review_depth) or config.policy.review_depth,
+            depth=_depth_for(work, step.phase, config),
         )
         answer = await self._ask_agent(work, step, workspace, token, prompt)
         role = ROLES[step.phase]

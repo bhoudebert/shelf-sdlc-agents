@@ -75,11 +75,11 @@ def parse_operator(text: str) -> OperatorConfig:
     )
 
 
-def _depth(value: object) -> ReviewDepth:
+def _depth(key: str, value: object) -> ReviewDepth:
     try:
         return ReviewDepth(value)
     except ValueError as error:
-        message = f"[policy] review_depth must be one of {', '.join(d.value for d in ReviewDepth)}"
+        message = f"[policy] {key} must be one of {', '.join(d.value for d in ReviewDepth)}"
         raise ConfigError(message) from error
 
 
@@ -111,7 +111,18 @@ def parse_repo_config(text: str) -> RepoConfig:
     document = _load(text)
     _only("shelf", document, {"entries", "base_branch", "checks", "policy", "roles", "results"})
     policy = document.get("policy", {})
-    _only("policy", policy, {"max_rounds", "spec_approval", "design_review", "proceed_on_deadlock", "review_depth"})
+    _only(
+        "policy",
+        policy,
+        {
+            "max_rounds",
+            "spec_approval",
+            "design_review",
+            "proceed_on_deadlock",
+            "spec_review_depth",
+            "design_review_depth",
+        },
+    )
     roles = document.get("roles", {})
     try:
         entries = frozenset(EntryPoint(name) for name in document.get("entries", [e.value for e in EntryPoint]))
@@ -120,8 +131,12 @@ def parse_repo_config(text: str) -> RepoConfig:
         if empty:
             message = f"[roles] {', '.join(empty)} has no one: list the people, or leave the role out"
             raise ConfigError(message)
-        plain = {key: value for key, value in policy.items() if key != "review_depth"}
-        built = Policy(**plain, review_depth=_depth(policy.get("review_depth", ReviewDepth.QUICK)))
+        plain = {k: v for k, v in policy.items() if k not in {"spec_review_depth", "design_review_depth"}}
+        built = Policy(
+            **plain,
+            spec_review_depth=_depth("spec_review_depth", policy.get("spec_review_depth", ReviewDepth.QUICK)),
+            design_review_depth=_depth("design_review_depth", policy.get("design_review_depth", ReviewDepth.STANDARD)),
+        )
     except (ValueError, TypeError) as error:
         raise ConfigError(str(error)) from error
     return RepoConfig(
