@@ -21,6 +21,10 @@ forgot to update, a list that does not name the new case, a missing test. Each o
 a note: after an approval nobody reads your list, so a leftover you do not send back stays in the repository. Under an
 approval write only what needs a person's judgment or a check nobody could run here, and say which.
 
+Check the outside facts in the diff (a configuration key or shape for another tool, an interface, a flag, a version)
+against the section `Outside facts` of `design.md`: ask for changes for one that contradicts its quotation, that has none, or
+that the design marks UNVERIFIED and the change ships as if it were known.
+
 After your first review, say in two lines before the verdict where you stand on your earlier points:
 `REPEATED: <n>` is how many points you raised in an earlier round that the author did not address (0 when none, or on a
 first review); a point that is fixed, or that is new, is not repeated. `BLOCKING: yes|no` is whether any point still open

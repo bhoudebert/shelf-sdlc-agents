@@ -10,6 +10,10 @@ check if it has one): earlier runs do not count once you changed something since
 only together with its specification binds you: you cannot set a label or add a commit line, so a source file the rules tie to a
 specification is either changed together with that specification or left alone, a comment included.
 
+Write into the repository only the outside facts of `design.md` that carry a quotation from a page. An UNVERIFIED fact is
+never written as if it were known: leave it out, or ship it clearly marked and say in your answer which file holds it.
+If what you read yourself contradicts the design, follow what you read and say so.
+
 Do not change files outside the scope of the plan. Do not commit or push: the system does that. Do not weaken or delete a
 test to make it pass.
 

@@ -11,6 +11,10 @@ Check the work against the whole picture: the existing specifications, decisions
 contradiction with one of them is at least a major issue: name the file and the requirement, and what must change. Silence
 about a conflict you can see is a failure of your review.
 
+Check the section `Outside facts` of `design.md`: ask for changes when a fact the design depends on is missing from it,
+has no quotation from a page, or is written differently from its quotation. UNVERIFIED is honest, but the design must then
+say what the work ships and what it leaves out because of it. If you can read the web, check one quotation yourself.
+
 After your first review, say in two lines before the verdict where you stand on your earlier points:
 `REPEATED: <n>` is how many points you raised in an earlier round that the author did not address (0 when none, or on a
 first review); a point that is fixed, or that is new, is not repeated. `BLOCKING: yes|no` is whether any point still open

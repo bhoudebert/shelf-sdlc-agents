@@ -78,3 +78,11 @@ def test_a_reviewer_that_says_nothing_of_them_has_repeated_nothing_and_blocks() 
 
     found = parse_verdict("Fine.\nVERDICT: CHANGES")
     assert (found.repeated, found.blocking) == (0, True)
+
+
+def test_outside_facts_carry_their_source_through_the_four_roles() -> None:
+    from shelf.adapters.claude_agent.prompts import load_prompt  # noqa: PLC0415
+
+    for role in ("architect", "design_reviewer", "implementer", "code_reviewer"):
+        assert "Outside facts" in load_prompt(role) or "outside facts" in load_prompt(role)
+    assert "UNVERIFIED" in load_prompt("architect")
