@@ -2,6 +2,7 @@ from dataclasses import replace
 
 from shelf.domain.export import ExportStep, WorkExport, fenced, filename, in_window, render
 from shelf.domain.guard import StoppedCall
+from shelf.domain.runlog import RunRecord, ToolEvent
 from shelf.domain.story import Message, Voice
 from shelf.domain.usage import StepUsage, Usage, summarize
 
@@ -88,3 +89,45 @@ def test_the_guard_section_warns_when_earlier_calls_may_be_missing_and_when_it_c
     early = replace(base, guard=[_call("2026-11-15T14:00:00")])
     assert "earlier ones may be missing" not in render(early)
     assert "The guard could not be read" in render(replace(base, guard=None))
+
+
+def _run(**more: object) -> RunRecord:
+    base = {
+        "work_id": "w",
+        "phase": "implement",
+        "attempt": 1,
+        "role": "implementer",
+        "started": "2026-11-15T16:00:00+00:00",
+        "ended": "2026-11-15T16:05:00+00:00",
+        "outcome": "finished",
+    }
+    return RunRecord(**(base | more))  # type: ignore[arg-type]
+
+
+def test_the_runs_section_lists_the_failed_commands_with_what_they_said_and_what_was_refused() -> None:
+    run = _run(
+        tools=(ToolEvent("Bash", "npm test"), ToolEvent("Bash", "npx prettier --check .", ok=False, note="EROFS")),
+        tool_calls=2,
+        denials=("Bash: cat > opencode.json",),
+        setup="Tools: the worker tried to install node 24 and could not: 404",
+        error="",
+        usage=Usage(input_tokens=1000, turns=7, seconds=12.0),
+        max_turns=40,
+        resumed=True,
+    )
+    text = render(WorkExport("w", [], [], "r", [], {}, None, "now", runs=[run]))
+    assert "## Agent runs" in text
+    assert "### 1. implementer · implement, round 1 · finished" in text
+    assert "| 2 | Bash | `npx prettier --check .` | FAILED: EROFS |" in text
+    assert "**Tool calls:** 2, of which 1 failed" in text
+    assert "`Bash: cat > opencode.json`" in text
+    assert "could not: 404" in text
+    assert "**Session:** continued" in text
+    assert "7 of 40 turns" in text
+
+
+def test_the_runs_section_says_when_no_record_exists_or_none_is_kept() -> None:
+    none_kept = render(WorkExport("w", [], [], "r", [], {}, None, "now", runs=None))
+    assert "keeps no record of agent runs" in none_kept
+    empty = render(WorkExport("w", [], [], "r", [], {}, None, "now", runs=[]))
+    assert "No run record was kept for this work" in empty

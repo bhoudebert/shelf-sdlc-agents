@@ -16,6 +16,7 @@ from shelf.domain.model import PullInfo, RepoRef, WorkContext, WorkId, WorkReque
 from shelf.domain.pipeline import EntryPoint, Phase
 from shelf.domain.policy import Autonomy
 from shelf.domain.result import Err, Ok
+from shelf.domain.runlog import RunRecord, ToolEvent
 from shelf.domain.story import agent_comment
 from shelf.domain.usage import Usage
 from shelf.domain.work import WAITING_FOR_CI, Produced, Reviewed, RunStep, Verdict, Verified
@@ -75,11 +76,18 @@ class FakeAgents:
     answer: str = "done"
     tasks: list[AgentTask] = field(default_factory=list[AgentTask])
     usage: Usage | None = None
+    tools: list[ToolEvent] = field(default_factory=list[ToolEvent])
+    denials: list[str] = field(default_factory=list[str])
+    fail: str = ""
 
     async def run(self, task: AgentTask) -> str:
         self.tasks.append(task)
         if task.sink is not None:
             task.sink.usage = self.usage
+            task.sink.tools.extend(self.tools)
+            task.sink.denials.extend(self.denials)
+        if self.fail:
+            raise RuntimeError(self.fail)
         return self.answer
 
 
@@ -94,12 +102,28 @@ async def no_sleep(seconds: float) -> None:
     slept.append(seconds)
 
 
-def steps(
+class MemoryRecords:
+    def __init__(self, *, broken: bool = False) -> None:
+        self.kept: list[RunRecord] = []
+        self.broken = broken
+
+    async def write(self, record: RunRecord) -> None:
+        if self.broken:
+            message = "disk full"
+            raise OSError(message)
+        self.kept.append(record)
+
+    async def read(self, work_id: str) -> list[RunRecord]:
+        return self.kept
+
+
+def steps(  # noqa: PLR0913, PLR0917 - one knob per thing a test of the steps may set
     agents: FakeAgents | None = None,
     workspaces: FakeWorkspaces | None = None,
     pulls: FakePulls | None = None,
     config: RepoConfig | None = None,
     cache_dir: str = "",
+    run_records: "MemoryRecords | None" = None,
 ) -> Steps:
     return Steps(
         workspaces=workspaces or FakeWorkspaces(),
@@ -113,6 +137,7 @@ def steps(
         base_path="/usr/bin",
         cache_dir=cache_dir,
         sleep=no_sleep,
+        run_records=run_records,
     )
 
 
@@ -1112,3 +1137,55 @@ async def test_every_agent_is_told_the_works_own_folder_belongs_to_the_system() 
     for task in agents.tasks:
         assert "is part of the pull request on purpose" in task.prompt
         assert "do not write that they stay out of the pull request" in task.prompt
+
+
+async def test_a_run_leaves_a_record_with_its_failed_commands_what_was_refused_and_what_it_was_told() -> None:
+    records = MemoryRecords()
+    agents = FakeAgents(
+        usage=Usage(input_tokens=10, turns=3, seconds=2.0),
+        tools=[ToolEvent("Bash", "npm test"), ToolEvent("Bash", "npx prettier .", ok=False, note="EROFS")],
+        denials=["Bash: cat > opencode.json"],
+    )
+    await steps(agents, run_records=records).run(NEED, RunStep(Phase.INTAKE, 0, ""))
+    [record] = records.kept
+    assert (record.work_id, record.phase, record.attempt, record.role, record.outcome) == (
+        "work-1",
+        "intake",
+        0,
+        "intake",
+        "finished",
+    )
+    assert record.tool_calls == 2
+    assert [e.ok for e in record.tools] == [True, False]
+    assert record.denials == ("Bash: cat > opencode.json",)
+    assert record.usage.turns == 3
+    assert record.answer_chars == len("done")
+
+
+async def test_a_run_that_fails_leaves_a_record_with_the_error_and_still_fails() -> None:
+    records = MemoryRecords()
+    with pytest.raises(RuntimeError, match="boom ghp_"):
+        await steps(FakeAgents(fail="boom ghp_abcdefghijklmnopqrstuvwxyz0123456789"), run_records=records).run(
+            NEED, RunStep(Phase.INTAKE, 0, "")
+        )
+    [record] = records.kept
+    assert record.outcome == "failed"
+    assert "boom" in record.error
+    assert "ghp_abcdef" not in record.error
+
+
+async def test_a_store_of_records_that_cannot_be_written_never_stops_a_step() -> None:
+    result = await steps(FakeAgents(), run_records=MemoryRecords(broken=True)).run(NEED, RunStep(Phase.INTAKE, 0, ""))
+    assert result == Produced()
+
+
+async def test_the_record_says_what_the_agent_was_told_about_its_tools_and_whether_it_continued() -> None:
+    records = MemoryRecords()
+    workspaces = with_files(FakeWorkspaces(), {".github/workflows/ci.yml": CI_NODE_24})
+    await steps(FakeAgents(), workspaces, cache_dir="/cache", run_records=records).run(
+        NEED, RunStep(Phase.IMPLEMENT, 1, "fix it", "session-1")
+    )
+    [record] = records.kept
+    assert "the worker has installed what the repository's CI uses (node 24)" in record.setup
+    assert record.resumed
+    assert record.attempt == 1

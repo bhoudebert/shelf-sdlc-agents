@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 
 from shelf.domain.guard import StoppedCall
 from shelf.domain.roles import DOCUMENT_TITLES
+from shelf.domain.runlog import RunRecord
 from shelf.domain.story import Message
 from shelf.domain.usage import UsageSummary
 
@@ -53,6 +54,8 @@ class WorkExport:
     """When the work's first step happened (ISO), the start of the window the guard's calls are kept from."""
     ended: str = ""
     """When the work last did anything (ISO); empty while it runs, so the window ends now."""
+    runs: Sequence[RunRecord] | None = None
+    """The record of each agent run, oldest first; ``None`` when no store of records is kept."""
 
 
 def _facts(facts: Sequence[tuple[str, str]]) -> list[str]:
@@ -172,6 +175,61 @@ def _guard(export: WorkExport) -> list[str]:
     return [*lines, ""]
 
 
+def _run(number: int, run: RunRecord) -> list[str]:
+    failed = [event for event in run.tools if not event.ok]
+    head = f"### {number}. {run.role} · {run.phase}, round {run.attempt} · {run.outcome}"
+    lines = [head, ""]
+    facts = [
+        ("Began / ended", f"{run.started or '-'} / {run.ended or '-'}"),
+        ("Model", run.model),
+        (
+            "Session",
+            "continued"
+            if run.resumed
+            else "started again after one could not be continued"
+            if run.fell_back
+            else "new",
+        ),
+        ("Stopped because", ", ".join(x for x in (run.subtype, run.stop_reason, run.terminal_reason) if x)),
+        ("API error status", str(run.api_error_status) if run.api_error_status else ""),
+        ("Error", run.error),
+        ("Errors reported", " | ".join(run.errors)),
+        (
+            "Used",
+            f"{run.usage.tokens:,} tokens, {run.usage.turns} of {run.max_turns} turns, {round(run.usage.seconds)} s",
+        ),
+        ("Told about tools", " ".join(run.setup.split())[:500]),
+        ("CI when it started", " ".join(run.ci.split())[:500]),
+        ("Web", "on" if run.web else "off"),
+        ("Tool calls", f"{run.tool_calls}, of which {len(failed)} failed"),
+    ]
+    lines += [f"- **{name}:** {value}" for name, value in facts if value]
+    if run.denials:
+        lines += ["", "Refused by the agent's permissions:", *[f"- `{d}`" for d in run.denials]]
+    if run.tools:
+        lines += ["", "| # | Tool | What | Result |", "| --- | --- | --- | --- |"]
+        for index, event in enumerate(run.tools, start=1):
+            what = event.summary.replace("|", "\\|")
+            result = "ok" if event.ok else f"FAILED: {event.note.replace('|', '/')}"
+            lines.append(f"| {index} | {event.name} | `{what}` | {result} |")
+    return [*lines, ""]
+
+
+def _runs(export: WorkExport) -> list[str]:
+    lines = ["## Agent runs", ""]
+    if export.runs is None:
+        return [*lines, "_This instance keeps no record of agent runs._", ""]
+    if not export.runs:
+        return [
+            *lines,
+            "_No run record was kept for this work: it ran before they were kept, or this instance did not keep them._",
+            "",
+        ]
+    for number, run in enumerate(export.runs, start=1):
+        lines += _run(number, run)
+    return lines
+
+
 def render(export: WorkExport) -> str:
     """The whole file."""
     lines = [
@@ -189,5 +247,6 @@ def render(export: WorkExport) -> str:
         *_documents(export.documents),
         *_usage(export.usage),
         *_guard(export),
+        *_runs(export),
     ]
     return "\n".join(lines).rstrip() + "\n"
