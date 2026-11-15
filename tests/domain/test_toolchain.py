@@ -1,3 +1,4 @@
+from shelf.domain.mise_config import NO_CODE_AT_INSTALL
 from shelf.domain.model import RepoRef
 from shelf.domain.toolchain import (
     DEFAULT_ALLOWED_DOMAINS,
@@ -28,6 +29,7 @@ def test_the_environment_puts_the_repositorys_tools_in_front_and_trusts_only_its
         "HOME": "/cache/home/acme__shop",
         "MISE_YES": "1",
         "MISE_LOCKFILE": "false",
+        "MISE_DISABLE_BACKENDS": NO_CODE_AT_INSTALL,
         "MISE_TRUSTED_CONFIG_PATHS": "/work/clone",
         "PATH": "/cache/home/acme__shop/.local/share/mise/shims:/usr/bin:/bin",
     }
@@ -59,14 +61,10 @@ def test_a_repository_that_declares_no_tools_is_still_told_to_run_what_its_ci_ru
     assert "which command and why" in TOOLCHAIN_NOTE
 
 
-def test_what_a_repository_declares_is_installed_by_the_worker_into_its_own_home() -> None:
-    from shelf.domain.toolchain import declared_command  # noqa: PLC0415
-
-    command = declared_command(toolchain_env("/cache", REPO, "/work/clone", "/usr/bin"))
-    assert command.startswith("mkdir -p /cache/home/acme__shop && env ")
-    assert "HOME=/cache/home/acme__shop" in command
-    assert "MISE_LOCKFILE=false" in command
-    assert command.endswith("mise install --yes")
+def test_the_environment_disables_the_backends_that_run_code_and_writes_no_lockfile() -> None:
+    env = toolchain_env("/cache", REPO, "/work/clone", "/usr/bin")
+    assert env["MISE_LOCKFILE"] == "false"
+    assert set(env["MISE_DISABLE_BACKENDS"].split(",")) >= {"asdf", "vfox", "npm", "cargo", "pipx"}
 
 
 def test_a_check_runs_with_the_tools_on_its_path_and_a_compound_command_stays_whole() -> None:

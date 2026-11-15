@@ -22,6 +22,7 @@ from shelf.domain.formatters import (
     with_sandbox_placeholders,
     without_sandbox_placeholders,
 )
+from shelf.domain.mise_config import declared_tools, ignored_sections
 from shelf.domain.model import RepoRef, WorkContext, WorkId
 from shelf.domain.nix import (
     TIME_LIMIT,
@@ -51,12 +52,12 @@ from shelf.domain.titles import clean_title, fallback_title
 from shelf.domain.tool_detection import DECLARED, SOURCES, detect_tools, is_declared
 from shelf.domain.toolchain import (
     TOOLCHAIN_NOTE,
-    declared_command,
     declared_failed,
     declared_ready,
     dependencies_command,
     dependencies_failed,
     dependencies_ready,
+    nothing_to_install,
     setup_command,
     toolchain_env,
     tools_failed,
@@ -694,7 +695,7 @@ class Steps:
         env = self._toolchain_env(work, workspace)
         if is_declared(files):
             _mark_used(env)
-            return await self._install_declared(work, workspace, env)
+            return await self._install_declared(work, workspace, env, files)
         tools = detect_tools(files)
         if self.nix and has_flake(files) and (ci_uses_nix(files) or not tools):
             _mark_used(env)
@@ -704,10 +705,20 @@ class Steps:
         _mark_used(env)
         return await self._install_tools(work, workspace, env, tools)
 
-    async def _install_declared(self, work: WorkContext, workspace: Workspace, env: Mapping[str, str]) -> ToolSetup:
-        """Run ``mise install`` for what the repository declares, here and not in the sandbox, and say how it went."""
+    async def _install_declared(
+        self, work: WorkContext, workspace: Workspace, env: Mapping[str, str], files: Mapping[str, str]
+    ) -> ToolSetup:
+        """Install the plain tools the repository's mise declaration names, here and not in the sandbox.
+
+        The declaration itself is never run: its tools and versions are read and installed with ``mise use --global``,
+        so that its hooks, plugins, environment scripts and tool options do nothing in the worker.
+        """
+        declared = declared_tools(files)
+        ignored = (*declared.ignored, *(f"{name} section" for name in ignored_sections(files)))
+        if not declared.tools:
+            return ToolSetup(nothing_to_install(ignored))
         try:
-            done = await asyncio.wait_for(workspace.run(declared_command(env)), SETUP_TIMEOUT)
+            done = await asyncio.wait_for(workspace.run(setup_command(env, declared.tools)), SETUP_TIMEOUT)
         except TimeoutError:
             return ToolSetup(declared_failed(f"it took longer than {int(SETUP_TIMEOUT // 60)} minutes"))
         except Exception as error:  # noqa: BLE001 - told to the agent, never fatal
@@ -716,7 +727,7 @@ class Steps:
         if done.exit_code != 0:
             last = next((line for line in reversed(done.output.strip().splitlines()) if line.strip()), "no output")
             return ToolSetup(declared_failed(last[:200]))
-        return ToolSetup(declared_ready())
+        return ToolSetup(declared_ready(declared.tools, tuple(ignored)))
 
     async def _install_tools(
         self, work: WorkContext, workspace: Workspace, env: Mapping[str, str], tools: Mapping[str, str]
