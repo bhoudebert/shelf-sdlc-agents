@@ -616,3 +616,17 @@ def test_the_writers_and_reviewers_prompts_keep_the_work_to_the_size_of_the_requ
     assert "beyond the request" in load_prompt("spec_critic") or "bigger than the" in load_prompt("spec_critic")
     assert "at most five" in load_prompt("design_reviewer")
     assert "goes beyond the spec" in load_prompt("design_reviewer")
+
+
+async def test_the_spec_reviewer_is_told_the_depth_the_repository_chose() -> None:
+    agents = FakeAgents()
+    await steps(agents).run(NEED, RunStep(Phase.SPEC_REVIEW, 0, ""))
+    [task] = agents.tasks
+    assert "This is a quick review" in task.prompt
+
+
+async def test_the_code_reviewer_is_told_no_depth() -> None:
+    agents = FakeAgents()
+    await steps(agents).run(NEED, RunStep(Phase.CODE_REVIEW, 0, ""))
+    [task] = agents.tasks
+    assert "quick review" not in task.prompt
