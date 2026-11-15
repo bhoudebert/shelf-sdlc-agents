@@ -969,6 +969,20 @@ The system SHALL tell every agent that may read the web that a fact the work dep
 - **WHEN** the agent tried and could not confirm the fact
 - **THEN** it is told to write it as an open point for a person, not as something known
 
+### Requirement: Every outside fact in a design carries its source or is marked unverified
+
+The system SHALL tell the architect to end `design.md` with a section `Outside facts` that lists each fact the change depends on that lives outside the repository (a key or shape another tool's configuration expects, an interface, a flag, a version), each with the address of the page it was read on and a short quotation from that page, or marked UNVERIFIED when it could not be read; SHALL tell the design reviewer to ask for changes when such a fact is missing from the section, has no quotation, or is written differently from its quotation; SHALL tell the developer to write into the repository only facts of that section that carry a quotation, never an UNVERIFIED one as if it were known, and to say which file holds an unverified one; and SHALL tell the code reviewer to check the outside facts in the diff against the section, and to ask for changes for one that contradicts its quotation or has none.
+
+#### Scenario: A configuration key the work ships
+
+- **WHEN** the design adds a configuration file for another tool
+- **THEN** its Outside facts section gives the page and the quotation for each key, and the design reviewer asks for changes when a key has none
+
+#### Scenario: A fact that could not be read
+
+- **WHEN** the architect could not read the documentation
+- **THEN** the fact is marked UNVERIFIED and the developer does not ship it as known
+
 ### Requirement: Every agent is told the work's own folder belongs to the system
 
 The system SHALL tell every agent that the work's folder under `.shelf/` (the request, the spec, the design, the plan, the decision log) is part of the pull request on purpose, committed by the system, and that the `.shelf/` line it adds to a repository's `.prettierignore` belongs to the system too, so that no agent asks to remove them, writes that they stay out of the pull request, or judges them as a change of the repository.
