@@ -40,3 +40,7 @@ class CachedConversations:
         story = await self.inner.read(repo, pull_request)
         self._read[key] = (self.clock(), story)
         return story
+
+    async def pull_request_of(self, repo: RepoRef, branch: str) -> int | None:
+        """The pull request of a branch: asked every time, for the rare download of a work the engine forgot."""
+        return await self.inner.pull_request_of(repo, branch)

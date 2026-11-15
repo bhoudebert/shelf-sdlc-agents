@@ -63,6 +63,8 @@ def _facts(facts: Sequence[tuple[str, str]]) -> list[str]:
 
 
 def _steps(steps: Sequence[ExportStep]) -> list[str]:
+    if not steps:
+        return ["## Steps", "", "_Not known: the workflow engine no longer holds this work._", ""]
     lines = ["## Steps", "", "| Step | State | When |", "| --- | --- | --- |"]
     lines += [f"| {step.label} | {step.state} | {step.at or '-'} |" for step in steps]
     return [*lines, ""]

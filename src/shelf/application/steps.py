@@ -565,6 +565,9 @@ class Steps:
                     web=self.web,
                     max_turns=self.max_turns,
                     answer_chars=len(answer),
+                    repo=work.request.repo.full_name,
+                    requester=work.request.requester,
+                    entry=work.request.entry.value,
                 )
             )
         except Exception:
