@@ -954,3 +954,17 @@ The system SHALL tell every reviewer (the spec critic, the design reviewer and t
 
 - **WHEN** a reviewer approves over a CI that is red or unfinished
 - **THEN** the review is blocking, whatever the reviewer said
+
+### Requirement: An agent looks up what the work rests on and follows the source over its memory
+
+The system SHALL tell every agent that may read the web that a fact the work depends on and that lives outside the repository (the format of another tool's configuration, an interface, a flag, a version) is looked up before it is written down, that it never says it cannot check such a fact without having tried to fetch or search it, that when what it reads contradicts what it remembers it follows what it read and says so, and that a fact it still could not confirm is written as an open point for a person and not shipped as if it were known; and SHALL tell the reviewers that a load-bearing fact written from memory is a finding when a page could have confirmed it.
+
+#### Scenario: A configuration format the work ships
+
+- **WHEN** the work adds a configuration file for another tool whose format is documented online
+- **THEN** the agent is told to read that documentation first and to follow it over its memory
+
+#### Scenario: A source that cannot be reached
+
+- **WHEN** the agent tried and could not confirm the fact
+- **THEN** it is told to write it as an open point for a person, not as something known
