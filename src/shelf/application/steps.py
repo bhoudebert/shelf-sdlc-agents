@@ -12,6 +12,7 @@ from shelf.domain.context import CATEGORIES, EARLIER_WORK, context_brief
 from shelf.domain.context_repo import FOLDER, note_for, parse_context
 from shelf.domain.decisions import FILE as DECISIONS_FILE
 from shelf.domain.decisions import DecisionRecord, acted_as, append_entry
+from shelf.domain.formatters import IGNORE_FILE, READ, prettier_ignore
 from shelf.domain.model import RepoRef, WorkContext, WorkId
 from shelf.domain.nix import (
     TIME_LIMIT,
@@ -97,9 +98,10 @@ CI_PHASES = frozenset({Phase.IMPLEMENT, Phase.CODE_REVIEW})
 
 
 DOCUMENT_FORMAT_NOTE = (
-    "The document is committed to the repository and its CI checks it like any other file. If the repository has a "
-    "formatter (Prettier, markdownlint, dprint...), run it on the file you wrote before you finish, so that a check "
-    "that covers the whole repository does not fail on your document."
+    "The document is committed to the repository. The system keeps Prettier off this folder, so a formatting check "
+    "over the whole repository does not cover it. If the repository has another formatter or linter that you can run "
+    "on a markdown file with what you have here, run it on your file; if you cannot run one, do not spend turns "
+    "installing it: say so in one line."
 )
 
 TOOL_PHASES = frozenset({Phase.IMPLEMENT, Phase.CODE_REVIEW})
@@ -128,6 +130,16 @@ class ToolSetup:
 
     note: str = ""
     env: Mapping[str, str] = field(default_factory=dict[str, str])
+
+
+def _keep_out_of_the_formatter(root: Path) -> None:
+    """Make a repository that uses Prettier ignore Shelf's own files: it never has to download or run anything."""
+    files = {
+        name: (root / name).read_text(encoding="utf-8", errors="replace") for name in READ if (root / name).is_file()
+    }
+    updated = prettier_ignore(files)
+    if updated is not None:
+        (root / IGNORE_FILE).write_text(updated, encoding="utf-8")
 
 
 def _mark_used(env: Mapping[str, str]) -> None:
@@ -279,6 +291,7 @@ class Steps:
         async with self.workspaces.open(checkout) as workspace:
             await self._attach_context(work, workspace)
             recorded = await self._record_request(work, workspace)
+            _keep_out_of_the_formatter(workspace.path)
             result, speaker, words = await self._do(work, step, workspace, config, token)
             if recorded and not isinstance(result, Produced):
                 await workspace.commit_and_push(f"chore(shelf): record the request for {work.id}")
