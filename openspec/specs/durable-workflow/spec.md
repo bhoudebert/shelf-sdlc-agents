@@ -357,3 +357,22 @@ The system SHALL keep, in the workflow, one entry for each agent step in the ord
 
 - **WHEN** the work has ended
 - **THEN** the query still returns its entries
+
+### Requirement: The workflow keeps each agent's session for the rounds that follow, for new work only
+
+The system SHALL, for work started under the protocol that continues sessions, keep in the workflow the id of the latest session of each agent and give it to the step that runs that agent again, SHALL give no session to an agent that has not run on this work, SHALL ignore a step that reports none, and SHALL NOT do any of this for work started under an earlier protocol, so that its history replays unchanged and its agents start fresh as before.
+
+#### Scenario: A second round
+
+- **WHEN** the spec writer runs a second time on new work
+- **THEN** its step is given the session of its first run
+
+#### Scenario: Older work
+
+- **WHEN** work started under an earlier protocol runs an agent a second time
+- **THEN** no session is given and the agent starts fresh
+
+#### Scenario: A replay
+
+- **WHEN** a finished history of older work is replayed
+- **THEN** it replays deterministically
