@@ -43,6 +43,8 @@ class Settings:
     cache_dir: str
     allowed_domains: tuple[str, ...]
     web: bool
+    guard_rules_dir: str
+    """The folder where the admin page keeps the rules it adds to the guard; empty when this instance has none."""
     """Whether agents may read the web (fetch an address, search); ``SHELF_WEB=off`` turns it off."""
     ci_wait: float
     ci_grace: float
@@ -146,6 +148,7 @@ def from_environ(environ: Mapping[str, str]) -> Settings:
             domain.strip() for domain in environ.get("SHELF_ALLOWED_DOMAINS", "").split(",") if domain.strip()
         ),
         web=_switch(environ, "SHELF_WEB", default=True),
+        guard_rules_dir=environ.get("SHELF_GUARD_RULES_DIR", "").strip(),
         ci_wait=float(environ.get("SHELF_CI_WAIT", "1800")),
         ci_grace=float(environ.get("SHELF_CI_GRACE", "120")),
         sandbox=environ.get("SHELF_SANDBOX_DISABLED", "").strip().lower() not in {"1", "true", "yes"},

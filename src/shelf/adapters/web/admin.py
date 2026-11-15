@@ -1,30 +1,25 @@
 """The administrator's page: what GitHub has sent, and the facts about this instance, so nobody has to guess."""
 
-from dataclasses import dataclass
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response
 
 from shelf.adapters.web import views
+from shelf.adapters.web.admin_guard import guard_view
+from shelf.adapters.web.admin_guard import router as guard_router
 from shelf.adapters.web.context import Web
 from shelf.adapters.web.sessions import Session
 from shelf.domain.app_check import Finding, Level, check_app
-from shelf.domain.guard import GuardReport, rule_to_deny_host
+from shelf.domain.guard import rule_to_deny_host
+from shelf.domain.guard_rules import RuleKind
 from shelf.domain.result import Err
-
-
-@dataclass(frozen=True, slots=True)
-class GuardView:
-    """The Guard section: the report, or the sentence that says why there is none."""
-
-    report: GuardReport | None
-    why_not: str
 
 
 def router(web: Web) -> APIRouter:
     """The admin route."""
     routes = APIRouter()
+    routes.include_router(guard_router(web))
 
     async def app_findings() -> tuple[Finding, ...]:
         """What is wrong with the App's setup on GitHub, or why that could not be read. Empty without an inspector."""
@@ -35,16 +30,6 @@ def router(web: Web) -> APIRouter:
         if isinstance(result, Err):
             return (Finding(Level.ERROR, "The App could not be checked.", result.error),)
         return check_app(result.value, f"{web.deps.settings.public_url.rstrip('/')}/api/github/webhook")
-
-    async def guard_view() -> GuardView:
-        """What the guard has seen, or why it cannot be shown. Never raises: the rest of the page must still load."""
-        reader = web.deps.guard
-        if reader is None:
-            return GuardView(None, "The guard is not set up on this instance.")
-        result = await reader.report()
-        if isinstance(result, Err):
-            return GuardView(None, f"Not available: {result.error}.")
-        return GuardView(result.value, "")
 
     @routes.get("/admin", response_class=HTMLResponse)
     async def admin(request: Request, session: Annotated[Session, Depends(web.signed_in)]) -> Response:
@@ -68,8 +53,9 @@ def router(web: Web) -> APIRouter:
             session,
             facts=facts,
             findings=await app_findings(),
-            guard=await guard_view(),
+            guard=await guard_view(web),
             deny_host_rule=rule_to_deny_host,
+            rule_kind=RuleKind,
             deliveries=views.delivery_rows(web.webhooks.newest_first()),
             app_url=f"https://github.com/apps/{settings.app_slug}",
         )

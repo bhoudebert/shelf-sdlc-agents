@@ -39,7 +39,7 @@ class StoppedCall:
         return (
             "[[rules]]\n"
             f'id = "allow-{re.sub(r"[^a-z0-9]+", "-", self.summary.lower()).strip("-")[:40] or "command"}"\n'
-            f"match = '^{_regex_of(self.summary)}$'\n"
+            f"match = '^{regex_of(self.summary)}$'\n"
             'decision = "allow"\n'
             'reason = "approved by the administrator"\n'
         )
@@ -48,7 +48,7 @@ class StoppedCall:
 _META = frozenset("\\.+*?()|[]{}^$")
 
 
-def _regex_of(text: str) -> str:
+def regex_of(text: str) -> str:
     """``text`` as a regular expression that matches exactly it, written to sit inside a TOML literal string.
 
     A literal string cannot hold a quote, so a quote matches any one character instead.

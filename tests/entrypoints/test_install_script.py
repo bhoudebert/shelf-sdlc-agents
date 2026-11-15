@@ -197,3 +197,41 @@ def test_the_web_service_reads_the_guards_log_but_cannot_change_it() -> None:
     web = compose.split("\n  web:\n", 1)[1].split("\n  worker:\n", 1)[0]
     assert "WARDEN_STATE_DIR: /var/lib/warden" in web
     assert "- warden-state:/var/lib/warden:ro" in web
+
+
+def test_the_rules_added_from_the_admin_page_live_in_a_volume_only_the_web_service_writes() -> None:
+    compose = (Path(__file__).parents[2] / "deploy" / "compose.yml").read_text()
+    web = compose.split("\n  web:\n", 1)[1].split("\n  worker:\n", 1)[0]
+    worker = compose.split("\n  worker:\n", 1)[1].split("\nvolumes:\n", 1)[0]
+    assert "SHELF_GUARD_RULES_DIR: /var/lib/shelf-guard" in web
+    assert "- guard-rules:/var/lib/shelf-guard\n" in web
+    assert "WARDEN_OVERLAY_POLICY: /var/lib/shelf-guard/warden.ui.toml" in worker
+    assert "- guard-rules:/var/lib/shelf-guard:ro" in worker
+    assert "\n  guard-rules:\n" in compose.split("\nvolumes:\n", 1)[1]
+
+
+def test_the_image_has_the_folder_for_the_rules_owned_by_the_agent_user() -> None:
+    dockerfile = (Path(__file__).parents[2] / "Dockerfile").read_text()
+    assert "mkdir -p /var/lib/shelf-guard && chown shelf:shelf /var/lib/shelf-guard" in dockerfile
+
+
+def test_the_script_says_when_the_admin_page_can_add_rules(server: Path) -> None:
+    write_env(server)
+    done = run(server)
+    assert "Guard rules: the admin page can add rules" in done.stdout
+
+
+def test_the_script_warns_when_the_web_service_cannot_write_the_rules(server: Path) -> None:
+    write_env(server)
+    fake = server / "bin" / "docker"
+    fake.write_text(
+        '#!/bin/sh\necho "$@" >> "${DOCKER_LOG:-/dev/null}"\ncase "$*" in *"test -w"*) exit 1;; esac\nexit 0\n'
+    )
+    done = run(server)
+    assert done.returncode == 0
+    assert "the admin page cannot write the guard's rules" in done.stderr
+
+
+def test_the_script_does_not_look_at_the_rules_when_the_guard_is_switched_off(server: Path) -> None:
+    write_env(server, SHELF_WARDEN="off")
+    assert "Guard rules" not in run(server).stdout

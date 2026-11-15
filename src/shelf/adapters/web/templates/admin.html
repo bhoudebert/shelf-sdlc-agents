@@ -38,7 +38,11 @@
     </dl>
     {% if g.recent %}
     <h3 id="stopped-title">Stopped, or would have been</h3>
-    <p class="muted">The latest {{ g.recent | length }}, newest first. A rule is text to copy into your operator policy file (<code>deploy/config/warden.toml</code>): nothing here changes the guard.</p>
+    {% if guard.can_apply %}
+    <p class="muted">The latest {{ g.recent | length }}, newest first. A rule you add applies from the next call an agent makes: no restart. Rules are kept apart from your operator policy file, which never changes.</p>
+    {% else %}
+    <p class="muted">The latest {{ g.recent | length }}, newest first. A rule is text to copy into your operator policy file (<code>deploy/config/warden.toml</code>). Applying a rule from this page is not set up on this instance: nothing here changes the guard.</p>
+    {% endif %}
     <div class="table-wrap">
       <table class="admin-table wide" aria-labelledby="stopped-title">
         <thead><tr><th>When (UTC)</th><th>Agent</th><th>What</th><th>Risks</th><th>Why</th></tr></thead>
@@ -50,7 +54,14 @@
             <td><code>{{ call.summary }}</code>
               {% set rule = call.rule_to_allow() %}
               {% if rule %}
+              {% if guard.can_apply %}
+              <form method="post" action="/admin/guard/allow" class="inline-form">
+                <input type="hidden" name="command" value="{{ call.summary }}">
+                <button type="submit" class="btn-secondary button-small">Allow this exact command from now on</button>
+              </form>
+              {% else %}
               <details class="rule"><summary>Allow it next time</summary><pre><code>{{ rule }}</code></pre></details>
+              {% endif %}
               {% elif not call.can_be_allowed %}
               <br><small>No rule can allow this: the guard always refuses it.</small>
               {% endif %}
@@ -73,7 +84,37 @@
           <tr>
             <td><code>{{ host }}</code></td>
             <td>{{ count }}</td>
-            <td><details class="rule"><summary>Block it next time</summary><pre><code>{{ deny_host_rule(host) }}</code></pre></details></td>
+            <td>{% if guard.can_apply %}
+              <form method="post" action="/admin/guard/deny-host" class="inline-form">
+                <input type="hidden" name="host" value="{{ host }}">
+                <button type="submit" class="btn-secondary button-small">Block this host from now on</button>
+              </form>
+              {% else %}
+              <details class="rule"><summary>Block it next time</summary><pre><code>{{ deny_host_rule(host) }}</code></pre></details>
+              {% endif %}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+    {% if guard.rules %}
+    <h3 id="added-title">Rules added from this page</h3>
+    <div class="table-wrap">
+      <table class="admin-table wide" aria-labelledby="added-title">
+        <thead><tr><th>What</th><th>By</th><th>When (UTC)</th><th></th></tr></thead>
+        <tbody>
+        {% for rule in guard.rules %}
+          <tr>
+            <td>{% if rule.kind == rule_kind.ALLOW_COMMAND %}allows <code>{{ rule.subject }}</code>{% else %}blocks <code>{{ rule.subject }}</code>{% endif %}</td>
+            <td class="nowrap">{{ rule.by }}</td>
+            <td class="nowrap">{{ rule.at[:16] | replace("T", " ") }}</td>
+            <td>
+              <form method="post" action="/admin/guard/remove" class="inline-form">
+                <input type="hidden" name="rule_id" value="{{ rule.id }}">
+                <button type="submit" class="btn-secondary button-small">Remove</button>
+              </form>
+            </td>
           </tr>
         {% endfor %}
         </tbody>

@@ -677,3 +677,5 @@ details.rule pre { margin: 8px 0 0; padding: 10px 12px; max-width: 60ch; white-s
 details.rule pre code { background: none; padding: 0; box-shadow: none; }
 .admin-block .table-wrap { overflow-x: auto; }
 .admin-table.wide { min-width: 640px; }
+.button-small { min-height: 44px; padding: 0 16px; font-size: .9rem; }
+.inline-form { margin: 8px 0 0; }

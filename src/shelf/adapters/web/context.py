@@ -27,6 +27,7 @@ from shelf.ports.conversation import Conversations
 from shelf.ports.documents import Documents
 from shelf.ports.forge import Forge
 from shelf.ports.guard import GuardReader
+from shelf.ports.guard_rules import GuardRules
 from shelf.ports.references import References
 from shelf.ports.runner import WorkRunner
 
@@ -96,6 +97,8 @@ class WebDeps:
 
     guard: GuardReader | None = None
     """Where the guard's findings are read from, for the administrator's page; the section says so without it."""
+    guard_rules: GuardRules | None = None
+    """Where the rules an administrator adds from the page are kept; the page offers text to copy without it."""
 
     def access(self) -> AccessRules:
         """The access rules in force now."""

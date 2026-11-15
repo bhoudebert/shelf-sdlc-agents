@@ -153,7 +153,11 @@
         "src/shelf/adapters/web/webhook_log.py",
         "src/shelf/adapters/web/admin.py",
         "src/shelf/ports/conversation.py",
-        "src/shelf/adapters/github_app/conversation.py"
+        "src/shelf/adapters/github_app/conversation.py",
+        "src/shelf/domain/guard_rules.py",
+        "src/shelf/ports/guard_rules.py",
+        "src/shelf/adapters/warden/rules_store.py",
+        "src/shelf/adapters/web/admin_guard.py"
       ],
       "tests": [
         "tests/adapters/web/*.py",
@@ -170,7 +174,9 @@
         "src/shelf/adapters/web/templates/registered.html",
         "Dockerfile",
         "deploy/*",
-        "src/shelf/entrypoints/diagnose.py"
+        "src/shelf/entrypoints/diagnose.py",
+        "deploy/compose.yml",
+        "deploy/install.sh"
       ],
       "tests": [
         "tests/entrypoints/*.py",
