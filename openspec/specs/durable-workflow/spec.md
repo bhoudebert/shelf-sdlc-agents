@@ -282,3 +282,16 @@ The system SHALL keep, with the workflow's memo and not in its history, the name
 - **WHEN** work starts with the wait at a deadlock removed
 - **THEN** its memo names `deadlock` and its history is the same as without the memo
 
+### Requirement: The depth of the reviews is fixed when the work starts and older work still replays
+
+The system SHALL carry the depth of the spec and design reviews that was chosen when a piece of work started in the workflow's input, with an empty value for work that started before it existed (which then follows the repository's file when its steps run), and SHALL NOT let it change the course of a run, so that a history recorded without it replays unchanged.
+
+#### Scenario: Work that predates the choice
+
+- **WHEN** a finished history recorded before the depth existed is replayed
+- **THEN** it replays deterministically
+
+#### Scenario: A choice at the start
+
+- **WHEN** work starts with thorough reviews for a repository whose file says quick
+- **THEN** the input records thorough, and a later change of the file does not alter it

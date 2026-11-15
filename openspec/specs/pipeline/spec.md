@@ -68,7 +68,7 @@ The system SHALL let a policy turn off the spec approval and the design review, 
 
 ### Requirement: A policy may let work go on past a review that cannot settle
 
-The system SHALL carry in the course whether the policy lets work go on past a spec or design review that cannot settle, SHALL let a person's choices for one piece of work replace the policy's spec approval, design review and that choice while keeping the policy's round limit, and SHALL default to waiting.
+The system SHALL carry in the course whether the policy lets work go on past a spec or design review that cannot settle, SHALL let a person's choices for one piece of work replace the policy's spec approval, design review, that choice and the depth of the reviews (when the person made one) while keeping the policy's round limit, and SHALL default to waiting.
 
 #### Scenario: The default
 
