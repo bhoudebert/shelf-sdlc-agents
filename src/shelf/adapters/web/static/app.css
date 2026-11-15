@@ -703,3 +703,18 @@ details.rule pre code { background: none; padding: 0; box-shadow: none; }
 .slice-7 { fill: var(--slice-7); background: var(--slice-7); } .slice-8 { fill: var(--slice-8); background: var(--slice-8); }
 #site { width: 100%; max-width: 28rem; margin-right: 8px; }
 #file-pattern { width: 100%; max-width: 32rem; margin-right: 8px; }
+
+/* The confirmation before a decision that ends the work: a dialog of the interface, in both themes. */
+dialog.modal { border: 0; padding: 0; background: var(--raised); color: var(--ink); border-radius: calc(var(--radius) * 2);
+  width: min(30rem, calc(100vw - 32px)); box-shadow: 0 0 0 1px var(--orbit), 0 24px 60px rgba(0, 0, 0, .45); }
+dialog.modal::backdrop { background: color-mix(in srgb, var(--ground) 70%, transparent); backdrop-filter: blur(3px); }
+.modal-body { padding: 24px 24px 20px; }
+.modal-body h2 { margin: 0 0 10px; font-size: 1.25rem; }
+.modal-body p { margin: 0 0 22px; color: var(--ink-2, var(--ink)); line-height: 1.5; }
+.modal-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
+@media (prefers-reduced-motion: no-preference) {
+  dialog.modal[open] { animation: modal-in .16s ease-out; }
+  dialog.modal[open]::backdrop { animation: modal-fade .16s ease-out; }
+}
+@keyframes modal-in { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes modal-fade { from { opacity: 0; } to { opacity: 1; } }

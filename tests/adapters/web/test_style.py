@@ -64,3 +64,25 @@ def test_a_checkbox_is_never_given_the_size_of_a_text_field() -> None:
     assert "appearance: none" in choice.group(1)
     assert "width: 20px" in choice.group(1)
     assert re.search(r"\.autonomy-warning \{[^}]*max-width: none", css)
+
+
+def test_no_script_or_template_of_the_interface_uses_a_dialog_of_the_browser() -> None:
+    web = CSS.parent.parent
+    sources = [web / "static" / "app.js", web / "static" / "theme.js", *(web / "templates").glob("*.html")]
+    for path in sources:
+        text = path.read_text(encoding="utf-8")
+        assert not re.search(r"\b(window\.)?(confirm|alert|prompt)\s*\(", text), path.name
+
+
+def test_a_decision_that_ends_the_work_asks_in_a_themed_dialog_with_cancel_first() -> None:
+    script = (CSS.parent / "app.js").read_text(encoding="utf-8")
+    assert "showModal()" in script
+    assert "cancel.focus()" in script
+    assert "requestSubmit(button)" in script
+    assert "dialog.modal" in CSS.read_text(encoding="utf-8")
+
+
+def test_the_question_of_a_confirmation_is_the_title_of_the_dialog_and_the_rest_its_text() -> None:
+    script = (CSS.parent / "app.js").read_text(encoding="utf-8")
+    assert "parts[1]" in script
+    assert "parts[2]" in script
