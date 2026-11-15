@@ -13,7 +13,15 @@ from shelf.domain.context import CATEGORIES, EARLIER_WORK, context_brief
 from shelf.domain.context_repo import FOLDER, note_for, parse_context
 from shelf.domain.decisions import FILE as DECISIONS_FILE
 from shelf.domain.decisions import DecisionRecord, acted_as, append_entry
-from shelf.domain.formatters import IGNORE_FILE, READ, prettier_ignore
+from shelf.domain.formatters import (
+    IGNORE_FILE,
+    READ,
+    SANDBOX_NOTE,
+    prettier_ignore,
+    uses_prettier,
+    with_sandbox_placeholders,
+    without_sandbox_placeholders,
+)
 from shelf.domain.model import RepoRef, WorkContext, WorkId
 from shelf.domain.nix import (
     TIME_LIMIT,
@@ -28,7 +36,15 @@ from shelf.domain.pipeline import EntryPoint, Phase
 from shelf.domain.result import Err, Ok
 from shelf.domain.results import Results, results_note
 from shelf.domain.review import ReviewDepth, review_note
-from shelf.domain.roles import PROVIDED_DOCUMENT, REVIEWERS, ROLES, TITLER, documents_dir, legacy_documents_dir
+from shelf.domain.roles import (
+    PROVIDED_DOCUMENT,
+    REVIEWERS,
+    ROLES,
+    TITLER,
+    AgentRole,
+    documents_dir,
+    legacy_documents_dir,
+)
 from shelf.domain.runlog import RunRecord, keep_events, redact
 from shelf.domain.story import agent_comment
 from shelf.domain.titles import clean_title, fallback_title
@@ -162,6 +178,33 @@ def _keep_out_of_the_formatter(root: Path) -> None:
         (root / IGNORE_FILE).write_text(updated, encoding="utf-8")
 
 
+def _uses_prettier(root: Path) -> bool:
+    files = {
+        name: (root / name).read_text(encoding="utf-8", errors="replace") for name in READ if (root / name).is_file()
+    }
+    return uses_prettier(files)
+
+
+def _hide_sandbox_placeholders(root: Path) -> bool:
+    """For a repository that uses Prettier, make its ignore file skip the sandbox's placeholders; whether it did."""
+    if not _uses_prettier(root):
+        return False
+    path = root / IGNORE_FILE
+    existing = path.read_text(encoding="utf-8", errors="replace") if path.is_file() else None
+    path.write_text(with_sandbox_placeholders(existing), encoding="utf-8")
+    return True
+
+
+def _show_sandbox_placeholders_again(root: Path) -> None:
+    """Take the block out of the ignore file again, so that nothing of it is ever committed."""
+    path = root / IGNORE_FILE
+    if path.is_file():
+        text = path.read_text(encoding="utf-8", errors="replace")
+        cleaned = without_sandbox_placeholders(text)
+        if cleaned != text:
+            path.write_text(cleaned, encoding="utf-8")
+
+
 def _mark_used(env: Mapping[str, str]) -> None:
     """Note that this home is in use, so that ``shelf-cache prune`` keeps it."""
     home = Path(env.get("HOME", ""))
@@ -228,6 +271,7 @@ def task_prompt(  # noqa: PLR0913
     web: bool = False,
     results: Results | None = None,
     depth: ReviewDepth = ReviewDepth.STANDARD,
+    sandbox_note: bool = False,
 ) -> str:
     """What the agent is asked, built from the request, the documents so far and the feedback that sent work back."""
     folder = folder or documents_dir(work.id)
@@ -259,6 +303,7 @@ def task_prompt(  # noqa: PLR0913
         setup or (TOOLCHAIN_NOTE if toolchain else ""),
         WEB_NOTE if web else "",
         SYSTEM_FILES_NOTE,
+        SANDBOX_NOTE if sandbox_note else "",
     ]
     lines += [part for note in notes if note for part in ("", note)]
     if role.document:
@@ -419,6 +464,7 @@ class Steps:
             results=config.results,
             web=self.web,
             depth=_depth_for(work, step.phase, config),
+            sandbox_note=step.phase in TOOL_PHASES and _uses_prettier(workspace.path),
         )
         sink = RunSink()
         asked = continuation_prompt(step, folder_of(workspace.path, work.id), ci=ci_report) if step.session else prompt
@@ -586,6 +632,23 @@ class Steps:
         """Ask the agent: ``prompts`` is what to ask and, for a session continued, the whole task to fall back on."""
         prompt, fallback = prompts
         role = ROLES[step.phase]
+        hidden = step.phase in TOOL_PHASES and _hide_sandbox_placeholders(workspace.path)
+        try:
+            return await self._run_agent(role, prompt, fallback, (work, step, workspace, token), sink, more_env)
+        finally:
+            if hidden:
+                _show_sandbox_placeholders_again(workspace.path)
+
+    async def _run_agent(  # noqa: PLR0913, PLR0917 - one argument per thing the agent needs
+        self,
+        role: AgentRole,
+        prompt: str,
+        fallback: str,
+        where: tuple[WorkContext, RunStep, Workspace, str],
+        sink: RunSink,
+        more_env: Mapping[str, str],
+    ) -> str:
+        work, step, workspace, token = where
         return await self.agents.run(
             AgentTask(
                 role=role,

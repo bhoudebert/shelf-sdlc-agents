@@ -32,3 +32,29 @@ def test_an_empty_ignore_file_gets_the_line_without_a_leading_blank() -> None:
     assert prettier_ignore({".prettierignore": "", "package.json": PACKAGE}) == (
         "# Shelf's own files for each piece of work\n.shelf/\n"
     )
+
+
+def test_the_sandbox_block_is_added_once_at_the_end_and_taken_out_again_whole() -> None:
+    from shelf.domain.formatters import (  # noqa: PLC0415
+        SANDBOX_BEGIN,
+        SANDBOX_PLACEHOLDERS,
+        with_sandbox_placeholders,
+        without_sandbox_placeholders,
+    )
+
+    original = "dist\n\n# Shelf's own files for each piece of work\n.shelf/\n"
+    hidden = with_sandbox_placeholders(original)
+    assert hidden.startswith(original.rstrip("\n"))
+    assert hidden.count(SANDBOX_BEGIN) == 1
+    assert all(name in hidden.splitlines() for name in SANDBOX_PLACEHOLDERS)
+    assert with_sandbox_placeholders(hidden) == hidden  # asking again changes nothing
+    assert without_sandbox_placeholders(hidden) == original
+
+
+def test_a_missing_ignore_file_gets_only_the_block_and_loses_it_again() -> None:
+    from shelf.domain.formatters import with_sandbox_placeholders, without_sandbox_placeholders  # noqa: PLC0415
+
+    hidden = with_sandbox_placeholders(None)
+    assert hidden.splitlines()[0].startswith("# shelf: sandbox placeholders")
+    assert without_sandbox_placeholders(hidden).strip() == ""
+    assert without_sandbox_placeholders("dist\n") == "dist\n"

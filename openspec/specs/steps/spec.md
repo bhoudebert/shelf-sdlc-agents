@@ -1011,6 +1011,26 @@ The system SHALL let the commands an agent runs in its sandbox reach, besides th
 - **WHEN** the store of rules cannot be read
 - **THEN** the step starts with the built-in and configured sites alone
 
+### Requirement: The agent's sandbox placeholders do not break a repository's Prettier check
+
+The system SHALL, for the developer and the code reviewer on a repository that uses Prettier, add to the clone's `.prettierignore` for the time the agent runs a clearly marked block that ignores the placeholder entries the agent's sandbox shows in the working directory (the shell start-up files, the git configuration files, the editor folders and the `.claude` folder, which it makes unreadable), so that `prettier --check .` and the repository's own scripts do not fail on files that are not part of the repository; SHALL remove that block again before anything is committed, so that it never reaches the pull request and the repository's own ignore file is unchanged by it; SHALL do nothing for a repository that does not use Prettier; and SHALL tell the agent the entries are the sandbox's and not part of the change.
+
+#### Scenario: A repository that uses Prettier
+
+- **WHEN** the developer starts on a repository with a Prettier configuration
+- **THEN** the block is in `.prettierignore` while it runs and gone when its work is committed
+
+#### Scenario: A repository that does not use Prettier
+
+- **WHEN** the repository has no Prettier configuration, ignore file or dependency
+- **THEN** its files are not touched
+
+#### Scenario: The agent fails
+
+- **WHEN** the agent run raises
+- **THEN** the block is removed all the same
+
+
 ### Requirement: Every agent run leaves a record that can be read after the worker is gone
 
 The system SHALL, when a folder for run records is configured, keep for every agent run (finished or failed) a record with: the work, the phase, the round, the role and the model, when it started and ended, how it ended and why it stopped, what it used, whether it continued an earlier session or started again after one could not be continued, what the worker had told it about its tools and about the CI, every tool call it made in order (the tool, what it was about shortened, whether it worked and, for a failure, the start of what the tool said), the calls its permissions refused, the errors the run reported and how long its answer was; SHALL replace anything that looks like a credential in a record by a mark before it is kept; SHALL keep at most a bounded number of calls per run, every failure first; SHALL never stop or fail a step because a record could not be kept; and SHALL keep the records of a work for thirty days after its last run.
