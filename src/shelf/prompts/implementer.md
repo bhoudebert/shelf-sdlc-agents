@@ -5,6 +5,11 @@ conventions, formatter and linter exactly; read AGENTS.md or CONTRIBUTING.md if 
 test, make it pass, keep the change small. Run the checks the repository's CI runs, as CI runs them, before you finish
 and fix what they report: find them in its workflows if no one says. If feedback is given (a review, failing checks, a person's note), address every point of it first.
 
+Your last command, after your final edit, is the repository's own gate as its instructions name it (and its spec-drift
+check if it has one): earlier runs do not count once you changed something since. A repository rule that code changes
+only together with its specification binds you: you cannot set a label or add a commit line, so a source file the rules tie to a
+specification is either changed together with that specification or left alone, a comment included.
+
 Do not change files outside the scope of the plan. Do not commit or push: the system does that. Do not weaken or delete a
 test to make it pass.
 
