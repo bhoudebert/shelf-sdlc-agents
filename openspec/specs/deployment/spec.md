@@ -601,3 +601,22 @@ The system SHALL read `SHELF_WEB` from the environment, `on` by default, and giv
 
 - **WHEN** `SHELF_WEB=maybe`
 - **THEN** the service does not start and the message names `SHELF_WEB`
+
+### Requirement: The rules added from the admin page live in a volume only the web service writes
+
+The system SHALL keep the overlay policy file, the list of the rules and the change log in a named volume that the web service writes and the worker only reads, SHALL give the worker `WARDEN_OVERLAY_POLICY` pointing at the overlay file in it and the web service the folder, SHALL replace the overlay file as a whole (a new file renamed over the old one) so that a guard never reads half a file, and SHALL need no migration and no restart when it is first used or changed: the volume is created when the service starts, and the guard reads the file on each call.
+
+#### Scenario: A first install of this version
+
+- **WHEN** an operator updates an instance that has no such volume
+- **THEN** the volume is created and the guard works as before, with no overlay
+
+#### Scenario: The worker cannot write
+
+- **WHEN** the worker's container tries to write in the volume
+- **THEN** it cannot
+
+#### Scenario: A rule added while an agent works
+
+- **WHEN** an administrator allows a command while a step is running
+- **THEN** the agent's next call sees it, with no restart

@@ -706,3 +706,42 @@ The system SHALL show administrators, in the Guard section, the calls the guard 
 
 - **WHEN** an administrator reads a suggested rule
 - **THEN** no file or policy has changed
+
+### Requirement: An administrator can allow a stopped command or deny a host from the admin page
+
+The system SHALL let an administrator, from the Guard section of the admin page, allow a command the guard stopped (an exact match of the command) and deny a host the agents read, and SHALL record each in the overlay policy file the guard reads, with who did it and when, in a log of the changes that is only ever added to; SHALL accept only a command that appears among the stopped calls the page lists and that no rule is known to be unable to free, and only a host that appears among the hosts the page lists; SHALL list the rules added this way with a way to remove each, and say that a change applies from the next call an agent makes; SHALL refuse the request of anyone who is not an administrator and a request that does not come from the site itself; and SHALL not offer these buttons, and say why, when the instance has no place to keep the overlay.
+
+#### Scenario: Allow a command
+
+- **WHEN** an administrator allows a stopped command from the page
+- **THEN** the overlay holds a rule that allows exactly that command, the change log says who and when, and the page lists the rule with a way to remove it
+
+#### Scenario: Deny a host
+
+- **WHEN** an administrator denies `example.org`, which the agents fetched
+- **THEN** the overlay lists it under `deny_domains` and the page lists it with a way to remove it
+
+#### Scenario: A command the page did not list
+
+- **WHEN** a request allows a command that is not among the stopped calls on the page
+- **THEN** it is refused and nothing is written
+
+#### Scenario: A call that is always refused
+
+- **WHEN** a request allows a command whose call was refused as a blocked domain
+- **THEN** it is refused and nothing is written
+
+#### Scenario: Not an administrator
+
+- **WHEN** a signed-in person who is not an administrator sends the request
+- **THEN** it is refused and nothing is written
+
+#### Scenario: Removing a rule
+
+- **WHEN** an administrator removes a rule added from the page
+- **THEN** the overlay no longer holds it and the change log says who removed it and when
+
+#### Scenario: No place for the overlay
+
+- **WHEN** the instance has no overlay location
+- **THEN** the page shows the text to copy as before and says that applying it from here is not set up
