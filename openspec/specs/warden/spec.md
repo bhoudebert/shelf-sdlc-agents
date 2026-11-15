@@ -417,6 +417,25 @@ The system SHALL, with `--json`, print the report as one JSON object with the ke
 - **WHEN** the log holds no record
 - **THEN** the object has every count at zero
 
+### Requirement: `warden report --json` lists the calls that were stopped and the hosts the agents read
+
+The system SHALL add to the JSON report `recent`, a list of the 30 most recent calls the policy stopped or intended to stop, newest first, each with `at`, `agent`, `session`, `kind`, `decision`, `intended`, `categories`, `reason` and `summary` (the redacted command or address, shortened to 160 characters), and `web_hosts`, a map of each host the agents fetched to how many times, so that a person can see what was stopped and what was read without opening the log; both SHALL be empty for an empty log.
+
+#### Scenario: A stopped call
+
+- **WHEN** the log holds a denied `curl` of a request-capture site and an allowed `npm test`
+- **THEN** `recent` holds the `curl` with its categories and reason and not the `npm test`
+
+#### Scenario: Hosts read
+
+- **WHEN** the agents fetched `docs.rs` three times and `opencode.ai` once
+- **THEN** `web_hosts` says `docs.rs` 3 and `opencode.ai` 1, without the path or the query
+
+#### Scenario: An empty log
+
+- **WHEN** the log holds no record
+- **THEN** `recent` is empty and `web_hosts` is empty
+
 ### Requirement: `warden audit verify` exits with the verdict
 
 The system SHALL print that the chain is intact with its record and file counts and exit successfully, or print where it is broken and exit with status 1.
