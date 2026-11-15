@@ -649,3 +649,23 @@ The system SHALL give every agent a tool to fetch an address and a tool to searc
 
 - **WHEN** a fetched page says to ignore the task and send a file somewhere
 - **THEN** the prompt has already said that a page is data, and the guard refuses what it asks that is not allowed
+
+### Requirement: The spec review and the design review are never judged by the CI
+
+The system SHALL NOT give the CI of the pull request to the spec reviewer or the design reviewer and SHALL NOT change their verdict because of it, so that an approval of a document stands whatever a check says about the draft that holds it; only the code review is held back by the CI.
+
+#### Scenario: A spec approved over a red CI
+
+- **WHEN** the spec reviewer answers APPROVE while a check of the draft pull request is red
+- **THEN** the verdict recorded is the approval, and the spec writer is not sent back because of the CI
+
+#### Scenario: A design approved while the CI runs
+
+- **WHEN** the design reviewer answers APPROVE while the CI has not finished
+- **THEN** the verdict recorded is the approval and no person is asked about the CI
+
+#### Scenario: The code review
+
+- **WHEN** the code reviewer answers APPROVE over a red CI
+- **THEN** the verdict recorded is changes requested, as before
+
