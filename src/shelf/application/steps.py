@@ -23,7 +23,7 @@ from shelf.domain.toolchain import TOOLCHAIN_NOTE, toolchain_env
 from shelf.domain.verdict import parse_verdict
 from shelf.domain.web import WEB_NOTE
 from shelf.domain.work import WAITING_FOR_CI, Produced, Reviewed, RunStep, StepResult, Verdict, Verified
-from shelf.ports.agents import AgentBackend, AgentTask
+from shelf.ports.agents import AgentBackend, AgentTask, UsageSink
 from shelf.ports.configs import RepoConfigs
 from shelf.ports.context_sources import ContextSources
 from shelf.ports.steps import PullRequests
@@ -276,17 +276,18 @@ class Steps:
             web=self.web,
             depth=_depth_for(work, step.phase, config),
         )
-        answer = await self._ask_agent(work, step, workspace, token, prompt)
+        sink = UsageSink()
+        answer = await self._ask_agent(work, step, workspace, token, prompt, sink)
         role = ROLES[step.phase]
         if step.phase in REVIEWERS:
-            reviewed = parse_verdict(answer)
+            reviewed = replace(parse_verdict(answer), usage=sink.usage)
             if (
                 step.phase is Phase.CODE_REVIEW
             ):  # a document is not judged by what the repository's CI says of its draft
                 reviewed = hold_back_for_ci(reviewed, ci)
             return reviewed, role.name, f"**Verdict: {reviewed.verdict}**\n\n{reviewed.issues}".strip()
         await workspace.commit_and_push(f"chore(shelf): {role.name} for {work.id}")
-        return Produced(), role.name, await self._story(work, step, workspace, config, answer)
+        return Produced(sink.usage), role.name, await self._story(work, step, workspace, config, answer)
 
     async def record_decision(self, work: WorkContext, record: DecisionRecord) -> None:
         """Append a person's decision to the work's decision log on its branch, committed by the system."""
@@ -345,7 +346,9 @@ class Steps:
         picture = self._picture(work, workspace)
         return "\n".join([*lines, "", picture] if picture else lines)
 
-    async def _ask_agent(self, work: WorkContext, step: RunStep, workspace: Workspace, token: str, prompt: str) -> str:
+    async def _ask_agent(  # noqa: PLR0913, PLR0917 - one argument per thing the agent needs
+        self, work: WorkContext, step: RunStep, workspace: Workspace, token: str, prompt: str, sink: UsageSink
+    ) -> str:
         role = ROLES[step.phase]
         return await self.agents.run(
             AgentTask(
@@ -360,6 +363,7 @@ class Steps:
                 max_turns=self.max_turns,
                 max_budget_usd=self.max_budget_usd,
                 model=self.model,
+                sink=sink,
             )
         )
 
@@ -500,13 +504,16 @@ def hold_back_for_ci(reviewed: Reviewed, ci: Ci) -> Reviewed:
         return reviewed
     match ci.state:
         case CiState.RED:
-            return Reviewed(
-                Verdict.CHANGES, f"{reviewed.issues}\n\nNot approved: the CI is red.\n{ci.report()}".strip()
+            return replace(
+                reviewed,
+                verdict=Verdict.CHANGES,
+                issues=f"{reviewed.issues}\n\nNot approved: the CI is red.\n{ci.report()}".strip(),
             )
         case CiState.PENDING | CiState.BLOCKED:
-            return Reviewed(
-                Verdict.ESCALATE,
-                f"{reviewed.issues}\n\nNot approved yet: the CI has not finished.\n{ci.report()}".strip(),
+            return replace(
+                reviewed,
+                verdict=Verdict.ESCALATE,
+                issues=f"{reviewed.issues}\n\nNot approved yet: the CI has not finished.\n{ci.report()}".strip(),
             )
         case CiState.GREEN | CiState.NONE:
             return reviewed

@@ -15,6 +15,7 @@ from shelf.domain.pipeline import EntryPoint, Phase
 from shelf.domain.policy import Autonomy
 from shelf.domain.result import Err, Ok
 from shelf.domain.story import agent_comment
+from shelf.domain.usage import Usage
 from shelf.domain.work import WAITING_FOR_CI, Produced, Reviewed, RunStep, Verdict, Verified
 from shelf.ports.agents import AgentTask
 from shelf.ports.workspace import Checkout, CheckResult
@@ -58,9 +59,12 @@ class FakeWorkspaces:
 class FakeAgents:
     answer: str = "done"
     tasks: list[AgentTask] = field(default_factory=list[AgentTask])
+    usage: Usage | None = None
 
     async def run(self, task: AgentTask) -> str:
         self.tasks.append(task)
+        if task.sink is not None:
+            task.sink.usage = self.usage
         return self.answer
 
 
@@ -744,3 +748,27 @@ async def test_the_code_review_is_still_held_back_by_a_red_ci_and_told_about_it(
     assert isinstance(result, Reviewed)
     assert result.verdict is Verdict.CHANGES
     assert "CI is red" in agents.tasks[0].prompt
+
+
+USED = Usage(1200, 340, 50_000, 2_000, 0.41, 7, 12.3, ("m",))
+
+
+async def test_a_producing_step_reports_what_the_agent_used() -> None:
+    result = await steps(FakeAgents(usage=USED)).run(NEED, RunStep(Phase.INTAKE, 0, ""))
+    assert result == Produced(USED)
+
+
+async def test_a_reviewing_step_reports_what_the_agent_used_and_the_ci_hold_back_keeps_it() -> None:
+    result = await steps(FakeAgents("Fine.\nVERDICT: APPROVE", usage=USED), pulls=FakePulls(cis=[RED])).run(
+        NEED, RunStep(Phase.CODE_REVIEW, 0, "")
+    )
+    assert isinstance(result, Reviewed)
+    assert result.verdict is Verdict.CHANGES
+    assert result.usage == USED
+
+
+async def test_a_backend_that_reports_nothing_leaves_the_usage_empty_and_the_result_unchanged() -> None:
+    result = await steps(FakeAgents()).run(NEED, RunStep(Phase.INTAKE, 0, ""))
+    assert result == Produced()
+    assert isinstance(result, Produced)
+    assert result.usage is None

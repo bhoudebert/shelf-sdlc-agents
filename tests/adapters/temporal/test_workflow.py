@@ -17,6 +17,7 @@ from shelf.domain.model import PullInfo, WorkContext
 from shelf.domain.pipeline import KIND, Kind, Phase
 from shelf.domain.policy import CURRENT_PROTOCOL
 from shelf.domain.stage import Stage
+from shelf.domain.usage import Usage
 from shelf.domain.work import (
     AskPerson,
     DecisionKind,
@@ -375,3 +376,37 @@ async def test_work_started_under_the_previous_protocol_records_nothing(env: Wor
         await handle.signal(WorkItemWorkflow.pull_request_closed, True)
         await handle.result()
     assert steps.recorded == []
+
+
+async def test_the_workflow_keeps_what_each_step_used_in_order_and_answers_for_it(env: WorkflowEnvironment) -> None:
+    spent = Usage(1000, 100, 2000, 200, 0.25, 5, 9.0, ("m",))
+    steps = FakeSteps(
+        script={
+            (Phase.INTAKE, 0): Produced(spent),
+            (Phase.SPEC_REVIEW, 0): Reviewed(Verdict.CHANGES, "more", spent),
+            (Phase.INTAKE, 1): Produced(spent),
+            (Phase.SPEC_REVIEW, 1): Reviewed(Verdict.APPROVE, "", spent),
+        }
+    )
+    async with worker(env, steps, FakePulls()):
+        handle = await start(env, work_input("need"))
+        await until(handle, lambda s: s.waiting_for == "gate")
+        found = wire.step_usages(await handle.query(WorkItemWorkflow.usage))
+        await handle.signal(WorkItemWorkflow.decided, wire.DecisionDto("carol", DecisionKind.ABORT, ""))
+        await handle.result()
+        after = wire.step_usages(await handle.query(WorkItemWorkflow.usage))
+    assert [(s.agent, s.attempt) for s in found] == [
+        ("intake", 0),
+        ("spec_critic", 0),
+        ("intake", 1),
+        ("spec_critic", 1),
+    ]
+    assert found[0].usage == spent
+    assert after == found, "a finished work still answers"
+
+
+async def test_work_whose_steps_reported_nothing_has_no_usage_entries(env: WorkflowEnvironment) -> None:
+    async with worker(env, FakeSteps(), FakePulls()):
+        handle = await start(env, work_input("need"))
+        await until(handle, lambda s: s.waiting_for == "gate")
+        assert await handle.query(WorkItemWorkflow.usage) == []

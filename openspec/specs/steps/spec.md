@@ -669,3 +669,17 @@ The system SHALL NOT give the CI of the pull request to the spec reviewer or the
 - **WHEN** the code reviewer answers APPROVE over a red CI
 - **THEN** the verdict recorded is changes requested, as before
 
+
+### Requirement: Every agent step reports what it used
+
+The system SHALL report, for each step an agent carried out, the tokens it read and wrote (and those read from and written to the cache), the cost the model provider reported, the number of turns, the time it took and the models used, SHALL leave the usage empty rather than guess when the provider reported none, and SHALL NOT let a failure to read it change the result of the step.
+
+#### Scenario: A step finishes
+
+- **WHEN** the spec writer finishes a step and the provider reported 12,000 tokens read, 900 written and a cost of $0.41
+- **THEN** the step's report carries those figures with its turns and duration
+
+#### Scenario: No usage reported
+
+- **WHEN** the provider reports no usage for a step
+- **THEN** the step's usage is empty and the step's result is unchanged

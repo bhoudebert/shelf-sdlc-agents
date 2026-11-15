@@ -4,6 +4,7 @@ from collections.abc import Collection, Sequence
 from typing import Protocol
 
 from shelf.domain.model import RepoRef, WorkId, WorkRequest, WorkView
+from shelf.domain.usage import StepUsage
 from shelf.domain.work import PersonDecided
 
 
@@ -32,6 +33,10 @@ class WorkRunner(Protocol):
 
     async def view(self, work_id: WorkId) -> WorkView | None:
         """The current picture of one piece of work, or ``None`` when it does not exist."""
+        ...
+
+    async def usage(self, work_id: WorkId) -> tuple[StepUsage, ...]:
+        """What each agent step of the work used, in order; empty for work that predates it or cannot be read."""
         ...
 
     async def list(self, repos: Collection[RepoRef] | None) -> Sequence[WorkView]:

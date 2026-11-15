@@ -128,7 +128,8 @@
         "src/shelf/domain/web.py",
         "src/shelf/domain/toolchain.py",
         "src/shelf/domain/ci.py",
-        "src/shelf/domain/secrets.py"
+        "src/shelf/domain/secrets.py",
+        "src/shelf/domain/usage.py"
       ],
       "tests": [
         "tests/application/test_steps.py",

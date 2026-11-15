@@ -6,6 +6,14 @@ from pathlib import Path
 from typing import Protocol
 
 from shelf.domain.roles import AgentRole
+from shelf.domain.usage import Usage
+
+
+@dataclass(eq=False)
+class UsageSink:
+    """Where a backend puts what a run used, if it knows. The caller reads it after the run."""
+
+    usage: Usage | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -20,6 +28,8 @@ class AgentTask:
     max_turns: int = 40
     max_budget_usd: float | None = None
     model: str | None = None
+    sink: UsageSink | None = field(default=None, compare=False)
+    """Filled with what the run used when the backend can say."""
 
 
 class AgentBackend(Protocol):

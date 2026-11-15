@@ -12,6 +12,7 @@ from shelf.application.work import decide_work
 from shelf.domain.config import InvalidConfigError
 from shelf.domain.model import WorkId
 from shelf.domain.result import Ok
+from shelf.domain.usage import summarize
 from shelf.domain.work import DecisionKind
 from shelf.ports.runner import UnreachableWorkError
 
@@ -48,6 +49,13 @@ def router(web: Web) -> APIRouter:  # noqa: C901 - one small closure per route
             temporal_link=web.temporal_link(work_id) if web.is_admin(session) else "",
             can_close=web.is_admin(session) and item.outcome == "",
         )
+
+    @routes.get("/work/{work_id}/usage", response_class=HTMLResponse)
+    async def usage(request: Request, session: Annotated[Session, Depends(web.signed_in)], work_id: str) -> Response:
+        """What the agents used on this work: the table, the totals of each agent and of the work."""
+        await web.visible_work(session, work_id)
+        used = summarize(await deps.runner.usage(WorkId(work_id)))
+        return web.render(request, "_usage.html", session, used=used)
 
     @routes.get("/work/{work_id}/panel", response_class=HTMLResponse)
     async def panel(

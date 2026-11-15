@@ -11,6 +11,7 @@ from typing import NamedTuple, assert_never
 
 from shelf.domain.pipeline import KIND, LOOP_BACK, PIPELINE, Kind, Phase
 from shelf.domain.policy import Course
+from shelf.domain.usage import Usage
 
 
 class Verdict(StrEnum):
@@ -55,6 +56,9 @@ class Outcome(StrEnum):
 class Produced:
     """A producing step finished."""
 
+    usage: Usage | None = None
+    """What the agent used, when the provider said."""
+
 
 @dataclass(frozen=True, slots=True)
 class Reviewed:
@@ -62,6 +66,8 @@ class Reviewed:
 
     verdict: Verdict
     issues: str = ""
+    usage: Usage | None = None
+    """What the agent used, when the provider said."""
 
 
 @dataclass(frozen=True, slots=True)
