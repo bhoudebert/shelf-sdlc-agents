@@ -13,10 +13,10 @@ Choose the type from the INTENT of the whole request, never from the files commi
   what this pull request will do once it is finished: add a capability (`feat`), repair a defect (`fix`), restructure
   without changing behaviour (`refactor`), speed something up (`perf`), add or change tests (`test`), change the build,
   tooling or CI (`build`, `ci`), routine maintenance (`chore`), or change documentation alone (`docs`).
-- The factory's own files are bookkeeping and say nothing about the type: the folder `docs/shelf/` and commits starting
+- The factory's own files are bookkeeping and say nothing about the type: the folders `.shelf/` and `docs/shelf/` and commits starting
   with `chore(shelf):`. Early in the work they are the only things committed, so a title taken from them would be `docs`
   every time. To see what the work really changes, ignore them:
-  `git diff <base>...HEAD -- . ':(exclude)docs/shelf'` (the task names the base branch).
+  `git diff <base>...HEAD -- . ':(exclude).shelf' ':(exclude)docs/shelf'` (the task names the base branch).
 - Use `docs` only when the request itself is about documentation alone, with no behaviour, code or tooling to change.
   Adding a feature, a check or a workflow is not `docs` even if the first thing written is a document.
 

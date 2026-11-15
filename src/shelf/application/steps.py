@@ -3,15 +3,17 @@
 import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from pathlib import Path
 
 from shelf.domain.ci import Ci, CiState
 from shelf.domain.config import RepoConfig
 from shelf.domain.context import CATEGORIES, EARLIER_WORK, context_brief
 from shelf.domain.context_repo import FOLDER, note_for, parse_context
-from shelf.domain.model import RepoRef, WorkContext
+from shelf.domain.model import RepoRef, WorkContext, WorkId
 from shelf.domain.pipeline import EntryPoint, Phase
 from shelf.domain.result import Err, Ok
-from shelf.domain.roles import PROVIDED_DOCUMENT, REVIEWERS, ROLES, TITLER, documents_dir
+from shelf.domain.results import Results, results_note
+from shelf.domain.roles import PROVIDED_DOCUMENT, REVIEWERS, ROLES, TITLER, documents_dir, legacy_documents_dir
 from shelf.domain.story import agent_comment
 from shelf.domain.titles import clean_title, fallback_title
 from shelf.domain.toolchain import TOOLCHAIN_NOTE, toolchain_env
@@ -65,6 +67,12 @@ def adopted_note(number: int | None, base: str) -> str:
     )
 
 
+def folder_of(root: Path, work_id: WorkId) -> str:
+    """The folder a work keeps its documents in: the one it already has (a run that began before ``.shelf``)."""
+    old = legacy_documents_dir(work_id)
+    return old if (root / old).is_dir() and not (root / documents_dir(work_id)).is_dir() else documents_dir(work_id)
+
+
 def task_prompt(  # noqa: PLR0913
     work: WorkContext,
     step: RunStep,
@@ -74,9 +82,11 @@ def task_prompt(  # noqa: PLR0913
     toolchain: bool = False,
     ci: str = "",
     context: str = "",
+    folder: str = "",
+    results: Results | None = None,
 ) -> str:
     """What the agent is asked, built from the request, the documents so far and the feedback that sent work back."""
-    folder = documents_dir(work.id)
+    folder = folder or documents_dir(work.id)
     role = ROLES[step.phase]
     adopted = work.request.entry is EntryPoint.PULL_REQUEST_WORK
     lines = [f"Requested by: {work.request.requester}"]
@@ -100,6 +110,7 @@ def task_prompt(  # noqa: PLR0913
     notes = [
         f"What the repository's CI says about this pull request right now:\n{ci}" if ci and sees_ci else "",
         context,
+        results_note(results or Results(), step.phase),
         TOOLCHAIN_NOTE if toolchain else "",
     ]
     lines += [part for note in notes if note for part in ("", note)]
@@ -236,6 +247,8 @@ class Steps:
             toolchain=bool(self.cache_dir),
             ci=ci.report() if ci.state is not CiState.NONE else "",
             context=_context_note(work),
+            folder=folder_of(workspace.path, work.id),
+            results=config.results,
         )
         answer = await self._ask_agent(work, step, workspace, token, prompt)
         role = ROLES[step.phase]
@@ -274,11 +287,11 @@ class Steps:
             f"Requested by: {work.request.requester}",
             (
                 f"The base branch is `{base}`. What this work changes, ignoring the factory's own bookkeeping: "
-                f"`git diff {base}...HEAD -- . ':(exclude)docs/shelf'`."
+                f"`git diff {base}...HEAD -- . ':(exclude).shelf' ':(exclude)docs/shelf'`."
             ),
             (
-                f"The documents of this work are in `{documents_dir(work.id)}/`: they record the request and the spec, "
-                "and they are not what the pull request changes."
+                f"The documents of this work are in `{folder_of(workspace.path, work.id)}/`: they record the request "
+                "and the spec, and they are not what the pull request changes."
             ),
         ]
         if work.request.text:
@@ -316,7 +329,10 @@ class Steps:
             for title, patterns in CATEGORIES.items()
         }
         earlier = sorted(
-            str(p.relative_to(root)) for p in root.glob(EARLIER_WORK) if p.is_file() and work.id not in p.parts
+            str(p.relative_to(root))
+            for pattern in EARLIER_WORK
+            for p in root.glob(pattern)
+            if p.is_file() and work.id not in p.parts
         )
         return context_brief(found, earlier)
 
@@ -325,7 +341,7 @@ class Steps:
         name = PROVIDED_DOCUMENT.get(work.request.entry)
         if name is None or not work.request.text.strip():
             return False
-        target = workspace.path / documents_dir(work.id) / name
+        target = workspace.path / folder_of(workspace.path, work.id) / name
         if target.exists():
             return False
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -339,7 +355,7 @@ class Steps:
         role = ROLES[step.phase]
         parts = [f"Round {step.attempt}." if step.attempt else "", answer.strip()[:SUMMARY_LIMIT]]
         if role.document:
-            path = f"{documents_dir(work.id)}/{role.document}"
+            path = f"{folder_of(workspace.path, work.id)}/{role.document}"
             written = workspace.path / path
             if written.is_file():
                 shown = written.read_text(encoding="utf-8")[:DOCUMENT_LIMIT]

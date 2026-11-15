@@ -39,7 +39,12 @@ REVIEWERS: frozenset[Phase] = frozenset(phase for phase in ROLES if KIND[phase] 
 
 
 def documents_dir(work_id: WorkId) -> str:
-    """Where the work keeps its spec, design and plan inside the repository."""
+    """Where the work keeps its request, spec, design and plan inside the repository."""
+    return f".shelf/{work_id}"
+
+
+def legacy_documents_dir(work_id: WorkId) -> str:
+    """Where earlier runs kept them: still read, so that a run in flight and the older ones go on working."""
     return f"docs/shelf/{work_id}"
 
 
