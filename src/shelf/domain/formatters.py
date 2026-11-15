@@ -46,3 +46,46 @@ def prettier_ignore(files: Mapping[str, str]) -> str | None:
         return None
     kept = existing.rstrip("\n") + "\n\n" if existing and existing.strip() else ""
     return f"{kept}# Shelf's own files for each piece of work\n{FOLDER}\n"
+
+
+SANDBOX_BEGIN = "# shelf: sandbox placeholders, local to this run and never committed"
+SANDBOX_END = "# shelf: end of the sandbox placeholders"
+SANDBOX_PLACEHOLDERS = (
+    ".bash_profile",
+    ".bashrc",
+    ".claude/",
+    ".gitconfig",
+    ".gitmodules",
+    ".idea",
+    ".profile",
+    ".ripgreprc",
+    ".vscode",
+    ".zprofile",
+    ".zshrc",
+)
+"""What the agents' sandbox shows in the working directory, unreadable: Prettier fails on each of them."""
+
+SANDBOX_NOTE = (
+    "The sandbox shows some dotfiles and folders in the repository folder as unreadable (`.bashrc`, `.profile`, "
+    "`.gitconfig`, `.vscode`, `.idea`, `.claude/`...): they are not part of the repository or of your change. "
+    "The system has made `.prettierignore` skip them for this run only, so `prettier --check .` and the repository's "
+    "scripts can run; it removes that block before anything is committed. Never add them to the repository."
+)
+
+
+def without_sandbox_placeholders(text: str) -> str:
+    """``text`` without the block that ignores the sandbox's placeholders; unchanged when there is none."""
+    lines = text.splitlines()
+    if SANDBOX_BEGIN not in lines:
+        return text
+    start = lines.index(SANDBOX_BEGIN)
+    end = lines.index(SANDBOX_END, start) if SANDBOX_END in lines[start:] else len(lines) - 1
+    kept = [*lines[: max(0, start - 1) if start and not lines[start - 1].strip() else start], *lines[end + 1 :]]
+    return "\n".join(kept) + ("\n" if kept else "")
+
+
+def with_sandbox_placeholders(existing: str | None) -> str:
+    """The ``.prettierignore`` with the block that ignores the sandbox's placeholders; the block once, at the end."""
+    base = without_sandbox_placeholders(existing or "").rstrip("\n")
+    block = "\n".join([SANDBOX_BEGIN, *SANDBOX_PLACEHOLDERS, SANDBOX_END])
+    return f"{base}\n\n{block}\n" if base else f"{block}\n"

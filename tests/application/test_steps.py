@@ -1112,3 +1112,57 @@ async def test_every_agent_is_told_the_works_own_folder_belongs_to_the_system() 
     for task in agents.tasks:
         assert "is part of the pull request on purpose" in task.prompt
         assert "do not write that they stay out of the pull request" in task.prompt
+
+
+class PeekingAgents(FakeAgents):
+    """An agent that looks at the repository's ignore file while it runs."""
+
+    seen: str = ""
+    failing: bool = False
+
+    async def run(self, task: AgentTask) -> str:
+        path = task.workdir / ".prettierignore"
+        self.seen = path.read_text() if path.is_file() else ""
+        if self.failing:
+            message = "boom"
+            raise RuntimeError(message)
+        return await super().run(task)
+
+
+async def test_the_sandbox_placeholders_are_ignored_while_the_developer_runs_and_gone_before_the_commit() -> None:
+    from shelf.domain.formatters import SANDBOX_BEGIN  # noqa: PLC0415
+
+    workspaces = with_files(FakeWorkspaces(), {".prettierrc": "{}", ".prettierignore": "dist\n"})
+    agents = PeekingAgents()
+    await steps(agents, workspaces).run(NEED, RunStep(Phase.IMPLEMENT, 0, ""))
+    assert SANDBOX_BEGIN in agents.seen
+    assert ".bashrc" in agents.seen
+    after = (workspaces.workspace.path / ".prettierignore").read_text()
+    assert SANDBOX_BEGIN not in after
+    assert ".bashrc" not in after
+    assert "dist" in after
+    assert "unreadable" in agents.tasks[0].prompt
+
+
+async def test_a_repository_without_prettier_is_left_alone_and_the_block_goes_even_when_the_agent_fails() -> None:
+    from shelf.domain.formatters import SANDBOX_BEGIN  # noqa: PLC0415
+
+    plain = with_files(FakeWorkspaces(), {"package.json": "{}"})
+    agents = PeekingAgents()
+    await steps(agents, plain).run(NEED, RunStep(Phase.IMPLEMENT, 0, ""))
+    assert agents.seen == ""
+    assert "unreadable" not in agents.tasks[0].prompt
+    failing = with_files(FakeWorkspaces(), {".prettierrc": "{}"})
+    broken = PeekingAgents()
+    broken.failing = True
+    with pytest.raises(RuntimeError):
+        await steps(broken, failing).run(NEED, RunStep(Phase.IMPLEMENT, 0, ""))
+    assert SANDBOX_BEGIN in broken.seen
+    assert SANDBOX_BEGIN not in (failing.workspace.path / ".prettierignore").read_text()
+
+
+async def test_the_reviewers_of_documents_are_not_given_the_block() -> None:
+    workspaces = with_files(FakeWorkspaces(), {".prettierrc": "{}"})
+    agents = PeekingAgents()
+    await steps(agents, workspaces).run(NEED, RunStep(Phase.INTAKE, 0, ""))
+    assert ".bashrc" not in agents.seen
