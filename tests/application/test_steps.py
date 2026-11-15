@@ -171,7 +171,7 @@ def test_the_task_prompt_carries_the_request_the_feedback_and_where_to_write() -
     assert "loyalty points" in prompt
     assert "round 2" in prompt
     assert "add limits" in prompt
-    assert "docs/shelf/work-1/spec.md" in prompt
+    assert ".shelf/work-1/spec.md" in prompt
 
 
 def test_a_reviewers_prompt_asks_for_a_verdict_line() -> None:
@@ -186,7 +186,7 @@ def test_the_branch_belongs_to_the_work() -> None:
 async def test_the_submitted_text_is_recorded_in_the_repository_for_everyone_to_read() -> None:
     workspaces = FakeWorkspaces()
     await steps(workspaces=workspaces).run(NEED, RunStep(Phase.INTAKE, 0, ""))
-    recorded = workspaces.workspace.path / "docs/shelf/work-1/request.md"
+    recorded = workspaces.workspace.path / ".shelf/work-1/request.md"
     assert recorded.read_text() == "loyalty points\n"
 
 
@@ -194,13 +194,13 @@ async def test_a_submitted_spec_is_recorded_as_the_spec_the_reviewers_read() -> 
     workspaces = FakeWorkspaces()
     work = WorkContext(WorkId("work-3"), WorkRequest(REPO, "alice", EntryPoint.SPEC, "The system SHALL..."))
     await steps(workspaces=workspaces).run(work, RunStep(Phase.SPEC_REVIEW, 0, ""))
-    assert (workspaces.workspace.path / "docs/shelf/work-3/spec.md").read_text() == "The system SHALL...\n"
+    assert (workspaces.workspace.path / ".shelf/work-3/spec.md").read_text() == "The system SHALL...\n"
     assert workspaces.workspace.pushed == ["chore(shelf): record the request for work-3"]
 
 
 async def test_the_recorded_request_is_never_overwritten_by_a_later_step() -> None:
     workspaces = FakeWorkspaces()
-    target = workspaces.workspace.path / "docs/shelf/work-1/request.md"
+    target = workspaces.workspace.path / ".shelf/work-1/request.md"
     target.parent.mkdir(parents=True)
     target.write_text("edited by a person\n")
     await steps(workspaces=workspaces).run(NEED, RunStep(Phase.INTAKE, 1, "more"))
@@ -209,14 +209,14 @@ async def test_the_recorded_request_is_never_overwritten_by_a_later_step() -> No
 
 async def test_a_producer_speaks_as_itself_and_shows_the_document_it_wrote() -> None:
     pulls, workspaces = FakePulls(), FakeWorkspaces()
-    written = workspaces.workspace.path / "docs/shelf/work-1/spec.md"
+    written = workspaces.workspace.path / ".shelf/work-1/spec.md"
     written.parent.mkdir(parents=True)
     written.write_text("# Spec\n\nThe system SHALL earn points.\n")
     await steps(FakeAgents("Wrote 3 requirements."), workspaces, pulls).run(NEED, RunStep(Phase.INTAKE, 0, ""))
     [comment] = pulls.commented
     assert comment.startswith("<!-- shelf-agent:intake:work-1 -->\n**Spec writer** · agent")
     assert "Wrote 3 requirements." in comment
-    assert "<details><summary><code>docs/shelf/work-1/spec.md</code></summary>" in comment
+    assert "<details><summary><code>.shelf/work-1/spec.md</code></summary>" in comment
     assert "The system SHALL earn points." in comment
 
 
@@ -281,7 +281,7 @@ async def test_only_the_developer_is_given_the_installation_token() -> None:
 async def test_every_agent_is_pointed_at_the_specs_decisions_and_conventions_of_the_repository() -> None:
     agents, workspaces = FakeAgents(), FakeWorkspaces()
     root = workspaces.workspace.path
-    for name in ("AGENTS.md", "openspec/specs/pipeline/spec.md", "docs/adr/0001-first.md", "docs/shelf/work-0/spec.md"):
+    for name in ("AGENTS.md", "openspec/specs/pipeline/spec.md", "docs/adr/0001-first.md", ".shelf/work-0/spec.md"):
         (root / name).parent.mkdir(parents=True, exist_ok=True)
         (root / name).write_text("x")
     await steps(agents, workspaces).run(NEED, RunStep(Phase.DESIGN, 0, ""))
@@ -289,12 +289,12 @@ async def test_every_agent_is_pointed_at_the_specs_decisions_and_conventions_of_
     assert "- AGENTS.md" in task.prompt
     assert "- openspec/specs/pipeline/spec.md" in task.prompt
     assert "- docs/adr/0001-first.md" in task.prompt
-    assert "- docs/shelf/work-0/spec.md" in task.prompt
+    assert "- .shelf/work-0/spec.md" in task.prompt
 
 
 async def test_the_current_works_own_spec_is_not_listed_as_earlier_work() -> None:
     agents, workspaces = FakeAgents(), FakeWorkspaces()
-    own = workspaces.workspace.path / "docs/shelf/work-1/spec.md"
+    own = workspaces.workspace.path / ".shelf/work-1/spec.md"
     own.parent.mkdir(parents=True)
     own.write_text("x")
     await steps(agents, workspaces).run(NEED, RunStep(Phase.SPEC_REVIEW, 0, ""))
@@ -317,7 +317,7 @@ async def test_the_pull_request_is_named_by_the_agent_that_reads_the_conventions
     [task] = agents.tasks
     assert task.role.name == "titler"
     assert task.system_prompt == "prompt of titler"
-    assert "git diff main...HEAD -- . ':(exclude)docs/shelf'" in task.prompt
+    assert "git diff main...HEAD -- . ':(exclude).shelf' ':(exclude)docs/shelf'" in task.prompt
     assert "loyalty points" in task.prompt  # the request, which decides the type
 
 
@@ -343,6 +343,7 @@ def test_the_title_agent_is_told_to_judge_the_type_by_the_intent_not_by_the_book
 
     prompt = load_prompt("titler")
     assert "INTENT of the whole request" in prompt
+    assert ".shelf/" in prompt
     assert "docs/shelf/" in prompt
     assert "chore(shelf):" in prompt
     assert "`docs` only when the request itself is about documentation alone" in prompt
@@ -585,3 +586,21 @@ def test_other_agents_get_no_such_note() -> None:
     assert "Nobody is available" not in task_prompt(NEED, RunStep(Phase.INTAKE, 0, ""))
     asked = WorkRequest(REPO, "alice", EntryPoint.NEED, "x", autonomy=Autonomy.strictest())
     assert "Nobody is available" not in task_prompt(WorkContext(WorkId("w"), asked), RunStep(Phase.INTAKE, 0, ""))
+
+
+async def test_an_agent_is_told_where_the_lasting_results_go() -> None:
+    agents = FakeAgents()
+    await steps(agents).run(NEED, RunStep(Phase.DESIGN, 0, ""))
+    [task] = agents.tasks
+    assert "record in `docs/adr/`" in task.prompt
+    assert "Write your result to `.shelf/work-1/design.md`" in task.prompt
+
+
+async def test_a_run_that_began_in_the_old_folder_goes_on_there() -> None:
+    agents, workspaces = FakeAgents(), FakeWorkspaces()
+    old = workspaces.workspace.path / "docs/shelf/work-1/spec.md"
+    old.parent.mkdir(parents=True)
+    old.write_text("x")
+    await steps(agents, workspaces).run(NEED, RunStep(Phase.DESIGN, 0, ""))
+    [task] = agents.tasks
+    assert "Write your result to `docs/shelf/work-1/design.md`" in task.prompt

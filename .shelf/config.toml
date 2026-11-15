@@ -1,0 +1,9 @@
+# How Shelf works on this repository (docs: site/docs/configuration.html).
+base_branch = "main"
+
+[results]
+# Where the lasting results of a run go. These are the defaults, written down.
+specs = "openspec/specs"
+decisions = "docs/adr"
+write = ["spec", "adr"]
+conflicts = "block"

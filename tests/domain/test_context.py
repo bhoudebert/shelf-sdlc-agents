@@ -8,12 +8,12 @@ def test_a_repository_with_nothing_to_respect_gets_no_brief() -> None:
 def test_the_brief_lists_what_exists_under_its_kind_and_tells_the_agent_not_to_contradict_it() -> None:
     brief = context_brief(
         {"Existing specifications (the contract: do not contradict them)": ["openspec/specs/pipeline/spec.md"]},
-        ["docs/shelf/work-0/spec.md"],
+        [".shelf/work-0/spec.md"],
     )
     assert "Existing specifications" in brief
     assert "- openspec/specs/pipeline/spec.md" in brief
     assert "Specs of earlier work" in brief
-    assert "- docs/shelf/work-0/spec.md" in brief
+    assert "- .shelf/work-0/spec.md" in brief
     assert "must not contradict" in brief
 
 

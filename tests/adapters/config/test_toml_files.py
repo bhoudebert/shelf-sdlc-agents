@@ -111,3 +111,35 @@ def test_a_role_table_takes_only_a_use_list() -> None:
 def test_a_repository_may_let_work_go_on_past_a_deadlock_and_by_default_does_not() -> None:
     assert parse_repo_config("[policy]\nproceed_on_deadlock = true").policy.proceed_on_deadlock
     assert not parse_repo_config("").policy.proceed_on_deadlock
+
+
+def test_a_repository_says_where_its_specs_and_decisions_are_and_what_a_run_writes() -> None:
+    config = parse_repo_config(
+        '[results]\nspecs = "specs/"\ndecisions = "docs/decisions"\nwrite = ["adr"]\nconflicts = "warn"\n'
+    )
+    assert config.results.specs == "specs"
+    assert config.results.decisions == "docs/decisions"
+    assert config.results.write == frozenset({"adr"})
+    assert config.results.conflicts.value == "warn"
+
+
+def test_without_a_results_section_the_standard_places_apply() -> None:
+    results = parse_repo_config("").results
+    assert (results.specs, results.decisions) == ("openspec/specs", "docs/adr")
+    assert results.write == frozenset({"spec", "adr"})
+    assert results.conflicts.value == "block"
+
+
+@pytest.mark.parametrize(
+    ("text", "message"),
+    [
+        ('[results]\nconflicts = "maybe"', "conflicts must be one of"),
+        ('[results]\nwrite = ["code"]', "write may list"),
+        ('[results]\nspecs = "/etc"', "specs must be a folder inside the repository"),
+        ('[results]\ndecisions = "../outside"', "decisions must be a folder inside the repository"),
+        ("[results]\nfolder = 1", "unknown keys: folder"),
+    ],
+)
+def test_a_mistake_in_the_results_section_is_refused_with_a_reason(text: str, message: str) -> None:
+    with pytest.raises(ConfigError, match=message):
+        parse_repo_config(text)

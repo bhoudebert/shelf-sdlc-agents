@@ -8,7 +8,7 @@ from shelf.adapters.github_app.pulls import TokenFor, branch_name
 from shelf.adapters.github_app.settings import GitHubAppSettings
 from shelf.domain.model import RepoRef, WorkContext, WorkId, WorkRequest
 from shelf.domain.pipeline import EntryPoint
-from shelf.domain.roles import DOCUMENT_TITLES, documents_dir
+from shelf.domain.roles import DOCUMENT_TITLES, documents_dir, legacy_documents_dir
 
 NOT_FOUND = 404
 
@@ -27,17 +27,19 @@ class GitHubDocuments:
         ref = branch_name(WorkContext(work_id, WorkRequest(repo, "", EntryPoint.NEED)))
         found: dict[str, str] = {}
         for name in DOCUMENT_TITLES:
-            response = await self.client.get(
-                f"{self.settings.api_url}/repos/{repo.full_name}/contents/{documents_dir(work_id)}/{name}",
-                params={"ref": ref},
-                headers={
-                    "Authorization": f"Bearer {token}",
-                    "Accept": "application/vnd.github.raw+json",
-                    "X-GitHub-Api-Version": "2022-11-28",
-                },
-            )
-            if response.status_code == NOT_FOUND:
-                continue
-            response.raise_for_status()
-            found[name] = response.text
+            for folder in (documents_dir(work_id), legacy_documents_dir(work_id)):
+                response = await self.client.get(
+                    f"{self.settings.api_url}/repos/{repo.full_name}/contents/{folder}/{name}",
+                    params={"ref": ref},
+                    headers={
+                        "Authorization": f"Bearer {token}",
+                        "Accept": "application/vnd.github.raw+json",
+                        "X-GitHub-Api-Version": "2022-11-28",
+                    },
+                )
+                if response.status_code == NOT_FOUND:
+                    continue
+                response.raise_for_status()
+                found[name] = response.text
+                break
         return found
