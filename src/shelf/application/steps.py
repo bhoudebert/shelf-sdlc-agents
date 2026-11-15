@@ -1,7 +1,8 @@
 """Carrying out a step: a fresh clone, the role of the phase, and what comes out, read back as a result."""
 
 import asyncio
-from collections.abc import Awaitable, Callable
+import logging
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -19,7 +20,8 @@ from shelf.domain.review import ReviewDepth, review_note
 from shelf.domain.roles import PROVIDED_DOCUMENT, REVIEWERS, ROLES, TITLER, documents_dir, legacy_documents_dir
 from shelf.domain.story import agent_comment
 from shelf.domain.titles import clean_title, fallback_title
-from shelf.domain.toolchain import TOOLCHAIN_NOTE, toolchain_env
+from shelf.domain.tool_detection import DECLARED, SOURCES, detect_tools, is_declared
+from shelf.domain.toolchain import TOOLCHAIN_NOTE, setup_command, toolchain_env, tools_failed, tools_ready
 from shelf.domain.verdict import parse_verdict
 from shelf.domain.web import WEB_NOTE
 from shelf.domain.work import WAITING_FOR_CI, Produced, Reviewed, RunStep, StepResult, Verdict, Verified
@@ -28,6 +30,8 @@ from shelf.ports.configs import RepoConfigs
 from shelf.ports.context_sources import ContextSources
 from shelf.ports.steps import PullRequests
 from shelf.ports.workspace import Checkout, Workspace, Workspaces
+
+log = logging.getLogger(__name__)
 
 TokenFor = Callable[[RepoRef], Awaitable[str]]
 PromptFor = Callable[[str], str]
@@ -83,6 +87,44 @@ CI_PHASES = frozenset({Phase.IMPLEMENT, Phase.CODE_REVIEW})
 """The steps that are told what the CI says: the code. A spec or a design is not judged by the checks of a draft."""
 
 
+TOOL_PHASES = frozenset({Phase.IMPLEMENT, Phase.CODE_REVIEW})
+"""The steps that build and test, and so need the repository's tools."""
+
+SETUP_TIMEOUT = 600.0
+"""Seconds the worker gives the installation of a repository's tools."""
+
+MAX_SOURCE = 200_000
+"""The most of one file the detection reads."""
+
+
+def _read_sources(root: Path) -> dict[str, str]:
+    """The files the versions are read from, and the ones that say a repository declares its tools."""
+    found: dict[str, str] = {}
+    for pattern in (*SOURCES, *DECLARED):
+        for path in root.glob(pattern):
+            if path.is_file() and path.stat().st_size <= MAX_SOURCE:
+                found[str(path.relative_to(root))] = path.read_text(encoding="utf-8", errors="replace")
+    return found
+
+
+def _mark_used(env: Mapping[str, str]) -> None:
+    """Note that this home is in use, so that ``shelf-cache prune`` keeps it."""
+    home = Path(env.get("HOME", ""))
+    if not home.is_absolute():
+        return
+    try:
+        home.mkdir(parents=True, exist_ok=True)
+        (home / ".shelf-used").touch()
+    except OSError:  # a home that cannot be written is the installation's problem to report, not this note's
+        log.warning("could not mark %s as used", home)
+
+
+def _tools_to_set_up(root: Path) -> dict[str, str]:
+    """What CI uses that the worker should install; nothing for a repository that declares its tools for mise."""
+    files = _read_sources(root)
+    return {} if is_declared(files) else detect_tools(files)
+
+
 def folder_of(root: Path, work_id: WorkId) -> str:
     """The folder a work keeps its documents in: the one it already has (a run that began before ``.shelf``)."""
     old = legacy_documents_dir(work_id)
@@ -96,6 +138,7 @@ def task_prompt(  # noqa: PLR0913
     picture: str = "",
     *,
     toolchain: bool = False,
+    setup: str = "",
     ci: str = "",
     context: str = "",
     folder: str = "",
@@ -130,7 +173,7 @@ def task_prompt(  # noqa: PLR0913
         context,
         results_note(results or Results(), step.phase),
         review_note(depth, step.phase),
-        TOOLCHAIN_NOTE if toolchain else "",
+        setup or (TOOLCHAIN_NOTE if toolchain else ""),
         WEB_NOTE if web else "",
     ]
     lines += [part for note in notes if note for part in ("", note)]
@@ -269,6 +312,7 @@ class Steps:
             config.base_branch,
             self._picture(work, workspace),
             toolchain=bool(self.cache_dir),
+            setup=await self._set_up_tools(work, step, workspace),
             ci=ci.report() if ci.state is not CiState.NONE else "",
             context=_context_note(work),
             folder=folder_of(workspace.path, work.id),
@@ -366,6 +410,31 @@ class Steps:
                 sink=sink,
             )
         )
+
+    async def _set_up_tools(self, work: WorkContext, step: RunStep, workspace: Workspace) -> str:
+        """Install what the repository's CI uses, before the agent starts, when it declares no tools of its own.
+
+        It runs here in the worker, outside the agent's sandbox, which can write nothing but its working directory, and
+        installs into the repository's own home, so the next piece of work on this repository finds it there. Only plain
+        versions of node, python, go and java are ever installed. The answer is what the agent is told: empty when
+        there is nothing to say.
+        """
+        tools = _tools_to_set_up(workspace.path) if self.cache_dir and step.phase in TOOL_PHASES else {}
+        if not tools:
+            return ""
+        env = self._toolchain_env(work, workspace)
+        _mark_used(env)
+        try:
+            done = await asyncio.wait_for(workspace.run(setup_command(env, tools)), SETUP_TIMEOUT)
+        except TimeoutError:
+            return tools_failed(tools, f"it took longer than {int(SETUP_TIMEOUT // 60)} minutes")
+        except Exception as error:  # noqa: BLE001 - tools that did not install are told to the agent, never fatal
+            log.warning("could not set up the tools of %s: %s", work.request.repo.full_name, error)
+            return tools_failed(tools, "it could not be run")
+        if done.exit_code != 0:
+            last = next((line for line in reversed(done.output.strip().splitlines()) if line.strip()), "no output")
+            return tools_failed(tools, last[:200])
+        return tools_ready(tools)
 
     def _toolchain_env(self, work: WorkContext, workspace: Workspace) -> dict[str, str]:
         """The repository's own home, caches and tool shims for this step (nothing when no cache directory is set)."""

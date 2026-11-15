@@ -1,3 +1,4 @@
+import asyncio
 import tempfile
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -33,9 +34,17 @@ class FakeWorkspace:
     commands: dict[str, int] = field(default_factory=dict[str, int])
     ran: list[str] = field(default_factory=list[str])
     pushed: list[str] = field(default_factory=list[str])
+    fail_when: str = ""
+    """Any command that holds this text exits with 1 and says why."""
+    slow_when: str = ""
+    """Any command that holds this text never finishes."""
 
     async def run(self, command: str) -> CheckResult:
         self.ran.append(command)
+        if self.slow_when and self.slow_when in command:
+            await asyncio.sleep(3600)
+        if self.fail_when and self.fail_when in command:
+            return CheckResult(command, 1, "mise ERROR download of node@24 failed: 404")
         code = self.commands.get(command, 0)
         return CheckResult(command, code, f"output of {command}")
 
@@ -772,3 +781,73 @@ async def test_a_backend_that_reports_nothing_leaves_the_usage_empty_and_the_res
     assert result == Produced()
     assert isinstance(result, Produced)
     assert result.usage is None
+
+
+CI_NODE_24 = "      - uses: actions/setup-node@v4\n        with:\n          node-version: 24\n"
+
+
+def with_files(workspaces: FakeWorkspaces, files: dict[str, str]) -> FakeWorkspaces:
+    for name, text in files.items():
+        path = workspaces.workspace.path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+    return workspaces
+
+
+async def test_the_worker_installs_what_the_ci_uses_before_the_developer_starts_and_says_so() -> None:
+    workspaces = with_files(FakeWorkspaces(), {".github/workflows/ci.yml": CI_NODE_24})
+    agents = FakeAgents()
+    await steps(agents, workspaces, cache_dir="/cache").run(NEED, RunStep(Phase.IMPLEMENT, 0, ""))
+    [command] = [c for c in workspaces.workspace.ran if "mise use" in c]
+    assert "mise use --global --yes node@24" in command
+    assert "HOME=/cache/home/acme__shop" in command
+    assert "the worker has installed what the repository's CI uses (node 24)" in agents.tasks[0].prompt
+    assert "mise exec" not in agents.tasks[0].prompt
+
+
+async def test_the_code_reviewer_gets_the_tools_too_and_the_planner_does_not() -> None:
+    workspaces = with_files(FakeWorkspaces(), {".github/workflows/ci.yml": CI_NODE_24})
+    runner = steps(FakeAgents(), workspaces, cache_dir="/cache")
+    await runner.run(NEED, RunStep(Phase.PLAN, 0, ""))
+    assert not any("mise use" in c for c in workspaces.workspace.ran)
+    await runner.run(NEED, RunStep(Phase.CODE_REVIEW, 0, ""))
+    assert any("mise use" in c for c in workspaces.workspace.ran)
+
+
+async def test_a_repository_that_declares_its_tools_for_mise_is_left_to_the_agent() -> None:
+    workspaces = with_files(
+        FakeWorkspaces(), {"mise.toml": '[tools]\nnode = "22"\n', ".github/workflows/ci.yml": CI_NODE_24}
+    )
+    agents = FakeAgents()
+    await steps(agents, workspaces, cache_dir="/cache").run(NEED, RunStep(Phase.IMPLEMENT, 0, ""))
+    assert not any("mise use" in c for c in workspaces.workspace.ran)
+    assert "run `mise install` first" in agents.tasks[0].prompt
+
+
+async def test_nothing_is_installed_without_a_cache_directory() -> None:
+    workspaces = with_files(FakeWorkspaces(), {".github/workflows/ci.yml": CI_NODE_24})
+    await steps(FakeAgents(), workspaces).run(NEED, RunStep(Phase.IMPLEMENT, 0, ""))
+    assert not any("mise" in c for c in workspaces.workspace.ran)
+
+
+async def test_a_failed_installation_is_told_to_the_agent_and_never_stops_the_step() -> None:
+    workspaces = with_files(FakeWorkspaces(), {".github/workflows/ci.yml": CI_NODE_24})
+    workspaces.workspace.fail_when = "mise use"
+    agents = FakeAgents()
+    result = await steps(agents, workspaces, cache_dir="/cache").run(NEED, RunStep(Phase.IMPLEMENT, 0, ""))
+    assert result == Produced()
+    prompt = agents.tasks[0].prompt
+    assert "tried to install what the repository's CI uses (node 24) and could not" in prompt
+    assert "download of node@24 failed: 404" in prompt
+    assert "mise exec" in prompt, "it is told how to go on without"
+
+
+async def test_an_installation_that_takes_too_long_is_given_up_and_told(monkeypatch: pytest.MonkeyPatch) -> None:
+    from shelf.application import steps as steps_module  # noqa: PLC0415
+
+    monkeypatch.setattr(steps_module, "SETUP_TIMEOUT", 0.05)
+    workspaces = with_files(FakeWorkspaces(), {".github/workflows/ci.yml": CI_NODE_24})
+    workspaces.workspace.slow_when = "mise use"
+    agents = FakeAgents()
+    await steps(agents, workspaces, cache_dir="/cache").run(NEED, RunStep(Phase.IMPLEMENT, 0, ""))
+    assert "could not: it took longer than" in agents.tasks[0].prompt

@@ -129,7 +129,9 @@
         "src/shelf/domain/toolchain.py",
         "src/shelf/domain/ci.py",
         "src/shelf/domain/secrets.py",
-        "src/shelf/domain/usage.py"
+        "src/shelf/domain/usage.py",
+        "src/shelf/domain/tool_detection.py",
+        "src/shelf/entrypoints/cache.py"
       ],
       "tests": [
         "tests/application/test_steps.py",
