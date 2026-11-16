@@ -51,6 +51,9 @@ from shelf.domain.titles import clean_title, fallback_title
 from shelf.domain.tool_detection import DECLARED, SOURCES, detect_tools, is_declared
 from shelf.domain.toolchain import (
     TOOLCHAIN_NOTE,
+    declared_command,
+    declared_failed,
+    declared_ready,
     dependencies_command,
     dependencies_failed,
     dependencies_ready,
@@ -58,6 +61,7 @@ from shelf.domain.toolchain import (
     toolchain_env,
     tools_failed,
     tools_ready,
+    with_environment,
 )
 from shelf.domain.usage import Usage
 from shelf.domain.verdict import parse_verdict
@@ -681,10 +685,11 @@ class Steps:
         if not self.cache_dir or step.phase not in TOOL_PHASES:
             return ToolSetup()
         files = _read_sources(workspace.path)
-        if is_declared(files):
-            return ToolSetup()
-        tools = detect_tools(files)
         env = self._toolchain_env(work, workspace)
+        if is_declared(files):
+            _mark_used(env)
+            return await self._install_declared(work, workspace, env)
+        tools = detect_tools(files)
         if self.nix and has_flake(files) and (ci_uses_nix(files) or not tools):
             _mark_used(env)
             return await self._flake_environment(work, workspace, env)
@@ -692,6 +697,20 @@ class Steps:
             return ToolSetup()
         _mark_used(env)
         return await self._install_tools(work, workspace, env, tools)
+
+    async def _install_declared(self, work: WorkContext, workspace: Workspace, env: Mapping[str, str]) -> ToolSetup:
+        """Run ``mise install`` for what the repository declares, here and not in the sandbox, and say how it went."""
+        try:
+            done = await asyncio.wait_for(workspace.run(declared_command(env)), SETUP_TIMEOUT)
+        except TimeoutError:
+            return ToolSetup(declared_failed(f"it took longer than {int(SETUP_TIMEOUT // 60)} minutes"))
+        except Exception as error:  # noqa: BLE001 - told to the agent, never fatal
+            log.warning("could not install the declared tools of %s: %s", work.request.repo.full_name, error)
+            return ToolSetup(declared_failed("it could not be run"))
+        if done.exit_code != 0:
+            last = next((line for line in reversed(done.output.strip().splitlines()) if line.strip()), "no output")
+            return ToolSetup(declared_failed(last[:200]))
+        return ToolSetup(declared_ready())
 
     async def _install_tools(
         self, work: WorkContext, workspace: Workspace, env: Mapping[str, str], tools: Mapping[str, str]
@@ -802,20 +821,22 @@ class Steps:
         """Do what can be done here (the repository's commands), then rely on its CI for the rest."""
         lines: list[str] = []
         if step.feedback != WAITING_FOR_CI:
-            local, lines = await self._local_checks(workspace, config)
+            local, lines = await self._local_checks(workspace, config, self._toolchain_env(work, workspace))
             if not local.passed:  # no point waiting for a CI that will only repeat it
                 return local, "**Failed**\n\n" + "\n".join(lines) + f"\n\n```\n{local.report}\n```"
         ci = await self._wait_for_ci(work)
         return _after_ci(ci, lines)
 
-    async def _local_checks(self, workspace: Workspace, config: RepoConfig) -> tuple[Verified, list[str]]:
+    async def _local_checks(
+        self, workspace: Workspace, config: RepoConfig, env: Mapping[str, str]
+    ) -> tuple[Verified, list[str]]:
         """Run the repository's own commands; the lines say what each did."""
         if not config.checks:
             return Verified(passed=True), ["⚪ no commands configured for this repository (`checks` in its config)"]
         failures: list[str] = []
         lines: list[str] = []
         for command in config.checks:
-            result = await workspace.run(command)
+            result = await workspace.run(with_environment(env, command))
             if result.exit_code == 0:
                 lines.append(f"✅ `{command}`")
             else:

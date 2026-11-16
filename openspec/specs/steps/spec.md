@@ -1068,3 +1068,40 @@ The system SHALL put in every run record the repository of the work (as `owner/n
 
 - **WHEN** a record written before these fields existed is read
 - **THEN** they are empty and the work cannot be found from it
+
+### Requirement: The worker installs what a repository declares for mise, and writes no lockfile
+
+The system SHALL, for the developer and the code reviewer on a repository that declares its tools for mise (`mise.toml`, `.mise.toml` or `.tool-versions`), run `mise install` itself in the clone, in the worker and outside the agent's sandbox, into the repository's own home, before the agent starts, and tell the agent what was installed or why not, never stopping the step for a failure; SHALL set `MISE_LOCKFILE=false` for the agent and for that installation, so that no `mise.lock` is created or rewritten in a format an older mise on a person's machine cannot read; and SHALL run the repository's own `checks` commands with the same home and tool paths, so that `./mvnw`, `node` or `python` are found.
+
+#### Scenario: A repository with a mise.toml
+
+- **WHEN** the developer starts on a repository whose `mise.toml` names a JDK
+- **THEN** the worker has installed it into the repository's home and the agent is told so, and no `mise.lock` is written
+
+#### Scenario: The installation fails
+
+- **WHEN** `mise install` fails in the worker
+- **THEN** the agent is told why in one line and the step goes on
+
+#### Scenario: A configured check
+
+- **WHEN** the repository's `checks` hold `./mvnw -B verify`
+- **THEN** the command runs with the installed tools on its path
+
+### Requirement: The agent is told how its sandbox behaves for tools, and that there is no Docker
+
+The system SHALL tell the developer and the code reviewer, in the note about tools, that the sandbox lets a command write only the clone and `$TMPDIR` (so a tool that stores data, cache or state in the home needs `XDG_DATA_HOME`, `XDG_CACHE_HOME` and `XDG_STATE_HOME` set under `$TMPDIR` first), that Java build tools do not read `HTTPS_PROXY` and are told the sandbox's proxy with `-Dhttps.proxyHost`, `-Dhttps.proxyPort` and the matching `http.*` and user and password properties taken from it, and that Docker is not available: a compose file is for people, and tests must run without it (an embedded database, or a test that is skipped when it is missing and says so).
+
+#### Scenario: A build that needs a database
+
+- **WHEN** the developer is asked for tests against PostgreSQL
+- **THEN** it is told that it cannot start Docker and that the tests must run without it
+
+### Requirement: The sandbox may reach the hosts a JDK and Maven come from
+
+The system SHALL include in its built-in list of sites a sandboxed command may reach the hosts that mise downloads Java and Maven from (`mise-java.jdx.dev`, `api.adoptium.net`, `cdn.azul.com`, `corretto.aws`, `download.java.net`, `download.oracle.com`, `archive.apache.org`, `dlcdn.apache.org`).
+
+#### Scenario: A JDK through mise
+
+- **WHEN** an agent's command runs `mise ls-remote java`
+- **THEN** the sandbox does not refuse `mise-java.jdx.dev`
