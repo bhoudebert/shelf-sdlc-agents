@@ -33,6 +33,13 @@ when it would be used. An idea that cannot be described in those terms is not re
 - **Warden audit log retention.** The log grows by a day file per day and is never pruned; pruning must keep the chain
   verifiable (an anchor record). For operators with long-lived instances.
 
+- **Monorepos with a declaration per subproject.** Only the root `mise.toml`, `.tool-versions` and CI files are read today; a
+  `frontend/mise.toml` or `backend/pom.xml` is not seen. Discovery down a few levels, installing the union of the tools
+  (several versions of one tool allowed). Until then, a monorepo declares every tool once at its root. For repositories that
+  keep one declaration per subproject.
+- **Browsers and services for live tests.** Playwright needs browsers and system libraries the worker image does not have, and
+  a database or a front end for a live test has to run as a plain process (no Docker, no Testcontainers). An opt-in image
+  variant with the browsers, and a verified recipe for a mise-provided Postgres. For repositories with end-to-end tests.
 - **An isolated environment created for each step.** Each step runs in its own short-lived container (an image with the toolchains,
   the clone mounted, no host mounts, no credentials, a restricted network, resource limits), thrown away afterwards, so an agent
   cannot harm anything outside the repository. It needs a way to start containers that does not hand the worker the host: a
