@@ -250,3 +250,12 @@ The system SHALL, for work that begins after this requirement, read two lines of
 
 - **WHEN** work that began under an earlier protocol gets a verdict
 - **THEN** it is judged by the count of rounds alone, as before
+
+### Requirement: The merge is asked only after the CI of the ready pull request is seen
+
+The system SHALL, for work under protocol 11 and later that readies a pull request, enter the merge phase as a step (the CI look) and ask a person for the merge only when that step finds the CI green or absent; while the CI runs it looks again in the same round, and when the CI is red it puts the pull request back to draft and sends the work to the implementer with the failing runs, counted as a round.
+
+#### Scenario: Red after ready
+
+- **WHEN** the pull request was marked ready and the CI look finds a red run
+- **THEN** the pull request is a draft again and the implementer is sent the failing runs, and nobody is asked to merge
