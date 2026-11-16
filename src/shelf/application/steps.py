@@ -144,6 +144,12 @@ SYSTEM_FILES_NOTE = (
     "judge them as a change to the repository."
 )
 
+NOTHING_VERIFIED = (
+    "⚪ nothing was verified here: no commands configured for this repository. Set `checks` in `.shelf/config.toml` on "
+    'its default branch, for example `checks = ["mise run check"]` with a `[tasks.check]` in `mise.toml` that builds '
+    "and tests the project, whatever its language; the tools come from `mise.toml` (or the flake)."
+)
+
 TOOL_PHASES = frozenset({Phase.IMPLEMENT, Phase.CODE_REVIEW})
 """The steps that build and test, and so need the repository's tools."""
 
@@ -821,18 +827,29 @@ class Steps:
         """Do what can be done here (the repository's commands), then rely on its CI for the rest."""
         lines: list[str] = []
         if step.feedback != WAITING_FOR_CI:
-            local, lines = await self._local_checks(workspace, config, self._toolchain_env(work, workspace))
+            if config.checks:
+                lines += await self._tools_for_the_checks(work, workspace)
+            local, more = await self._local_checks(workspace, config, self._toolchain_env(work, workspace))
+            lines += more
             if not local.passed:  # no point waiting for a CI that will only repeat it
                 return local, "**Failed**\n\n" + "\n".join(lines) + f"\n\n```\n{local.report}\n```"
         ci = await self._wait_for_ci(work)
         return _after_ci(ci, lines)
+
+    async def _tools_for_the_checks(self, work: WorkContext, workspace: Workspace) -> list[str]:
+        """Install what the clone declares or its CI uses before its checks run; a line only when that failed."""
+        if not self.cache_dir:
+            return []
+        setup = await self._set_up_tools(work, RunStep(Phase.IMPLEMENT, 0, ""), workspace)
+        failed = "failed" in setup.note[:200] or "could not" in setup.note[:200]
+        return [f"⚠️ {setup.note.split('. ')[0]}"] if failed else []
 
     async def _local_checks(
         self, workspace: Workspace, config: RepoConfig, env: Mapping[str, str]
     ) -> tuple[Verified, list[str]]:
         """Run the repository's own commands; the lines say what each did."""
         if not config.checks:
-            return Verified(passed=True), ["⚪ no commands configured for this repository (`checks` in its config)"]
+            return Verified(passed=True), [NOTHING_VERIFIED]
         failures: list[str] = []
         lines: list[str] = []
         for command in config.checks:

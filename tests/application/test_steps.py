@@ -463,7 +463,7 @@ async def test_a_repository_with_neither_commands_nor_ci_says_nothing_was_checke
     pulls = FakePulls()
     result = await steps(pulls=pulls).run(NEED, RunStep(Phase.VERIFY, 0, ""))
     assert result == Verified(passed=True)
-    assert "no commands configured" in pulls.commented[0]
+    assert "nothing was verified here" in pulls.commented[0]
     assert "✅" not in pulls.commented[0]
 
 
@@ -856,7 +856,7 @@ async def test_a_repository_that_declares_its_tools_for_mise_has_them_installed_
     assert "HOME=/cache/home/acme__shop" in command
     assert "MISE_LOCKFILE=false" in command
     assert "the worker has run `mise install` for what the repository declares" in agents.tasks[0].prompt
-    assert "XDG_DATA_HOME=$TMPDIR/d" in agents.tasks[0].prompt
+    assert "run by the system after you finish" in agents.tasks[0].prompt
 
 
 async def test_a_declared_installation_that_fails_is_told_to_the_agent_and_stops_nothing() -> None:
@@ -1266,3 +1266,25 @@ async def test_the_record_says_what_the_agent_was_told_about_its_tools_and_wheth
     assert "the worker has installed what the repository's CI uses (node 24)" in record.setup
     assert record.resumed
     assert record.attempt == 1
+
+
+async def test_the_tools_a_clone_declares_are_installed_by_the_worker_before_its_checks_run() -> None:
+    workspaces = with_files(FakeWorkspaces(), {"mise.toml": '[tools]\nrust = "1.90"\n'})
+    config = RepoConfig(checks=("mise run check",))
+    await steps(workspaces=workspaces, config=config, cache_dir="/cache").run(NEED, RunStep(Phase.VERIFY, 0, ""))
+    ran = workspaces.workspace.ran
+    install = next(i for i, c in enumerate(ran) if c.endswith("mise install --yes"))
+    check = next(i for i, c in enumerate(ran) if "mise run check" in c)
+    assert install < check
+
+
+async def test_a_failed_installation_before_the_checks_is_said_and_the_checks_still_run() -> None:
+    workspaces = with_files(FakeWorkspaces(), {"mise.toml": '[tools]\nhaskell = "9"\n'})
+    workspaces.workspace.fail_when = "mise install"
+    pulls = FakePulls()
+    config = RepoConfig(checks=("echo ok",))
+    await steps(workspaces=workspaces, pulls=pulls, config=config, cache_dir="/cache").run(
+        NEED, RunStep(Phase.VERIFY, 0, "")
+    )
+    assert any("echo ok" in c for c in workspaces.workspace.ran)
+    assert any("mise install" in line for line in "\n".join(pulls.commented).splitlines())

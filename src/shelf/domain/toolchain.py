@@ -76,12 +76,11 @@ def allowed_domains(extra: tuple[str, ...] = ()) -> tuple[str, ...]:
 
 
 SANDBOX_RECIPES = (
-    "How this sandbox behaves: a command may write only the clone and `$TMPDIR`, so a tool that keeps data, cache or "
-    "state in the home (mise among them) needs `export XDG_DATA_HOME=$TMPDIR/d XDG_CACHE_HOME=$TMPDIR/c "
-    "XDG_STATE_HOME=$TMPDIR/s` first. Java build tools do not read `HTTPS_PROXY`: give Maven or Gradle the sandbox's "
-    "proxy from it, as `-Dhttps.proxyHost`, `-Dhttps.proxyPort` and the `http.*`, user and password properties. "
-    "Docker is not available and must not be tried: a compose file is for people, so tests have to run without it "
-    "(an embedded database, or a test that is skipped when the service is missing, and say so)."
+    "The repository's checks (`checks` in its configuration) are run by the system after you finish, outside this "
+    "sandbox, with the tools that `mise` or the flake declares and with the network: declare what the project needs in "
+    "`mise.toml` and do not spend your turns making a build run here. A command in this sandbox may write only the "
+    "clone and `$TMPDIR`. Docker is not available and must not be tried: a compose file is for people, so tests have "
+    "to run without it (an embedded database, or a test that is skipped when the service is missing, and say so)."
 )
 
 TOOLCHAIN_NOTE = (

@@ -79,12 +79,11 @@ def test_a_check_runs_with_the_tools_on_its_path_and_a_compound_command_stays_wh
     assert with_environment({}, "make test") == "make test"
 
 
-def test_the_note_about_tools_says_how_the_sandbox_behaves_and_that_there_is_no_docker() -> None:
+def test_the_note_about_tools_says_the_system_runs_the_checks_and_that_there_is_no_docker() -> None:
     from shelf.domain.toolchain import SANDBOX_RECIPES, TOOLCHAIN_NOTE  # noqa: PLC0415
 
     for text in (SANDBOX_RECIPES, TOOLCHAIN_NOTE):
-        assert "XDG_DATA_HOME=$TMPDIR/d" in text
-        assert "-Dhttps.proxyHost" in text
+        assert "run by the system after you finish" in text
         assert "Docker is not available" in text
 
 
