@@ -371,6 +371,8 @@ class Steps:
 
     async def run(self, work: WorkContext, step: RunStep) -> StepResult:
         """Run ``step`` for ``work``, speak about it on the pull request as the agent it is, and read what came out."""
+        if step.phase is Phase.PULL_REQUEST:
+            return await self._look_at_the_ci(work, step)
         repo = work.request.repo
         config = await self.configs.load(repo)
         token = await self.token_for(repo)
@@ -388,6 +390,13 @@ class Steps:
             if not _is_a_repeated_wait(step, result):
                 await self.pulls.comment(work, agent_comment(work.id, speaker, words))
             return result
+
+    async def _look_at_the_ci(self, work: WorkContext, step: RunStep) -> Verified:
+        """Once the pull request is ready, what that started must finish before a person is asked to merge."""
+        checked, words = _after_ci(await self._wait_for_ci(work), [])
+        if not _is_a_repeated_wait(step, checked):
+            await self.pulls.comment(work, agent_comment(work.id, "checks", words))
+        return checked
 
     async def _attach_context(self, work: WorkContext, workspace: Workspace) -> None:
         """Put read-only copies of the other repositories the work reads next to the clone, outside what git tracks.

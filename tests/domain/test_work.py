@@ -43,7 +43,7 @@ def approve(phase: Phase) -> Event:
     match KIND[phase]:
         case Kind.REVIEW:
             return StepDone(Reviewed(Verdict.APPROVE))
-        case Kind.VERIFY:
+        case Kind.VERIFY | Kind.MERGE:
             return StepDone(Verified(passed=True))
         case _:
             return StepDone(Produced())
@@ -87,6 +87,7 @@ def test_work_started_from_a_need_goes_through_every_step_then_waits_for_the_mer
         Phase.IMPLEMENT,
         Phase.VERIFY,
         Phase.CODE_REVIEW,
+        Phase.PULL_REQUEST,
     ]
     assert state == Finished(Outcome.MERGED)
     assert PublishPullRequest() in log
@@ -343,13 +344,42 @@ def test_later_steps_do_not_ask_for_the_pull_request_again() -> None:
 
 
 def test_the_pull_request_is_marked_ready_when_the_reviewed_work_reaches_the_merge() -> None:
-    course = course_for(EntryPoint.IMPLEMENT, Policy())
+    course = course_for(EntryPoint.IMPLEMENT, Policy(), protocol=10)
     state, commands = decide(course, Running(Phase.CODE_REVIEW), StepDone(Reviewed(Verdict.APPROVE)))
     assert state == AwaitingPerson(Phase.PULL_REQUEST, Reason.MERGE)
     assert SetPullRequestReady(ready=True) in commands
     assert commands.index(SetPullRequestReady(ready=True)) < commands.index(
         AskPerson(Phase.PULL_REQUEST, Reason.MERGE, "")
     )
+
+
+def test_the_ci_is_looked_at_after_the_pull_request_is_ready_and_before_a_person_is_asked() -> None:
+    course = course_for(EntryPoint.IMPLEMENT, Policy())
+    state, commands = decide(course, Running(Phase.CODE_REVIEW), StepDone(Reviewed(Verdict.APPROVE)))
+    assert state == Running(Phase.PULL_REQUEST)
+    assert commands == (PublishPullRequest(), SetPullRequestReady(ready=True), RunStep(Phase.PULL_REQUEST, 0, ""))
+    green, asked = decide(course, state, StepDone(Verified(passed=True)))
+    assert green == AwaitingPerson(Phase.PULL_REQUEST, Reason.MERGE)
+    assert asked == (AskPerson(Phase.PULL_REQUEST, Reason.MERGE, ""),)
+
+
+def test_a_ci_still_running_at_the_merge_is_looked_at_again_in_the_same_round() -> None:
+    course = course_for(EntryPoint.IMPLEMENT, Policy())
+    state = Running(Phase.PULL_REQUEST, 1)
+    same, commands = decide(course, state, StepDone(Verified(passed=False, report="running", waiting=True)))
+    assert same == state
+    assert commands == (RunStep(Phase.PULL_REQUEST, 1, WAITING_FOR_CI),)
+
+
+def test_a_red_ci_at_the_merge_puts_the_pull_request_back_to_draft_and_sends_the_work_back() -> None:
+    course = course_for(EntryPoint.IMPLEMENT, Policy())
+    state, commands = decide(
+        course, Running(Phase.PULL_REQUEST), StepDone(Verified(passed=False, report="spec check failed"))
+    )
+    assert state == Running(Phase.IMPLEMENT, 1, "spec check failed")
+    assert commands[0] == SetPullRequestReady(ready=False)
+    assert RunStep(Phase.IMPLEMENT, 1, "spec check failed") in commands
+    assert not any(isinstance(command, AskPerson) for command in commands)
 
 
 def test_changes_asked_on_the_pull_request_put_it_back_to_draft() -> None:
