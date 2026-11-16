@@ -5,6 +5,7 @@ import shlex
 from collections.abc import Mapping
 from pathlib import PurePosixPath
 
+from shelf.domain.mise_config import NO_CODE_AT_INSTALL
 from shelf.domain.model import RepoRef
 
 MISE_VERSION_HINT = "mise.toml, .mise.toml or .tool-versions"
@@ -65,6 +66,7 @@ def toolchain_env(cache_dir: str, repo: RepoRef, workdir: str, path: str) -> dic
         "HOME": home,
         "MISE_YES": "1",
         "MISE_LOCKFILE": "false",
+        "MISE_DISABLE_BACKENDS": NO_CODE_AT_INSTALL,
         "MISE_TRUSTED_CONFIG_PATHS": workdir,
         "PATH": f"{home}/.local/share/mise/shims:{path}",
     }
@@ -133,13 +135,6 @@ def dependencies_failed(reason: str) -> str:
     )
 
 
-def declared_command(env: Mapping[str, str]) -> str:
-    """The shell command that installs what the repository's own ``mise.toml`` declares, into the home ``env`` names."""
-    home = env["HOME"]
-    assignments = " ".join(f"{name}={shlex.quote(value)}" for name, value in env.items())
-    return f"mkdir -p {shlex.quote(home)} && env {assignments} mise install --yes"
-
-
 def with_environment(env: Mapping[str, str], command: str) -> str:
     """``command`` run with ``env`` set, for a check of the repository's own; ``sh -c`` keeps a compound one whole."""
     if not env:
@@ -148,14 +143,22 @@ def with_environment(env: Mapping[str, str], command: str) -> str:
     return f"env {assignments} sh -c {shlex.quote(command)}"
 
 
-def declared_ready() -> str:
-    """What the agent is told once the worker has installed what the repository declares for mise."""
+def declared_ready(tools: Mapping[str, str], ignored: tuple[str, ...] = ()) -> str:
+    """What the agent is told once the worker has installed what the repository's declaration names."""
+    names = ", ".join(f"{tool} {version}" for tool, version in tools.items())
+    left = f" Left out, because installing it would run code in the worker: {'; '.join(ignored)}." if ignored else ""
     return (
-        "Tools: the worker has run `mise install` for what the repository declares, into your home, and they are on "
-        "your path. Do not install them again. Do what a developer does: run the repository's own build and tests (see "
-        "its README, CLAUDE.md or AGENTS.md) and fix what fails before you finish. If a check still cannot run here, "
-        "say which command and why instead of claiming a result. " + SANDBOX_RECIPES
+        f"Tools: the worker has installed what the repository declares for mise ({names}) into your home, and they are "
+        "on your path. Do not install them again. Do what a developer does: run the repository's own build and tests "
+        "(see its README, CLAUDE.md or AGENTS.md) and fix what fails before you finish. If a check still cannot run "
+        f"here, say which command and why instead of claiming a result.{left} " + SANDBOX_RECIPES
     )
+
+
+def nothing_to_install(ignored: tuple[str, ...]) -> str:
+    """What the agent is told when the declaration names nothing the worker may install."""
+    why = f" Left out: {'; '.join(ignored)}." if ignored else ""
+    return f"Tools: the repository's mise declaration names nothing the worker installs.{why} {TOOLCHAIN_NOTE}"
 
 
 def declared_failed(reason: str) -> str:
