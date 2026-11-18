@@ -232,10 +232,10 @@ def note_result(message: ResultMessage, sink: RunSink) -> None:
     sink.api_error_status = message.api_error_status
     sink.errors = [redact(str(error))[:300] for error in (message.errors or [])]
     for denied in message.permission_denials or []:
-        sink.denials.append(_denial(denied))
+        sink.denials.append(denial_line(denied))
 
 
-def _denial(denied: object) -> str:
+def denial_line(denied: object) -> str:
     """A refused tool call as one short line: the tool and what it was about."""
     data = cast(
         "dict[str, Any]", denied if isinstance(denied, dict) else vars(denied) if hasattr(denied, "__dict__") else {}
