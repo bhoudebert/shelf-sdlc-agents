@@ -87,7 +87,7 @@ The inventory below is read from the code, not from memory.
 | Nix flake environment | the store volume mounted read-only | same |
 | Checks | run in a container of the same kind as the step, no model credential | same, stronger (today they run in the worker) |
 | Credentials | model credential in the container (later: a per-step token, section 9); `GH_TOKEN` narrowed to the one repository | same, narrower |
-| Sessions | session store is a volume per work, the clone is mounted at the same path every step | same (and the fixed path makes resume reliable) |
+| Sessions | the session files live in a volume per work, mounted in every step of that work; the session id stays in the workflow as today | same; the one new requirement is that the files outlive the container (section 11) |
 | Records and Download | the container streams events; the worker fills the same `RunSink` | same |
 | Live processes on localhost | plain processes in the container | same |
 | A real Postgres, browsers, a front end | the tool volume gives a conda `postgres`; an image variant carries browsers and their libraries | better |
@@ -251,10 +251,21 @@ gateway's own address; for anything else it answers `NXDOMAIN`. The gateway acce
 Go, Rust, `curl`, Playwright's downloader and `mise` all work with no setting. Non-HTTP protocols (a database on the internet,
 SSH) have no path, which is the intent.
 
+**Modes.** The operator sets the default, and a repository may choose a mode in `.shelf/config.toml` no looser than the operator's
+cap:
+
+| Mode | A host not on the list | Use |
+| - | - | - |
+| `strict` (default, today's behaviour) | refused, logged; the agent is told to say which host it needed | most repositories |
+| `learn` | allowed, logged as "would have been refused", flagged on the admin page | a new repository whose needs are unknown: run it, then read the list and turn it into allowed sites |
+| `ask` | refused; the step ends as "blocked: needs these hosts", the work waits, an administrator allows once, for this repository or for everyone, and the step runs again (a protocol bump; later stage) | repositories where nothing should leave without a person |
+
+`learn` never opens non-HTTP traffic, private addresses or a denied host: those stay refused in every mode, as Warden decides
+today.
+
 Both stages write the same record per attempt: `{work, step, repo, host, port, allowed, bytes, at}`, to a volume the web service
 reads. The admin page gets an "outbound" view and an **Allow this site** button on a refused host, reusing the rule kind that
-exists today (`allow_site`). The "ask" mode of decision 0012 (the work waits for an administrator) is a later stage with its own
-protocol bump.
+exists today (`allow_site`). The `ask` mode is a later stage with its own protocol bump.
 
 The gateway is a small Rust service, `warden-egress`, in the `warden/` workspace: it reuses the policy crate (decision 0014 already
 said the egress would share Warden's policy), so a domain denied by Warden's rules is denied on the wire too, in every profile.
@@ -295,11 +306,46 @@ The classifier, rules, redaction and the profile (`shelf`) do not change. The te
 - **On-demand installs.** Agents may run `mise use` themselves because the tool hosts are allowed and the volume is writable. The
   prompt note about tools changes from "the worker installed these" to "these are installed; install more with mise".
 - **Nix.** The persistent store volume is mounted read-only at the same path.
-- **Sessions.** The session store is a volume per work, mounted at the same place every step, and the clone is mounted at the same
-  path (`/work`) every step. Claude Code finds a session by its working directory, so resuming no longer depends on a temp path.
-  The fall-back to a fresh run stays.
+- **Sessions.** Today the workflow keeps, per work and per agent (the role of the phase, so the spec writer, the spec reviewer,
+  the implementer and the code reviewer each have their own), the id of the latest session, and the session's files live in the
+  repository's home on the worker. A container is thrown away, so its files must not be: the session store is a volume per work
+  (`sessions/{work}`), mounted into every step of that work at the place Claude Code keeps sessions. The id travels as it does now
+  (`resume` in the task). Resuming from a different working directory works with the Claude Code in use (checked on 2.1.323),
+  so the clone path need not be fixed, but it is fixed anyway (`/work`). The existing fall-back to a fresh run from the whole task
+  stays for a session that cannot be continued. The volume is removed when the work ends (merged, closed or aborted) and by a
+  retention sweep (30 days, like the run records).
 - **Checks.** `workspace.run(command)` for the repository's `checks` becomes a `kind=check` container with the tool volume, no model
   credential and no `GH_TOKEN`. Same commands, same output tail, same `Verified` result.
+
+### Waiting, escalation and resume
+
+A container lives for one step and nothing else. **While a work waits for a person, nothing is running**: no container, no token, no
+connection. A wait can last days at no cost; the only thing kept is the work's session volume and the clone on its branch.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Running: step asked
+  Running --> Removed: the agent answers (approve, changes, escalate, produced)
+  Running --> Removed: timeout, kill, cancel or failure
+  Removed --> Waiting: escalation, gate or merge (a person decides)
+  Removed --> Running: the work goes on (next step, or sent back with feedback)
+  Waiting --> Running: the person answers: a new container resumes the same session
+  Waiting --> [*]: merged, closed or aborted (session volume removed)
+```
+
+- **Escalation** (a deadlock, a repeated point, a failed step) is an answer, not a pause: the agent has returned its text and the
+  container is already gone when the person is asked. Agents never wait for a person inside a step.
+- **The person answers** (resume, changes, approve): the workflow starts a new step, so the runner starts a new container. It
+  mounts the same session volume and the same repository tool volume, and the agent continues the session of its role on this work
+  with the person's note as the new message, as it does today.
+- **A step that is killed or times out** (45 minutes, a worker restart, cancel): the runner removes its container; the clone and the
+  session volume stay. Temporal retries the activity with the same `key`, which starts a fresh container that continues the
+  session, or starts afresh if the session cannot be continued.
+- **Network `ask` mode**: a refused host ends the step as "blocked: needs these hosts" (the container is removed), the work waits
+  like any other gate, and an allow from the admin page starts the step again in a new container that resumes its session and is
+  told which hosts are now allowed.
+- **Nothing is kept warm** on purpose: a live container would hold a one-hour token and a network identity for a wait of unknown
+  length. A warm pool for start-up speed, if the measured start cost asks for it, would hold empty containers, never a step's.
 
 ## 12. Operations
 
@@ -347,10 +393,10 @@ Each stage is its own pull request, with its spec, tests and an update to this d
 | 2 | The `runner` service and the `step` image target; a CI job that runs a real step in Docker against the mock Anthropic server of `warden/live/` | the end-to-end test passes in CI; start time measured |
 | 3 | Clone volume, session volume, tool volume, `kind=check`, `kind=setup`, narrowed token | a work runs end to end in container mode with checks and resume |
 | 4 | Warden spool and `warden audit ingest` | the chain verifies after parallel steps; the admin page shows the same calls |
-| 5 | Egress stage A and the outbound view with the allow button | a step cannot reach an unlisted host; refused hosts show on the page |
+| 5 | Egress stage A, the `strict` and `learn` modes, and the outbound view with the allow button | a step cannot reach an unlisted host in `strict`; refused hosts show on the page |
 | 6 | **Parity run**: section 3 checked on the Spring starter, a Node repository, a Go and a Rust repository, and a repository with live tests | every row is "same" or better; list of what differs in this file |
 | 7 | Default flips to `container`; `sandbox` stays for one release | |
-| 8 | Egress stage B (transparent), model gateway, image variants (browsers), opt-in private Docker daemon, the "ask" wait | each is its own record or spec |
+| 8 | Egress stage B (transparent), model gateway, image variants (browsers), opt-in private Docker daemon, the `ask` mode and its wait | each is its own record or spec |
 
 ## 15. Open questions and the spikes that answer them
 
@@ -360,8 +406,9 @@ Each stage is its own pull request, with its spec, tests and an update to this d
    missing, the runner creates one volume per step instead.
 3. **S3, the transparent gateway.** Build the DNS and SNI forwarder in Rust, measure latency and check that Maven, Gradle, npm,
    cargo, go and Playwright work with no setting.
-4. **S4, resume with a fixed working directory.** Confirm the session is found when the clone path is the same every step, and
-   that the fall-back still works when it is not.
+4. **S4, resume across containers.** Confirm that a session written by one container is continued by the next from the sessions
+   volume (same id, different container, same path), that two steps never write it at once, and that the fall-back still works when
+   the volume is empty. Resume saving tokens is still unverified today.
 5. **S5, start cost.** Container start, volume attach and first pull on the VPS; decide whether a warm pool is worth it.
 6. **S6, Warden spool.** Which records the hook writes after the process is killed mid-call, and that ingest keeps the chain valid.
 7. **S7, a private Docker daemon.** Whether sysbox (or rootless Podman in a step) runs on the Ubuntu hosts in use and what it costs;
