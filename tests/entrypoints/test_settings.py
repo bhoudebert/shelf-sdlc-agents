@@ -143,3 +143,18 @@ def test_nix_is_off_unless_the_operator_says_on() -> None:
 def test_a_nix_setting_that_is_not_on_or_off_is_refused_by_name() -> None:
     with pytest.raises(ValueError, match="SHELF_NIX must be on or off, not 'maybe'"):
         from_environ({**BASE, "SHELF_NIX": "maybe"})
+
+
+def test_agents_run_in_the_sandbox_unless_the_operator_says_otherwise() -> None:
+    assert from_environ(BASE).isolation == "sandbox"
+    assert from_environ({**BASE, "SHELF_ISOLATION": " Sandbox "}).isolation == "sandbox"
+
+
+def test_an_unknown_isolation_is_refused_and_the_message_lists_the_choices() -> None:
+    with pytest.raises(ValueError, match="sandbox, container"):
+        from_environ({**BASE, "SHELF_ISOLATION": "vm"})
+
+
+def test_container_isolation_is_refused_until_the_runner_exists() -> None:
+    with pytest.raises(ValueError, match="runner service"):
+        from_environ({**BASE, "SHELF_ISOLATION": "container"})
