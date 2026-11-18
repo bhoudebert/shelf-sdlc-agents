@@ -446,11 +446,7 @@ Each stage is its own pull request, with its spec, tests and an update to this d
 6. **S6, Warden spool.** Which records the hook writes after the process is killed mid-call, and that ingest keeps the chain valid.
 7. **S7, a private Docker daemon.** Whether sysbox (or rootless Podman in a step) runs on the Ubuntu hosts in use and what it costs;
    decides whether tests with Testcontainers can be offered.
-8. **S8, OpenSandbox's egress sidecar as a stage B shortcut.** One day, in a throw-away host. Does its sidecar (Go, Apache 2.0)
-   run next to a step container with `network_mode: container:`, take its policy from a file we write, and report refused hosts
-   to a webhook we own, without its server? If so, stage B can start from it while `warden-egress` is built, and the
-   decision is what we gain against a second policy engine that does not read Warden's rules.
-9. **Per-repository image names.** Whether `.shelf/config.toml` should name an image at all in the first release, or whether the
+8. **Per-repository image names.** Whether `.shelf/config.toml` should name an image at all in the first release, or whether the
    operator's variants are enough.
 
 ## 16. What we take from OpenSandbox, and what we leave
@@ -460,8 +456,9 @@ neighbouring problem: a general sandbox service for agents, with Docker, Kuberne
 November 2026 (a shallow clone, files only, nothing run). We do not adopt it: about 400,000 lines serve Kubernetes and
 Firecracker, its Docker mode has no pools, hooks or pause across restarts, its umbrella releases are unsigned (its issue
 2463), and its server holds the engine socket just as our runner will, with far more code. Adopting it would also give us a
-second policy engine that cannot read Warden's rules. What it does well is taken as ideas; where code is copied, the
-file keeps its licence header and a "changed" note, and a `NOTICE` entry names the source.
+second policy engine that cannot read Warden's rules. What it does well is taken as ideas only. We copy none of its code and
+depend on none of it: the runner, the entrypoint and the gateway are written here, free of outside services and easy to
+operate (one compose file, no cluster).
 
 | Take | Where it lands |
 | - | - |
