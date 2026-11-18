@@ -59,5 +59,11 @@ The technical design (components, schemas, the parity matrix, stages and open qu
 - **A filtering proxy in front of the socket.** Filters endpoints, not bodies: a caller can still ask for a privileged container.
 - **One container per work item or per repository.** Faster, but steps of different works share a filesystem again, or a container
   lives for days holding a live token while a person decides.
+- **Adopt OpenSandbox** (Apache 2.0, Agentic AI Foundation) **as the runner.** It is the closest existing project: a fixed create
+  API, Docker, Kubernetes and Firecracker runtimes, an egress sidecar and a credential vault. Rejected as the destination: its
+  size (about 400,000 lines, mostly for Kubernetes and Firecracker), no pools or hooks in Docker mode, unsigned umbrella releases,
+  a deny-list of capabilities and host networking by default, and an egress policy that cannot read Warden's rules. Its ideas and
+  a few small pieces are taken (design section 16), with the licence kept. A one-day spike (S8) checks whether its egress
+  sidecar can serve as a stage B shortcut.
 - **A virtual machine per step** (Firecracker, gVisor). Stronger; depends on host support a compose file cannot promise. Left as
   a runtime the runner can be told to use.

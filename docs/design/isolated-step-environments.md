@@ -131,8 +131,14 @@ POST /v1/steps
   "input": {"...": "the AgentTask, see section 7"}
 }
 → 200 text/event-stream, one JSON object per line, ending with {"e":"exit","code":0}
+GET    /v1/steps/{key}                             // state, exit code and times; also after the container is gone
+GET    /v1/steps/{key}/events?cursor=N             // the same lines again from line N (re-attach)
 DELETE /v1/steps/{key}                             // kill and remove
 ```
+
+`GET` exists for a worker that restarted in the middle of a step (a Temporal retry): it asks for the same `key`, and gets
+the running stream again from its cursor or the finished result, never a second container. The runner keeps the events and the
+exit of a finished step for 24 hours, then forgets them.
 
 What the runner always applies, whatever the request says:
 
@@ -141,6 +147,13 @@ What the runner always applies, whatever the request says:
 - no host path mounts: volumes only, by name and sub-path, with the mode the request names but never more than the operator's
   table allows for that `kind`;
 - `step-net` as the only network, the gateway as DNS and route; no published ports; `--init`; labels for the reaper;
+- every container and volume it creates carries labels (`shelf.step`, `shelf.expires`, `shelf.managed`). The expiry lives in the
+  label, not in memory: at startup the runner lists what it owns, kills what expired, removes orphans and **fails to start** if the
+  engine cannot be read. It only ever deletes things with its own label. One lock per step guards kill, expiry and removal;
+  its state file is written to a temporary file and renamed;
+- a mount source is checked before use: a sub-path is joined, normalised, resolved with `realpath` on both sides and must
+  stay inside the volume root the runner owns; it never creates a directory itself, and an empty allow-list rejects everything;
+- it refuses to start without a caller token, unless the operator set an explicit "insecure" variable (used by tests only);
 - limits capped by the operator's maxima in `[isolation.limits]`; a wall-clock deadline slightly after the workflow's step timeout;
 - an `env` key that does not match the allow-list (`ANTHROPIC_*`, `CLAUDE_CODE_*`, `GH_TOKEN`, `SHELF_STEP_*`, tool variables the
   setup defines) is refused with a clear message.
@@ -230,6 +243,15 @@ One JSON object per line on stdout; anything else on stdout is a protocol error 
 {"e":"exit","code":0}                        // written by the runner, not the step
 ```
 
+Two more lines exist for the transport, not for the work. `{"e":"ping"}` every 3 seconds, so a proxy or an idle timer never
+kills a long silent step (a Maven run can say nothing for minutes); the worker drops it. And the first line is
+`{"e":"hello","v":1}`: the stream is versioned from the start, and the reader ignores any field or event kind it does not know,
+because a new field that a strict reader rejected is how one real client of a similar tool crashed. `exit` carries a reason
+when it is not a plain end: `{"e":"exit","code":-1,"reason":"timeout"}` (or `killed`, `oom`), so the workflow can tell a
+timeout from a failure. A stream that ends without `exit` is a failed step, never a success; the worker then asks `GET` for the
+truth. A `check` request names its command as an argument list (`argv`, no shell) unless the repository's declaration is a
+shell line, in which case that is stated.
+
 `summary` and `note` are computed in the container with the same domain functions (`tool_summary`, `result_note`, `redact`) so
 the worker never receives a secret the record would have removed. The worker feeds these lines to the same `RunSink`
 (`watch_run`/`note_result` become two small functions over events instead of SDK messages), so run records, the Download file
@@ -266,6 +288,17 @@ today.
 Both stages write the same record per attempt: `{work, step, repo, host, port, allowed, bytes, at}`, to a volume the web service
 reads. The admin page gets an "outbound" view and an **Allow this site** button on a refused host, reusing the rule kind that
 exists today (`allow_site`). The `ask` mode is a later stage with its own protocol bump.
+
+**How stage B enforces it** (the pattern of OpenSandbox's egress sidecar, see section 16). The gateway owns the step's network
+namespace rules. Its firewall chain is `drop` by default and ordered: the gateway's own traffic, loopback, DNS to the gateway;
+operator and Warden denials; established flows to learned addresses; allowed sets; then drop. When the gateway answers a DNS
+query for an allowed name, it first writes the resolved addresses into a firewall set with a timeout (the record's TTL plus 60
+seconds, between 60 and 360), and only then replies, so the address is open before the client can dial. Connections still open
+renew their lease. DNS over TLS is always dropped; UDP and QUIC to port 443 are dropped so clients fall back to TCP, where the
+SNI check applies. The gateway fails closed: if it cannot install its rules it exits, and the runner then refuses to start
+steps. An address allowed for one name is **not** enough for another name on the same CDN address, because the SNI check still
+decides. Operators also get floors that a repository cannot override: an always-deny list, an always-allow list (the model
+API and GitHub), and a port cap, reloaded every minute. A wildcard `*.example.org` does not match `example.org` itself.
 
 The gateway is a small Rust service, `warden-egress`, in the `warden/` workspace: it reuses the policy crate (decision 0014 already
 said the egress would share Warden's policy), so a domain denied by Warden's rules is denied on the wire too, in every profile.
@@ -413,10 +446,54 @@ Each stage is its own pull request, with its spec, tests and an update to this d
 6. **S6, Warden spool.** Which records the hook writes after the process is killed mid-call, and that ingest keeps the chain valid.
 7. **S7, a private Docker daemon.** Whether sysbox (or rootless Podman in a step) runs on the Ubuntu hosts in use and what it costs;
    decides whether tests with Testcontainers can be offered.
-8. **Per-repository image names.** Whether `.shelf/config.toml` should name an image at all in the first release, or whether the
+8. **S8, OpenSandbox's egress sidecar as a stage B shortcut.** One day, in a throw-away host. Does its sidecar (Go, Apache 2.0)
+   run next to a step container with `network_mode: container:`, take its policy from a file we write, and report refused hosts
+   to a webhook we own, without its server? If so, stage B can start from it while `warden-egress` is built, and the
+   decision is what we gain against a second policy engine that does not read Warden's rules.
+9. **Per-repository image names.** Whether `.shelf/config.toml` should name an image at all in the first release, or whether the
    operator's variants are enough.
 
-## 16. What this does not do
+## 16. What we take from OpenSandbox, and what we leave
+
+[OpenSandbox](https://github.com/opensandbox-group/OpenSandbox) (Apache 2.0, a project of the Agentic AI Foundation) solves a
+neighbouring problem: a general sandbox service for agents, with Docker, Kubernetes and Firecracker runtimes. It was read in
+November 2026 (a shallow clone, files only, nothing run). We do not adopt it: about 400,000 lines serve Kubernetes and
+Firecracker, its Docker mode has no pools, hooks or pause across restarts, its umbrella releases are unsigned (its issue
+2463), and its server holds the engine socket just as our runner will, with far more code. Adopting it would also give us a
+second policy engine that cannot read Warden's rules. What it does well is taken as ideas; where code is copied, the
+file keeps its licence header and a "changed" note, and a `NOTICE` entry names the source.
+
+| Take | Where it lands |
+| - | - |
+| DNS-learned firewall sets with a lease, renewed for open connections, written before the DNS reply | stage B, section 8 |
+| Firewall chain order, atomic rebuild, drop of DNS over TLS, fail closed, freeze on an unknown result | stage B, section 8 |
+| Operator floors (always-deny, always-allow, port cap), wildcards that exclude the apex | section 8, modes |
+| A binding that matches host, method and path to exactly one rule, injects a header, keeps the secret write-only and redacted | model gateway (S1), section 9 |
+| A refused-host event with a webhook, which we extend with a store, the SNI, the source and the admin button | `learn` and `ask` modes |
+| Mount path checks: allow-list, no `..`, normalise, `realpath` both sides, empty list rejects | section 5 |
+| Labels on everything, restore at startup, delete only what carries our label, one lock per step, atomic state file | section 5 |
+| Expiry stored in a label and enforced again after a restart | section 5 |
+| A ping every 3 seconds; a status call and replay by cursor; a distinct timeout reason; argv without a shell | sections 5 and 7 |
+| A versioned stream and a reader that ignores unknown fields | section 7 |
+| Atomic file upload (write beside, then rename) and ranged download, if the runner ever carries files | later |
+| An entrypoint running as PID 1 under `--init`, forwarding signals and returning the exit code | `shelf-step` |
+| A live-test check that starts the app in the background, runs a browser against localhost, and returns screenshots and traces | stage 8, ROADMAP item 185 |
+
+| Leave | Why |
+| - | - |
+| A TLS-intercepting proxy for all HTTPS (Python mitmproxy) | large, experimental, breaks pinned clients; only the model gateway and GitHub need the application layer |
+| Injecting a CA into the system, NSS, JDK, Node and Python stores | brittle; if a CA is ever needed it is baked into the step image |
+| A deny-list of capabilities, host networking and `0.0.0.0` port publishing as defaults | we drop all, use `step-net`, publish nothing |
+| Free-form extra bind mounts, an image-chosen user, the request choosing the user | the runner fixes all three |
+| UDP and QUIC allowed by address lease | dropped, clients fall back to TCP |
+| The model token as a plain environment variable, the CLI installed at run time, `--resume` that works only while the sandbox lives | the gateway holds the credential, the image pins the CLI, sessions live in a volume |
+| Timers held only in memory, a plaintext vault file | state in labels and files, secrets in memory only |
+
+What this design adds that OpenSandbox lacks: a record of refused hosts with a store and an "Allow this site" button, the `learn`
+and `ask` modes, an SNI check on top of the address allow (so a shared CDN address does not open every name on it), one policy
+shared with Warden, an idempotent `key`, and sessions that outlive the container.
+
+## 17. What this does not do
 
 It does not make a fetched page trustworthy, does not stop a model from being wrong, and does not hide the model credential
 until stage 8. It does not replace Warden: the hooks still judge every call, because they are the only layer that can explain a
