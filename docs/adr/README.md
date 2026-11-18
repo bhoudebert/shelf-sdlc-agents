@@ -21,3 +21,4 @@ Why the system is shaped the way it is. Behaviour is specified in `openspec/spec
 | [0016](0016-results-land-where-the-repository-keeps-them.md) | Let the results of a run land where the repository keeps them | accepted |
 | [0017](0017-let-agents-read-the-web-and-keep-downloads-limited.md) | Let agents read the web, and keep downloads limited | accepted |
 | [0018](0018-show-the-product-on-the-public-site.md) | Show the product on the public site, in the product's own tokens | accepted |
+| [0019](0019-run-each-step-in-an-isolated-environment.md) | Run each step in an isolated environment, with nothing less than today | proposed |

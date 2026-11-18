@@ -33,7 +33,7 @@ when it would be used. An idea that cannot be described in those terms is not re
 - **Warden audit log retention.** The log grows by a day file per day and is never pruned; pruning must keep the chain
   verifiable (an anchor record). For operators with long-lived instances.
 
-- **An isolated environment created for each step.** Each step runs in its own short-lived container (an image with the toolchains,
+- **An isolated environment created for each step** (designed: [decision 0019](docs/adr/0019-run-each-step-in-an-isolated-environment.md), [technical design](docs/design/isolated-step-environments.md)). Each step runs in its own short-lived container (an image with the toolchains,
   the clone mounted, no host mounts, no credentials, a restricted network, resource limits), thrown away afterwards, so an agent
   cannot harm anything outside the repository. It needs a way to start containers that does not hand the worker the host: a
   rootless Docker or Podman, or a socket proxy that only allows creating and removing containers. Behind the `AgentBackend` port.
