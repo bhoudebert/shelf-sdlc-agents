@@ -436,6 +436,29 @@ async def test_a_ci_that_outlasts_the_wait_is_handed_back_to_the_workflow_to_loo
     assert pulls.commented  # said once that the CI is running
 
 
+async def test_at_the_merge_a_red_ci_is_reported_without_opening_a_clone() -> None:
+    workspaces = FakeWorkspaces()
+    pulls = FakePulls(cis=[RED])
+    result = await steps(workspaces=workspaces, pulls=pulls, config=ON_CI).run(NEED, RunStep(Phase.PULL_REQUEST, 0, ""))
+    assert isinstance(result, Verified)
+    assert not result.passed
+    assert not result.waiting
+    assert "build: timed_out" in result.report
+    assert workspaces.workspace.ran == []
+    assert pulls.commented
+
+
+async def test_at_the_merge_a_green_ci_passes_and_a_running_one_is_looked_at_again_quietly() -> None:
+    assert await steps(pulls=FakePulls(cis=[GREEN])).run(NEED, RunStep(Phase.PULL_REQUEST, 0, "")) == Verified(
+        passed=True
+    )
+    pulls = FakePulls(cis=[RUNNING])
+    again = await steps(pulls=pulls).run(NEED, RunStep(Phase.PULL_REQUEST, 0, WAITING_FOR_CI))
+    assert isinstance(again, Verified)
+    assert again.waiting
+    assert pulls.commented == []
+
+
 async def test_looking_again_runs_no_command_and_does_not_repeat_the_comment() -> None:
     pulls = FakePulls(cis=[RUNNING])
     workspaces = FakeWorkspaces()

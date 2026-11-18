@@ -154,12 +154,17 @@ class Course:
         return self.protocol >= JUDGES_REVIEW_LOOPS
 
     @property
+    def looks_at_ci_before_merge(self) -> bool:
+        """Whether the CI is looked at again once the pull request is ready, before a person is asked (protocol 11)."""
+        return self.protocol >= LOOKS_AT_CI_BEFORE_MERGE and self.readies_pull_request
+
+    @property
     def readies_pull_request(self) -> bool:
         """Whether the pull request leaves the draft state when the work asks for the merge: ours, or adopted."""
         return self.opens_early and (self.publishes_pull_request or self.adopts_pull_request)
 
 
-CURRENT_PROTOCOL = 10
+CURRENT_PROTOCOL = 11
 """The behaviour new work starts with. Raise it, and gate the new behaviour on it, whenever a change would alter what
 the workflow does for a history recorded before: protocol 1 is the original behaviour, which old work keeps."""
 
@@ -199,6 +204,9 @@ RESUMES_SESSIONS = 9
 
 JUDGES_REVIEW_LOOPS = 10
 """The protocol under which a reviewer's repeated or minor points decide how a review loop ends."""
+
+LOOKS_AT_CI_BEFORE_MERGE = 11
+"""The protocol under which the work looks at the CI after the pull request is ready, before it asks for the merge."""
 
 
 def course_for(entry: EntryPoint, policy: Policy, protocol: int = CURRENT_PROTOCOL) -> Course:

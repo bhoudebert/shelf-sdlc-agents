@@ -292,16 +292,23 @@ def _after_step(course: Course, state: Running, result: StepResult) -> Transitio
             return _send_back(course, state, issues, review)
         case Kind.REVIEW, Reviewed(Verdict.ESCALATE, issues, blocking=blocking):
             return _deadlocked(course, state.phase, issues, blocking=blocking)
-        case Kind.VERIFY, Verified(waiting=True):
-            if course.waits_for_ci:
-                return _enter(course, state.phase, state.attempt, feedback=WAITING_FOR_CI)  # look again, same round
-            return _advance(course, state.phase, state.attempt)
-        case Kind.VERIFY, Verified(passed=True):
-            return _advance(course, state.phase, state.attempt)
-        case Kind.VERIFY, Verified(False, report):
-            return _send_back(course, state, report)
+        case Kind.VERIFY | Kind.MERGE, Verified() as seen:
+            return _after_checks(course, state, seen)
         case _:
             return _ask(state.phase, Reason.FAILURE, f"unexpected result for {state.phase}: {result!r}")
+
+
+def _after_checks(course: Course, state: Running, seen: Verified) -> Transition:
+    """What the checks, or the CI seen once the pull request is ready, decide."""
+    at_merge = KIND[state.phase] is Kind.MERGE
+    if seen.waiting and (at_merge or course.waits_for_ci):
+        if at_merge:
+            return Transition(state, (RunStep(state.phase, state.attempt, WAITING_FOR_CI),))  # look again, same round
+        return _enter(course, state.phase, state.attempt, feedback=WAITING_FOR_CI)
+    if seen.waiting or seen.passed:
+        return _ask(state.phase, Reason.MERGE, "") if at_merge else _advance(course, state.phase, state.attempt)
+    back = _send_back(course, state, seen.report)
+    return Transition(back.state, (SetPullRequestReady(ready=False), *back.commands)) if at_merge else back
 
 
 def _when_waiting(course: Course, state: AwaitingPerson, event: Event) -> Transition:
@@ -350,6 +357,8 @@ def _enter(course: Course, phase: Phase, attempt: int = 0, feedback: str = "") -
                 publish = (PublishPullRequest(), *((SetPullRequestReady(ready=True),) if course.opens_early else ()))
             elif course.adopts_pull_request:
                 publish = (SetPullRequestReady(ready=True),)
+            if course.looks_at_ci_before_merge:  # what marking it ready started must finish first
+                return Transition(Running(phase, attempt, feedback), (*publish, RunStep(phase, attempt, feedback)))
             return Transition(AwaitingPerson(phase, Reason.MERGE), (*publish, AskPerson(phase, Reason.MERGE, "")))
         case Kind.PRODUCE | Kind.REVIEW | Kind.VERIFY:
             return Transition(Running(phase, attempt, feedback), (RunStep(phase, attempt, feedback),))

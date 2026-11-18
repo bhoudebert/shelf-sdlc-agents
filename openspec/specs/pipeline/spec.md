@@ -178,3 +178,22 @@ The system SHALL start new work under a protocol version in which a review loop 
 
 - **WHEN** work that began under protocol 9 gets a repeated point
 - **THEN** it is sent back to the author until its rounds run out, as before
+
+### Requirement: New work looks at the CI once the pull request is ready, before it asks for the merge
+
+The system SHALL start new work under a protocol version in which, after the pull request is marked ready for review, the work looks at the repository's CI again before it asks a person to merge: it waits while the CI runs, goes to the merge gate when it is green or absent, and puts the pull request back to draft and sends the work back to the implementer with the failing runs when it is red; and SHALL keep going straight to the merge gate for work that began under an earlier protocol.
+
+#### Scenario: A run started by marking the pull request ready fails
+
+- **WHEN** the pull request has been marked ready and a workflow that this started ends red
+- **THEN** the pull request goes back to draft and the implementer is sent the failing runs, instead of a person being asked to merge
+
+#### Scenario: The CI is still running
+
+- **WHEN** the CI has not finished when the work looks at it
+- **THEN** the work looks again in the same round, and a person is asked only when it is green
+
+#### Scenario: Work from before
+
+- **WHEN** work that began under protocol 10 reaches the merge gate
+- **THEN** a person is asked at once, as before

@@ -40,7 +40,7 @@ def approving(phase: Phase) -> StepResult:
     match KIND[phase]:
         case Kind.REVIEW:
             return Reviewed(Verdict.APPROVE)
-        case Kind.VERIFY:
+        case Kind.VERIFY | Kind.MERGE:
             return Verified(passed=True)
         case _:
             return Produced()
@@ -205,6 +205,7 @@ async def test_work_from_a_need_publishes_a_pull_request_and_stops_at_the_spec_g
         Phase.IMPLEMENT,
         Phase.VERIFY,
         Phase.CODE_REVIEW,
+        Phase.PULL_REQUEST,
     ]
     assert pulls.published >= 1  # opened after the first step, asked for again at the merge
     assert pulls.ready == [True]
@@ -311,7 +312,12 @@ async def test_work_on_a_pull_request_never_opens_one_and_readies_the_one_it_has
         await until(handle, lambda s: s.waiting_for == "merge")
         await handle.signal(WorkItemWorkflow.pull_request_closed, True)
         assert await handle.result() == "merged"
-    assert [s.phase for s in steps.ran] == [Phase.IMPLEMENT, Phase.VERIFY, Phase.CODE_REVIEW]
+    assert [s.phase for s in steps.ran] == [
+        Phase.IMPLEMENT,
+        Phase.VERIFY,
+        Phase.CODE_REVIEW,
+        Phase.PULL_REQUEST,
+    ]
     assert pulls.published == 0, "the pull request already exists: nothing is opened or retitled"
     assert pulls.ready == [True]
 

@@ -1143,3 +1143,12 @@ The system SHALL, when the clone declares tools for mise, read that declaration 
 
 - **WHEN** the declaration names `rust`, `go`, `zig` or `ghc`
 - **THEN** it is installed when mise provides it from a backend that runs no code, and ignored with a reason when it needs one that does
+
+### Requirement: The step at the merge only looks at the CI
+
+The system SHALL, for the step that runs once the pull request is ready, open no clone and run no agent: it waits for the repository's CI to settle, reports it on the pull request (staying quiet when it only looks again at a CI already reported as running), and answers passed, failed with the failing runs, or still waiting.
+
+#### Scenario: A red CI at the merge
+
+- **WHEN** the CI is red when the step looks
+- **THEN** the step answers failed with the failing runs and comments them on the pull request
