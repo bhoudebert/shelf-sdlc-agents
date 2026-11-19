@@ -25,6 +25,7 @@ REASONS: Final = {
     "timeout": "the step ran out of time",
     "killed": "the step was stopped",
     "oom": "the step ran out of memory",
+    "engine": "the runner could not run the step",
 }
 """Why a container ended when it was not the agent's own end. Anything else is shown as a plain exit code."""
 
