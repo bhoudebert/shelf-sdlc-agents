@@ -93,7 +93,11 @@ def main(argv: list[str] | None = None) -> int:
     args = sys.argv[1:] if argv is None else argv
     raw = Path(args[0]).read_text(encoding="utf-8") if args else sys.stdin.read()
     task, settings = task_from_input(json.loads(raw), WORKDIR)
-    asyncio.run(run_step(task, settings, _write))
+    try:
+        asyncio.run(run_step(task, settings, _write))
+    except Exception as error:  # noqa: BLE001 - the agent's CLI ending badly must not print a traceback that may hold a secret
+        sys.stderr.write(f"shelf-step stopped: {type(error).__name__}\n")
+        return 1
     return 0
 
 

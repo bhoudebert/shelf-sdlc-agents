@@ -1,8 +1,10 @@
 """The container side of a step, and that what it writes fills the record as the sandbox path did. No SDK call is made."""
 
+import asyncio
 from collections.abc import AsyncIterator, Sequence
 from pathlib import Path
 
+import pytest
 from claude_agent_sdk import AssistantMessage, ResultMessage, TextBlock, ToolResultBlock, ToolUseBlock, UserMessage
 
 from shelf.adapters.claude_agent import step
@@ -127,3 +129,22 @@ async def test_the_container_turns_the_sdk_sandbox_off_because_it_is_the_boundar
     assert seen["prompt"] == "go"
     assert options.sandbox["enabled"] is False  # type: ignore[attr-defined]
     assert "WebFetch" in options.allowed_tools  # type: ignore[attr-defined]
+
+
+async def test_a_step_whose_agent_dies_says_what_kind_of_error_and_nothing_else(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    async def broken(**_: object) -> AsyncIterator[object]:
+        message = f"the CLI failed with {TOKEN}"
+        raise RuntimeError(message)
+        yield  # pragma: no cover - makes this a generator
+
+    monkeypatch.setattr(step, "query", broken)
+    task_file = tmp_path / "task.json"
+    task_file.write_text('{"role": {"name": "implementer"}, "prompt": "go"}', encoding="utf-8")
+    code = await asyncio.to_thread(step.main, [str(task_file)])
+    seen = capsys.readouterr()
+    assert code == 1
+    assert '"e":"hello"' in seen.out
+    assert "RuntimeError" in seen.err
+    assert TOKEN not in seen.out + seen.err
