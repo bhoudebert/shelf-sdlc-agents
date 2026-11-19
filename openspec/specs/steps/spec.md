@@ -357,6 +357,45 @@ The system SHALL have the code that runs in a step's container report what the a
 - **WHEN** a step asked to continue a session fails
 - **THEN** the worker runs it again once from the whole task, and the record says it fell back, as the sandbox path does
 
+### Requirement: The runner service starts each step in a container it builds itself
+
+The system SHALL have a runner service, the only holder of the container engine's socket, that accepts a step as a fixed request (a key, a kind, a repository, a session folder, an environment and the task) with no field for mounts, capabilities, devices, ports, user, network, privileged mode or any engine option, and SHALL build the container itself: non-root, read-only root filesystem, every capability dropped, no new privileges, a process limit, a memory limit, a CPU limit, a sized temporary filesystem, an init process, no published port, volumes only and never a host path, and labels on every container it makes. The runner SHALL stream the lines the step wrote and then write the `exit` line itself, with a reason when the step ran out of time, was stopped or ran out of memory; SHALL return the same step, never a second container, when asked again with the same key; SHALL refuse a key, a repository, a session folder or an environment name that does not match its rules, naming the field and never repeating a secret; and SHALL accept requests only with the caller's token.
+
+#### Scenario: A request cannot ask for more than the runner allows
+
+- **WHEN** a request carries a field the runner does not know, such as `privileged` or `mounts`
+- **THEN** the runner refuses it and starts no container
+
+#### Scenario: The container is built the same way every time
+
+- **WHEN** the runner starts a step
+- **THEN** the container is non-root with a read-only root, all capabilities dropped, no new privileges, the limits the operator set, no published port and no host path
+
+#### Scenario: Asking again
+
+- **WHEN** a request arrives with the key of a step that is running or finished
+- **THEN** the runner streams that step from its first line and starts no second container
+
+#### Scenario: A step that runs out of time
+
+- **WHEN** a step is still running when its time is up
+- **THEN** the runner stops and removes the container and ends the stream with an `exit` line whose reason is `timeout`
+
+#### Scenario: A name that does not match
+
+- **WHEN** the environment of a request names a variable outside the allowed patterns, or the repository is not `owner/name`
+- **THEN** the runner refuses the request with a message that names the field and does not contain the value
+
+#### Scenario: No token
+
+- **WHEN** a request does not carry the caller's token
+- **THEN** the runner answers that it is not allowed and does nothing else
+
+#### Scenario: The runner restarts
+
+- **WHEN** the runner starts and finds containers with its label whose time has passed
+- **THEN** it stops and removes them, and it leaves every container without its label alone
+
 ### Requirement: A failed login tells the operator where the credential goes
 
 The system SHALL, when an agent fails because it is not logged in, say that the credential belongs in the worker's environment (a Claude token or an API key in the environment file), not in the host's own login.
