@@ -359,7 +359,7 @@ The system SHALL have the code that runs in a step's container report what the a
 
 ### Requirement: The runner service starts each step in a container it builds itself
 
-The system SHALL have a runner service, the only holder of the container engine's socket, that accepts a step as a fixed request (a key, a kind, a repository, a session folder, an environment and the task) with no field for mounts, capabilities, devices, ports, user, network, privileged mode or any engine option, and SHALL build the container itself: non-root, read-only root filesystem, every capability dropped, no new privileges, a process limit, a memory limit, a CPU limit, a sized temporary filesystem, an init process, no published port, volumes only and never a host path, and labels on every container it makes. The runner SHALL stream the lines the step wrote and then write the `exit` line itself, with a reason when the step ran out of time, was stopped or ran out of memory; SHALL return the same step, never a second container, when asked again with the same key; SHALL refuse a key, a repository, a session folder or an environment name that does not match its rules, naming the field and never repeating a secret; and SHALL accept requests only with the caller's token.
+The system SHALL have a runner service, the only holder of the container engine's socket, that accepts a step as a fixed request (a key, a kind, a repository, a session folder, an environment and the task) with no field for mounts, capabilities, devices, ports, user, network, privileged mode or any engine option, and SHALL build the container itself: non-root, read-only root filesystem, every capability dropped, no new privileges, a process limit, a memory limit, a CPU limit, a sized temporary filesystem, an init process, no published port, volumes only and never a host path, and labels on every container it makes. The runner SHALL stream the lines the step wrote and then write the `exit` line itself, with a reason when the step ran out of time, was stopped or ran out of memory; SHALL return the same step, never a second container, when asked again with the same key; SHALL refuse a key, a repository, a session folder or an environment name that does not match its rules, naming the field and never repeating a secret; and SHALL accept requests only with the caller's token, refusing to start without one and without an engine it can read.
 
 #### Scenario: A request cannot ask for more than the runner allows
 
@@ -390,6 +390,11 @@ The system SHALL have a runner service, the only holder of the container engine'
 
 - **WHEN** a request does not carry the caller's token
 - **THEN** the runner answers that it is not allowed and does nothing else
+
+#### Scenario: Nothing to authenticate with
+
+- **WHEN** the runner starts with no caller token and without the operator's explicit permission to run without one
+- **THEN** it does not start, and the message says a token is needed
 
 #### Scenario: The runner restarts
 
