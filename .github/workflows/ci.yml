@@ -67,6 +67,17 @@ jobs:
         run: |
           docker run --rm --entrypoint warden shelf-ci --version
           docker run --rm --entrypoint python shelf-ci -c "import shelf"
+      # Decision 0019: a real step in a real container, started by the runner service, against a mock of the model API.
+      # It checks that the container is locked down, that a step streams its lines and ends with the runner's exit, and
+      # that a step past its deadline is stopped.
+      - name: Build the step image
+        run: docker build --target step --build-arg SHELF_REVISION=ci -t shelf-step-test .
+      - uses: actions/setup-python@v7
+        with:
+          python-version-file: ".python-version"
+      - run: python -m pip install uv && uv sync --frozen
+      - name: Run a step in a container, through the runner
+        run: uv run python scripts/check-runner-live.py
 
   commits:
     name: Conventional commits

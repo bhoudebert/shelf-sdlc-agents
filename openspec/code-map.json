@@ -123,6 +123,7 @@
         "src/shelf/ports/container_engine.py",
         "src/shelf/adapters/container_runner/*.py",
         "src/shelf/entrypoints/runner.py",
+        "scripts/check-runner-live.py",
         "src/shelf/ports/agents.py",
         "src/shelf/ports/workspace.py",
         "src/shelf/prompts/*.md",
