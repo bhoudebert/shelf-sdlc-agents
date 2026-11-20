@@ -431,13 +431,19 @@ Each stage is its own pull request, with its spec, tests and an update to this d
 | 7 | Default flips to `container`; `sandbox` stays for one release | |
 | 8 | Egress stage B (transparent), model gateway, image variants (browsers), opt-in private Docker daemon, the `ask` mode and its wait | each is its own record or spec |
 
-**Status.** Stage 0 is merged. Stage 1 (the stream, `ContainerBackend`, `shelf-step`, `SHELF_ISOLATION`) is in review as its own
-pull request. Stage 2 is in review on top of it: the runner service (`shelf-runner`, `shelf.adapters.container_runner`), its
-fixed request and the container it builds, the `step` and `runner` image targets, and `scripts/check-runner-live.py`, which
-runs real containers against the mock model. What stage 2 does **not** have, on purpose: the container has no Warden hooks yet
-(the managed policy is a stage 3 volume), no egress control (`SHELF_STEP_NETWORK` is an ordinary network until stage 5),
-and the worker does not call it (`SHELF_ISOLATION=container` is still refused). The stream is sent as
-`application/x-ndjson` (one JSON object per line), not as server-sent events.
+**Status.** Stage 0 is merged. Stage 1 (the stream, `ContainerBackend`, `shelf-step`, `SHELF_ISOLATION`) and stage 2 (the runner
+service, the `step` and `runner` image targets, `scripts/check-runner-live.py`) are in review as their own pull requests.
+Stage 3 is split in two. **3a** (this one, on top of stage 2): the worker names each step's clone, repository and work and
+makes their folders; the clones, the tools (the worker's own `worker-cache`, laid out as the worker's set-up already lays
+it out) and the sessions are volumes shared by the worker and the steps; a reviewer's tools are read-only; the policy, the
+catalog and the guard's rules are config volumes mounted read-only, with the guard's variables set by the operator;
+`SHELF_ISOLATION=container` starts (`deploy/compose.container.yml`, `install.sh`). **3b**, not done: `kind=check` and
+`kind=setup` (the repository's checks and tool set-up still run in the worker, as today, so nothing is lost) and the narrowed
+token. What 3a still does **not** have, on purpose: no Warden audit log from the steps (stage 4: the policy that wires the hooks is
+mounted, but nothing has yet shown Warden deciding a call inside a step container, and its state directory is not set,
+so treat the guard as unverified in container mode until the parity run), no egress control (stage 5), and the
+compose overlay renames nothing but uses the worker's `worker-cache`. The stream is sent as `application/x-ndjson`, not as
+server-sent events.
 
 ## 15. Open questions and the spikes that answer them
 
