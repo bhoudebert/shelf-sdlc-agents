@@ -306,7 +306,7 @@ The system SHALL run the agents' sandbox in its weaker nested mode only when the
 
 ### Requirement: The operator chooses where agents run
 
-The system SHALL read `SHELF_ISOLATION` as `sandbox` (the default: agents run in the worker, under the sandbox) or `container` (each agent step runs in a container of its own, decision 0019), SHALL refuse any other value at startup, and SHALL refuse `container` at startup, naming the missing runner, until the runner service exists.
+The system SHALL read `SHELF_ISOLATION` as `sandbox` (the default: agents run in the worker, under the sandbox) or `container` (each agent step runs in a container of its own, decision 0019), SHALL refuse any other value at startup, and SHALL refuse `container` at startup, naming what is missing, unless the runner's address and token, and the three volumes it shares with the runner (the clones, the tools and the sessions), are set.
 
 #### Scenario: Default
 
@@ -320,8 +320,13 @@ The system SHALL read `SHELF_ISOLATION` as `sandbox` (the default: agents run in
 
 #### Scenario: Container mode without a runner
 
-- **WHEN** `SHELF_ISOLATION` is `container` and no runner is configured
-- **THEN** the worker does not start, and the message says the runner service is missing
+- **WHEN** `SHELF_ISOLATION` is `container` and no runner or no shared volume is configured
+- **THEN** the worker does not start, and the message names what is missing
+
+#### Scenario: Container mode with everything set
+
+- **WHEN** `SHELF_ISOLATION` is `container` and the runner and the three volumes are set
+- **THEN** the worker starts and every agent step runs in a container of its own
 
 ### Requirement: A step in a container reports itself as a stream of versioned lines
 
@@ -1249,3 +1254,41 @@ The system SHALL, for the step that runs once the pull request is ready, open no
 
 - **WHEN** the CI is red when the step looks
 - **THEN** the step answers failed with the failing runs and comments them on the pull request
+
+### Requirement: The worker gives each container step its clone, its repository's tools and its work's sessions
+
+The system SHALL, for an agent step in container mode, clone into a folder of the shared clones volume and name that folder, the repository, the work and whether the role may change the tools in the request, never a path of the worker's; SHALL create, before asking, the folders of the repository's tools and of the work's sessions in their volumes; SHALL lay the tools out as the worker's own set-up does (the repository's home, with its `mise`, `.m2`, `.npm` and `.cache`), so that what the worker's set-up installs is what the step finds; SHALL give a reviewer those tools read-only and the developer read-write; and SHALL send as the step's environment only the variables the runner accepts, leaving out the worker's `HOME`, `PATH` and `MISE_*`, which the step's image and the runner set.
+
+#### Scenario: The clone is named, not its path
+
+- **WHEN** the worker asks the runner for a step whose clone is in the clones volume
+- **THEN** the request names the clone as a folder of that volume and holds no path of the worker's
+
+#### Scenario: A reviewer cannot change the tools
+
+- **WHEN** the step is a reviewer's
+- **THEN** the tools are mounted read-only in its container
+
+#### Scenario: A later step of the same work continues the session
+
+- **WHEN** a second step of the same work, in another container, asks to continue the first one's session
+- **THEN** it mounts the same sessions folder of that work and finds the session
+
+#### Scenario: The worker's variables stay in the worker
+
+- **WHEN** the step's environment holds `HOME`, `PATH` or `MISE_YES`
+- **THEN** none of them is sent, and the step's own values apply
+
+### Requirement: The step container reads its policy, its catalog and its guard rules and can change none of them
+
+The system SHALL mount into every step container, read-only, the volumes the operator names for the agents' managed policy, the skill catalog and the guard's rules, at their usual paths, and SHALL set the guard's variables from the operator's rules and never from a request, so that the guard's hooks run in the container as they do in the worker and an agent can neither change them nor point them elsewhere.
+
+#### Scenario: The policy is there and read-only
+
+- **WHEN** a step container starts with the policy, catalog and guard volumes named
+- **THEN** each is mounted read-only at its path
+
+#### Scenario: A request cannot change the guard
+
+- **WHEN** a request's environment names a variable of the guard
+- **THEN** the runner refuses the request, naming the variable
