@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from shelf.adapters.container_agent.backend import ContainerBackend, StepFailedError
+from shelf.adapters.container_agent.backend import ContainerBackend, StepFailedError, Volumes
 from shelf.domain.pipeline import Phase
 from shelf.domain.roles import ROLES
 from shelf.domain.runlog import ToolEvent
@@ -154,3 +154,54 @@ async def test_every_step_gets_a_key_of_its_own_when_none_is_given() -> None:
     await backend.run(task())
     await backend.run(task())
     assert runner.requests[0].key != runner.requests[1].key
+
+
+def volumes(tmp_path: Path) -> Volumes:
+    return Volumes(tmp_path / "steps", tmp_path / "tools", tmp_path / "sessions")
+
+
+async def test_the_request_names_the_clone_the_repository_and_the_works_session(tmp_path: Path) -> None:
+    runner = FakeRunner(good())
+    where = volumes(tmp_path)
+    backend = ContainerBackend(runner, volumes=where)
+    clone = where.steps / "steps" / "shelf-ab_1" / "repo"
+    await backend.run(task(workdir=clone, repo="acme/shop", work="work-1", read_only_tools=False))
+    request = runner.requests[0]
+    assert (request.repo, request.clone, request.session) == ("acme/shop", "steps/shelf-ab_1/repo", "work/work-1")
+    assert request.tools_readonly is False
+    assert str(tmp_path) not in str(request)
+
+
+async def test_a_reviewer_asks_for_the_tools_read_only(tmp_path: Path) -> None:
+    runner = FakeRunner(good())
+    where = volumes(tmp_path)
+    await ContainerBackend(runner, volumes=where).run(
+        task(workdir=where.steps / "steps" / "a" / "repo", repo="acme/shop", work="w", read_only_tools=True)
+    )
+    assert runner.requests[0].tools_readonly is True
+
+
+async def test_the_folders_the_runner_mounts_are_made_before_it_is_asked(tmp_path: Path) -> None:
+    where = volumes(tmp_path)
+    await ContainerBackend(FakeRunner(good()), volumes=where).run(
+        task(workdir=where.steps / "steps" / "a" / "repo", repo="acme/shop", work="work-1")
+    )
+    home = where.tools / "home" / "acme__shop"
+    assert all((home / folder).is_dir() for folder in (".local/share/mise", ".m2", ".npm", ".cache"))
+    assert (where.sessions / "work" / "work-1").is_dir()
+
+
+async def test_a_clone_outside_the_shared_volume_stops_the_step_without_asking_the_runner(tmp_path: Path) -> None:
+    runner = FakeRunner()
+    with pytest.raises(StepFailedError, match="shared clones volume"):
+        await ContainerBackend(runner, volumes=volumes(tmp_path)).run(
+            task(workdir=Path("/tmp/elsewhere/repo"), repo="acme/shop", work="w")  # noqa: S108
+        )
+    assert runner.requests == []
+
+
+async def test_the_workers_own_variables_are_not_sent(tmp_path: Path) -> None:
+    runner = FakeRunner(good())
+    env = {"GH_TOKEN": "t", "HOME": "/cache/home/x", "PATH": "/x", "MISE_YES": "1", "CLAUDE_CODE_OAUTH_TOKEN": "o"}
+    await ContainerBackend(runner).run(task(env=env))
+    assert dict(runner.requests[0].env) == {"GH_TOKEN": "t", "CLAUDE_CODE_OAUTH_TOKEN": "o"}

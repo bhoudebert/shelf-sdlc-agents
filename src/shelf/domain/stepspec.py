@@ -39,6 +39,10 @@ CONFIG_TARGETS: Final = ("/etc/claude-code", "/opt/shelf/catalog", "/var/lib/she
 """The only places a config volume may be mounted: where the product reads its policy, catalog and guard rules."""
 
 
+ENV_ALLOWED: Final = ("ANTHROPIC_*", "CLAUDE_CODE_*", "GH_TOKEN", "GITHUB_TOKEN", "SHELF_STEP_*")
+"""The patterns of the variables a request may give a step: the worker sends only these, the runner refuses the rest."""
+
+
 @dataclass(frozen=True, slots=True)
 class Limits:
     """What one step may use. The operator's value is the ceiling; a request may ask for less."""
@@ -70,13 +74,7 @@ class RunnerRules:
     tools_volume: str = "shelf-tools"
     sessions_volume: str = "shelf-sessions"
     limits: Limits = field(default_factory=Limits)
-    env_allowed: tuple[str, ...] = (
-        "ANTHROPIC_*",
-        "CLAUDE_CODE_*",
-        "GH_TOKEN",
-        "GITHUB_TOKEN",
-        "SHELF_STEP_*",
-    )
+    env_allowed: tuple[str, ...] = ENV_ALLOWED
     """Patterns an ``env`` name must match. Anything else is refused."""
     config: tuple[tuple[str, str], ...] = ()
     """``(volume, target)`` of each read-only config volume: the managed policy, the catalog, the guard's rules."""
