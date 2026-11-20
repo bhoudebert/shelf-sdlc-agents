@@ -16,6 +16,8 @@ from shelf.adapters.claude_agent.backend import ClaudeBackend
 from shelf.adapters.claude_agent.prompts import load_prompt
 from shelf.adapters.config.github import GitHubRepoConfigs
 from shelf.adapters.config.operator_file import OperatorFile, read_operator
+from shelf.adapters.container_agent.backend import ContainerBackend, Volumes
+from shelf.adapters.container_agent.client import HttpStepRunner
 from shelf.adapters.git.workspace import GitWorkspaces
 from shelf.adapters.github_app.app_auth import installation_id, installation_token
 from shelf.adapters.github_app.context_sources import GitHubContextSources
@@ -35,6 +37,8 @@ from shelf.domain.model import RepoRef
 from shelf.domain.operator import OperatorConfig
 from shelf.domain.toolchain import allowed_domains
 from shelf.entrypoints.settings import GitHubApp, Settings
+from shelf.ports.agents import AgentBackend
+from shelf.ports.workspace import Workspaces
 
 log = logging.getLogger(__name__)
 
@@ -58,6 +62,45 @@ def token_source(client: httpx.AsyncClient, github: GitHubAppSettings) -> Callab
         return (await installation_token(client, github, installation, now)).value
 
     return token_for
+
+
+def agents_and_workspaces(settings: Settings, file: OperatorFile) -> tuple[AgentBackend, Workspaces]:
+    """The agent backend and the clones that go with it: in the worker under the sandbox, or one container per step.
+
+    In container mode the clones are made in the volume the runner mounts, so a step sees its own clone and no other.
+    """
+    domains = allowed_domains(settings.allowed_domains)
+    extra = FileGuardRules(Path(settings.guard_rules_dir)).sites_now if settings.guard_rules_dir else None
+
+    def bound(role: str) -> tuple[str, ...]:
+        return file.current().roles.get(role, ())
+
+    if settings.container is None:
+        return (
+            ClaudeBackend(
+                nested_sandbox=settings.nested_sandbox,
+                sandbox=settings.sandbox,
+                cli_path=settings.claude_cli,
+                allowed_domains=domains,
+                web=settings.web,
+                catalog_dir=settings.catalog_dir,
+                bindings=bound,
+                extra_domains=extra,
+            ),
+            GitWorkspaces(),
+        )
+    shared = settings.container
+    clones = shared.steps_dir / "steps"
+    clones.mkdir(parents=True, exist_ok=True)
+    backend = ContainerBackend(
+        HttpStepRunner(shared.socket, shared.token),
+        web=settings.web,
+        allowed_domains=domains,
+        bindings=bound,
+        extra_domains=extra,
+        volumes=Volumes(shared.steps_dir, Path(settings.cache_dir), shared.sessions_dir),
+    )
+    return backend, GitWorkspaces(root=clones)
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,20 +149,10 @@ def build_services(settings: Settings, github: GitHubApp, client: httpx.AsyncCli
     pulls = GitHubPullRequests(client, app, token_for, base_branch, may_act)
     context_cache = Path(settings.cache_dir) / "context" if settings.cache_dir else None
     context_sources = GitHubContextSources(client, app, context_cache)
+    agents, workspaces = agents_and_workspaces(settings, file)
     steps = Steps(
-        workspaces=GitWorkspaces(),
-        agents=ClaudeBackend(
-            nested_sandbox=settings.nested_sandbox,
-            sandbox=settings.sandbox,
-            cli_path=settings.claude_cli,
-            allowed_domains=allowed_domains(settings.allowed_domains),
-            web=settings.web,
-            catalog_dir=settings.catalog_dir,
-            bindings=lambda role: file.current().roles.get(role, ()),
-            extra_domains=FileGuardRules(Path(settings.guard_rules_dir)).sites_now
-            if settings.guard_rules_dir
-            else None,
-        ),
+        workspaces=workspaces,
+        agents=agents,
         configs=configs,
         pulls=pulls,
         token_for=token_for,
