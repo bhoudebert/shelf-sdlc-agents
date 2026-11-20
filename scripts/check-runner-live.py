@@ -58,9 +58,10 @@ def prepare() -> None:
     docker("network", "create", NETWORK)
     for volume in (STEPS, TOOLS, SESSIONS):
         docker("volume", "create", volume)
-    tools = [f"/tools/{REPO.replace('/', '__')}/{name}" for name in ("mise", "m2", "npm", "cache")]
+    home = f"/tools/home/{REPO.replace('/', '__')}"
+    tools = [f"{home}/{name}" for name in (".local/share/mise", ".m2", ".npm", ".cache")]
     script = (
-        f"mkdir -p /steps/steps/t1 {' '.join(tools)} /sessions/work/t1 && chown -R 1000:1000 /steps /tools /sessions"
+        f"mkdir -p /steps/steps/t1/repo {' '.join(tools)} /sessions/work/t1 && chown -R 1000:1000 /steps /tools /sessions"
     )
     docker(
         "run", "--rm", "-u", "0", "--entrypoint", "sh",
@@ -87,7 +88,7 @@ def rules(socket_dir: str) -> RunnerRules:
 async def probe() -> None:
     """The container the runner builds, with its command replaced by a script that reports what it can do."""
     ask = parse_request(
-        {"key": "probe/1", "repo": REPO, "clone": "steps/t1", "session": "work/t1", "input": {"prompt": "x"}},
+        {"key": "probe/1", "repo": REPO, "clone": "steps/t1/repo", "session": "work/t1", "input": {"prompt": "x"}},
         rules(""),
     )
     spec = container_spec(ask.value, rules(""), expires=int(time.time()) + 300)  # pyright: ignore[reportAttributeAccessIssue]
@@ -123,7 +124,7 @@ async def step(socket: str, host: str, port: int, key: str, seconds: int | None 
     request = StepRequest(
         key=key,
         repo=REPO,
-        clone="steps/t1",
+        clone="steps/t1/repo",
         session="work/t1",
         limits={"seconds": seconds} if seconds else {},
         env={"ANTHROPIC_BASE_URL": f"http://{host}:{port}", "ANTHROPIC_API_KEY": "mock", "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"},

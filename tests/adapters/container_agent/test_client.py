@@ -23,7 +23,7 @@ def request(**changes: object) -> StepRequest:
     fields: dict[str, object] = {
         "key": "k-1",
         "repo": "acme/shop",
-        "clone": "steps/wf-1",
+        "clone": "steps/wf-1/repo",
         "session": "work/wf-1",
         "env": {"GH_TOKEN": "t"},
         "input": {"prompt": "go"},
@@ -36,7 +36,7 @@ def test_the_body_holds_the_fixed_fields_and_a_reviewer_reads_the_tools() -> Non
         "key": "k-1",
         "kind": "agent",
         "repo": "acme/shop",
-        "clone": "steps/wf-1",
+        "clone": "steps/wf-1/repo",
         "session": "work/wf-1",
         "mode": {"tools": "rw"},
         "env": {"GH_TOKEN": "t"},
@@ -89,7 +89,7 @@ class WithClone:
         self.runner = runner
 
     def run(self, request: StepRequest) -> AsyncIterator[str]:
-        return self.runner.run(replace(request, repo="acme/shop", clone="steps/wf-1"))
+        return self.runner.run(replace(request, repo="acme/shop", clone="steps/wf-1/repo"))
 
 
 async def test_the_backend_reads_a_whole_step_from_the_runner_service_with_a_fake_engine() -> None:

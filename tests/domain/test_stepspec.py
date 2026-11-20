@@ -4,6 +4,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
+from shelf.domain.model import RepoRef
 from shelf.domain.result import Err, Ok
 from shelf.domain.stepspec import (
     Limits,
@@ -13,6 +14,7 @@ from shelf.domain.stepspec import (
     parse_request,
     tools_path,
 )
+from shelf.domain.toolchain import repository_home
 
 RULES = RunnerRules(image="shelf-step:test")
 
@@ -22,7 +24,7 @@ def request(**changes: Any) -> dict[str, Any]:
         "key": "wf-1/implement/2",
         "kind": "agent",
         "repo": "acme/shop",
-        "clone": "steps/wf-1-abc",
+        "clone": "steps/shelf-a1_b2/repo",
         "session": "work/wf-1",
         "env": {"ANTHROPIC_API_KEY": "sk-secret", "GH_TOKEN": "t"},
         "input": {"prompt": "go"},
@@ -48,7 +50,7 @@ def test_a_good_request_is_read_whole() -> None:
         "wf-1/implement/2",
         "agent",
         "acme/shop",
-        "steps/wf-1-abc",
+        "steps/shelf-a1_b2/repo",
         "work/wf-1",
     )
     assert dict(step.env) == {"ANTHROPIC_API_KEY": "sk-secret", "GH_TOKEN": "t"}
@@ -71,6 +73,10 @@ def test_a_field_that_is_an_engine_option_is_refused(field: str) -> None:
         ({"repo": "no-slash"}, "repo"),
         ({"repo": "a/b/c"}, "repo"),
         ({"clone": "steps/../etc"}, "clone"),
+        ({"clone": "steps/a/b/repo"}, "clone"),
+        ({"clone": "steps/a"}, "clone"),
+        ({"env": {"WARDEN_PROFILE": "off"}}, "WARDEN_PROFILE"),
+        ({"env": {"MISE_YES": "0"}}, "MISE_YES"),
         ({"clone": "/etc"}, "clone"),
         ({"clone": "volumes/x"}, "clone"),
         ({"session": "work/../x"}, "session"),
@@ -157,10 +163,11 @@ def test_every_mount_is_a_named_volume_never_a_host_path() -> None:
 
 def test_the_clone_tools_and_sessions_mount_in_their_places() -> None:
     mounts = {m["Target"]: m for m in spec()["HostConfig"]["Mounts"]}
-    assert mounts["/work"]["VolumeOptions"] == {"Subpath": "steps/wf-1-abc"}
-    assert mounts["/home/step/.m2"]["VolumeOptions"] == {"Subpath": "acme__shop/m2"}
+    assert mounts["/work"]["VolumeOptions"] == {"Subpath": "steps/shelf-a1_b2/repo"}
+    assert mounts["/home/step/.m2"]["VolumeOptions"] == {"Subpath": "home/acme__shop/.m2"}
     assert mounts["/home/step/.local/share/mise"]["Source"] == "shelf-tools"
     assert mounts["/home/step/.claude/projects"]["VolumeOptions"] == {"Subpath": "work/wf-1"}
+    assert mounts["/home/step/.local/share/mise"]["VolumeOptions"] == {"Subpath": "home/acme__shop/.local/share/mise"}
     assert mounts["/run/shelf"].get("Source") is None
 
 
@@ -199,5 +206,31 @@ def test_the_command_reads_the_task_from_the_file_the_runner_puts_there() -> Non
 
 
 def test_tools_of_one_repository_never_collide_with_another() -> None:
-    assert tools_path("a/b__c") == "a__b__c"
+    assert tools_path("a/b__c") == "home/a__b__c"
     assert "repo" in refusal(repo="a__b/c")
+
+
+def test_the_tools_folder_is_the_one_the_workers_own_setup_uses() -> None:
+    assert repository_home("/cache", RepoRef("acme", "shop")) == f"/cache/{tools_path('acme/shop')}"
+
+
+RULES_WITH_CONFIG = RunnerRules(
+    image="shelf-step:test",
+    config=(("shelf-policy", "/etc/claude-code"), ("shelf-catalog", "/opt/shelf/catalog")),
+    fixed_env=(("WARDEN_PROFILE", "shelf"),),
+)
+
+
+def test_the_config_volumes_are_mounted_read_only_where_the_product_reads_them() -> None:
+    body = container_spec(ask(), RULES_WITH_CONFIG, expires=1)
+    mounts = {m["Target"]: m for m in body["HostConfig"]["Mounts"]}
+    for target, volume in (("/etc/claude-code", "shelf-policy"), ("/opt/shelf/catalog", "shelf-catalog")):
+        assert (mounts[target]["Source"], mounts[target]["ReadOnly"]) == (volume, True)
+        assert "VolumeOptions" not in mounts[target]
+
+
+def test_the_operators_variables_and_the_tool_installers_are_set_in_every_step() -> None:
+    env = container_spec(ask(), RULES_WITH_CONFIG, expires=1)["Env"]
+    assert "WARDEN_PROFILE=shelf" in env
+    assert {"MISE_YES=1", "MISE_LOCKFILE=false", "MISE_TRUSTED_CONFIG_PATHS=/work"} <= set(env)
+    assert any(item.startswith("MISE_DISABLE_BACKENDS=") for item in env)

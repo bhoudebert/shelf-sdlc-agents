@@ -44,13 +44,18 @@ DEFAULT_ALLOWED_DOMAINS: tuple[str, ...] = (
 _UNSAFE = re.compile(r"[^A-Za-z0-9_.-]")
 
 
+def repository_folder(full_name: str) -> str:
+    """The folder, inside the cache, of one repository's home: ``home/<owner>__<name>``."""
+    owner, _, name = full_name.partition("/")
+    return f"home/{_UNSAFE.sub('_', f'{owner}__{name}')}"
+
+
 def repository_home(cache_dir: str, repo: RepoRef) -> str:
     """The home directory of the agents working on ``repo``: its tools and package caches live there and nowhere shared.
 
     Each repository has its own, so a tampered download in one can never be picked up by the work of another.
     """
-    name = _UNSAFE.sub("_", f"{repo.owner}__{repo.name}")
-    return str(PurePosixPath(cache_dir) / "home" / name)
+    return str(PurePosixPath(cache_dir) / repository_folder(repo.full_name))
 
 
 def toolchain_env(cache_dir: str, repo: RepoRef, workdir: str, path: str) -> dict[str, str]:

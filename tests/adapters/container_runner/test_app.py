@@ -18,7 +18,7 @@ def body(**changes: Any) -> dict[str, Any]:
     return {
         "key": "wf-1/implement/1",
         "repo": "acme/shop",
-        "clone": "steps/wf-1",
+        "clone": "steps/wf-1/repo",
         "env": {"GH_TOKEN": "t"},
         "input": {"prompt": "go"},
         **changes,
