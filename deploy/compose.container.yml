@@ -1,0 +1,71 @@
+# Runs each agent step in a container of its own (decision 0019, docs/design/isolated-step-environments.md).
+# `sh deploy/install.sh` uses this file when SHELF_ISOLATION=container in deploy/.env; it is not part of a normal install.
+#
+# - `runner` is the only service that holds the container engine's socket. Its API has no field for a mount, a capability or
+#   a network: it builds every step's container from fixed rules (the SHELF_STEP_* variables below, never from a request).
+#   It runs read-only, with no capability, and is not on the network the steps use.
+# - `step` is the image a step runs in. It only has to be built: `install.sh` builds it, and the runner starts it.
+# - The worker still clones, and still runs the repository's checks and installs its tools, as before. It shares three
+#   volumes with the steps: the clones (`steps`), the tools (`worker-cache`) and each work's sessions (`sessions`).
+# - The steps' policy, catalog and guard rules are the worker's own volumes, mounted read-only into every step.
+# - The step network (`shelf-sdlc-step`) is created by install.sh. Until stage 5 of the decision it is an ordinary network.
+# - The tools volume is the worker's `worker-cache`: a step reads the tools the worker's set-up installed there.
+services:
+  step:
+    profiles: ["tools"]
+    build:
+      context: ..
+      target: step
+      args:
+        SHELF_REVISION: ${SHELF_REVISION:-unknown}
+    image: shelf-sdlc-step:local
+    command: ["true"]
+
+  runner:
+    build:
+      context: ..
+      target: runner
+      args:
+        SHELF_REVISION: ${SHELF_REVISION:-unknown}
+    restart: unless-stopped
+    # Root without a single capability: it opens the socket as its owner and can do nothing else with root.
+    user: root
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      SHELF_STEP_IMAGE: shelf-sdlc-step:local
+      SHELF_RUNNER_TOKEN: ${SHELF_RUNNER_TOKEN:?run install.sh again: it writes SHELF_RUNNER_TOKEN into deploy/.env}
+      SHELF_RUNNER_SOCKET: /run/shelf-runner/runner.sock
+      SHELF_STEP_NETWORK: shelf-sdlc-step
+      SHELF_STEPS_VOLUME: shelf-sdlc_steps
+      SHELF_TOOLS_VOLUME: shelf-sdlc_worker-cache
+      SHELF_SESSIONS_VOLUME: shelf-sdlc_sessions
+      SHELF_STEP_CONFIG: >-
+        shelf-sdlc_claude-policy:/etc/claude-code,shelf-sdlc_catalog-plugins:/opt/shelf/catalog,shelf-sdlc_guard-rules:/var/lib/shelf-guard
+      # The guard's variables are the operator's, set in every step; a request cannot name one.
+      SHELF_STEP_SET_WARDEN_PROFILE: ${SHELF_WARDEN_PROFILE:-shelf}
+      SHELF_STEP_SET_WARDEN_OVERLAY_POLICY: /var/lib/shelf-guard/warden.ui.toml
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - runner-socket:/run/shelf-runner
+
+  worker:
+    environment:
+      SHELF_ISOLATION: container
+      SHELF_RUNNER_TOKEN: ${SHELF_RUNNER_TOKEN:?run install.sh again: it writes SHELF_RUNNER_TOKEN into deploy/.env}
+      SHELF_STEPS_DIR: /var/lib/shelf/steps
+      SHELF_SESSIONS_DIR: /var/lib/shelf/sessions
+    volumes:
+      - steps:/var/lib/shelf/steps
+      - sessions:/var/lib/shelf/sessions
+      - runner-socket:/run/shelf-runner
+    depends_on:
+      runner:
+        condition: service_started
+
+volumes:
+  steps:
+  sessions:
+  runner-socket:

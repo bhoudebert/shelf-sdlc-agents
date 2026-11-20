@@ -99,7 +99,8 @@ USER root
 RUN apt-get purge -y --auto-remove bubblewrap socat \
  && rm -rf /var/lib/apt/lists/* \
  && mkdir -p /home/step && chown 1000:1000 /home/step
-ENV HOME=/home/step
+# The tools the worker's set-up installed into the repository's home are found through mise's shims, as in the worker.
+ENV HOME=/home/step PATH="/home/step/.local/share/mise/shims:$PATH"
 USER 1000
 WORKDIR /work
 # The runner sets the command itself; this one is what a person gets with `docker run`.
