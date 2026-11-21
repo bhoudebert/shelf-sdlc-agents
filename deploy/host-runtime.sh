@@ -171,7 +171,7 @@ reload_do() {
 
 # What the runner gives a step that has a Docker daemon (DOCKER_CAPS and the profiles of src/shelf/domain/stepspec.py; a test keeps
 # them equal), never privileged mode: under the runtime it would hand the host's devices to the virtual machine.
-step_flags="--cap-add SYS_ADMIN --cap-add NET_ADMIN --cap-add SYS_RESOURCE --cap-add MKNOD --tmpfs /run:rw,nosuid,size=64m"
+step_flags="--cap-add SYS_ADMIN --cap-add NET_ADMIN --cap-add SYS_RESOURCE --cap-add MKNOD --tmpfs /run:rw,nosuid,size=64m --tmpfs /var/lib/docker:rw,size=2048m"
 profiles="standard unconfined systempaths full"
 profile_flags() {
   case "$1" in

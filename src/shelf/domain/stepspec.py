@@ -40,7 +40,7 @@ TASK_DIR: Final = "/run/shelf"
 TASK_FILE: Final = "task.json"
 USER: Final = "1000:1000"
 DOCKER_STORAGE: Final = "/var/lib/docker"
-"""Where the step's own Docker daemon keeps its images and containers: a volume of the step that goes with it."""
+"""Where the step's own Docker daemon keeps its images and containers: the step's memory, gone with it."""
 DOCKER_CAPS: Final = ("SYS_ADMIN", "NET_ADMIN", "SYS_RESOURCE", "MKNOD")
 """What a daemon needs in the step's own kernel, added to Docker's default set. The runtime keeps them off the host."""
 DOCKER_PROFILES: Final = ("standard", "unconfined", "systempaths", "full")
@@ -369,6 +369,11 @@ def container_spec(ask: StepAsk, rules: RunnerRules, *, expires: int) -> dict[st
     return _with_docker(body, rules) if ask.docker else body
 
 
+def rules_limits_mb(host: Mapping[str, Any]) -> int:
+    """Half the step's memory, in MB: what its daemon may keep in memory for images and containers."""
+    return int(host["Memory"]) // (2 * 1024 * 1024)
+
+
 def _with_docker(body: dict[str, Any], rules: RunnerRules) -> dict[str, Any]:
     """The same container with a Docker daemon of its own, under the operator's runtime (decision 0020).
 
@@ -389,7 +394,9 @@ def _with_docker(body: dict[str, Any], rules: RunnerRules) -> dict[str, Any]:
     if rung >= DOCKER_PROFILES.index("full"):
         host["CapAdd"] = [*host["CapAdd"], "ALL"]
         host["CgroupnsMode"] = "host"
-    host["Mounts"] = [*host["Mounts"], {"Type": "volume", "Target": DOCKER_STORAGE}]
+    # The daemon's storage is the step's own memory: a volume of the host reaches a virtual machine through a shared
+    # file system that is slow for what an image holds (thousands of small files) and cannot carry overlay2.
+    host["Tmpfs"] = {**host["Tmpfs"], DOCKER_STORAGE: f"rw,size={rules_limits_mb(host)}m"}
     # last, so that a request's own variable of that name never wins: empty means Docker's own file stays
     env = [*body["Env"], f"{DNS_VARIABLE}={','.join(rules.docker_dns)}"]
     command = [DOCKER_COMMAND, *body["Cmd"]]

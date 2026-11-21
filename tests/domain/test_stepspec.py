@@ -295,11 +295,21 @@ def test_a_step_with_docker_never_gets_the_engine_socket_or_a_host_path() -> Non
     assert {mount.get("Source", "") for mount in mounts} <= {"shelf-steps", "shelf-tools", "shelf-sessions", ""}
 
 
-def test_the_daemons_storage_is_a_volume_of_the_step_that_goes_with_it() -> None:
-    mounts = docker_spec()["HostConfig"]["Mounts"]
-    storage = [mount for mount in mounts if mount["Target"] == "/var/lib/docker"]
-    assert len(storage) == 1
-    assert "Source" not in storage[0]  # anonymous: removed with the container
+def test_the_daemons_storage_is_the_steps_memory_and_never_a_volume() -> None:
+    host = docker_spec()["HostConfig"]
+    assert not [m for m in host["Mounts"] if m["Target"] == "/var/lib/docker"]
+    assert host["Tmpfs"]["/var/lib/docker"].startswith("rw,")
+    assert "noexec" not in host["Tmpfs"]["/var/lib/docker"]
+
+
+def test_the_storage_is_half_the_memory_of_the_step() -> None:
+    assert docker_spec()["HostConfig"]["Tmpfs"]["/var/lib/docker"].endswith("size=3072m")  # the default is 6144
+    small = docker_spec(limits={"memory_mb": 1024})["HostConfig"]["Tmpfs"]["/var/lib/docker"]
+    assert small.endswith("size=512m")
+
+
+def test_a_step_without_docker_has_no_memory_storage() -> None:
+    assert "/var/lib/docker" not in spec()["HostConfig"]["Tmpfs"]
 
 
 def test_a_step_with_docker_starts_through_the_wrapper_that_starts_the_daemon() -> None:

@@ -1225,7 +1225,7 @@ The system SHALL, when the developer or the code reviewer continues its earlier 
 
 ### Requirement: A step that runs repository code has its own Docker daemon when the operator enables it
 
-The system SHALL, when the operator has enabled Docker in steps and named the runtime for it, start each step that runs repository code (the developer, the code reviewer, the repository's checks and the tool set-up) with a Docker daemon of its own inside the step container, so that the agent and every tool it runs can use `docker`, `docker compose`, Testcontainers and the Docker API without any filtering. The worker SHALL ask for the daemon with one fixed field of the request, and the runner SHALL decide what that means, from the operator's runtime and one of a fixed set of profiles the operator chose (the standard one, then each adding to the one before: lifting the guest's seccomp and AppArmor, then its read-only and masked system paths, then all capabilities and the guest's cgroup namespace, which is everything privileged mode gives except the host's devices): it starts the step with the operator's runtime, gives the daemon a storage of its own, and never mounts the host's engine socket, never starts the step privileged against the host and never falls back to a step without the runtime. What the daemon creates (images, containers, networks, volumes) SHALL live and end with the step container, and a runner that has no runtime for it SHALL refuse a request that asks for it. A container the step starts SHALL reach what the step reaches and nothing more, under the same network rules.
+The system SHALL, when the operator has enabled Docker in steps and named the runtime for it, start each step that runs repository code (the developer, the code reviewer, the repository's checks and the tool set-up) with a Docker daemon of its own inside the step container, so that the agent and every tool it runs can use `docker`, `docker compose`, Testcontainers and the Docker API without any filtering. The worker SHALL ask for the daemon with one fixed field of the request, and the runner SHALL decide what that means, from the operator's runtime and one of a fixed set of profiles the operator chose (the standard one, then each adding to the one before: lifting the guest's seccomp and AppArmor, then its read-only and masked system paths, then all capabilities and the guest's cgroup namespace, which is everything privileged mode gives except the host's devices): it starts the step with the operator's runtime, gives the daemon a storage of its own in the step's memory (never a volume of the host, which a virtual machine reaches through a shared file system that is slow and cannot hold the daemon's layers), sized from the step's memory limit, and never mounts the host's engine socket, never starts the step privileged against the host and never falls back to a step without the runtime. What the daemon creates (images, containers, networks, volumes) SHALL live and end with the step container, and a runner that has no runtime for it SHALL refuse a request that asks for it. A container the step starts SHALL reach what the step reaches and nothing more, under the same network rules.
 
 #### Scenario: A repository that starts its own dependencies
 
@@ -1236,6 +1236,11 @@ The system SHALL, when the operator has enabled Docker in steps and named the ru
 
 - **WHEN** a step with Docker starts
 - **THEN** the step's own start makes the cgroup filesystem and `/proc/sys` writable before it starts the daemon, because a container gets them read-only and the daemon must make cgroups and set `ip_forward`
+
+#### Scenario: The daemon's storage is fast
+
+- **WHEN** a step with Docker starts
+- **THEN** the daemon's storage is in the step's own memory, not in a volume, so that pulling an image and starting a database do not go through the shared file system
 
 #### Scenario: A profile the host needs
 
@@ -1344,6 +1349,30 @@ The system SHALL, for a step that has a Docker daemon of its own, write the oper
 
 - **WHEN** a step has no Docker daemon of its own
 - **THEN** it is built as before, and Docker's own resolver serves it
+
+### Requirement: A check that fails in a step with Docker says what the step's own containers said
+
+The system SHALL, when a check command ends with a failure in a step that has a Docker daemon, add to the end of what it reports a section with the state of the containers the step started and the last lines of the log of each that is not running or is not healthy, so that "unhealthy" comes with the database's own message. The lines of an image pull that only repeat a layer's progress SHALL be collapsed to the last one of each layer, because they would otherwise fill the end of the output, which is all the report keeps. A step with no daemon, or whose daemon cannot be asked, SHALL report the command's output alone.
+
+#### Scenario: A container that is unhealthy
+
+- **WHEN** `docker compose up -d --wait` fails because a container is unhealthy
+- **THEN** the report ends with that container's state and the last lines of its log
+
+#### Scenario: A pull that printed thousands of progress lines
+
+- **WHEN** an image is pulled and each layer printed a line per step
+- **THEN** each layer shows once, at its last line, and the lines that matter are in the report
+
+#### Scenario: A check that passes
+
+- **WHEN** the command succeeds
+- **THEN** nothing is added
+
+#### Scenario: A step without Docker
+
+- **WHEN** the check fails in a step that has no daemon
+- **THEN** the report is the command's output as before
 
 ### Requirement: The checks step installs the repository's tools before it runs its checks
 
