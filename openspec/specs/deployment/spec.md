@@ -336,7 +336,22 @@ The system SHALL list, in the install guide of the site and in `deploy/README` t
 
 ### Requirement: A separate host script prepares the runtime for Docker in steps, one checked step at a time
 
-The system SHALL provide a host script, apart from `install.sh` because it changes the system and needs root, that prepares the runtime named by `SHELF_STEP_RUNTIME` (Kata Containers by default) on Ubuntu and Debian, on x86_64 and arm64, and refuses on any other system with the reason and the other options. The script SHALL be safe to run again: each step SHALL check whether it is already done, SHALL skip it if so, and otherwise SHALL do it and verify it. The steps are: the platform (the engine's minimum version, `/dev/kvm`, nested virtualisation); the kernel modules the runtime needs, loaded and kept across reboots; the runtime's release, at a version and with a checksum that the script holds and verifies before it extracts anything; the runtime's entry in the engine's `daemon.json`, merged into the existing file after a dated backup and refused when the file is not valid; a reload of the engine, then a check that the runtime is listed and that the containers that were running still run; and two smoke tests (a container under the runtime that reports a kernel other than the host's, and a Docker daemon in it that runs a container). The script SHALL say before it changes anything what it will install and change, SHALL restart the engine only when asked to, and SHALL list the containers a restart would stop. `install.sh` SHALL run the script's read-only check when `SHELF_STEP_DOCKER` is `private` and, when something is missing, SHALL offer to run the script through `sudo`, or run it when given the flag for it.
+The system SHALL provide a host script, apart from `install.sh` because it changes the system and needs root, that prepares the runtime named by `SHELF_STEP_RUNTIME` (Kata Containers by default) on Ubuntu and Debian, on x86_64 and arm64, and refuses on any other system with the reason and the other options. The script SHALL be safe to run again: each step SHALL check whether it is already done, SHALL skip it if so, and otherwise SHALL do it and verify it. The steps are: the platform (the engine's minimum version, `/dev/kvm`, nested virtualisation); the kernel modules the runtime needs, loaded and kept across reboots; the runtime's release, at a version and with a checksum that the script holds and verifies before it extracts anything; the runtime's entry in the engine's `daemon.json`, merged into the existing file after a dated backup and refused when the file is not valid; a reload of the engine, then a check that the runtime is listed and that the containers that were running still run; and two smoke tests (a container under the runtime that reports a kernel other than the host's, and a Docker daemon in it that runs a container). The script SHALL say before it changes anything what it will install and change, SHALL restart the engine only when asked to, and SHALL list the containers a restart would stop. `install.sh` SHALL run the script's read-only check when `SHELF_STEP_DOCKER` is `on` and, when something is missing, SHALL offer to run the script through `sudo`, or run it when given the flag for it.
+
+#### Scenario: Only looking
+
+- **WHEN** the script runs with `--check`
+- **THEN** it changes nothing and starts no container, names each step as done or missing, and exits with a status that says whether the host is ready
+
+#### Scenario: Nobody to ask
+
+- **WHEN** the script has something to change and is run without a terminal and without `--yes`
+- **THEN** it changes nothing and says that `--yes` is needed
+
+#### Scenario: An interrupted download
+
+- **WHEN** the release is cut short or fails its checksum
+- **THEN** the runtime's folder is as it was before the run, because the release is unpacked aside and moved into place only when whole
 
 #### Scenario: Run twice
 
@@ -365,7 +380,7 @@ The system SHALL provide a host script, apart from `install.sh` because it chang
 
 #### Scenario: install.sh finds the runtime missing
 
-- **WHEN** `SHELF_STEP_DOCKER` is `private`, the runtime is missing and a person is at the terminal
+- **WHEN** `SHELF_STEP_DOCKER` is `on`, the runtime is missing and a person is at the terminal
 - **THEN** `install.sh` shows what is missing, asks before running the host script through `sudo`, and goes on only if the check then passes
 
 ### Requirement: The worker refuses an isolation setting it cannot honour
