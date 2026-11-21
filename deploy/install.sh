@@ -46,6 +46,12 @@ fi
 for name in PUBLIC_URL SESSION_SECRET; do
   [ -n "$(value $name)" ] || { echo "ERROR: $name is empty in $env_file." >&2; exit 1; }
 done
+# A Compose file that does not parse must not look like a busy port: `compose ps` below hides its errors.
+if ! config_error=$($compose config -q 2>&1); then
+  echo "ERROR: Docker Compose cannot read the deployment files:" >&2
+  echo "$config_error" >&2
+  exit 1
+fi
 web_port=$(value WEB_PORT); web_port=${web_port:-8080}
 if [ -z "$($compose ps -q web 2>/dev/null)" ] && command -v ss >/dev/null 2>&1 \
   && ss -ltnH "sport = :$web_port" 2>/dev/null | grep -q .; then
