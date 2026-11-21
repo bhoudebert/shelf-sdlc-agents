@@ -48,9 +48,10 @@ case "$1" in
         works=$(cat "$state/works" 2>/dev/null || echo standard)
         level=1
         case "$*" in *seccomp=unconfined*) level=2;; esac
-        case "$*" in *--cgroupns=host*) level=3;; esac
+        case "$*" in *systempaths=unconfined*) level=3;; esac
+        case "$*" in *--cgroupns=host*) level=4;; esac
         need=99
-        case "$works" in standard) need=1;; unconfined) need=2;; cgroupns) need=3;; esac
+        case "$works" in standard) need=1;; unconfined) need=2;; systempaths) need=3;; full) need=4;; esac
         if [ "$level" -ge "$need" ]; then printf 'cgroup-rw\\ninner-ok\\n'; else
           echo "mkdir: can't create directory '/sys/fs/cgroup/init': Read-only file system"; fi;;
     esac;;
@@ -394,7 +395,7 @@ def test_the_ladder_goes_up_one_profile_at_a_time_and_stops_at_the_first_that_wo
     assert len(probes) == 2
     assert "seccomp=unconfined" not in probes[0]
     assert "seccomp=unconfined" in probes[1]
-    assert not any("--cgroupns=host" in p for p in probes)
+    assert not any("systempaths=unconfined" in p or "--cgroupns=host" in p for p in probes)
 
 
 def test_a_host_where_no_profile_works_fails_and_shows_what_each_attempt_said(host: Host) -> None:
@@ -414,12 +415,12 @@ def ready_host(host: Host) -> None:
 
 def test_probing_names_the_first_profile_that_works_on_the_last_line(host: Host) -> None:
     ready_host(host)
-    (host.state / "works").write_text("cgroupns\n")
+    (host.state / "works").write_text("full\n")
 
     done = host.run("--probe")
 
     assert done.returncode == 0, done.stderr
-    assert done.stdout.strip().splitlines()[-1] == "profile=cgroupns"
+    assert done.stdout.strip().splitlines()[-1] == "profile=full"
 
 
 def test_probing_a_host_where_nothing_works_prints_no_profile_and_fails(host: Host) -> None:
@@ -470,6 +471,7 @@ def test_the_proof_runs_exactly_what_the_runner_would_start() -> None:
         assert f"--tmpfs /run:{host['Tmpfs']['/run']}" in (caps.group(1))
         wanted = [f"--security-opt {o}" for o in host["SecurityOpt"] if o != "no-new-privileges"]
         wanted += ["--cgroupns=host"] if host.get("CgroupnsMode") == "host" else []
+        wanted += ["--cap-add ALL"] if "ALL" in host["CapAdd"] else []
         listed = re.search(rf'{profile}\) printf \'%s\' "([^"]*)"', script)
         assert listed is not None, profile
         assert listed.group(1) == " ".join(wanted), profile

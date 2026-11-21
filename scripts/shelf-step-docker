@@ -7,9 +7,11 @@
 # socket and nothing else of root's. Everything the daemon starts lives in this container and goes with it.
 set -eu
 
-# A daemon makes a cgroup for everything it starts, and a container gets the cgroup filesystem read-only. This step is root with
-# SYS_ADMIN in its own kernel, so it can make it writable; where it cannot, the daemon's own message says so below.
+# A container gets two things the daemon needs read-only: the cgroup filesystem, where it makes a cgroup for everything it
+# starts, and /proc/sys, where it sets ip_forward. This step is root with SYS_ADMIN in its own kernel, so it can make them
+# writable; where it cannot, the daemon's own message says which one below.
 mount -o remount,rw /sys/fs/cgroup > /dev/null 2>&1 || true
+mount -o remount,bind,rw /proc/sys > /dev/null 2>&1 || mount -o remount,rw /proc/sys > /dev/null 2>&1 || true
 
 # The daemon's own output must not reach the step's output: the runner reads that as the step's lines.
 log="${SHELF_DOCKERD_LOG:-/run/dockerd.log}"

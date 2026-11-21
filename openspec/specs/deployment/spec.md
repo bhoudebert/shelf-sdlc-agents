@@ -288,7 +288,7 @@ The system SHALL let the operator turn the agents' sandbox off, for hosts where 
 
 ### Requirement: Docker in steps is off until the operator names a runtime that can honour it
 
-The system SHALL read `SHELF_STEP_DOCKER` (`off` when unset, or `on`), `SHELF_STEP_RUNTIME` (the name of the container runtime that makes a daemon inside a step safe) and `SHELF_STEP_DOCKER_PROFILE` (`standard` when unset, or `unconfined` or `cgroupns`: how permissive the step's container is, as the host needs), SHALL give steps a private Docker daemon only when the first is `on`, and SHALL refuse to start, naming the setting, when `SHELF_STEP_DOCKER` is `on` and the runtime is not named, is not one the container engine reports, or the isolation is not `container`, so that a step never gets a daemon without the boundary that makes it safe.
+The system SHALL read `SHELF_STEP_DOCKER` (`off` when unset, or `on`), `SHELF_STEP_RUNTIME` (the name of the container runtime that makes a daemon inside a step safe) and `SHELF_STEP_DOCKER_PROFILE` (`standard` when unset, or `unconfined`, `systempaths` or `full`: how permissive the step's container is, as the host needs), SHALL give steps a private Docker daemon only when the first is `on`, and SHALL refuse to start, naming the setting, when `SHELF_STEP_DOCKER` is `on` and the runtime is not named, is not one the container engine reports, or the isolation is not `container`, so that a step never gets a daemon without the boundary that makes it safe.
 
 #### Scenario: A profile that does not exist
 

@@ -42,9 +42,11 @@ DOCKER_STORAGE: Final = "/var/lib/docker"
 """Where the step's own Docker daemon keeps its images and containers: a volume of the step that goes with it."""
 DOCKER_CAPS: Final = ("SYS_ADMIN", "NET_ADMIN", "SYS_RESOURCE", "MKNOD")
 """What a daemon needs in the step's own kernel, added to Docker's default set. The runtime keeps them off the host."""
-DOCKER_PROFILES: Final = ("standard", "unconfined", "cgroupns")
-"""How permissive a step with Docker is, from the least: hosts differ, so the operator names one, found by
-``deploy/host-runtime.sh --probe``. None is privileged mode, which under the runtime passes the host's devices on."""
+DOCKER_PROFILES: Final = ("standard", "unconfined", "systempaths", "full")
+"""How permissive a step with Docker is, each adding to the one before: ``unconfined`` lifts the guest's seccomp and
+AppArmor, ``systempaths`` also its read-only and masked system paths, ``full`` also all capabilities and the guest's
+cgroup namespace. Hosts differ, so the operator names one, found by ``deploy/host-runtime.sh --probe``. None is
+privileged mode, which under the runtime passes the host's devices on: ``full`` is all it gives except those."""
 DOCKER_COMMAND: Final = "shelf-step-docker"
 """The wrapper that starts the step's daemon as root and then runs the step as its own user."""
 TOOLS: Final = (".local/share/mise", ".m2", ".npm", ".cache")
@@ -353,9 +355,13 @@ def _with_docker(body: dict[str, Any], rules: RunnerRules) -> dict[str, Any]:
     host["CapDrop"] = []
     host["CapAdd"] = list(DOCKER_CAPS)
     host["Tmpfs"] = {**host["Tmpfs"], "/run": "rw,nosuid,size=64m"}
-    if rules.docker_profile in {"unconfined", "cgroupns"}:
+    rung = DOCKER_PROFILES.index(rules.docker_profile)
+    if rung >= DOCKER_PROFILES.index("unconfined"):
         host["SecurityOpt"] = [*host["SecurityOpt"], "seccomp=unconfined", "apparmor=unconfined"]
-    if rules.docker_profile == "cgroupns":
+    if rung >= DOCKER_PROFILES.index("systempaths"):
+        host["SecurityOpt"] = [*host["SecurityOpt"], "systempaths=unconfined"]
+    if rung >= DOCKER_PROFILES.index("full"):
+        host["CapAdd"] = [*host["CapAdd"], "ALL"]
         host["CgroupnsMode"] = "host"
     host["Mounts"] = [*host["Mounts"], {"Type": "volume", "Target": DOCKER_STORAGE}]
     command = [DOCKER_COMMAND, *body["Cmd"]]
