@@ -63,6 +63,7 @@ case "$1" in
 esac
 exit 0
 """,
+    "ss": 'cat "$FAKE_STATE/listening" 2>/dev/null; exit 0',
     "modprobe": 'mkdir -p "$SHELF_HOST_ROOT/sys/module/$1"',
     "systemctl": """
 echo "$*" >> "$FAKE_STATE/systemctl.log"
@@ -594,3 +595,70 @@ def test_only_nameserver_lines_are_taken_whatever_else_the_file_holds(host: Host
 
     assert "dns=213.186.33.99\n" in done.stdout
     assert "openstacklocal" not in done.stdout
+
+
+def proof_script() -> str:
+    """The script the proof runs inside the step: what the guest is asked to do, not what the fake pretends."""
+    text = SCRIPT.read_text()
+    return text[text.index("probe_body='") : text.index("# A port of this host that is already in use")]
+
+
+def test_the_proof_in_the_step_runs_a_container_with_a_healthcheck_and_waits_for_it_to_be_healthy() -> None:
+    body = proof_script()
+    assert "--health-cmd" in body
+    assert "State.Health.Status" in body
+    assert "healthy" in body
+
+
+def test_the_proof_in_the_step_executes_a_command_in_a_running_container() -> None:
+    assert "docker exec" in proof_script()
+
+
+def test_the_proof_in_the_step_publishes_a_port_and_asks_it_from_inside() -> None:
+    body = proof_script()
+    assert "-p " in body
+    assert "wget" in body
+
+
+def test_the_proof_only_says_ok_after_every_part_of_it_worked() -> None:
+    body = proof_script()
+    last = body.rstrip().splitlines()[-1]
+    assert "inner-ok" in last
+    for failure in ("exec-failed", "service-did-not-start", "publish-failed"):
+        assert body.index(failure) < body.index("inner-ok")
+
+
+def test_the_port_the_proof_publishes_is_one_the_host_already_uses(host: Host) -> None:
+    ready_host(host)
+    (host.state / "listening").write_text(
+        "LISTEN 0 128 127.0.0.1:631 0.0.0.0:*\nLISTEN 0 4096 0.0.0.0:5432 0.0.0.0:*\nLISTEN 0 4096 [::]:8080 [::]:*\n"
+    )
+
+    host.run("--probe")
+
+    call = next(line for line in docker_calls(host).splitlines() if "--entrypoint" in line)
+    assert "PORT=5432" in call
+
+
+def test_with_nothing_listening_the_proof_publishes_a_common_port(host: Host) -> None:
+    ready_host(host)
+
+    host.run("--probe")
+
+    call = next(line for line in docker_calls(host).splitlines() if "--entrypoint" in line)
+    assert "PORT=8080" in call
+
+
+def test_the_proof_in_the_step_is_valid_shell() -> None:
+    """The guest runs it and nothing here can: a quoting slip would only show on a real host."""
+    body = proof_script().split("probe_body='", 1)[1].rsplit("'\n", 1)[0].replace("'\"'\"'", "'")
+
+    checked = subprocess.run(["sh", "-n"], input=body, capture_output=True, text=True, check=False)  # noqa: S607
+
+    assert checked.returncode == 0, checked.stderr
+
+
+def test_the_script_itself_is_valid_shell() -> None:
+    checked = subprocess.run(["sh", "-n", str(SCRIPT)], capture_output=True, text=True, check=False)  # noqa: S603, S607
+
+    assert checked.returncode == 0, checked.stderr
