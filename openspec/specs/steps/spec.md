@@ -1206,7 +1206,7 @@ The system SHALL tell the developer and the code reviewer, in the note about too
 
 ### Requirement: A step that runs repository code has its own Docker daemon when the operator enables it
 
-The system SHALL, when the operator has enabled Docker in steps and named the runtime for it, start each step that runs repository code (the developer, the code reviewer, the repository's checks and the tool set-up) with a Docker daemon of its own inside the step container, so that the agent and every tool it runs can use `docker`, `docker compose`, Testcontainers and the Docker API without any filtering. The worker SHALL ask for the daemon with one fixed field of the request, and the runner SHALL decide what that means: it starts the step with the operator's runtime, gives the daemon a storage of its own, and never mounts the host's engine socket, never starts the step privileged against the host and never falls back to a step without the runtime. What the daemon creates (images, containers, networks, volumes) SHALL live and end with the step container, except the images, which SHALL be kept in a storage volume per repository that one step at a time holds. A container the step starts SHALL reach what the step reaches and nothing more, under the same network rules.
+The system SHALL, when the operator has enabled Docker in steps and named the runtime for it, start each step that runs repository code (the developer, the code reviewer, the repository's checks and the tool set-up) with a Docker daemon of its own inside the step container, so that the agent and every tool it runs can use `docker`, `docker compose`, Testcontainers and the Docker API without any filtering. The worker SHALL ask for the daemon with one fixed field of the request, and the runner SHALL decide what that means: it starts the step with the operator's runtime, gives the daemon a storage of its own, and never mounts the host's engine socket, never starts the step privileged against the host and never falls back to a step without the runtime. What the daemon creates (images, containers, networks, volumes) SHALL live and end with the step container, and a runner that has no runtime for it SHALL refuse a request that asks for it. A container the step starts SHALL reach what the step reaches and nothing more, under the same network rules.
 
 #### Scenario: A repository that starts its own dependencies
 
@@ -1223,10 +1223,10 @@ The system SHALL, when the operator has enabled Docker in steps and named the ru
 - **WHEN** a step container started under the daemon asks to mount a host path, to run privileged, or to reach the host's engine socket
 - **THEN** it can only affect the step's own daemon, and the host's containers, volumes and files are not visible
 
-#### Scenario: The second step does not pull again
+#### Scenario: A runner without a runtime
 
-- **WHEN** a later step of the same repository starts the same image
-- **THEN** it is found in the repository's image storage and not pulled
+- **WHEN** a request asks for a Docker daemon and the runner was started without Docker in steps
+- **THEN** the runner refuses it, names the field, and starts no container
 
 #### Scenario: A step that does not run repository code
 
