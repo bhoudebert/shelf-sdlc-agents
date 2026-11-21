@@ -1428,6 +1428,30 @@ The system SHALL, before it commits what an agent step changed, put `.shelf/conf
 - **WHEN** an agent writes `.shelf/<work>/spec.md`
 - **THEN** it is committed as before
 
+### Requirement: A step that cannot reach the model says so at once and says what to check
+
+The system SHALL, before an agent's step in a container starts the agent, check that the host of the model's API resolves (the one of `ANTHROPIC_BASE_URL`, else `api.anthropic.com`), and when it does not, end the step within seconds with an error that names the host and says that the step's network or its resolvers must be checked (`SHELF_STEP_DNS` for a step with Docker), instead of letting the agent retry for minutes. The check SHALL be skipped when the step reaches the network through a proxy, where the proxy resolves. When an agent's step fails with an error that says the model could not be reached (a name that does not resolve, a refused connection), the system SHALL add to the error what to check, and SHALL keep the original text.
+
+#### Scenario: A name that does not resolve
+
+- **WHEN** the model's host does not resolve from the step
+- **THEN** the step ends at once with an error naming the host and what to check, and the agent is not started
+
+#### Scenario: A step that goes through a proxy
+
+- **WHEN** `HTTPS_PROXY` or `ALL_PROXY` is set
+- **THEN** the name is not looked up in the step and the agent starts
+
+#### Scenario: The agent could not reach the model anyway
+
+- **WHEN** an agent's step fails with `Can't reach the API server`
+- **THEN** the failure reported for the work keeps that text and adds what to check
+
+#### Scenario: Another failure
+
+- **WHEN** a step fails for any other reason
+- **THEN** its error is reported as it is
+
 ### Requirement: The checks step installs the repository's tools before it runs its checks
 
 The system SHALL, before it runs the repository's `checks`, install in the worker the tools that the clone declares for mise or detects from its CI, as for the developer and the code reviewer, so that a repository whose `mise.toml` an agent has just written is built with the tools that file declares; SHALL tell on the pull request when that installation failed, with its last line; and SHALL, when no check is configured, say on the pull request that nothing was verified here and how to configure one.
