@@ -11,6 +11,17 @@
 # - The step network (`shelf-sdlc-step`) is created by install.sh. Until stage 5 of the decision it is an ordinary network.
 # - The tools volume is the worker's `worker-cache`: a step reads the tools the worker's set-up installed there.
 services:
+  # The services share deploy/.env, which holds SHELF_ISOLATION and the runner's key. Only the worker needs them: the web
+  # service and the catalog run no agent, so they start as in a plain install and hold no key to the runner.
+  web:
+    environment:
+      SHELF_ISOLATION: sandbox
+      SHELF_RUNNER_TOKEN: ""
+
+  catalog:
+    environment:
+      SHELF_RUNNER_TOKEN: ""
+
   step:
     profiles: ["tools"]
     build:
