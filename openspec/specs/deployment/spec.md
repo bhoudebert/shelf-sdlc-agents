@@ -310,6 +310,11 @@ The system SHALL read `SHELF_ISOLATION` when the worker starts, SHALL run the ag
 - **WHEN** `SHELF_ISOLATION` is `container`, the runner's token is set and the three shared folders are given
 - **THEN** the worker starts, clones into the shared folder and asks the runner for each agent step
 
+#### Scenario: The model credential follows the worker into container mode
+
+- **WHEN** the worker was given a model credential in the environment file and runs in container mode
+- **THEN** it keeps that credential for the steps it asks the runner for, and no log, message or printed setting shows it
+
 #### Scenario: A new shared folder is writable by the worker
 
 - **WHEN** the volumes for the clones and the sessions are created empty on the first start in container mode
