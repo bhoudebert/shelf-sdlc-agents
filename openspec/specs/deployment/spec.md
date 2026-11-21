@@ -378,6 +378,11 @@ The system SHALL provide a host script, apart from `install.sh` because it chang
 - **WHEN** no profile starts a Docker daemon on this host
 - **THEN** the script fails, shows the last lines each attempt printed, and says that Docker in steps cannot be used on this host
 
+#### Scenario: A service that drops its privileges
+
+- **WHEN** the proof starts the service whose healthcheck it waits for
+- **THEN** it is one that runs as a non-root user after it starts (a database image), because a container that never changes user can be entered without the capability that one that does needs, and would let a host pass the proof although a real database could never become healthy
+
 #### Scenario: A profile under which a container cannot be entered
 
 - **WHEN** a daemon in a step runs a container but a command cannot be executed in it, as under a profile where the container cannot be entered, so that no healthcheck can pass

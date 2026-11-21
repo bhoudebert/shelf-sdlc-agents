@@ -1252,6 +1252,11 @@ The system SHALL, when the operator has enabled Docker in steps and named the ru
 - **WHEN** a step with Docker starts
 - **THEN** its container does not carry `no-new-privileges`, which the daemon's own containers would inherit, and the step's own command is run with it by the step's start script, so that the agent keeps the protection
 
+#### Scenario: A container that dropped its privileges can be entered
+
+- **WHEN** a container the step's daemon started runs as a non-root user (the official database images drop to one at start) and a command is executed in it, as a healthcheck does
+- **THEN** it runs, because the step has the capability to enter a container whose process changed user; without it the runtime fails with `error executing setns process` and no healthcheck of such a container can ever pass
+
 #### Scenario: A profile the host needs
 
 - **WHEN** the operator chose a more permissive profile because the host needs it
