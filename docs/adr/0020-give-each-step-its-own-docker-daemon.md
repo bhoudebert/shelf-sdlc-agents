@@ -38,6 +38,10 @@ no step holds the runner's socket.
 - **A step resolves names through the operator's resolvers.** Under Kata on a user-defined network, Docker's embedded resolver
   (127.0.0.11) is out of the guest's reach and nothing resolves (the first real step ended with EAI_AGAIN). The step's start
   writes `SHELF_STEP_DNS` into its resolv.conf; the host script finds the host's upstream resolvers and proves them from a step.
+- **The proof is what a check uses, not that a container runs.** The first real check ended `unhealthy` although Postgres had
+  printed `ready to accept connections`: `docker exec` failed in the nested guest, and a healthcheck is an exec. The host proof now
+  needs a container with a healthcheck to become healthy, a command to run in a running container, and a port the host already
+  uses to answer from inside the step; a profile under which one fails is not taken.
 - **The network is the step's.** What a nested container reaches is what the step container reaches, so the step's network rules
   and the egress decisions of 0019 apply to it unchanged. Registries the daemon pulls from are hosts like any other.
 - **Images are not cached between steps yet.** The daemon's storage is a volume of the step that goes with it, so each step pulls

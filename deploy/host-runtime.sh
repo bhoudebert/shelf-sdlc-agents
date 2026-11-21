@@ -191,7 +191,27 @@ until docker info > /dev/null 2>&1; do
   [ "$i" -lt 40 ] || { echo "the daemon did not start in 40 s:"; tail -n 6 /tmp/dockerd.log; exit 1; }
   sleep 1
 done
-docker run --rm hello-world > /dev/null 2>&1 && echo inner-ok'
+docker info 2> /dev/null | grep -E "Storage Driver"
+docker run --rm hello-world > /dev/null 2>&1 || { echo "hello-world-failed"; exit 1; }
+# What a repository'"'"'s checks use: a service with a healthcheck (which Docker runs as an exec in the container), a command
+# executed in it, and a port published on one the host already holds (it answers from here, not from the host).
+docker run -d --name svc --health-cmd true --health-interval 1s --health-retries 3 -p "$PORT:80" busybox httpd -f -p 80 > /dev/null 2>&1 \
+  || { echo "service-did-not-start"; exit 1; }
+i=0
+until [ "$(docker inspect -f "{{.State.Health.Status}}" svc 2> /dev/null)" = healthy ]; do
+  i=$((i + 1))
+  [ "$i" -lt 30 ] || { echo "never-healthy: $(docker inspect -f "{{json .State.Health}}" svc 2>&1 | cut -c1-300)"; exit 1; }
+  sleep 1
+done
+docker exec svc true > /dev/null 2>&1 || { echo "exec-failed: $(docker exec svc true 2>&1 | head -n 2)"; exit 1; }
+wget -S -O /dev/null "http://127.0.0.1:$PORT" 2>&1 | grep -q "HTTP/" || { echo "publish-failed"; exit 1; }
+echo inner-ok'
+
+# A port of this host that is already in use, above the privileged ones; the proof publishes it inside the step.
+busy_port() {
+  port=$(ss -ltnH 2> /dev/null | awk '{print $4}' | sed 's/.*://' | grep -E '^[0-9]+$' | awk '$1 > 1024 {print; exit}')
+  printf '%s' "${port:-8080}"
+}
 
 # Starts a step-like container under the runtime with one profile and says whether a daemon in it ran a container.
 # probe_out holds what it printed.
@@ -200,7 +220,7 @@ probe_profile() {
   docker image inspect "$smoke_dind_image" > /dev/null 2>&1 || docker pull -q "$smoke_dind_image" > /dev/null 2>&1 || true
   # shellcheck disable=SC2046,SC2086
   probe_out=$(timeout "${SHELF_PROBE_TIMEOUT:-240}" docker run --rm --name "shelf-probe-$$" --runtime "$runtime" $step_flags \
-    $(profile_flags "$1") --entrypoint sh "$smoke_dind_image" -c "$probe_body" 2>&1) || true
+    $(profile_flags "$1") -e "PORT=$(busy_port)" --entrypoint sh "$smoke_dind_image" -c "$probe_body" 2>&1) || true
   docker rm -f "shelf-probe-$$" > /dev/null 2>&1 || true
   case "$probe_out" in *inner-ok*) return 0 ;; esac
   return 1
