@@ -406,7 +406,7 @@ The system SHALL provide `shelf-diagnose`, run where the worker runs with a work
 
 ### Requirement: The install script catches the usual mistakes before building
 
-The system SHALL, before building, refuse to continue when the public address or the session secret is empty or the web port is already used by something that is not this service, saying that the port is the private one the proxy forwards to and to set another, and SHALL warn about an environment file at the repository root, which Compose does not read.
+The system SHALL, before building, refuse to continue when the public address or the session secret is empty or a Compose file it is about to use cannot be read, saying what Compose reported, or the web port is already used by something that is not this service, saying that the port is the private one the proxy forwards to and to set another, and SHALL warn about an environment file at the repository root, which Compose does not read.
 
 #### Scenario: A busy port
 
@@ -417,6 +417,11 @@ The system SHALL, before building, refuse to continue when the public address or
 
 - **WHEN** the web port is held by this service's own container from the last run
 - **THEN** the script goes on, because it is about to replace it
+
+#### Scenario: A Compose file that cannot be read
+
+- **WHEN** a Compose file the script is about to use does not parse or does not validate
+- **THEN** the script stops before it looks at the port and prints what Compose said, instead of reporting the port as busy
 
 #### Scenario: The wrong file
 
