@@ -14,6 +14,7 @@ FAKES = {
     "dockerd": 'echo "dockerd $*" >> "$FAKE/calls"; echo "daemon noise on stdout"; echo "daemon log line" >&2; sleep 3',
     "docker": '[ -f "$FAKE/ready" ]',
     "setpriv": 'echo "setpriv $*"',
+    "mount": 'echo "mount $*" >> "$FAKE/calls"',
 }
 
 
@@ -79,3 +80,20 @@ def test_the_image_that_uses_it_installs_the_daemon_the_client_and_compose() -> 
         assert re.search(rf"\b{re.escape(package)}\b", stage), package
     assert "COPY scripts/shelf-step-docker /usr/local/bin/shelf-step-docker" in stage
     assert 'CMD ["shelf-step-docker"' in stage
+
+
+def test_the_cgroup_filesystem_is_made_writable_before_the_daemon_starts(fake: Path) -> None:
+    run(fake, "shelf-step", "/run/shelf/task.json", ready=True)
+
+    calls = (fake / "calls").read_text().splitlines()
+    assert calls[0] == "mount -o remount,rw /sys/fs/cgroup"
+    assert calls[1].startswith("dockerd ")
+
+
+def test_a_remount_that_is_refused_does_not_stop_the_step_from_trying_the_daemon(fake: Path) -> None:
+    (fake / "bin" / "mount").write_text("#!/bin/sh\nexit 1\n")
+
+    done = run(fake, "shelf-step", "/run/shelf/task.json", ready=True)
+
+    assert done.returncode == 0, done.stderr
+    assert "setpriv" in done.stdout

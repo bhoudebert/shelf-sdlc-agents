@@ -6,6 +6,10 @@
 # socket and nothing else of root's. Everything the daemon starts lives in this container and goes with it.
 set -eu
 
+# A daemon makes a cgroup for everything it starts, and a container gets the cgroup filesystem read-only. This step is root with
+# SYS_ADMIN in its own kernel, so it can make it writable; where it cannot, the daemon's own message says so below.
+mount -o remount,rw /sys/fs/cgroup > /dev/null 2>&1 || true
+
 # The daemon's own output must not reach the step's output: the runner reads that as the step's lines.
 log="${SHELF_DOCKERD_LOG:-/run/dockerd.log}"
 dockerd --host=unix:///var/run/docker.sock --group=shelf > "$log" 2>&1 &

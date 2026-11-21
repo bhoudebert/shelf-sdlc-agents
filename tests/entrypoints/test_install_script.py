@@ -432,7 +432,7 @@ def test_with_docker_in_steps_on_every_service_still_starts_and_the_runner_and_t
     deploy = tmp_path / "deploy"
     (deploy / ".env").write_text(
         "PUBLIC_URL=https://x.test\nSESSION_SECRET=s\nSHELF_ISOLATION=container\nSHELF_RUNNER_TOKEN=k\n"
-        "SHELF_STEP_DOCKER=on\nSHELF_STEP_RUNTIME=kata\n"
+        "SHELF_STEP_DOCKER=on\nSHELF_STEP_RUNTIME=kata\nSHELF_STEP_DOCKER_PROFILE=unconfined\n"
     )
     done = subprocess.run(
         [  # noqa: S607
@@ -453,6 +453,7 @@ def test_with_docker_in_steps_on_every_service_still_starts_and_the_runner_and_t
     assert worker.container.docker is True
     runner = read_settings(services["runner"]["environment"])
     assert (runner.rules.docker_runtime, runner.rules.docker_image) == ("kata", "shelf-sdlc-step-docker:local")
+    assert runner.rules.docker_profile == "unconfined"
     assert services["step-docker"]["build"]["target"] == "step-docker"
     assert services["step-docker"]["image"] == "shelf-sdlc-step-docker:local"
 
@@ -487,6 +488,7 @@ echo "host-runtime $*" >> "$HOST_LOG"
 case "$1" in
   --check) [ -f "$HOST_READY" ] && exit 0; exit "${HOST_CHECK_FAILS_WITH:-2}";;
   --yes) touch "$HOST_READY"; exit "${HOST_INSTALL_EXIT:-0}";;
+  --probe) [ -z "$HOST_PROBE_FAILS" ] || { echo "no profile works" >&2; exit 1; }; echo "profile=${HOST_PROFILE:-standard}"; exit 0;;
 esac
 """
 
@@ -580,7 +582,9 @@ def test_the_flag_runs_the_host_script_through_sudo_and_goes_on(server: Path) ->
     log = (server / "host.log").read_text()
     assert "sudo env SHELF_STEP_RUNTIME=kata sh" in log
     assert "host-runtime.sh --yes" in log
-    assert log.rstrip().endswith("host-runtime --check")  # checked again after the install
+    lines = log.splitlines()
+    assert lines.index("host-runtime --check") < next(i for i, line in enumerate(lines) if "--yes" in line)
+    assert any(line == "host-runtime --check" for line in lines[lines.index(next(x for x in lines if "--yes" in x)) :])
     assert "Building revision" in done.stdout
 
 
@@ -644,3 +648,60 @@ def test_the_flag_does_not_replace_the_address_of_a_first_install(server: Path) 
 
     assert done.returncode == 0, done.stderr
     assert "PUBLIC_URL=https://shelf.example.org" in (server / "deploy" / ".env").read_text()
+
+
+def profile_of(server: Path) -> list[str]:
+    env = (server / "deploy" / ".env").read_text().splitlines()
+    return [line for line in env if line.startswith("SHELF_STEP_DOCKER_PROFILE=")]
+
+
+def test_the_profile_the_host_needs_is_found_and_written_into_the_environment_file(server: Path) -> None:
+    docker_server(server, SHELF_STEP_RUNTIME="kata")
+
+    done = run_docker(server, ready=True, HOST_PROFILE="unconfined")
+
+    assert done.returncode == 0, done.stderr
+    assert profile_of(server) == ["SHELF_STEP_DOCKER_PROFILE=unconfined"]
+    assert "--probe" in (server / "host.log").read_text()
+
+
+def test_a_profile_that_is_already_set_is_never_probed_again(server: Path) -> None:
+    docker_server(server, SHELF_STEP_RUNTIME="kata", SHELF_STEP_DOCKER_PROFILE="cgroupns")
+
+    done = run_docker(server, ready=True, HOST_PROFILE="unconfined")
+
+    assert done.returncode == 0, done.stderr
+    assert profile_of(server) == ["SHELF_STEP_DOCKER_PROFILE=cgroupns"]
+    assert "--probe" not in (server / "host.log").read_text()
+
+
+def test_the_second_run_does_not_probe_again(server: Path) -> None:
+    docker_server(server, SHELF_STEP_RUNTIME="kata")
+    run_docker(server, ready=True, HOST_PROFILE="unconfined")
+    (server / "host.log").unlink()
+
+    done = run_docker(server, ready=True, HOST_PROFILE="cgroupns")
+
+    assert done.returncode == 0, done.stderr
+    assert profile_of(server) == ["SHELF_STEP_DOCKER_PROFILE=unconfined"]
+    assert "--probe" not in (server / "host.log").read_text()
+
+
+def test_a_host_where_no_profile_works_stops_before_building(server: Path) -> None:
+    docker_server(server, SHELF_STEP_RUNTIME="kata")
+
+    done = run_docker(server, ready=True, HOST_PROBE_FAILS="1")
+
+    assert done.returncode == 1
+    assert "Docker in steps" in done.stderr
+    assert profile_of(server) == []
+    assert "Building revision" not in done.stdout
+
+
+def test_the_probe_is_not_asked_when_docker_in_steps_is_off(server: Path) -> None:
+    docker_server(server, SHELF_STEP_RUNTIME="kata")
+    write_env(server, SHELF_ISOLATION="container", SHELF_RUNNER_TOKEN="k")
+
+    run_docker(server)
+
+    assert not (server / "host.log").exists()
