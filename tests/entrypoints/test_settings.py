@@ -219,3 +219,16 @@ def test_docker_off_in_sandbox_mode_is_fine() -> None:
 def test_a_docker_setting_that_is_not_on_or_off_is_refused_by_name(value: str) -> None:
     with pytest.raises(ValueError, match="SHELF_STEP_DOCKER"):
         from_environ({**BASE, **CONTAINER, "SHELF_STEP_DOCKER": value})
+
+
+@pytest.mark.parametrize("value", ["privileged", "none", "Standard "])
+def test_the_worker_refuses_a_profile_that_does_not_exist_by_name(value: str) -> None:
+    env = {**BASE, **CONTAINER, "SHELF_STEP_DOCKER": "on", "SHELF_STEP_RUNTIME": "kata"}
+    with pytest.raises(ValueError, match="SHELF_STEP_DOCKER_PROFILE"):
+        from_environ({**env, "SHELF_STEP_DOCKER_PROFILE": value})
+
+
+def test_the_worker_accepts_every_profile_the_runner_has() -> None:
+    env = {**BASE, **CONTAINER, "SHELF_STEP_DOCKER": "on", "SHELF_STEP_RUNTIME": "kata"}
+    for profile in ("standard", "unconfined", "cgroupns"):
+        assert from_environ({**env, "SHELF_STEP_DOCKER_PROFILE": profile}).container is not None

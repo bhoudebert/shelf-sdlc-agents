@@ -5,6 +5,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import NoReturn
 
+from shelf.domain.stepspec import DOCKER_PROFILES
+
 
 class MissingSettingError(ValueError):
     """A required setting is absent."""
@@ -172,6 +174,10 @@ def _container(environ: Mapping[str, str], isolation: str) -> ContainerSettings 
             "SHELF_STEP_DOCKER=on needs SHELF_STEP_RUNTIME (the runtime that makes a Docker daemon in a step safe)"
         )
         raise MissingSettingError(message)
+    profile = environ.get("SHELF_STEP_DOCKER_PROFILE", "")
+    if docker and profile and profile not in DOCKER_PROFILES:
+        message = f"SHELF_STEP_DOCKER_PROFILE must be one of {', '.join(DOCKER_PROFILES)}, not {profile!r}"
+        raise ValueError(message)
     if missing := [name for name in CONTAINER_NEEDS if not environ.get(name, "").strip()]:
         message = "SHELF_ISOLATION=container needs " + ", ".join(
             f"{name} ({CONTAINER_NEEDS[name]})" for name in missing
