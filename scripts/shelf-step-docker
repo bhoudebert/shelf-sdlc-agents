@@ -1,5 +1,6 @@
 #!/bin/sh
-# The command of a step that has a Docker daemon of its own (decision 0020).
+# The command of a step that has a Docker daemon of its own (decision 0020), given the step's own command: `shelf-step <task>`
+# for an agent, `shelf-check <task>` for a repository's check.
 #
 # The runner starts this as root, in the step's own kernel (the operator's runtime keeps that away from the host). It
 # starts the daemon, waits until it answers, and then runs the step itself as the step's user, who may use the daemon's
@@ -25,4 +26,4 @@ until docker info > /dev/null 2>&1; do
   sleep 1
 done
 
-exec setpriv --reuid=1000 --regid=1000 --init-groups shelf-step "$@"
+exec setpriv --reuid=1000 --regid=1000 --init-groups "$@"

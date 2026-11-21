@@ -87,6 +87,14 @@ class Result:
 
 
 @dataclass(frozen=True, slots=True)
+class Check:
+    """How a repository's check command ended: its exit code and the end of its output."""
+
+    code: int = 0
+    output: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class Ping:
     """A keepalive, so that nothing between the container and the worker takes a quiet step for a dead one."""
 
@@ -106,7 +114,7 @@ class Unknown:
     kind: str
 
 
-Event = Hello | Tool | ToolResult | Audit | Result | Ping | Exit | Unknown
+Event = Hello | Tool | ToolResult | Audit | Result | Check | Ping | Exit | Unknown
 
 
 def _usage_to_data(usage: Usage) -> dict[str, Any]:
@@ -147,6 +155,8 @@ def encode(event: Event) -> str:
                 "errors": list(done.errors),
                 "denials": list(done.denials),
             }
+        case Check(code, output):
+            data = {"e": "check", "code": code, "output": output}
         case Ping():
             data = {"e": "ping"}
         case Exit(code, reason):
@@ -240,6 +250,7 @@ _READERS: Final[dict[str, Callable[[Mapping[str, Any]], Event]]] = {
     ),
     "audit": lambda data: Audit(_whole(data, "n")),
     "result": _read_result,
+    "check": lambda data: Check(_whole(data, "code"), redact(_text(data, "output"))),
     "ping": lambda _data: Ping(),
     "exit": lambda data: Exit(_whole(data, "code"), _text(data, "reason")),
 }
@@ -268,6 +279,7 @@ class StepStream:
 
     tools: list[ToolEvent] = field(default_factory=list[ToolEvent])
     result: Result | None = None
+    check: Check | None = None
     exit: Exit | None = None
     audits: int = 0
     _started: bool = False
@@ -303,6 +315,8 @@ class StepStream:
                 self.audits = max(self.audits, n)
             case Result() as done:
                 self.result = done
+            case Check() as done:
+                self.check = done
             case Exit() as done:
                 self.exit = done
             case _:
@@ -317,8 +331,9 @@ class StepStream:
             return "the step's stream ended without an exit: the container stopped or the connection broke"
         if self.exit.reason:
             return REASONS.get(self.exit.reason, f"the step ended: {self.exit.reason[:40]}")
-        if self.exit.code != 0 and self.result is None:
+        said = self.result is not None or self.check is not None
+        if self.exit.code != 0 and not said:
             return f"the step exited with code {self.exit.code} and no result"
-        if self.result is None:
+        if not said:
             return "the step exited without a result"
         return ""

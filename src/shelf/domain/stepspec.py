@@ -24,8 +24,13 @@ SESSION: Final = re.compile(r"work/[a-z0-9][a-z0-9-]{0,63}")
 VARIABLE: Final = re.compile(r"[A-Z][A-Z0-9_]{0,63}")
 
 FIELDS: Final = frozenset({"key", "kind", "repo", "clone", "session", "mode", "limits", "env", "input", "docker"})
-KINDS: Final = ("agent",)
-"""The kinds the runner can run. ``check`` and ``setup`` come with the volumes of stage 3."""
+KINDS: Final = ("agent", "check")
+"""The kinds the runner can run: an agent, and a repository's check command. ``setup`` is not built yet."""
+PROGRAMS: Final = {"agent": "shelf-step", "check": "shelf-check"}
+"""What runs in the container for each kind."""
+CHECK_NEVER: Final = ("ANTHROPIC_*", "CLAUDE_CODE_*", "GH_TOKEN", "GITHUB_TOKEN")
+"""The variables a check is never given: it runs the repository's own commands, which have no use for a credential."""
+COMMAND_LIMIT: Final = 4000
 LIMITS: Final = ("cpus", "memory_mb", "pids", "tmp_mb", "seconds")
 
 WORKDIR: Final = "/work"
@@ -174,6 +179,15 @@ def _env(data: Mapping[str, Any], allowed: tuple[str, ...]) -> Result[dict[str, 
     return Ok(env)
 
 
+def _command(data: Mapping[str, Any]) -> Result[str, str]:
+    """The command of a check step: text, not empty, of a sane size, with no NUL."""
+    given = _object(data.get("input", {})) or {}
+    command = given.get("command")
+    if not isinstance(command, str) or not command.strip() or len(command) > COMMAND_LIMIT or "\x00" in command:
+        return Err("the field input needs a command: text, not empty, of at most 4000 characters")
+    return Ok(command)
+
+
 def _docker(data: Mapping[str, Any], rules: RunnerRules) -> Result[bool, str]:
     wanted = data.get("docker", False)
     if not isinstance(wanted, bool):
@@ -210,9 +224,12 @@ def parse_request(data: object, rules: RunnerRules) -> Result[StepAsk, str]:
     repo = _name(body, "repo", REPO, required=True)
     clone = _name(body, "clone", CLONE, required=True)
     session = _name(body, "session", SESSION, required=False)
-    mode, limits, env = _mode(body), _limits(body, rules.limits), _env(body, rules.env_allowed)
+    kind = str(body.get("kind", "agent"))
+    allowed = rules.env_allowed if kind == "agent" else tuple(p for p in rules.env_allowed if p not in CHECK_NEVER)
+    mode, limits, env = _mode(body), _limits(body, rules.limits), _env(body, allowed)
     docker = _docker(body, rules)
-    if broken := _first_error(key, repo, clone, session, mode, limits, env, docker):
+    command: Result[str, str] = _command(body) if kind == "check" else Ok("")
+    if broken := _first_error(key, repo, clone, session, mode, limits, env, docker, command):
         return Err(broken)
     # every result above is Ok here; the isinstance checks narrow the types for the reader and the checker
     if not (
@@ -229,7 +246,7 @@ def parse_request(data: object, rules: RunnerRules) -> Result[StepAsk, str]:
     return Ok(
         StepAsk(
             key=key.value,
-            kind=str(body.get("kind", "agent")),
+            kind=kind,
             repo=repo.value,
             clone=clone.value,
             session=session.value,
@@ -310,7 +327,7 @@ def container_spec(ask: StepAsk, rules: RunnerRules, *, expires: int) -> dict[st
     }
     body: dict[str, Any] = {
         "Image": rules.image,
-        "Cmd": ["shelf-step", f"{TASK_DIR}/{TASK_FILE}"],
+        "Cmd": [PROGRAMS[ask.kind], f"{TASK_DIR}/{TASK_FILE}"],
         "User": USER,
         "WorkingDir": WORKDIR,
         "Env": [f"{name}={value}" for name, value in ask.env.items()] + _fixed_env(rules),
@@ -341,5 +358,5 @@ def _with_docker(body: dict[str, Any], rules: RunnerRules) -> dict[str, Any]:
     if rules.docker_profile == "cgroupns":
         host["CgroupnsMode"] = "host"
     host["Mounts"] = [*host["Mounts"], {"Type": "volume", "Target": DOCKER_STORAGE}]
-    command = [DOCKER_COMMAND, *body["Cmd"][1:]]
+    command = [DOCKER_COMMAND, *body["Cmd"]]
     return {**body, "Image": rules.docker_image or rules.image, "User": "0:0", "Cmd": command, "HostConfig": host}

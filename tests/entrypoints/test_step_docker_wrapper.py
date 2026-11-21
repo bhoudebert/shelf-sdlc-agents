@@ -48,23 +48,25 @@ def run(fake: Path, *args: str, ready: bool) -> subprocess.CompletedProcess[str]
     )
 
 
-def test_it_starts_the_daemon_for_the_steps_group_and_then_runs_the_step_as_its_user(fake: Path) -> None:
-    done = run(fake, "/run/shelf/task.json", ready=True)
+def test_it_starts_the_daemon_for_the_steps_group_and_then_runs_the_program_it_was_given_as_the_steps_user(
+    fake: Path,
+) -> None:
+    done = run(fake, "shelf-check", "/run/shelf/task.json", ready=True)
 
     assert done.returncode == 0, done.stderr
-    assert done.stdout.strip() == "setpriv --reuid=1000 --regid=1000 --init-groups shelf-step /run/shelf/task.json"
+    assert done.stdout.strip() == "setpriv --reuid=1000 --regid=1000 --init-groups shelf-check /run/shelf/task.json"
     assert "dockerd --host=unix:///var/run/docker.sock --group=shelf" in (fake / "calls").read_text()
 
 
 def test_what_the_daemon_prints_never_reaches_the_steps_output(fake: Path) -> None:
-    done = run(fake, "/run/shelf/task.json", ready=True)
+    done = run(fake, "shelf-step", "/run/shelf/task.json", ready=True)
 
     assert "daemon noise" not in done.stdout
     assert "daemon noise" in (fake / "dockerd.log").read_text()
 
 
 def test_a_daemon_that_does_not_answer_ends_the_step_with_what_the_daemon_said(fake: Path) -> None:
-    done = run(fake, "/run/shelf/task.json", ready=False)
+    done = run(fake, "shelf-step", "/run/shelf/task.json", ready=False)
 
     assert done.returncode == 1
     assert "did not start" in done.stderr
