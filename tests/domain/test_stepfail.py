@@ -39,6 +39,6 @@ def test_the_advice_is_added_once() -> None:
 def test_the_message_for_a_name_that_does_not_resolve_names_the_host() -> None:
     message = unresolvable("api.anthropic.com", "Temporary failure in name resolution")
 
-    assert "api.anthropic.com" in message
+    assert "api.anthropic.com" in message.split()
     assert "Temporary failure in name resolution" in message
     assert "SHELF_STEP_DNS" in message

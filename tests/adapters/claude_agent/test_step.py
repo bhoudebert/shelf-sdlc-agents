@@ -190,7 +190,7 @@ def test_a_step_whose_model_host_does_not_resolve_says_so_at_once_and_never_star
     assert isinstance(events[0], Hello)
     result = next(e for e in events if isinstance(e, Result))
     assert result.is_error
-    assert "api.anthropic.com" in result.result
+    assert "api.anthropic.com" in result.result.split()
     assert "SHELF_STEP_DNS" in result.result
     assert started == []
 
