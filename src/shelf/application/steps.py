@@ -231,10 +231,11 @@ def _mark_used(env: Mapping[str, str]) -> None:
         log.warning("could not mark %s as used", home)
 
 
-def continuation_prompt(step: RunStep, folder: str, *, ci: str = "") -> str:
+def continuation_prompt(step: RunStep, folder: str, *, ci: str = "", environment: str = "") -> str:
     """What an agent is asked when it continues its own session: the round, what changed, the feedback, the output.
 
-    It does not repeat the task: the agent has it, and what it did, in the session it continues.
+    It does not repeat the task: the agent has it, and what it did, in the session it continues. What it cannot have
+    is what changed around it since: ``environment`` is the note about Docker as it is now, and it replaces the old one.
     """
     role = ROLES[step.phase]
     sent = f"This is round {step.attempt}." if step.attempt else "You have been sent back."
@@ -250,6 +251,12 @@ def continuation_prompt(step: RunStep, folder: str, *, ci: str = "") -> str:
         lines += ["", "Address this feedback first:", step.feedback]
     if ci:
         lines += ["", f"What the repository's CI says about this pull request right now:\n{ci}"]
+    if environment:
+        lines += [
+            "",
+            "Your environment now (this replaces what you were told about Docker in your earlier session):",
+            environment,
+        ]
     if role.document:
         lines += ["", f"Write your result to `{folder}/{role.document}`.", "", DOCUMENT_FORMAT_NOTE]
     if step.phase in REVIEWERS:
@@ -497,7 +504,13 @@ class Steps:
             docker=self.docker,
         )
         sink = RunSink()
-        asked = continuation_prompt(step, folder_of(workspace.path, work.id), ci=ci_report) if step.session else prompt
+        told_about_tools = bool(self.cache_dir) and step.phase in TOOL_PHASES
+        environment = (DOCKER_ON_NOTE if self.docker else DOCKER_OFF_NOTE) if told_about_tools else ""
+        asked = (
+            continuation_prompt(step, folder_of(workspace.path, work.id), ci=ci_report, environment=environment)
+            if step.session
+            else prompt
+        )
         answer = await self._ask_recorded(
             (work, step, workspace, token), (asked, prompt if step.session else ""), sink, (setup, ci_report)
         )
