@@ -43,6 +43,42 @@
 <p>Off by default. Set <code>SHELF_NIX=on</code> in <code>deploy/.env</code> and run <code>sh deploy/install.sh</code> again: it adds <code>compose.nix.yml</code>, a <strong>Nix daemon</strong> as a service of its own with a <strong>persistent store</strong> (a volume that outlives every update, or a folder of the host if you set <code>SHELF_NIX_STORE=/var/lib/shelf-nix</code>). The worker mounts the store <strong>read-only</strong> and builds through the daemon, so nothing the worker or an agent runs can write it.</p>
 <p>Then, for the developer and the code reviewer, a repository gets its flake's development shell as the agents' environment when its CI runs through Nix (a workflow that installs Nix or runs <code>nix develop</code>), or when it declares no tools for <code>mise</code> and its CI sets up none the worker knows. A repository whose CI uses <code>setup-node</code> and the like keeps getting those versions, as before. The worker asks Nix for the shell's environment without entering it, so no lock file is written into the repository and its shell hook never runs; the agent gets the <code>PATH</code> of the shell and its plain variables. The first time costs seconds to minutes of downloading; after that the store has it.</p>
 <p><strong>What it costs, honestly.</strong> Evaluating a repository's flake runs Nix code from that repository in the worker, outside the agents' sandbox, in a scrubbed environment (no token, no credential) and as a user the daemon does not trust. The daemon builds without the Nix sandbox, because a container cannot give one, with network access and as root inside its own container, which holds no secret. Turn it on for repositories whose people you trust, as you would for their <code>checks</code>. The store grows: the daemon collects garbage by itself when the disk runs low, and <code>docker compose -f deploy/compose.yml -f deploy/compose.nix.yml exec nix nix-collect-garbage -d</code> empties it by hand (the next work downloads again).</p>
+<h2 id="docker-in-steps">Docker in steps (optional, needs a runtime on the host)</h2>
+<p>Some repositories cannot be built or tested without starting containers: a database, an OAuth2 server, a cache, a browser, a service built from their own Dockerfile, started with <code>docker compose</code>, with Testcontainers or with <code>docker run</code>. In container mode (<code>SHELF_ISOLATION=container</code>) a step can have <strong>a Docker daemon of its own</strong>, inside the step, in a small virtual machine of its own. What it starts lives and ends with the step, and nothing reaches the Docker of the host. The reasons are in <a href="https://github.com/bhoudebert/shelf-sdlc-agents/blob/main/docs/adr/0020-give-each-step-its-own-docker-daemon.md">decision 0020</a>.</p>
+<p><strong>Status.</strong> The host script below exists and is tested against a fake host. The setting that gives steps the daemon (<code>SHELF_STEP_DOCKER=on</code>) is not built yet, and the script has not yet been run on a real host by anyone but its author's tests. Until then, steps have no Docker and the agents are told so.</p>
+<h3 id="docker-host">What the host needs</h3>
+<table>
+<thead><tr><th>Requirement</th><th>Why, and how to check</th></tr></thead>
+<tbody>
+<tr><td>Ubuntu or Debian, on x86_64 or arm64</td><td>The script installs a package set for these only. On anything else it stops before changing anything, and you install a runtime yourself and name it in <code>SHELF_STEP_RUNTIME</code>.</td></tr>
+<tr><td>Docker Engine 26 or later</td><td><code>docker version</code>.</td></tr>
+<tr><td><code>/dev/kvm</code></td><td>The runtime (Kata Containers) starts a virtual machine per step. <code>ls -l /dev/kvm</code>. On a cloud server, which is itself a virtual machine, the provider must allow nested virtualisation: <code>systemd-detect-virt</code> says <code>kvm</code> or similar, and <code>/dev/kvm</code> exists when it is on.</td></tr>
+<tr><td>Kernel modules <code>vhost_vsock</code> and <code>vhost_net</code></td><td>The script loads them and keeps them across reboots.</td></tr>
+<tr><td>root, and about 1 GB of download</td><td>The script changes the system. Use <code>sudo</code>.</td></tr>
+</tbody></table>
+<h3 id="docker-script">One script, safe to run again</h3>
+<pre><code>sh deploy/host-runtime.sh --check      # changes nothing: which steps are done, which are missing
+sudo sh deploy/host-runtime.sh         # does the missing ones, after listing them and asking
+sudo sh deploy/host-runtime.sh --yes   # the same without asking (needed without a terminal)</code></pre>
+<p>Each step checks whether it is done and skips it if so. It does, in this order, and says before it starts what it will do:</p>
+<ol>
+<li>Checks the platform (above). If anything fails, nothing is changed and it says what and which other options exist.</li>
+<li>Loads the two kernel modules, and lists them in <code>/etc/modules-load.d/shelf-kata.conf</code>.</li>
+<li>Installs with <code>apt</code> what it needs and the host lacks (<code>curl</code>, <code>zstd</code>, <code>jq</code>).</li>
+<li>Downloads <strong>one pinned release</strong> of Kata Containers (4.4.0), checks its SHA-256 against the one in the script, unpacks it aside and moves it into <code>/opt/kata</code> only when whole. A download that does not match is never unpacked.</li>
+<li>Adds the runtime to <code>/etc/docker/daemon.json</code>, keeping what is already there and a dated copy of the file first. A file that is not valid JSON is left as it is.</li>
+<li>Asks Docker to <strong>reload</strong> its configuration and checks that the runtime is listed.</li>
+<li>Proves it: a container under the runtime reports a kernel other than the host's, and a Docker daemon inside one runs a container.</li>
+</ol>
+<h3 id="docker-running">What it does to the containers already on the host</h3>
+<p>A reload does not stop running containers: on Ubuntu 25.04 with Docker 28.2.2 and live restore off, a reload left all fifteen containers of one host running. Whether a changed <code>runtimes</code> entry is taken up by a reload is what the script checks. If Docker does not list the runtime afterwards, the script <strong>stops</strong>, lists the containers a restart would stop (when live restore is off, every running one), and restarts Docker only if you run it again with <code>--restart-docker</code>.</p>
+<h3 id="docker-honest">What it costs, honestly</h3>
+<ul>
+<li>A step that asks for a daemon pays for a virtual machine and a daemon starting. It has not been measured here yet; the install check will print the time the proof took on your host.</li>
+<li>On a cloud server the virtual machine runs inside another one (nested virtualisation), which is slower than on bare metal.</li>
+<li>The isolation is as strong as the runtime. A step can start any container it likes, inside its own boundary; what it can reach is decided by the same network rules as the step's.</li>
+<li>This script installs Kata Containers only. Another runtime (gVisor, sysbox) is yours to install; set <code>SHELF_STEP_RUNTIME</code> to its name and run the script with <code>--check</code> to see whether Docker lists it. Sysbox has a reported failure on Ubuntu 25.04 with kernel 6.14 (<a href="https://github.com/nestybox/sysbox/issues/947">issue 947</a>).</li>
+</ul>
 <h2 id="skills">Skills and plugins for agents</h2>
 <p>Pinned sources and role bindings live in <code>deploy/config/catalog.toml</code> and <code>shelf.toml</code>; <code>sh deploy/install.sh</code> fetches them. See <a href="configuration.html#catalog">Configuration</a>.</p>
 <h2 id="reference">Read another repository as reference</h2>
