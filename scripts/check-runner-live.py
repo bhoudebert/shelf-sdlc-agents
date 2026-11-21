@@ -11,7 +11,9 @@ network (so no host firewall is involved), and checks, in this order:
    the session an earlier one left;
 4. a step that runs past its deadline is stopped and ends with the reason ``timeout``.
 
-5. with ``SHELF_LIVE_RUNTIME`` set (the name of a runtime such as ``kata``) and the ``step-docker`` image (``STEP_DOCKER_IMAGE``,
+5. a repository's check command runs as a ``check`` step: as the step's user in ``/work`` with the step's home and tool folders,
+   with no credential, its exit code and output come back in one ``check`` line, and the runner refuses a credential in it;
+6. with ``SHELF_LIVE_RUNTIME`` set (the name of a runtime such as ``kata``) and the ``step-docker`` image (``STEP_DOCKER_IMAGE``,
    built with ``docker build --target step-docker``): a step with a Docker daemon of its own, started by the runner's own
    container rules under that runtime, runs the step as its user, has a kernel other than the host's, and starts a container
    through its daemon (decision 0020). It pulls ``hello-world``, so it needs the network. Never run it with a runtime that is
@@ -31,10 +33,10 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-from shelf.adapters.container_agent.client import HttpStepRunner
+from shelf.adapters.container_agent.client import HttpStepRunner, RunnerError
 from shelf.adapters.container_runner.engine import DockerEngine
 from shelf.domain.stepspec import RunnerRules, container_spec, parse_request
-from shelf.domain.stepstream import Exit, Hello, Result, Tool, decode
+from shelf.domain.stepstream import Check, Exit, Hello, Result, Tool, decode
 from shelf.ports.step_runner import StepRequest
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -43,6 +45,8 @@ DOCKER_IMAGE = os.environ.get("STEP_DOCKER_IMAGE", "shelf-step-docker-test")
 RUNTIME = os.environ.get("SHELF_LIVE_RUNTIME", "")
 TOKEN = "live-check-token"  # noqa: S105
 SUFFIX = str(os.getpid())
+FAILED_WITH = 3
+"""The exit code the probe command ends with: a failing command is a result, not a failure of the step."""
 MOCK = f"shelf-live-mock-{SUFFIX}"
 NETWORK, STEPS, TOOLS, SESSIONS, POLICY = (
     f"shelf-live-{name}-{SUFFIX}" for name in ("net", "steps", "tools", "sessions", "policy")
@@ -216,6 +220,59 @@ async def step(socket: str, host: str, port: int, key: str, seconds: int | None 
     return lines, first
 
 
+async def check_steps(socket: str) -> None:
+    """A repository's check command as a step: who runs it, where, with what, and how its end comes back."""
+    runner = HttpStepRunner(socket, TOKEN)
+    command = (
+        "echo uid=$(id -u) pwd=$(pwd) home=$HOME; touch /home/step/.m2/x && echo m2=writable; "
+        '[ -z "$ANTHROPIC_API_KEY$GH_TOKEN" ] && echo credential=none; echo to-stderr 1>&2; exit 3'
+    )
+    request = StepRequest(
+        key="live/check/1", kind="check", repo=REPO, clone="steps/t1/repo", input={"command": command}
+    )
+    events = [decode(line) async for line in runner.run(request) if '"e":"ping"' not in line]
+    checks = [event for event in events if isinstance(event, Check)]
+    expect(
+        isinstance(events[0], Hello) and events[-1] == Exit(0),
+        "a check step starts with hello and ends with the runner's exit",
+    )
+    expect(
+        len(checks) == 1 and checks[0].code == FAILED_WITH, "the command's own exit code comes back in the check line"
+    )
+    output = checks[0].output
+    for fact, what in (
+        ("uid=1000", "the command runs as the step's user"),
+        ("pwd=/work", "in the clone"),
+        ("home=/home/step", "with the step's home"),
+        ("m2=writable", "and may write the tool folders"),
+        ("credential=none", "with no credential"),
+        ("to-stderr", "and what it wrote on standard error is in the output"),
+    ):
+        expect(fact in output, what)
+    expect(
+        docker("ps", "-a", "--filter", "label=shelf.managed=true", "--format", "{{.ID}}") == "",
+        "and the container is gone",
+    )
+    try:
+        async for _ in runner.run(
+            StepRequest(
+                key="live/check/2",
+                kind="check",
+                repo=REPO,
+                clone="steps/t1/repo",
+                env={"GH_TOKEN": "t"},
+                input={"command": "true"},
+            )
+        ):
+            pass
+    except RunnerError as error:
+        expect(
+            "GH_TOKEN" in str(error) and "GH_TOKEN=t" not in str(error), "a credential in a check is refused, by name"
+        )
+    else:
+        expect(condition=False, what="a credential in a check is refused")
+
+
 async def main_async(socket: str, host: str, port: int) -> None:
     lines, first = await step(socket, host, port, "live/step/1")
     events = [decode(line) for line in lines if '"e":"ping"' not in line]
@@ -267,6 +324,7 @@ def main() -> int:
                     time.sleep(0.1)
                 time.sleep(1.5)
                 asyncio.run(main_async(socket, MOCK, port))
+                asyncio.run(check_steps(socket))
     finally:
         docker("rm", "-f", MOCK, check=False)
         docker("network", "rm", NETWORK, check=False)

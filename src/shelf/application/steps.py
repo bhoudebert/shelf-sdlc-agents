@@ -71,6 +71,7 @@ from shelf.domain.verdict import parse_verdict
 from shelf.domain.web import WEB_NOTE
 from shelf.domain.work import WAITING_FOR_CI, Produced, Reviewed, RunStep, StepResult, Verdict, Verified
 from shelf.ports.agents import AgentBackend, AgentTask, RunSink
+from shelf.ports.commands import CommandRunner
 from shelf.ports.configs import RepoConfigs
 from shelf.ports.context_sources import ContextSources
 from shelf.ports.run_records import RunRecords
@@ -352,6 +353,8 @@ class Steps:
     base_path: str = ""
     """The ``PATH`` the agents start from; the tool shims are put in front of it."""
     cache_dir: str = ""
+    commands: CommandRunner | None = None
+    """Where the repository's check commands run when they do not run in the worker (a container per check)."""
     docker: bool = False
     """Each step that runs repository code has a Docker daemon of its own (decision 0020): the agents are told so."""
     """Where each repository's tools and package caches live; empty gives agents the worker's own home and no tools."""
@@ -862,7 +865,9 @@ class Steps:
         if step.feedback != WAITING_FOR_CI:
             if config.checks:
                 lines += await self._tools_for_the_checks(work, workspace)
-            local, more = await self._local_checks(workspace, config, self._toolchain_env(work, workspace))
+            local, more = await self._local_checks(
+                workspace, config, self._toolchain_env(work, workspace), work.request.repo.full_name
+            )
             lines += more
             if not local.passed:  # no point waiting for a CI that will only repeat it
                 return local, "**Failed**\n\n" + "\n".join(lines) + f"\n\n```\n{local.report}\n```"
@@ -878,7 +883,7 @@ class Steps:
         return [f"⚠️ {setup.note.split('. ')[0]}"] if failed else []
 
     async def _local_checks(
-        self, workspace: Workspace, config: RepoConfig, env: Mapping[str, str]
+        self, workspace: Workspace, config: RepoConfig, env: Mapping[str, str], repo: str
     ) -> tuple[Verified, list[str]]:
         """Run the repository's own commands; the lines say what each did."""
         if not config.checks:
@@ -886,7 +891,11 @@ class Steps:
         failures: list[str] = []
         lines: list[str] = []
         for command in config.checks:
-            result = await workspace.run(with_environment(env, command))
+            if self.commands is not None:
+                # a step has its own home and tool shims: the worker's own paths in ``env`` do not apply to it
+                result = await self.commands.run(repo, workspace.path, command)
+            else:
+                result = await workspace.run(with_environment(env, command))
             if result.exit_code == 0:
                 lines.append(f"✅ `{command}`")
             else:
