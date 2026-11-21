@@ -424,12 +424,20 @@ Each stage is its own pull request, with its spec, tests and an update to this d
 | 0 | This design and decision 0019 accepted | merged; the proposal of 0012 closed as superseded |
 | 1 | `shelf-step` entrypoint, the event protocol, `ContainerBackend` against a **fake runner**; `SHELF_ISOLATION` setting; run record fields | unit tests for the event round trip and `RunSink`; the SDK is not called |
 | 2 | The `runner` service and the `step` image target; a CI job that runs a real step in Docker against the mock Anthropic server of `warden/live/` | the end-to-end test passes in CI; start time measured |
-| 3 | Clone volume, session volume, tool volume, `kind=check`, `kind=setup`, narrowed token | a work runs end to end in container mode with checks and resume |
+| 3 | Clone volume, session volume, tool volume, the read-only config volumes (the managed policy that holds Warden's hooks, and its profile), `kind=check`, `kind=setup`, narrowed token | a work runs end to end in container mode with checks and resume |
 | 4 | Warden spool and `warden audit ingest` | the chain verifies after parallel steps; the admin page shows the same calls |
 | 5 | Egress stage A, the `strict` and `learn` modes, and the outbound view with the allow button | a step cannot reach an unlisted host in `strict`; refused hosts show on the page |
 | 6 | **Parity run**: section 3 checked on the Spring starter, a Node repository, a Go and a Rust repository, and a repository with live tests | every row is "same" or better; list of what differs in this file |
 | 7 | Default flips to `container`; `sandbox` stays for one release | |
 | 8 | Egress stage B (transparent), model gateway, image variants (browsers), opt-in private Docker daemon, the `ask` mode and its wait | each is its own record or spec |
+
+**Status.** Stage 0 is merged. Stage 1 (the stream, `ContainerBackend`, `shelf-step`, `SHELF_ISOLATION`) is in review as its own
+pull request. Stage 2 is in review on top of it: the runner service (`shelf-runner`, `shelf.adapters.container_runner`), its
+fixed request and the container it builds, the `step` and `runner` image targets, and `scripts/check-runner-live.py`, which
+runs real containers against the mock model. What stage 2 does **not** have, on purpose: the container has no Warden hooks yet
+(the managed policy is a stage 3 volume), no egress control (`SHELF_STEP_NETWORK` is an ordinary network until stage 5),
+and the worker does not call it (`SHELF_ISOLATION=container` is still refused). The stream is sent as
+`application/x-ndjson` (one JSON object per line), not as server-sent events.
 
 ## 15. Open questions and the spikes that answer them
 

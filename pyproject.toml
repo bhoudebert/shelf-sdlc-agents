@@ -25,6 +25,8 @@ shelf-doctor = "shelf.entrypoints.doctor:main"
 shelf-diagnose = "shelf.entrypoints.diagnose:main"
 shelf-catalog = "shelf.entrypoints.catalog:main"
 shelf-cache = "shelf.entrypoints.cache:main"
+shelf-runner = "shelf.entrypoints.runner:main"
+shelf-step = "shelf.adapters.claude_agent.step:main"
 
 [dependency-groups]
 dev = [
@@ -62,6 +64,8 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S105", "S106", "PLR2004", "D", "ANN", "ARG001", "ARG002", "ARG005", "FBT003", "E501", "S107"]
+# A live check run by hand or by CI: it prints what it checks and shells out to Docker on purpose.
+"scripts/check-runner-live.py" = ["T201", "INP001", "D103", "S603", "S607", "FBT001", "E501", "PLR0913", "S108", "S104"]
 # A state machine is a table of transitions: one return per case is the clearest form.
 "src/shelf/domain/work.py" = ["PLR0911"]
 # Route handlers take what FastAPI injects: request, session and every form field.

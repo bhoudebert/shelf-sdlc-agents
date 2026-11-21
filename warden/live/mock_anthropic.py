@@ -1,6 +1,6 @@
 """A stand-in for the Anthropic Messages API for Warden's live check: the "model" asks to run one Bash command, then says it is done.
 
-Usage: mock_anthropic.py PORT COMMAND LOGFILE. A COMMAND of the form `@Tool {json}` asks for that tool with that input instead. It never sees a real model or a real key."""
+Usage: mock_anthropic.py PORT COMMAND LOGFILE [HOST]. A COMMAND of the form `@Tool {json}` asks for that tool with that input instead. It never sees a real model or a real key."""
 import json
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -59,4 +59,4 @@ class H(BaseHTTPRequestHandler):
     do_GET = do_PUT = do_HEAD = lambda self: (self.send_response(200), self.send_header("content-length","2"), self.end_headers(), self.wfile.write(b"{}"))
 
 if __name__ == "__main__":
-    ThreadingHTTPServer(("127.0.0.1", int(sys.argv[1])), H).serve_forever()
+    ThreadingHTTPServer((sys.argv[4] if len(sys.argv) > 4 else "127.0.0.1", int(sys.argv[1])), H).serve_forever()

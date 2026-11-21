@@ -16,7 +16,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry --mount=type=cache,targe
     cargo build --release --locked --manifest-path warden/Cargo.toml \
  && install -m 0755 warden/target/release/warden /usr/local/bin/warden
 
-FROM python:3.15-slim
+FROM python:3.15-slim AS app
 # git clones and pushes as the App; bubblewrap, socat and ripgrep are what Claude Code's sandbox needs.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends git ca-certificates bubblewrap socat ripgrep curl unzip xz-utils \
@@ -90,3 +90,32 @@ USER shelf
 WORKDIR /app
 EXPOSE 8080
 CMD ["shelf-web"]
+
+# --- The container of one agent step (decision 0019). The same tools as the worker, run by `shelf-step`, with nothing
+# that the worker's own sandbox needs: the container is the boundary, so no bubblewrap and no socat. The runner starts it
+# read-only and unprivileged, with the clone, the tools and the sessions as volumes; HOME is a folder of its own.
+FROM app AS step
+USER root
+RUN apt-get purge -y --auto-remove bubblewrap socat \
+ && rm -rf /var/lib/apt/lists/* \
+ && mkdir -p /home/step && chown 1000:1000 /home/step
+ENV HOME=/home/step
+USER 1000
+WORKDIR /work
+# The runner sets the command itself; this one is what a person gets with `docker run`.
+CMD ["shelf-step", "/run/shelf/task.json"]
+
+# --- The runner (decision 0019): the only service that holds the container engine's socket. Python and its own code, and
+# nothing else: no git, no agent, no tools, no credential of the product.
+FROM python:3.15-slim AS runner
+RUN useradd --create-home --uid 1000 runner
+COPY --from=build --chown=runner:runner /app /app
+ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1
+ARG SHELF_REVISION=unknown
+ENV SHELF_REVISION=$SHELF_REVISION
+USER runner
+WORKDIR /app
+CMD ["shelf-runner"]
+
+# --- The default target stays the product's image: `docker build .` and the compose file build it, as before.
+FROM app

@@ -18,8 +18,14 @@ class StepRequest:
     kind: str = "agent"
     repo: str = ""
     """``owner/name``: selects the repository's tools volume."""
+    clone: str = ""
+    """The sub-path of the steps volume that holds the clone, ``steps/<id>``."""
     session: str = ""
     """The work's sessions folder, so that a later step of the same work can continue the agent's session."""
+    tools_readonly: bool = False
+    """A reviewer reads the repository's tools and caches but does not change them."""
+    limits: Mapping[str, int] = field(default_factory=dict[str, int])
+    """Ceilings this step asks for, under the operator's: ``cpus``, ``memory_mb``, ``pids``, ``tmp_mb``, ``seconds``."""
     env: Mapping[str, str] = field(default_factory=dict[str, str])
     input: Mapping[str, Any] = field(default_factory=dict[str, Any])
 
