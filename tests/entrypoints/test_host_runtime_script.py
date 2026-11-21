@@ -558,7 +558,7 @@ def test_resolvers_that_resolve_nothing_in_a_step_fail_the_probe(host: Host) -> 
     assert done.returncode == 1
     assert "dns=" not in done.stdout
     assert "profile=" not in done.stdout
-    assert "api.anthropic.com" in done.stderr
+    assert re.search(r"api\.anthropic\.com", done.stderr)
 
 
 def test_the_proof_runs_under_the_runtime_on_a_network_of_its_own_and_removes_it(host: Host) -> None:
@@ -748,7 +748,7 @@ def test_dns_fails_with_what_the_step_said_when_the_resolvers_do_not_resolve(hos
 
     assert done.returncode == 1
     assert "dns=" not in done.stdout
-    assert "api.anthropic.com" in done.stderr
+    assert re.search(r"api\.anthropic\.com", done.stderr)
 
 
 def test_dns_without_resolvers_to_prove_says_so_and_fails(host: Host) -> None:
