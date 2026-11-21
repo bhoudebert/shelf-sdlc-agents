@@ -41,8 +41,12 @@ case "$1" in
     esac;;
   image) exit 0;;
   pull) exit 0;;
+  network) ;;
   run)
     case "$*" in
+      *"grep '^nameserver'"*) grep '^nameserver' "$state/upstream";;
+      *nslookup*)
+        if [ -f "$state/dns_works" ]; then echo "Name: api.anthropic.com"; else echo ";; connection timed out"; fi;;
       *"uname -r"*) cat "$state/guest";;
       *--entrypoint*)
         works=$(cat "$state/works" 2>/dev/null || echo standard)
@@ -144,6 +148,8 @@ def host(tmp_path: Path) -> Host:
     (state / "guest").write_text(f"{GUEST_KERNEL}\n")
     (state / "reload_registers").write_text("")
     (state / "works").write_text("standard\n")
+    (state / "upstream").write_text("nameserver 213.186.33.99\nsearch openstacklocal\n")
+    (state / "dns_works").write_text("")
     (state / "release.tar").write_bytes(release_archive())
     for name, body in FAKES.items():
         (bin_dir / name).write_text(f"#!/bin/sh\n{body}\n")
@@ -476,3 +482,105 @@ def test_the_proof_runs_exactly_what_the_runner_would_start() -> None:
         assert listed is not None, profile
         assert listed.group(1) == " ".join(wanted), profile
     assert re.search(r'profiles="([^"]*)"', script).group(1).split() == list(DOCKER_PROFILES)  # pyright: ignore[reportOptionalMemberAccess]
+
+
+def test_probing_prints_the_resolvers_it_proved_and_the_profile_stays_the_last_line(host: Host) -> None:
+    ready_host(host)
+
+    done = host.run("--probe")
+
+    assert done.returncode == 0, done.stderr
+    lines = done.stdout.strip().splitlines()
+    assert lines[-2:] == ["dns=213.186.33.99", "profile=standard"]
+
+
+def test_the_hosts_own_loopback_resolver_is_not_a_resolver_a_step_can_use(host: Host) -> None:
+    ready_host(host)
+    (host.state / "upstream").write_text("nameserver 127.0.0.53\nnameserver 213.186.33.99\nnameserver 8.8.8.8\n")
+
+    done = host.run("--probe")
+
+    assert "dns=213.186.33.99,8.8.8.8" in done.stdout
+
+
+def test_a_host_with_only_a_loopback_resolver_fails_and_says_to_set_one(host: Host) -> None:
+    ready_host(host)
+    (host.state / "upstream").write_text("nameserver 127.0.0.53\n")
+
+    done = host.run("--probe")
+
+    assert done.returncode == 1
+    assert "SHELF_STEP_DNS" in done.stderr
+    assert "profile=" not in done.stdout
+
+
+def test_resolvers_the_operator_set_are_proved_instead_of_the_hosts_own(host: Host) -> None:
+    ready_host(host)
+
+    done = host.run("--probe", SHELF_STEP_DNS="9.9.9.9")
+
+    assert "dns=9.9.9.9" in done.stdout
+    assert "grep '^nameserver'" not in docker_calls(host)
+
+
+def test_resolvers_that_resolve_nothing_in_a_step_fail_the_probe(host: Host) -> None:
+    ready_host(host)
+    (host.state / "dns_works").unlink()
+
+    done = host.run("--probe")
+
+    assert done.returncode == 1
+    assert "dns=" not in done.stdout
+    assert "profile=" not in done.stdout
+    assert "api.anthropic.com" in done.stderr
+
+
+def test_the_proof_runs_under_the_runtime_on_a_network_of_its_own_and_removes_it(host: Host) -> None:
+    ready_host(host)
+
+    host.run("--probe")
+
+    calls = docker_calls(host).splitlines()
+    proof = next(line for line in calls if "nslookup" in line)
+    assert "--runtime kata" in proof
+    assert "--network shelf-probe-" in proof
+    assert any(line.startswith("network create shelf-probe-") for line in calls)
+    assert any(line.startswith("network rm shelf-probe-") for line in calls)
+
+
+def test_the_network_of_the_proof_is_removed_even_when_the_proof_fails(host: Host) -> None:
+    ready_host(host)
+    (host.state / "dns_works").unlink()
+
+    host.run("--probe")
+
+    assert any(line.startswith("network rm shelf-probe-") for line in docker_calls(host).splitlines())
+
+
+def test_the_whole_run_also_proves_that_a_step_resolves_names(host: Host) -> None:
+    done = host.run("--yes")
+
+    assert done.returncode == 0, done.stderr
+    assert "a step resolves names with 213.186.33.99" in done.stdout
+
+
+def test_the_whole_run_fails_when_a_step_cannot_resolve_names(host: Host) -> None:
+    (host.state / "dns_works").unlink()
+
+    done = host.run("--yes")
+
+    assert done.returncode == 1
+    assert "Ready." not in done.stdout
+
+
+def test_only_nameserver_lines_are_taken_whatever_else_the_file_holds(host: Host) -> None:
+    ready_host(host)
+    shell = host.bin / "docker"
+    original = shell.read_text()
+    # a container whose grep let other lines through: the script must not trust it to filter
+    shell.write_text(original.replace('''grep '^nameserver' "$state/upstream"''', '''cat "$state/upstream"'''))
+
+    done = host.run("--probe")
+
+    assert "dns=213.186.33.99\n" in done.stdout
+    assert "openstacklocal" not in done.stdout

@@ -232,3 +232,15 @@ def test_the_worker_accepts_every_profile_the_runner_has() -> None:
     env = {**BASE, **CONTAINER, "SHELF_STEP_DOCKER": "on", "SHELF_STEP_RUNTIME": "kata"}
     for profile in ("standard", "unconfined", "systempaths", "full"):
         assert from_environ({**env, "SHELF_STEP_DOCKER_PROFILE": profile}).container is not None
+
+
+@pytest.mark.parametrize("value", ["example.org", "127.0.0.53", "::1"])
+def test_the_worker_refuses_a_resolver_a_guest_cannot_reach_by_name(value: str) -> None:
+    env = {**BASE, **CONTAINER, "SHELF_STEP_DOCKER": "on", "SHELF_STEP_RUNTIME": "kata", "SHELF_STEP_DNS": value}
+    with pytest.raises(ValueError, match="SHELF_STEP_DNS"):
+        from_environ(env)
+
+
+def test_the_worker_accepts_resolvers_that_are_addresses() -> None:
+    env = {**BASE, **CONTAINER, "SHELF_STEP_DOCKER": "on", "SHELF_STEP_RUNTIME": "kata"}
+    assert from_environ({**env, "SHELF_STEP_DNS": "213.186.33.99,8.8.8.8"}).container is not None

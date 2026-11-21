@@ -16,7 +16,8 @@ import uvicorn
 from shelf.adapters.container_runner.app import create_app
 from shelf.adapters.container_runner.engine import DockerEngine
 from shelf.adapters.container_runner.service import StepService
-from shelf.domain.stepspec import CONFIG_TARGETS, DOCKER_PROFILES, VARIABLE, Limits, RunnerRules
+from shelf.domain.result import Err
+from shelf.domain.stepspec import CONFIG_TARGETS, DOCKER_PROFILES, VARIABLE, Limits, RunnerRules, parse_resolvers
 from shelf.ports.container_engine import ContainerEngine, EngineError
 
 log = logging.getLogger("shelf.runner")
@@ -79,14 +80,14 @@ def _fixed_env(environ: Mapping[str, str]) -> tuple[tuple[str, str], ...]:
     return tuple((name, environ[f"{SET_PREFIX}{name}"]) for name in names)
 
 
-def _docker(environ: Mapping[str, str], image: str) -> tuple[str, str, str]:
-    """``(runtime, image, profile)`` of the steps that have their own Docker daemon; empty ones when it is off."""
+def _docker(environ: Mapping[str, str], image: str) -> tuple[str, str, str, tuple[str, ...]]:
+    """``(runtime, image, profile, resolvers)`` of the steps that have their own Docker daemon; empty ones when off."""
     value = environ.get("SHELF_STEP_DOCKER", "").strip().lower()
     if value not in {"", "on", "off"}:
         message = f"SHELF_STEP_DOCKER must be on or off, not {value!r}"
         raise RunnerSettingsError(message)
     if value != "on":
-        return "", "", DOCKER_PROFILES[0]
+        return "", "", DOCKER_PROFILES[0], ()
     runtime = environ.get("SHELF_STEP_RUNTIME", "").strip()
     if not runtime:
         message = "SHELF_STEP_DOCKER=on needs SHELF_STEP_RUNTIME: the runtime that makes a Docker daemon in a step safe"
@@ -95,7 +96,10 @@ def _docker(environ: Mapping[str, str], image: str) -> tuple[str, str, str]:
     if profile not in DOCKER_PROFILES:
         message = f"SHELF_STEP_DOCKER_PROFILE must be one of {', '.join(DOCKER_PROFILES)}, not {profile!r}"
         raise RunnerSettingsError(message)
-    return runtime, environ.get("SHELF_STEP_DOCKER_IMAGE", "").strip() or image, profile
+    resolvers = parse_resolvers(environ.get("SHELF_STEP_DNS", ""))
+    if isinstance(resolvers, Err):
+        raise RunnerSettingsError(resolvers.error)
+    return runtime, environ.get("SHELF_STEP_DOCKER_IMAGE", "").strip() or image, profile, resolvers.value
 
 
 def read_settings(environ: Mapping[str, str]) -> RunnerSettings:
@@ -116,7 +120,7 @@ def read_settings(environ: Mapping[str, str]) -> RunnerSettings:
         seconds=int(_number(environ, "SHELF_STEP_SECONDS", Limits().seconds)),
     )
     defaults = RunnerRules(image=image)
-    docker_runtime, docker_image, docker_profile = _docker(environ, image)
+    docker_runtime, docker_image, docker_profile, docker_dns = _docker(environ, image)
     rules = RunnerRules(
         image=image,
         network=environ.get("SHELF_STEP_NETWORK", defaults.network),
@@ -129,6 +133,7 @@ def read_settings(environ: Mapping[str, str]) -> RunnerSettings:
         docker_runtime=docker_runtime,
         docker_image=docker_image,
         docker_profile=docker_profile,
+        docker_dns=docker_dns,
     )
     return RunnerSettings(
         socket=environ.get("SHELF_RUNNER_SOCKET", "/run/shelf-runner/runner.sock"),

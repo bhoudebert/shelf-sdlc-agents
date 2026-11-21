@@ -35,6 +35,9 @@ no step holds the runner's socket.
   guest kernel and filters allow differs. The runner takes one of a fixed set of profiles (`standard`, `unconfined`, `systempaths`, `full`),
   none of them privileged mode, which under Kata hands the host's devices to the virtual machine (it failed on the first real
   host). `host-runtime.sh --probe` finds the first that works on a host and `install.sh` writes it down, so no host is tuned by hand.
+- **A step resolves names through the operator's resolvers.** Under Kata on a user-defined network, Docker's embedded resolver
+  (127.0.0.11) is out of the guest's reach and nothing resolves (the first real step ended with EAI_AGAIN). The step's start
+  writes `SHELF_STEP_DNS` into its resolv.conf; the host script finds the host's upstream resolvers and proves them from a step.
 - **The network is the step's.** What a nested container reaches is what the step container reaches, so the step's network rules
   and the egress decisions of 0019 apply to it unchanged. Registries the daemon pulls from are hosts like any other.
 - **Images are not cached between steps yet.** The daemon's storage is a volume of the step that goes with it, so each step pulls
