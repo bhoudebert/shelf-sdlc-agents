@@ -429,7 +429,7 @@ Each stage is its own pull request, with its spec, tests and an update to this d
 | 5 | Egress stage A, the `strict` and `learn` modes, and the outbound view with the allow button | a step cannot reach an unlisted host in `strict`; refused hosts show on the page |
 | 6 | **Parity run**: section 3 checked on the Spring starter, a Node repository, a Go and a Rust repository, and a repository with live tests | every row is "same" or better; list of what differs in this file |
 | 7 | Default flips to `container`; `sandbox` stays for one release | |
-| 8 | Egress stage B (transparent), model gateway, image variants (browsers), opt-in private Docker daemon, the `ask` mode and its wait | each is its own record or spec |
+| 8 | Egress stage B (transparent), model gateway, image variants (browsers), the `ask` mode and its wait (the private Docker daemon moved to [decision 0020](../adr/0020-give-each-step-its-own-docker-daemon.md), before the parity run) | each is its own record or spec |
 
 **Status.** Stage 0 is merged. Stage 1 (the stream, `ContainerBackend`, `shelf-step`, `SHELF_ISOLATION`) and stage 2 (the runner
 service, the `step` and `runner` image targets, `scripts/check-runner-live.py`) are in review as their own pull requests.
@@ -459,7 +459,7 @@ server-sent events.
 5. **S5, start cost.** Container start, volume attach and first pull on the VPS; decide whether a warm pool is worth it.
 6. **S6, Warden spool.** Which records the hook writes after the process is killed mid-call, and that ingest keeps the chain valid.
 7. **S7, a private Docker daemon.** Whether sysbox (or rootless Podman in a step) runs on the Ubuntu hosts in use and what it costs;
-   decides whether tests with Testcontainers can be offered.
+   decides the runtime of [decision 0020](../adr/0020-give-each-step-its-own-docker-daemon.md); every step that runs repository code needs it, so it comes before the parity run.
 8. **Per-repository image names.** Whether `.shelf/config.toml` should name an image at all in the first release, or whether the
    operator's variants are enough.
 
