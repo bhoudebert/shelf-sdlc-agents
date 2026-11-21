@@ -20,7 +20,10 @@ FAKES = {
     ),
     "docker": '[ -f "$FAKE/ready" ] && [ -f "$FAKE/started" ]',
     "setpriv": 'echo "setpriv $*"',
-    "mount": 'echo "mount $*" >> "$FAKE/calls"',
+    "mount": (
+        'echo "mount $*" >> "$FAKE/calls"; '
+        '[ "$1" = --bind ] && { [ -n "$FAKE_BIND_FAILS" ] && exit 1; cp "$2" "$3"; }; exit 0'
+    ),
 }
 
 
@@ -40,6 +43,7 @@ def run(fake: Path, *args: str, ready: bool, **extra: str) -> subprocess.Complet
     env = {
         **os.environ,
         "SHELF_RESOLV_CONF": str(fake / "resolv.conf"),
+        "SHELF_RESOLV_NEW": str(fake / "new-resolv.conf"),
         **extra,
         "PATH": f"{fake / 'bin'}:{os.environ['PATH']}",
         "FAKE": str(fake),
@@ -161,4 +165,55 @@ def test_something_that_is_not_an_address_is_never_written_and_the_step_goes_on(
     assert done.returncode == 0, done.stderr
     assert resolv(fake).read_text() == "nameserver 127.0.0.11\n"
     assert "SHELF_STEP_DNS" in done.stderr
+    assert "setpriv" in done.stdout
+
+
+def read_only(path: Path) -> None:
+    """What a guest's resolv.conf can be: a file nobody may write (the test never runs as root)."""
+    path.chmod(0o444)
+
+
+def test_a_resolv_conf_that_cannot_be_written_is_replaced_by_a_mount_and_the_step_still_runs(fake: Path) -> None:
+    resolv(fake).write_text("nameserver 127.0.0.11\n")
+    read_only(resolv(fake))
+
+    done = run(fake, "shelf-step", "/run/shelf/task.json", ready=True, SHELF_STEP_DNS="213.186.33.99")
+
+    assert done.returncode == 0, done.stderr
+    assert "setpriv" in done.stdout
+    assert f"mount --bind {fake / 'new-resolv.conf'} {resolv(fake)}" in (fake / "calls").read_text()
+    assert (fake / "new-resolv.conf").read_text() == "nameserver 213.186.33.99\n"
+
+
+def test_when_the_mount_is_refused_a_writable_resolv_conf_is_written_directly(fake: Path) -> None:
+    resolv(fake).write_text("nameserver 127.0.0.11\n")
+
+    done = run(
+        fake, "shelf-step", "/run/shelf/task.json", ready=True, SHELF_STEP_DNS="213.186.33.99", FAKE_BIND_FAILS="1"
+    )
+
+    assert done.returncode == 0, done.stderr
+    assert resolv(fake).read_text() == "nameserver 213.186.33.99\n"
+
+
+def test_when_nothing_can_set_the_resolvers_the_step_still_runs_and_the_reason_is_said(fake: Path) -> None:
+    resolv(fake).write_text("nameserver 127.0.0.11\n")
+    read_only(resolv(fake))
+
+    done = run(
+        fake, "shelf-step", "/run/shelf/task.json", ready=True, SHELF_STEP_DNS="213.186.33.99", FAKE_BIND_FAILS="1"
+    )
+
+    assert done.returncode == 0, done.stderr
+    assert "setpriv" in done.stdout
+    assert "could not set the resolvers" in done.stderr
+    assert resolv(fake).read_text() == "nameserver 127.0.0.11\n"
+
+
+def test_a_missing_resolv_conf_does_not_stop_the_step(fake: Path) -> None:
+    done = run(
+        fake, "shelf-step", "/run/shelf/task.json", ready=True, SHELF_STEP_DNS="213.186.33.99", FAKE_BIND_FAILS="1"
+    )
+
+    assert done.returncode == 0, done.stderr
     assert "setpriv" in done.stdout

@@ -15,16 +15,23 @@ mount -o remount,bind,rw /proc/sys > /dev/null 2>&1 || mount -o remount,rw /proc
 
 # On a user-defined network Docker names its embedded resolver (127.0.0.11) in resolv.conf. It lives in the host's network
 # namespace, so a virtual machine cannot reach it and no name resolves (EAI_AGAIN). The runner gives this step the operator's
-# resolvers; the daemon's containers inherit this file. Only addresses are written: anything else is left alone and said.
+# resolvers; the daemon's containers inherit this file. Only addresses are written. Setting them must never stop the step: in a
+# guest the file Docker places can be read-only, so a file in /run is mounted over it, and only if that is refused is the file
+# written; if nothing works the reason is said and the step goes on (its first name lookup then fails, and says so).
 resolv="${SHELF_RESOLV_CONF:-/etc/resolv.conf}"
+resolv_new="${SHELF_RESOLV_NEW:-/run/shelf-resolv.conf}"
 if [ -n "${SHELF_STEP_DNS:-}" ]; then
   case "$SHELF_STEP_DNS" in
     *[!0-9A-Fa-f:.,]*) echo "shelf-step-docker: SHELF_STEP_DNS is not a list of addresses: $resolv left as it is" >&2 ;;
     *)
-      : > "$resolv" || echo "shelf-step-docker: could not write $resolv" >&2
-      for nameserver in $(printf '%s' "$SHELF_STEP_DNS" | tr ',' ' '); do
-        printf 'nameserver %s\n' "$nameserver" >> "$resolv"
-      done
+      nameservers=$(for nameserver in $(printf '%s' "$SHELF_STEP_DNS" | tr ',' ' '); do printf 'nameserver %s\n' "$nameserver"; done)
+      if printf '%s\n' "$nameservers" 2> /dev/null > "$resolv_new" && mount --bind "$resolv_new" "$resolv" > /dev/null 2>&1; then
+        :
+      elif printf '%s\n' "$nameservers" 2> /dev/null > "$resolv"; then
+        :
+      else
+        echo "shelf-step-docker: could not set the resolvers: $resolv is not writable and could not be replaced, so names may not resolve" >&2
+      fi
       ;;
   esac
 fi
