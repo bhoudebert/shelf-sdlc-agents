@@ -1242,6 +1242,16 @@ The system SHALL, when the operator has enabled Docker in steps and named the ru
 - **WHEN** a step with Docker starts
 - **THEN** the daemon's storage is in the step's own memory, not in a volume, so that pulling an image and starting a database do not go through the shared file system
 
+#### Scenario: The image carries the Docker project's own Docker
+
+- **WHEN** the image of a step with Docker is built
+- **THEN** its daemon, runtime and client are the Docker project's own release at a pinned version, the same that the host proof runs, and not an older one from the distribution, whose runtime could not enter a container on a newer guest kernel
+
+#### Scenario: The daemon's container is not marked no-new-privileges
+
+- **WHEN** a step with Docker starts
+- **THEN** its container does not carry `no-new-privileges`, which the daemon's own containers would inherit, and the step's own command is run with it by the step's start script, so that the agent keeps the protection
+
 #### Scenario: A profile the host needs
 
 - **WHEN** the operator chose a more permissive profile because the host needs it
