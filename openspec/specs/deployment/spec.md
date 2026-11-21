@@ -288,7 +288,12 @@ The system SHALL let the operator turn the agents' sandbox off, for hosts where 
 
 ### Requirement: Docker in steps is off until the operator names a runtime that can honour it
 
-The system SHALL read `SHELF_STEP_DOCKER` (`off` when unset, or `on`) and `SHELF_STEP_RUNTIME` (the name of the container runtime that makes a daemon inside a step safe), SHALL give steps a private Docker daemon only when the first is `on`, and SHALL refuse to start, naming the setting, when `SHELF_STEP_DOCKER` is `on` and the runtime is not named, is not one the container engine reports, or the isolation is not `container`, so that a step never gets a daemon without the boundary that makes it safe.
+The system SHALL read `SHELF_STEP_DOCKER` (`off` when unset, or `on`), `SHELF_STEP_RUNTIME` (the name of the container runtime that makes a daemon inside a step safe) and `SHELF_STEP_DOCKER_PROFILE` (`standard` when unset, or `unconfined` or `cgroupns`: how permissive the step's container is, as the host needs), SHALL give steps a private Docker daemon only when the first is `on`, and SHALL refuse to start, naming the setting, when `SHELF_STEP_DOCKER` is `on` and the runtime is not named, is not one the container engine reports, or the isolation is not `container`, so that a step never gets a daemon without the boundary that makes it safe.
+
+#### Scenario: A profile that does not exist
+
+- **WHEN** `SHELF_STEP_DOCKER_PROFILE` is a name that is not one of the profiles
+- **THEN** the runner and the worker refuse to start and name the setting and the accepted values
 
 #### Scenario: Unset
 
@@ -346,7 +351,22 @@ The system SHALL list, in the install guide of the site and in `deploy/README` t
 
 ### Requirement: A separate host script prepares the runtime for Docker in steps, one checked step at a time
 
-The system SHALL provide a host script, apart from `install.sh` because it changes the system and needs root, that prepares the runtime named by `SHELF_STEP_RUNTIME` (Kata Containers by default) on Ubuntu and Debian, on x86_64 and arm64, and refuses on any other system with the reason and the other options. The script SHALL be safe to run again: each step SHALL check whether it is already done, SHALL skip it if so, and otherwise SHALL do it and verify it. The steps are: the platform (the engine's minimum version, `/dev/kvm`, nested virtualisation); the kernel modules the runtime needs, loaded and kept across reboots; the runtime's release, at a version and with a checksum that the script holds and verifies before it extracts anything; the runtime's entry in the engine's `daemon.json`, merged into the existing file after a dated backup and refused when the file is not valid; a reload of the engine, then a check that the runtime is listed and that the containers that were running still run; and two smoke tests (a container under the runtime that reports a kernel other than the host's, and a Docker daemon in it that runs a container). The script SHALL say before it changes anything what it will install and change, SHALL restart the engine only when asked to, and SHALL list the containers a restart would stop. `install.sh` SHALL run the script's read-only check when `SHELF_STEP_DOCKER` is `on` and, when something is missing, SHALL offer to run the script through `sudo`, or run it when given the flag for it.
+The system SHALL provide a host script, apart from `install.sh` because it changes the system and needs root, that prepares the runtime named by `SHELF_STEP_RUNTIME` (Kata Containers by default) on Ubuntu and Debian, on x86_64 and arm64, and refuses on any other system with the reason and the other options. The script SHALL be safe to run again: each step SHALL check whether it is already done, SHALL skip it if so, and otherwise SHALL do it and verify it. The steps are: the platform (the engine's minimum version, `/dev/kvm`, nested virtualisation); the kernel modules the runtime needs, loaded and kept across reboots; the runtime's release, at a version and with a checksum that the script holds and verifies before it extracts anything; the runtime's entry in the engine's `daemon.json`, merged into the existing file after a dated backup and refused when the file is not valid; a reload of the engine, then a check that the runtime is listed and that the containers that were running still run; and two smoke tests (a container under the runtime that reports a kernel other than the host's, and a Docker daemon in a container that runs a container, started without privileged mode and with only the capabilities a step is given, by trying the step profiles in a fixed order and naming the first that works). The script SHALL say before it changes anything what it will install and change, SHALL restart the engine only when asked to, and SHALL list the containers a restart would stop. `install.sh` SHALL, when `SHELF_STEP_DOCKER` is `on` and `SHELF_STEP_DOCKER_PROFILE` is not set, ask the script to find the first profile that works on this host (`--probe`) and write it into the environment file, so that each host runs its steps with the profile it supports; and SHALL run the script's read-only check when `SHELF_STEP_DOCKER` is `on` and, when something is missing, SHALL offer to run the script through `sudo`, or run it when given the flag for it.
+
+#### Scenario: The host needs a more permissive profile
+
+- **WHEN** the standard profile does not start a Docker daemon on this host but a later one does
+- **THEN** the script says which profile works, and that the runner must be given it, and does not report the host as ready under the standard one
+
+#### Scenario: No profile works
+
+- **WHEN** no profile starts a Docker daemon on this host
+- **THEN** the script fails, shows the last lines each attempt printed, and says that Docker in steps cannot be used on this host
+
+#### Scenario: Never privileged
+
+- **WHEN** the script starts a container to prove a Docker daemon
+- **THEN** it does not use privileged mode, which under the runtime passes the host's devices through
 
 #### Scenario: Only looking
 
@@ -387,6 +407,11 @@ The system SHALL provide a host script, apart from `install.sh` because it chang
 
 - **WHEN** the downloaded release does not match the checksum the script holds
 - **THEN** nothing is extracted and the script stops
+
+#### Scenario: install.sh finds the profile of the host
+
+- **WHEN** `SHELF_STEP_DOCKER` is `on`, the host is ready and no profile is set
+- **THEN** `install.sh` asks the script to probe, writes the profile it names into the environment file, and does not probe again on later runs
 
 #### Scenario: install.sh finds the runtime missing
 
