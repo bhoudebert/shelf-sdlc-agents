@@ -1257,7 +1257,7 @@ The system SHALL, for the step that runs once the pull request is ready, open no
 
 ### Requirement: The worker gives each container step its clone, its repository's tools and its work's sessions
 
-The system SHALL, for an agent step in container mode, clone into a folder of the shared clones volume and name that folder, the repository, the work and whether the role may change the tools in the request, never a path of the worker's; SHALL create, before asking, the folders of the repository's tools and of the work's sessions in their volumes; SHALL lay the tools out as the worker's own set-up does (the repository's home, with its `mise`, `.m2`, `.npm` and `.cache`), so that what the worker's set-up installs is what the step finds; SHALL give a reviewer those tools read-only and the developer read-write; and SHALL send as the step's environment only the variables the runner accepts, leaving out the worker's `HOME`, `PATH` and `MISE_*`, which the step's image and the runner set.
+The system SHALL, for an agent step in container mode, clone into a folder of the shared clones volume and name that folder, the repository, the work and whether the role may change the tools in the request, never a path of the worker's; SHALL create, before asking, the folders of the repository's tools and of the work's sessions in their volumes; SHALL lay the tools out as the worker's own set-up does (the repository's home, with its `mise`, `.m2`, `.npm` and `.cache`), so that what the worker's set-up installs is what the step finds; SHALL give a reviewer those tools read-only and the developer read-write; and SHALL send as the step's environment the model credential the worker was given (`CLAUDE_CODE_OAUTH_TOKEN`, `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` or `ANTHROPIC_BASE_URL`, whichever is set) together with the step's own variables, only the ones the runner accepts, leaving out the worker's `HOME`, `PATH` and `MISE_*`, which the step's image and the runner set, and SHALL never print that credential in a log, a message or the work's record.
 
 #### Scenario: The clone is named, not its path
 
@@ -1278,6 +1278,16 @@ The system SHALL, for an agent step in container mode, clone into a folder of th
 
 - **WHEN** the step's environment holds `HOME`, `PATH` or `MISE_YES`
 - **THEN** none of them is sent, and the step's own values apply
+
+#### Scenario: The step has the model credential the worker has
+
+- **WHEN** the worker was given a model credential and asks the runner for a step
+- **THEN** the request's environment holds that credential, so that the agent in the container is logged in as it would be in the worker
+
+#### Scenario: No credential was given
+
+- **WHEN** the worker holds no model credential
+- **THEN** the request holds none and the step fails as it does in the worker, by saying that no model is set up
 
 ### Requirement: The step container reads its policy, its catalog and its guard rules and can change none of them
 

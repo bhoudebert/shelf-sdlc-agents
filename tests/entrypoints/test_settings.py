@@ -178,3 +178,12 @@ def test_container_isolation_with_everything_set_is_read_whole() -> None:
         "/run/shelf-runner/runner.sock", "t", Path("/var/lib/shelf/steps"), Path("/var/lib/shelf/sessions")
     )
     assert from_environ(BASE).container is None
+
+
+def test_container_mode_carries_the_model_credential_the_worker_was_given_and_hides_it() -> None:
+    settings = from_environ(
+        {**BASE, **CONTAINER, "CLAUDE_CODE_OAUTH_TOKEN": " sk-credential ", "ANTHROPIC_API_KEY": ""}
+    )
+    assert settings.container is not None
+    assert settings.container.model_env == (("CLAUDE_CODE_OAUTH_TOKEN", "sk-credential"),)
+    assert "sk-credential" not in repr(settings)

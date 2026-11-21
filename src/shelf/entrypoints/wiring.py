@@ -99,6 +99,7 @@ def agents_and_workspaces(settings: Settings, file: OperatorFile) -> tuple[Agent
         bindings=bound,
         extra_domains=extra,
         volumes=Volumes(shared.steps_dir, Path(settings.cache_dir), shared.sessions_dir),
+        model_env=dict(shared.model_env),
     )
     return backend, GitWorkspaces(root=clones)
 
