@@ -112,6 +112,17 @@ WORKDIR /work
 # The runner sets the command itself; this one is what a person gets with `docker run`.
 CMD ["shelf-step", "/run/shelf/task.json"]
 
+# --- A step with a Docker daemon of its own (decision 0020): the step image plus the engine and the compose plugin from
+# Debian, and the wrapper that starts the daemon as root inside the step's own kernel and then runs the step as its user.
+# The runner uses this image only for a step that asks for Docker, under the runtime the operator named: never on the host.
+FROM step AS step-docker
+USER root
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends docker.io docker-cli docker-compose iptables xz-utils \
+ && rm -rf /var/lib/apt/lists/*
+COPY scripts/shelf-step-docker /usr/local/bin/shelf-step-docker
+CMD ["shelf-step-docker", "/run/shelf/task.json"]
+
 # --- The runner (decision 0019): the only service that holds the container engine's socket. Python and its own code, and
 # nothing else: no git, no agent, no tools, no credential of the product.
 FROM python:3.15-slim AS runner

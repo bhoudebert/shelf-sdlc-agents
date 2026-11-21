@@ -11,6 +11,12 @@ network (so no host firewall is involved), and checks, in this order:
    the session an earlier one left;
 4. a step that runs past its deadline is stopped and ends with the reason ``timeout``.
 
+5. with ``SHELF_LIVE_RUNTIME`` set (the name of a runtime such as ``kata``) and the ``step-docker`` image (``STEP_DOCKER_IMAGE``,
+   built with ``docker build --target step-docker``): a step with a Docker daemon of its own, started by the runner's own
+   container rules under that runtime, runs the step as its user, has a kernel other than the host's, and starts a container
+   through its daemon (decision 0020). It pulls ``hello-world``, so it needs the network. Never run it with a runtime that is
+   not a virtual machine or a user-space kernel: the step holds capabilities that only the runtime keeps off the host.
+
 No credential and no cost: the "model" is ``warden/live/mock_anthropic.py``.
 """
 
@@ -33,6 +39,8 @@ from shelf.ports.step_runner import StepRequest
 
 ROOT = Path(__file__).resolve().parent.parent
 IMAGE = os.environ.get("STEP_IMAGE", "shelf-step-test")
+DOCKER_IMAGE = os.environ.get("STEP_DOCKER_IMAGE", "shelf-step-docker-test")
+RUNTIME = os.environ.get("SHELF_LIVE_RUNTIME", "")
 TOKEN = "live-check-token"  # noqa: S105
 SUFFIX = str(os.getpid())
 MOCK = f"shelf-live-mock-{SUFFIX}"
@@ -85,6 +93,8 @@ def background(command: list[str], env: dict[str, str] | None = None) -> Iterato
 def rules(socket_dir: str) -> RunnerRules:
     del socket_dir
     return RunnerRules(
+        docker_runtime=RUNTIME,
+        docker_image=DOCKER_IMAGE,
         image=IMAGE,
         network=NETWORK,
         steps_volume=STEPS,
@@ -149,6 +159,42 @@ async def probe() -> None:
     expect(again.strip() == "kept", "a later container of the same work finds the earlier session")
 
 
+async def probe_docker() -> None:
+    """A step with a Docker daemon of its own: the wrapper starts it, and the step's command is replaced by a probe."""
+    probe = (
+        "mkdir -p /tmp/bin && printf '%s\\n' '#!/bin/sh' 'echo uid=$(id -u)' 'echo kernel=$(uname -r)' "
+        "'docker compose version >/dev/null && echo compose=yes' "
+        "'docker run --rm hello-world >/dev/null && echo inner=yes' > /tmp/bin/shelf-step && chmod +x /tmp/bin/shelf-step "
+        "&& PATH=/tmp/bin:$PATH exec shelf-step-docker x"
+    )
+    ask = parse_request(
+        {"key": "docker-1", "repo": REPO, "clone": "steps/t1/repo", "session": "work/t1", "docker": True, "input": {}},
+        rules(""),
+    )
+    spec = container_spec(ask.value, rules(""), expires=int(time.time()) + 600)  # pyright: ignore[reportAttributeAccessIssue]
+    spec = {**spec, "Cmd": ["sh", "-c", probe]}
+    engine = DockerEngine()
+    container = await engine.create(spec, f"shelf-step-docker-probe-{SUFFIX}")
+    try:
+        await engine.put_file(container, "/run/shelf", "task.json", b"{}")
+        await engine.start(container)
+        out = b"".join([chunk async for chunk in engine.stdout(container)]).decode()
+        await engine.wait(container)
+    finally:
+        await engine.remove(container)
+    facts = dict(line.split("=", 1) for line in out.splitlines() if "=" in line)
+    host_kernel = os.uname().release
+    expect(facts.get("uid") == "1000", "the step runs as its own user, not as the daemon's root")
+    expect(
+        bool(facts.get("kernel")) and facts["kernel"] != host_kernel, "the step has a kernel of its own, not the host's"
+    )
+    expect(facts.get("compose") == "yes", "docker compose is there")
+    expect(facts.get("inner") == "yes", "the step's own daemon starts a container")
+    expect(
+        docker("ps", "-a", "--filter", "label=shelf.managed=true", "--format", "{{.ID}}") == "", "and nothing is left"
+    )
+
+
 async def step(socket: str, host: str, port: int, key: str, seconds: int | None = None) -> tuple[list[str], float]:
     runner = HttpStepRunner(socket, TOKEN)
     request = StepRequest(
@@ -192,6 +238,8 @@ def main() -> int:
     prepare()
     try:
         asyncio.run(probe())
+        if RUNTIME:
+            asyncio.run(probe_docker())
         with tempfile.TemporaryDirectory() as directory:
             socket = f"{directory}/runner.sock"
             port = 8080
