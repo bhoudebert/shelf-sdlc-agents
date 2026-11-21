@@ -1296,6 +1296,21 @@ The system SHALL, for a step that has a Docker daemon of its own, write the oper
 - **WHEN** a step with Docker runs on the step network and the operator's resolvers are set
 - **THEN** its `/etc/resolv.conf` names them, the model's host resolves, and the step reaches the model
 
+#### Scenario: A resolv.conf that cannot be written
+
+- **WHEN** the step's `/etc/resolv.conf` is read-only, as the file a guest is given can be
+- **THEN** the step mounts a file it wrote in its own temporary folder over it, writes the file directly only if the mount is refused, and starts the step all the same
+
+#### Scenario: The resolvers cannot be set at all
+
+- **WHEN** neither the mount nor a direct write works
+- **THEN** the step says so on its standard error and goes on, because setting the resolvers never stops a step
+
+#### Scenario: A step that ends before it says anything
+
+- **WHEN** the container ends before the step wrote its first line
+- **THEN** the worker reports that the step ended before it said hello, with its exit code, and not a protocol error about the first line
+
 #### Scenario: A resolver the guest cannot reach is refused
 
 - **WHEN** the operator's resolvers hold a loopback address or something that is not an address

@@ -295,6 +295,9 @@ class StepStream:
         if isinstance(event, Ping | Unknown):
             return
         if not self._started:
+            if isinstance(event, Exit):  # the container ended before the step said anything: ``failure`` says so
+                self.exit = event
+                return
             if not isinstance(event, Hello):
                 _fail("the step did not start with hello")
             if event.version > PROTOCOL:
@@ -331,6 +334,9 @@ class StepStream:
             return "the step's stream ended without an exit: the container stopped or the connection broke"
         if self.exit.reason:
             return REASONS.get(self.exit.reason, f"the step ended: {self.exit.reason[:40]}")
+        if not self._started:
+            code = self.exit.code
+            return f"the step ended before it said hello (exit code {code}): it wrote nothing the worker could read"
         said = self.result is not None or self.check is not None
         if self.exit.code != 0 and not said:
             return f"the step exited with code {self.exit.code} and no result"

@@ -208,3 +208,19 @@ def test_the_output_of_a_check_is_hidden_on_arrival_when_it_holds_a_secret() -> 
 def test_a_check_line_with_the_wrong_shape_is_a_protocol_error() -> None:
     with pytest.raises(StreamError, match="code"):
         decode('{"e":"check","code":"one","output":""}')
+
+
+def test_a_step_that_ends_before_it_says_hello_is_reported_as_ended_and_not_as_a_protocol_error() -> None:
+    stream = feed(StepStream(), lines(Exit(1)))
+
+    assert "ended before it said hello" in stream.failure()
+    assert "exit code 1" in stream.failure()
+
+
+def test_a_step_that_was_stopped_before_hello_says_why_it_was_stopped() -> None:
+    assert "ran out of time" in feed(StepStream(), lines(Exit(-1, "timeout"))).failure()
+
+
+def test_a_step_that_speaks_before_hello_is_still_a_protocol_error() -> None:
+    with pytest.raises(StreamError, match="hello"):
+        feed(StepStream(), lines(Tool("a", "Bash", "x")))
