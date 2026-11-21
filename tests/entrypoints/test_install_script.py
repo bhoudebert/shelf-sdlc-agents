@@ -1,3 +1,4 @@
+import json
 import os
 import shutil
 import subprocess
@@ -5,6 +6,8 @@ import tomllib
 from pathlib import Path
 
 import pytest
+
+from shelf.entrypoints.settings import from_environ
 
 DEPLOY = Path(__file__).parents[2] / "deploy"
 
@@ -356,3 +359,34 @@ def test_the_container_overlay_gives_the_runner_the_socket_and_the_worker_only_t
     assert "env_file" not in runner, "no secret of the product reaches the runner"
     assert "SHELF_STEP_SET_WARDEN_PROFILE" in runner
     assert "SHELF_ISOLATION: container" in worker
+
+
+@pytest.mark.skipif(shutil.which("docker") is None, reason="needs docker compose to resolve the environment")
+def test_in_container_mode_only_the_worker_holds_the_runner_key_and_every_service_can_start(tmp_path: Path) -> None:
+    """The services share one environment file: web must not need container settings, nor hold the key."""
+    shutil.copytree(DEPLOY, tmp_path / "deploy")
+    deploy = tmp_path / "deploy"
+    (deploy / ".env").write_text(
+        "PUBLIC_URL=https://x.test\nSESSION_SECRET=s\nSHELF_ISOLATION=container\nSHELF_RUNNER_TOKEN=the-key\n"
+    )
+    done = subprocess.run(
+        [  # noqa: S607
+            "docker", "compose", "--profile", "tools", "--env-file", ".env", "-f", "compose.yml",
+            "-f", "compose.container.yml", "config", "--format", "json",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=deploy,
+        timeout=60,
+    )  # fmt: skip
+    assert done.returncode == 0, done.stderr
+    services = json.loads(done.stdout)["services"]
+    web = from_environ(services["web"]["environment"])
+    assert web.container is None
+    assert not services["web"]["environment"].get("SHELF_RUNNER_TOKEN")
+    assert not services["catalog"]["environment"].get("SHELF_RUNNER_TOKEN")
+    assert "the-key" not in json.dumps(services["web"]) + json.dumps(services["runner"].get("volumes", ""))
+    worker = from_environ(services["worker"]["environment"])
+    assert worker.container is not None
+    assert worker.container.token == "the-key"
