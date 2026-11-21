@@ -27,6 +27,8 @@ DOCKER_TIMEOUT: Final = 15.0
 LOG_LINES: Final = 40
 CONTAINERS_SHOWN: Final = 4
 CONTAINER_CHARS: Final = 2_500
+PROBES_SHOWN: Final = 3
+PROBE_CHARS: Final = 300
 PROGRESS: Final = re.compile(r"^\s*([0-9a-f]{12}) (Extracting|Downloading)\b")
 """One line of an image pull: a layer's id and what it is doing. Each repeats with new numbers, hundreds of times."""
 
@@ -65,6 +67,25 @@ async def _ask_docker(*args: str, limit: float) -> str | None:
     return output.decode(errors="replace") if process.returncode == 0 else None
 
 
+def probes_of(health: str | None) -> str:
+    """The last probes of a healthcheck, as ``docker inspect`` reports them: exit code and what each printed."""
+    try:
+        parsed = json.loads(health or "null")
+    except ValueError:
+        return ""
+    log = cast("dict[str, Any]", parsed).get("Log") if isinstance(parsed, dict) else None
+    if not isinstance(log, list) or not log:
+        return ""
+    lines = ["the healthcheck's last probes:"]
+    for probe in cast("list[Any]", log)[-PROBES_SHOWN:]:
+        if not isinstance(probe, dict):
+            continue
+        entry = cast("dict[str, Any]", probe)
+        printed = " ".join(str(entry.get("Output", "")).split())[:PROBE_CHARS] or "(it printed nothing)"
+        lines.append(f"  exit code {entry.get('ExitCode')}: {printed}")
+    return "\n".join(lines) if len(lines) > 1 else ""
+
+
 def _is_well(status: str) -> bool:
     return status.startswith("Up") and "unhealthy" not in status and "starting" not in status
 
@@ -85,6 +106,9 @@ async def containers_said(limit: float) -> str:
             f"--- {name} ({status}): the last lines of its log ---",
             (log or "(no log)")[-CONTAINER_CHARS:].rstrip(),
         ]
+        health = await _ask_docker("inspect", "--format", "{{json .State.Health}}", name, limit=limit)
+        if probes := probes_of(health):
+            sections += ["", probes]
     return "\n".join(sections) + "\n"
 
 
