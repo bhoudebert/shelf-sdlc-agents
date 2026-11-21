@@ -171,7 +171,7 @@ reload_do() {
 
 # What the runner gives a step that has a Docker daemon (DOCKER_CAPS and the profiles of src/shelf/domain/stepspec.py; a test keeps
 # them equal), never privileged mode: under the runtime it would hand the host's devices to the virtual machine.
-step_flags="--user 0:0 --read-only --init --cap-add SYS_ADMIN --cap-add NET_ADMIN --cap-add SYS_RESOURCE --cap-add MKNOD --tmpfs /run:rw,nosuid,size=64m --tmpfs /tmp:rw,nosuid,size=2048m --tmpfs /var/lib/docker:rw,size=2048m"
+step_flags="--user 0:0 --read-only --init --cap-add SYS_ADMIN --cap-add NET_ADMIN --cap-add SYS_RESOURCE --cap-add MKNOD --cap-add SYS_PTRACE --tmpfs /run:rw,nosuid,size=64m --tmpfs /tmp:rw,nosuid,size=2048m --tmpfs /var/lib/docker:rw,size=2048m"
 profiles="standard unconfined systempaths full"
 profile_flags() {
   case "$1" in
@@ -204,6 +204,17 @@ until [ "$(docker inspect -f "{{.State.Health.Status}}" svc 2> /dev/null)" = hea
   sleep 1
 done
 docker exec svc true > /dev/null 2>&1 || { echo "exec-failed: $(docker exec svc true 2>&1 | head -n 2)"; exit 1; }
+# A service that drops its privileges at start, as a database does: runc cannot enter such a container without
+# CAP_SYS_PTRACE, which a root busybox hides. Its own healthcheck is an exec, so it must turn healthy.
+docker run -d --name db -e POSTGRES_USER=probe -e POSTGRES_PASSWORD=probe -e POSTGRES_DB=probe \
+  --health-cmd "pg_isready -U probe -d probe" --health-interval 2s --health-timeout 3s --health-retries 30 "$DB_IMAGE" > /dev/null 2>&1 \
+  || { echo "db-did-not-start"; exit 1; }
+i=0
+until [ "$(docker inspect -f "{{.State.Health.Status}}" db 2> /dev/null)" = healthy ]; do
+  i=$((i + 1))
+  [ "$i" -lt 90 ] || { echo "db-never-healthy: $(docker inspect -f "{{json .State.Health.Log}}" db 2>&1 | cut -c1-400)"; exit 1; }
+  sleep 1
+done
 # the step image has no wget: a container on the step'"'"'s own network (nested host mode) asks the published port
 docker run --rm --network host busybox wget -S -O /dev/null "http://127.0.0.1:$PORT" 2>&1 | grep -q "HTTP/" || { echo "publish-failed"; exit 1; }
 echo inner-ok'
@@ -221,7 +232,7 @@ probe_profile() {
   docker image inspect "$smoke_dind_image" > /dev/null 2>&1 || docker pull -q "$smoke_dind_image" > /dev/null 2>&1 || true
   # shellcheck disable=SC2046,SC2086
   probe_out=$(timeout "${SHELF_PROBE_TIMEOUT:-240}" docker run --rm --name "shelf-probe-$$" --runtime "$runtime" $step_flags \
-    $(profile_flags "$1") -e "PORT=$(busy_port)" --entrypoint sh "$probe_image" -c "$probe_body" 2>&1) || true
+    $(profile_flags "$1") -e "PORT=$(busy_port)" -e "DB_IMAGE=${SHELF_PROBE_DB_IMAGE:-postgres:18.7}" --entrypoint sh "$probe_image" -c "$probe_body" 2>&1) || true
   docker rm -f "shelf-probe-$$" > /dev/null 2>&1 || true
   case "$probe_out" in *inner-ok*) return 0 ;; esac
   return 1

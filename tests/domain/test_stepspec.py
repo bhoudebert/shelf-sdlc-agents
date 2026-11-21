@@ -527,3 +527,16 @@ def test_a_step_with_docker_does_not_carry_no_new_privileges_but_a_step_without_
     assert spec()["HostConfig"]["SecurityOpt"] == ["no-new-privileges"]
     for profile in DOCKER_PROFILES:
         assert "no-new-privileges" not in profile_host(profile)["SecurityOpt"], profile
+
+
+def test_a_step_with_docker_can_enter_a_container_whose_process_changed_user() -> None:
+    """runc cannot open the namespaces of such a process (a database after gosu) without CAP_SYS_PTRACE."""
+    for profile in DOCKER_PROFILES:
+        assert "SYS_PTRACE" in profile_host(profile)["CapAdd"], profile
+    assert "SYS_PTRACE" in DOCKER_CAPS
+
+
+def test_a_step_without_docker_gets_no_added_capability_and_drops_them_all() -> None:
+    host = spec()["HostConfig"]
+    assert host["CapDrop"] == ["ALL"]
+    assert "CapAdd" not in host

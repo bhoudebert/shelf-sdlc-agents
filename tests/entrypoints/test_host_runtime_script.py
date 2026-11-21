@@ -707,3 +707,21 @@ def test_a_published_port_is_asked_from_a_container_on_the_steps_own_network() -
     body = proof_script()
     assert "--network host" in body
     assert "busybox wget" in body
+
+
+def test_the_proof_starts_a_service_that_drops_its_privileges_and_waits_for_its_own_healthcheck() -> None:
+    """A root busybox can be entered without CAP_SYS_PTRACE; a database that changed user cannot: so the proof uses one."""
+    body = proof_script()
+    assert "POSTGRES_PASSWORD" in body
+    assert "pg_isready" in body
+    assert "--health-cmd" in body
+    assert "db-never-healthy" in body
+    assert body.index("db-never-healthy") < body.index("inner-ok")
+    assert "DB_IMAGE=${SHELF_PROBE_DB_IMAGE:-postgres:" in SCRIPT.read_text()
+    waits = r'until \[ "\$\(docker inspect -f "\{\{\.State\.Health\.Status\}\}" db '
+    assert re.search(waits, body), "the proof waits for the database to become healthy"
+
+
+def test_the_proof_asks_the_published_port_of_the_database_too() -> None:
+    body = proof_script()
+    assert "nc -z" in body or "busybox wget" in body
