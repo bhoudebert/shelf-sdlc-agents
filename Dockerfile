@@ -79,6 +79,9 @@ RUN mkdir -p /var/lib/warden && chown shelf:shelf /var/lib/warden
 RUN mkdir -p /var/lib/shelf-guard && chown shelf:shelf /var/lib/shelf-guard
 # What each agent run did, for diagnosing a work: the worker writes it, the web service reads it.
 RUN mkdir -p /var/lib/shelf-runs && chown shelf:shelf /var/lib/shelf-runs
+# In container mode the worker shares these with the step containers (a volume each, decision 0019). Created here, owned by the
+# agent user, so that a new volume mounted on them is writable by the worker, as the folders above are.
+RUN mkdir -p /var/lib/shelf/steps /var/lib/shelf/sessions && chown shelf:shelf /var/lib/shelf /var/lib/shelf/steps /var/lib/shelf/sessions
 # Where the synced catalog and the managed policy are mounted: owned by the agent user, so a new volume is writable by the sync.
 RUN mkdir -p /opt/shelf/catalog /etc/claude-code && chown shelf:shelf /opt/shelf/catalog /etc/claude-code
 COPY --from=build --chown=shelf:shelf /app /app
