@@ -66,7 +66,10 @@ def test_it_starts_the_daemon_for_the_steps_group_and_then_runs_the_program_it_w
     done = run(fake, "shelf-check", "/run/shelf/task.json", ready=True)
 
     assert done.returncode == 0, done.stderr
-    assert done.stdout.strip() == "setpriv --reuid=1000 --regid=1000 --init-groups shelf-check /run/shelf/task.json"
+    assert (
+        done.stdout.strip()
+        == "setpriv --reuid=1000 --regid=1000 --init-groups --no-new-privs shelf-check /run/shelf/task.json"
+    )
     assert "dockerd --host=unix:///var/run/docker.sock --group=shelf" in (fake / "calls").read_text()
 
 
@@ -86,12 +89,16 @@ def test_a_daemon_that_does_not_answer_ends_the_step_with_what_the_daemon_said(f
     assert "setpriv" not in done.stdout
 
 
-def test_the_image_that_uses_it_installs_the_daemon_the_client_and_compose() -> None:
-    """Debian's docker.io holds the daemon only: without docker-cli the wrapper waits for a client that is not there."""
+def test_the_image_that_uses_it_carries_the_docker_projects_own_release_and_not_the_distributions() -> None:
+    """Debian's docker.io is 26.1 with an older runc, whose exec could not enter a container on the guest's kernel."""
     dockerfile = (ROOT / "Dockerfile").read_text()
     stage = dockerfile.split("FROM step AS step-docker")[1].split("\nFROM ")[0]
-    for package in ("docker.io", "docker-cli", "docker-compose"):
-        assert re.search(rf"\b{re.escape(package)}\b", stage), package
+    copied = " ".join(stage.replace("\\\n", " ").split())
+    for program in ("dockerd", "docker", "runc", "containerd", "docker-init", "docker-proxy"):
+        assert re.search(rf"COPY --from=docker:\d+\.\d+\.\d+-dind [^\n]*/usr/local/bin/{program}\b", copied), program
+    assert "/usr/local/libexec/docker/cli-plugins/docker-compose" in copied, "compose"
+    assert not re.search(r"apt-get install[^\n]*\bdocker\.io\b", copied)
+    assert not re.search(r"apt-get install[^\n]*\bdocker-cli\b", copied)
     assert "COPY scripts/shelf-step-docker /usr/local/bin/shelf-step-docker" in stage
     assert 'CMD ["shelf-step-docker"' in stage
 
@@ -217,3 +224,9 @@ def test_a_missing_resolv_conf_does_not_stop_the_step(fake: Path) -> None:
 
     assert done.returncode == 0, done.stderr
     assert "setpriv" in done.stdout
+
+
+def test_the_steps_own_command_keeps_no_new_privileges_although_the_daemons_container_does_not(fake: Path) -> None:
+    done = run(fake, "shelf-step", "/run/shelf/task.json", ready=True)
+
+    assert "--no-new-privs" in done.stdout

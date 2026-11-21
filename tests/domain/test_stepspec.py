@@ -344,37 +344,27 @@ def profile_host(profile: str) -> dict[str, Any]:
 def test_the_standard_profile_is_the_default_and_lifts_nothing() -> None:
     assert RunnerRules(image="x").docker_profile == "standard"
     host = profile_host("standard")
-    assert host["SecurityOpt"] == ["no-new-privileges"]
+    assert host["SecurityOpt"] == []
     assert "CgroupnsMode" not in host
     assert host["CapAdd"] == list(DOCKER_CAPS)
 
 
 def test_the_unconfined_profile_lifts_the_guests_seccomp_and_apparmor_and_nothing_else() -> None:
     host = profile_host("unconfined")
-    assert host["SecurityOpt"] == ["no-new-privileges", "seccomp=unconfined", "apparmor=unconfined"]
+    assert host["SecurityOpt"] == ["seccomp=unconfined", "apparmor=unconfined"]
     assert "CgroupnsMode" not in host
 
 
 def test_the_systempaths_profile_also_lifts_the_read_only_and_masked_system_paths() -> None:
     host = profile_host("systempaths")
-    assert host["SecurityOpt"] == [
-        "no-new-privileges",
-        "seccomp=unconfined",
-        "apparmor=unconfined",
-        "systempaths=unconfined",
-    ]
+    assert host["SecurityOpt"] == ["seccomp=unconfined", "apparmor=unconfined", "systempaths=unconfined"]
     assert "CgroupnsMode" not in host
     assert host["CapAdd"] == list(DOCKER_CAPS)
 
 
 def test_the_full_profile_is_everything_privileged_mode_gives_except_the_hosts_devices() -> None:
     host = profile_host("full")
-    assert host["SecurityOpt"] == [
-        "no-new-privileges",
-        "seccomp=unconfined",
-        "apparmor=unconfined",
-        "systempaths=unconfined",
-    ]
+    assert host["SecurityOpt"] == ["seccomp=unconfined", "apparmor=unconfined", "systempaths=unconfined"]
     assert host["CgroupnsMode"] == "host"
     assert host["CapAdd"] == [*DOCKER_CAPS, "ALL"]
     assert host["Privileged"] is False
@@ -530,3 +520,10 @@ def test_a_resolver_that_is_not_an_address_a_guest_can_reach_is_refused(text: st
     result = parse_resolvers(text)
     assert isinstance(result, Err)
     assert "SHELF_STEP_DNS" in result.error
+
+
+def test_a_step_with_docker_does_not_carry_no_new_privileges_but_a_step_without_it_still_does() -> None:
+    assert "no-new-privileges" not in docker_spec()["HostConfig"]["SecurityOpt"]
+    assert spec()["HostConfig"]["SecurityOpt"] == ["no-new-privileges"]
+    for profile in DOCKER_PROFILES:
+        assert "no-new-privileges" not in profile_host(profile)["SecurityOpt"], profile

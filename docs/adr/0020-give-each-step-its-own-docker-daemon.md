@@ -42,6 +42,11 @@ no step holds the runner's socket.
   printed `ready to accept connections`: `docker exec` failed in the nested guest, and a healthcheck is an exec. The host proof now
   needs a container with a healthcheck to become healthy, a command to run in a running container, and a port the host already
   uses to answer from inside the step; a profile under which one fails is not taken.
+- **The step runs the Docker that the host proved.** The proof passed with the Docker project's 28.5.2 (runc 1.3.3), while the step
+  image carried Debian's 26.1.5 and its older runc: in the real step `docker exec` failed (`setns`), so no healthcheck could pass.
+  The image now copies the project's own binaries at a pinned version, the proof runs in that image with the runner's own
+  flags (read-only root, init, no `no-new-privileges` on the daemon's container: the wrapper gives it to the agent's command),
+  and `install.sh` builds the image before it probes. What passes the proof is what runs.
 - **The network is the step's.** What a nested container reaches is what the step container reaches, so the step's network rules
   and the egress decisions of 0019 apply to it unchanged. Registries the daemon pulls from are hosts like any other.
 - **Images are not cached between steps yet.** The daemon's storage is a volume of the step that goes with it, so each step pulls

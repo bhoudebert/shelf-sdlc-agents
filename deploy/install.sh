@@ -100,6 +100,9 @@ if [ "$(value SHELF_STEP_DOCKER)" = "on" ]; then
   # virtual machine cannot use Docker's embedded one). Each is found once, here, by the host script, and written down. A value
   # you set yourself is proved but never replaced.
   if [ -z "$(value SHELF_STEP_DOCKER_PROFILE)" ] || [ -z "$(value SHELF_STEP_DNS)" ]; then
+    # The proof runs in the image of a step, so it is built first (the build below finds it cached).
+    echo "Building the image of a step with Docker, which the host is proved with..."
+    $compose --profile tools build step-docker || { echo "ERROR: the step image with Docker could not be built (see above)." >&2; exit 1; }
     echo "Finding what a step with Docker needs on this host (a few containers start; this takes a minute or two)..."
     probed=$(SHELF_STEP_RUNTIME="$runtime" SHELF_STEP_DNS="$(value SHELF_STEP_DNS)" sh "$host_script" --probe) || {
       echo "ERROR: Docker in steps cannot be used on this host (see above). Set SHELF_STEP_DOCKER=off to go on without it." >&2

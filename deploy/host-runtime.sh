@@ -171,7 +171,7 @@ reload_do() {
 
 # What the runner gives a step that has a Docker daemon (DOCKER_CAPS and the profiles of src/shelf/domain/stepspec.py; a test keeps
 # them equal), never privileged mode: under the runtime it would hand the host's devices to the virtual machine.
-step_flags="--cap-add SYS_ADMIN --cap-add NET_ADMIN --cap-add SYS_RESOURCE --cap-add MKNOD --tmpfs /run:rw,nosuid,size=64m --tmpfs /var/lib/docker:rw,size=2048m"
+step_flags="--user 0:0 --read-only --init --cap-add SYS_ADMIN --cap-add NET_ADMIN --cap-add SYS_RESOURCE --cap-add MKNOD --tmpfs /run:rw,nosuid,size=64m --tmpfs /tmp:rw,nosuid,size=2048m --tmpfs /var/lib/docker:rw,size=2048m"
 profiles="standard unconfined systempaths full"
 profile_flags() {
   case "$1" in
@@ -204,7 +204,8 @@ until [ "$(docker inspect -f "{{.State.Health.Status}}" svc 2> /dev/null)" = hea
   sleep 1
 done
 docker exec svc true > /dev/null 2>&1 || { echo "exec-failed: $(docker exec svc true 2>&1 | head -n 2)"; exit 1; }
-wget -S -O /dev/null "http://127.0.0.1:$PORT" 2>&1 | grep -q "HTTP/" || { echo "publish-failed"; exit 1; }
+# the step image has no wget: a container on the step'"'"'s own network (nested host mode) asks the published port
+docker run --rm --network host busybox wget -S -O /dev/null "http://127.0.0.1:$PORT" 2>&1 | grep -q "HTTP/" || { echo "publish-failed"; exit 1; }
 echo inner-ok'
 
 # A port of this host that is already in use, above the privileged ones; the proof publishes it inside the step.
@@ -220,7 +221,7 @@ probe_profile() {
   docker image inspect "$smoke_dind_image" > /dev/null 2>&1 || docker pull -q "$smoke_dind_image" > /dev/null 2>&1 || true
   # shellcheck disable=SC2046,SC2086
   probe_out=$(timeout "${SHELF_PROBE_TIMEOUT:-240}" docker run --rm --name "shelf-probe-$$" --runtime "$runtime" $step_flags \
-    $(profile_flags "$1") -e "PORT=$(busy_port)" --entrypoint sh "$smoke_dind_image" -c "$probe_body" 2>&1) || true
+    $(profile_flags "$1") -e "PORT=$(busy_port)" --entrypoint sh "$probe_image" -c "$probe_body" 2>&1) || true
   docker rm -f "shelf-probe-$$" > /dev/null 2>&1 || true
   case "$probe_out" in *inner-ok*) return 0 ;; esac
   return 1
@@ -228,9 +229,23 @@ probe_profile() {
 
 # The first profile, from the least permissive, under which a daemon in a step runs a container. Sets found_profile; on no
 # luck prints what each attempt said and returns 1.
+# The image a step with Docker runs in, if it is built (install.sh builds it before it probes): the proof is the step. Else the
+# Docker project's own image, which proves less (a different Docker and runtime), and the output says so.
+step_image="${SHELF_STEP_DOCKER_IMAGE:-shelf-sdlc-step-docker:local}"
+choose_image() {
+  if docker image inspect "$step_image" > /dev/null 2>&1; then
+    probe_image="$step_image"
+  else
+    probe_image="$smoke_dind_image"
+    say "[note] the step image $step_image is not built: the proof runs in $smoke_dind_image, which is weaker (a different Docker" >&2
+    say "       and runtime than a step's). Build it first: docker compose ... --profile tools build step-docker" >&2
+  fi
+}
+
 find_profile() {
   found_profile=""
   attempts=""
+  choose_image
   for profile in $profiles; do
     started=$(date +%s)
     if probe_profile "$profile"; then
