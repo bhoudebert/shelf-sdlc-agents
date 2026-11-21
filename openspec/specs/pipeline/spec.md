@@ -197,3 +197,17 @@ The system SHALL start new work under a protocol version in which, after the pul
 
 - **WHEN** work that began under protocol 10 reaches the merge gate
 - **THEN** a person is asked at once, as before
+
+### Requirement: New work judges its checks loop by repetition, not by a count of rounds
+
+The system SHALL start new work under a protocol version (12) in which a failing check goes back to the implementer while its failure changes and a person is asked when the same failure comes back three times in a row, or at ten times the policy's rounds, and SHALL keep work that began under an earlier protocol on the count of rounds alone.
+
+#### Scenario: Work from before
+
+- **WHEN** work that began under protocol 11 has its checks fail more often than the policy's rounds
+- **THEN** a person is asked when the rounds run out, as before
+
+#### Scenario: New work
+
+- **WHEN** a course is built for new work
+- **THEN** it has protocol 12 and its checks loop is judged by the repetition of its failure
