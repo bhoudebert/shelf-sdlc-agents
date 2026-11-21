@@ -1,6 +1,7 @@
 """The container side of a step, and that what it writes fills the record as the sandbox path did. No SDK call is made."""
 
 import asyncio
+import re
 from collections.abc import AsyncIterator, Sequence
 from pathlib import Path
 
@@ -190,7 +191,7 @@ def test_a_step_whose_model_host_does_not_resolve_says_so_at_once_and_never_star
     assert isinstance(events[0], Hello)
     result = next(e for e in events if isinstance(e, Result))
     assert result.is_error
-    assert "api.anthropic.com" in result.result.split()
+    assert re.search(r"api\.anthropic\.com", result.result)
     assert "SHELF_STEP_DNS" in result.result
     assert started == []
 
