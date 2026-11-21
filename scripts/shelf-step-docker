@@ -51,4 +51,6 @@ until docker info > /dev/null 2>&1; do
   sleep 1
 done
 
-exec setpriv --reuid=1000 --regid=1000 --init-groups "$@"
+# The container is not marked no-new-privileges (every container the daemon starts would inherit it), so the step's own
+# command takes it here: the agent keeps the protection.
+exec setpriv --reuid=1000 --regid=1000 --init-groups --no-new-privs "$@"

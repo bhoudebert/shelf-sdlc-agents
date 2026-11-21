@@ -117,8 +117,14 @@ CMD ["shelf-step", "/run/shelf/task.json"]
 # The runner uses this image only for a step that asks for Docker, under the runtime the operator named: never on the host.
 FROM step AS step-docker
 USER root
+# The Docker project's own release (daemon, runtime, client, compose), the one the host proof runs: Debian's docker.io is 26.1
+# with an older runc, whose exec could not enter a container on the guest's newer kernel, so no healthcheck ever passed.
+COPY --from=docker:28.5.2-dind /usr/local/bin/containerd /usr/local/bin/containerd-shim-runc-v2 /usr/local/bin/ctr \
+  /usr/local/bin/docker /usr/local/bin/docker-init /usr/local/bin/docker-proxy /usr/local/bin/dockerd /usr/local/bin/runc \
+  /usr/local/bin/
+COPY --from=docker:28.5.2-dind /usr/local/libexec/docker/cli-plugins/docker-compose /usr/local/libexec/docker/cli-plugins/
 RUN apt-get update \
- && apt-get install -y --no-install-recommends docker.io docker-cli docker-compose iptables xz-utils \
+ && apt-get install -y --no-install-recommends iptables xz-utils pigz \
  && rm -rf /var/lib/apt/lists/*
 COPY scripts/shelf-step-docker /usr/local/bin/shelf-step-docker
 CMD ["shelf-step-docker", "/run/shelf/task.json"]

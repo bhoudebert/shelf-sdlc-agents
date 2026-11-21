@@ -465,6 +465,12 @@ def test_probing_before_the_runtime_is_there_says_to_install_it_first(host: Host
     assert "host-runtime.sh" in done.stdout + done.stderr
 
 
+def body_user(rules: object, ask: object) -> str:
+    from shelf.domain.stepspec import container_spec  # noqa: PLC0415
+
+    return str(container_spec(ask, rules, expires=1)["User"])  # pyright: ignore[reportArgumentType]
+
+
 def test_the_proof_runs_exactly_what_the_runner_would_start() -> None:
     """The script cannot import the runner's rules: this keeps its flags equal to them, so a proof is a proof."""
     from shelf.domain.result import Ok  # noqa: PLC0415
@@ -482,11 +488,20 @@ def test_the_proof_runs_exactly_what_the_runner_would_start() -> None:
         assert isinstance(ask, Ok)
         host = container_spec(ask.value, rules, expires=1)["HostConfig"]
         assert f"--tmpfs /run:{host['Tmpfs']['/run']}" in (caps.group(1))
+        # the rest of the runner's container, flag by flag
+        assert host["ReadonlyRootfs"] is True
+        assert "--read-only" in caps.group(1)
+        assert host["Init"] is True
+        assert "--init" in caps.group(1)
+        assert body_user(rules, ask.value) == "0:0"
+        assert "--user 0:0" in caps.group(1)
+        assert host["Tmpfs"]["/tmp"].startswith("rw,nosuid,size=")  # noqa: S108
+        assert "--tmpfs /tmp:rw,nosuid,size=" in caps.group(1)
         # the storage of the step's daemon is memory in the runner as in the proof (the size follows the step's limit there)
         assert host["Tmpfs"]["/var/lib/docker"].startswith("rw,size=")
         assert "--tmpfs /var/lib/docker:rw,size=" in caps.group(1)
         assert not [m for m in host["Mounts"] if m["Target"] == "/var/lib/docker"]
-        wanted = [f"--security-opt {o}" for o in host["SecurityOpt"] if o != "no-new-privileges"]
+        wanted = [f"--security-opt {o}" for o in host["SecurityOpt"]]
         wanted += ["--cgroupns=host"] if host.get("CgroupnsMode") == "host" else []
         wanted += ["--cap-add ALL"] if "ALL" in host["CapAdd"] else []
         listed = re.search(rf'{profile}\) printf \'%s\' "([^"]*)"', script)
@@ -662,3 +677,33 @@ def test_the_script_itself_is_valid_shell() -> None:
     checked = subprocess.run(["sh", "-n", str(SCRIPT)], capture_output=True, text=True, check=False)  # noqa: S603, S607
 
     assert checked.returncode == 0, checked.stderr
+
+
+def test_the_proof_runs_in_the_image_the_runner_uses_when_it_is_built(host: Host) -> None:
+    ready_host(host)
+
+    host.run("--probe")
+
+    call = next(line for line in docker_calls(host).splitlines() if "--entrypoint" in line)
+    assert "shelf-sdlc-step-docker:local" in call
+    assert "docker:28-dind" not in call
+
+
+def test_when_the_step_image_is_not_built_the_proof_says_it_fell_back_and_is_weaker(host: Host) -> None:
+    ready_host(host)
+    shell = host.bin / "docker"
+    shell.write_text(shell.read_text().replace("  image) exit 0;;", "  image) exit 1;;"))
+
+    done = host.run("--probe")
+
+    call = next(line for line in docker_calls(host).splitlines() if "--entrypoint" in line)
+    assert "docker:28-dind" in call
+    assert "not built" in done.stderr + done.stdout
+    assert "weaker" in done.stderr + done.stdout
+
+
+def test_a_published_port_is_asked_from_a_container_on_the_steps_own_network() -> None:
+    """The step image has no wget: a busybox container on the host network of the step asks it."""
+    body = proof_script()
+    assert "--network host" in body
+    assert "busybox wget" in body

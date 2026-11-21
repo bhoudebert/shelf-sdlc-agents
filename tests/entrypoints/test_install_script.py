@@ -491,6 +491,7 @@ case "$1" in
   --yes) touch "$HOST_READY"; exit "${HOST_INSTALL_EXIT:-0}";;
   --probe)
     echo "probe-env-dns=$SHELF_STEP_DNS" >> "$HOST_LOG"
+    echo "host-script --probe" >> "$DOCKER_LOG"
     [ -z "$HOST_PROBE_FAILS" ] || { echo "no profile works" >&2; exit 1; }
     echo "dns=${SHELF_STEP_DNS:-${HOST_DNS:-213.186.33.99}}"; echo "profile=${HOST_PROFILE:-standard}"; exit 0;;
 esac
@@ -767,3 +768,24 @@ def test_a_probe_that_names_no_resolvers_stops_before_building(server: Path) -> 
     assert done.returncode == 1
     assert "SHELF_STEP_DNS" in done.stderr
     assert "Building revision" not in done.stdout
+
+
+def test_the_image_of_a_step_with_docker_is_built_before_the_host_is_probed(server: Path) -> None:
+    docker_server(server, SHELF_STEP_RUNTIME="kata")
+
+    done = run_docker(server, ready=True)
+
+    assert done.returncode == 0, done.stderr
+    calls = (server / "docker.log").read_text().splitlines()
+    probe = calls.index("host-script --probe")
+    assert any("build step-docker" in line for line in calls[:probe])
+
+
+def test_when_nothing_is_to_be_probed_the_image_is_built_once_by_the_ordinary_step(server: Path) -> None:
+    docker_server(server, SHELF_STEP_RUNTIME="kata", SHELF_STEP_DOCKER_PROFILE="standard", SHELF_STEP_DNS="9.9.9.9")
+
+    done = run_docker(server, ready=True)
+
+    assert done.returncode == 0, done.stderr
+    calls = (server / "docker.log").read_text().splitlines()
+    assert sum("build step-docker" in line for line in calls) == 1

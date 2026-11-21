@@ -386,6 +386,8 @@ def _with_docker(body: dict[str, Any], rules: RunnerRules) -> dict[str, Any]:
     host["CapDrop"] = []
     host["CapAdd"] = list(DOCKER_CAPS)
     host["Tmpfs"] = {**host["Tmpfs"], "/run": "rw,nosuid,size=64m"}
+    # no-new-privileges is inherited by every container the daemon starts: the wrapper gives it to the step's command
+    host["SecurityOpt"] = []
     rung = DOCKER_PROFILES.index(rules.docker_profile)
     if rung >= DOCKER_PROFILES.index("unconfined"):
         host["SecurityOpt"] = [*host["SecurityOpt"], "seccomp=unconfined", "apparmor=unconfined"]
