@@ -304,6 +304,59 @@ The system SHALL run the agents' sandbox in its weaker nested mode only when the
 - **WHEN** the operator turns the nested sandbox on
 - **THEN** the sandbox is on in its nested mode
 
+### Requirement: The operator chooses where agents run
+
+The system SHALL read `SHELF_ISOLATION` as `sandbox` (the default: agents run in the worker, under the sandbox) or `container` (each agent step runs in a container of its own, decision 0019), SHALL refuse any other value at startup, and SHALL refuse `container` at startup, naming the missing runner, until the runner service exists.
+
+#### Scenario: Default
+
+- **WHEN** `SHELF_ISOLATION` is not set
+- **THEN** agents run in the worker under the sandbox, as before
+
+#### Scenario: An unknown value
+
+- **WHEN** `SHELF_ISOLATION` is `vm`
+- **THEN** the worker does not start, and the message lists `sandbox` and `container`
+
+#### Scenario: Container mode without a runner
+
+- **WHEN** `SHELF_ISOLATION` is `container` and no runner is configured
+- **THEN** the worker does not start, and the message says the runner service is missing
+
+### Requirement: A step in a container reports itself as a stream of versioned lines
+
+The system SHALL have the code that runs in a step's container report what the agent does as lines of JSON on its standard output, starting with a `hello` line that carries the protocol version, followed by `tool`, `tool_result`, `audit` and `result` lines and `ping` lines as a keepalive, and ending with an `exit` line written by whoever runs the container, never by the agent; and SHALL make the worker's reader ignore any field and any kind of line it does not know. A stream that ends without `exit`, a line that is not JSON and a protocol version newer than the worker knows SHALL fail the step, and the error SHALL NOT repeat the offending line.
+
+#### Scenario: A round trip
+
+- **WHEN** a step reports two tool calls, one of them failed, and a result
+- **THEN** the worker's record of the run holds the same two tool calls, the failure with its note, the usage, the session, the stop reasons and the refused calls that the sandbox path would have kept
+
+#### Scenario: A newer sender
+
+- **WHEN** a line has a field or a kind that the worker does not know
+- **THEN** the worker ignores it and the step goes on
+
+#### Scenario: A stream that stops
+
+- **WHEN** the stream ends without an `exit` line
+- **THEN** the step fails, whatever came before
+
+#### Scenario: A timeout is not a failure of the agent
+
+- **WHEN** the `exit` line says the container was stopped for time
+- **THEN** the step fails with a reason that names the time limit
+
+#### Scenario: Nothing leaks into the error
+
+- **WHEN** a line on the stream is not JSON
+- **THEN** the step fails with a message that does not contain that line
+
+#### Scenario: A session that cannot be continued
+
+- **WHEN** a step asked to continue a session fails
+- **THEN** the worker runs it again once from the whole task, and the record says it fell back, as the sandbox path does
+
 ### Requirement: A failed login tells the operator where the credential goes
 
 The system SHALL, when an agent fails because it is not logged in, say that the credential belongs in the worker's environment (a Claude token or an API key in the environment file), not in the host's own login.

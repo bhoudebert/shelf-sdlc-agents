@@ -38,6 +38,8 @@ class Settings:
     max_budget_usd: float | None
     nested_sandbox: bool
     sandbox: bool
+    isolation: str
+    """Where agents run: ``sandbox``, in the worker. ``container`` waits for the runner (decision 0019)."""
     claude_cli: str | None
     catalog_dir: Path
     cache_dir: str
@@ -118,6 +120,24 @@ def exit_with(error: Exception) -> NoReturn:
     raise SystemExit(message)
 
 
+ISOLATIONS = ("sandbox", "container")
+
+
+def _isolation(environ: Mapping[str, str]) -> str:
+    """``SHELF_ISOLATION``: refused by name when unknown, and when it asks for what does not exist yet."""
+    value = environ.get("SHELF_ISOLATION", "").strip().lower() or "sandbox"
+    if value not in ISOLATIONS:
+        message = f"SHELF_ISOLATION must be one of {', '.join(ISOLATIONS)}, not {value!r}"
+        raise ValueError(message)
+    if value == "container":
+        message = (
+            "SHELF_ISOLATION=container needs the runner service, which this release does not have yet "
+            "(decision 0019, stage 2): leave it unset or use sandbox"
+        )
+        raise ValueError(message)
+    return value
+
+
 def _switch(environ: Mapping[str, str], name: str, *, default: bool) -> bool:
     """An ``on`` or ``off`` variable; anything else is refused by name, not guessed."""
     value = environ.get(name, "").strip().lower()
@@ -157,6 +177,7 @@ def from_environ(environ: Mapping[str, str]) -> Settings:
         ci_wait=float(environ.get("SHELF_CI_WAIT", "1800")),
         ci_grace=float(environ.get("SHELF_CI_GRACE", "120")),
         sandbox=environ.get("SHELF_SANDBOX_DISABLED", "").strip().lower() not in {"1", "true", "yes"},
+        isolation=_isolation(environ),
         port=int(environ.get("PORT", "8080")),
         revision=environ.get("SHELF_REVISION", "unknown"),
         model_credential=any(environ.get(key, "").strip() for key in MODEL_CREDENTIALS),
