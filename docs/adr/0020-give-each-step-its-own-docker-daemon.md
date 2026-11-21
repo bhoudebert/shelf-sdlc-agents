@@ -35,6 +35,8 @@ no step holds the runner's socket.
   and the egress decisions of 0019 apply to it unchanged. Registries the daemon pulls from are hosts like any other.
 - **Images are cached per repository**, in a volume of the inner daemon's storage that one step at a time can hold, so the second
   step does not pull the database again.
+- **The host is prepared by a script, not by hand.** A separate, rerunnable script installs and checks the runtime (Ubuntu and
+  Debian), and `install.sh` offers to run it, so no operator has to follow a list of commands.
 - **The agents are told the truth.** The note about tools says that a private Docker is available, that it is the step's own and
   disappears with it, and that tests may start what they need. When the daemon is off, the note says Docker is not available, as
   today.

@@ -334,6 +334,40 @@ The system SHALL list, in the install guide of the site and in `deploy/README` t
 - **WHEN** an operator reads the guide's section on the runtime
 - **THEN** it says whether the install restarts the container engine and what that does to containers already running on the host
 
+### Requirement: A separate host script prepares the runtime for Docker in steps, one checked step at a time
+
+The system SHALL provide a host script, apart from `install.sh` because it changes the system and needs root, that prepares the runtime named by `SHELF_STEP_RUNTIME` (Kata Containers by default) on Ubuntu and Debian, on x86_64 and arm64, and refuses on any other system with the reason and the other options. The script SHALL be safe to run again: each step SHALL check whether it is already done, SHALL skip it if so, and otherwise SHALL do it and verify it. The steps are: the platform (the engine's minimum version, `/dev/kvm`, nested virtualisation); the kernel modules the runtime needs, loaded and kept across reboots; the runtime's release, at a version and with a checksum that the script holds and verifies before it extracts anything; the runtime's entry in the engine's `daemon.json`, merged into the existing file after a dated backup and refused when the file is not valid; a reload of the engine, then a check that the runtime is listed and that the containers that were running still run; and two smoke tests (a container under the runtime that reports a kernel other than the host's, and a Docker daemon in it that runs a container). The script SHALL say before it changes anything what it will install and change, SHALL restart the engine only when asked to, and SHALL list the containers a restart would stop. `install.sh` SHALL run the script's read-only check when `SHELF_STEP_DOCKER` is `private` and, when something is missing, SHALL offer to run the script through `sudo`, or run it when given the flag for it.
+
+#### Scenario: Run twice
+
+- **WHEN** the script runs on a host where every step is done
+- **THEN** it changes nothing, reports each step as done, and runs the smoke tests
+
+#### Scenario: A host that cannot do it
+
+- **WHEN** the host has no `/dev/kvm`, or is not Ubuntu or Debian
+- **THEN** the script stops before changing anything, says which requirement failed and names the other options
+
+#### Scenario: An existing daemon configuration
+
+- **WHEN** `/etc/docker/daemon.json` already holds other settings
+- **THEN** they are kept, a dated copy of the file is made first, and a file that is not valid JSON is left untouched with an error
+
+#### Scenario: The reload does not register the runtime
+
+- **WHEN** the engine does not list the runtime after a reload
+- **THEN** the script says so, lists the containers a restart would stop, and restarts only with the flag that asks for it
+
+#### Scenario: A tarball that does not match
+
+- **WHEN** the downloaded release does not match the checksum the script holds
+- **THEN** nothing is extracted and the script stops
+
+#### Scenario: install.sh finds the runtime missing
+
+- **WHEN** `SHELF_STEP_DOCKER` is `private`, the runtime is missing and a person is at the terminal
+- **THEN** `install.sh` shows what is missing, asks before running the host script through `sudo`, and goes on only if the check then passes
+
 ### Requirement: The worker refuses an isolation setting it cannot honour
 
 The system SHALL read `SHELF_ISOLATION` when the worker starts, SHALL run the agents in the worker under the sandbox when it is unset or `sandbox`, and SHALL refuse to start, naming the setting and the accepted values, when it holds anything else or asks for `container` without what that mode needs (the runner's token and the folders of the clones, the tools and the sessions that it shares with the runner), so that an agent never runs with less isolation than the operator asked for.
