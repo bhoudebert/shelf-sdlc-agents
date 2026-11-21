@@ -1362,12 +1362,22 @@ The system SHALL, for a step that has a Docker daemon of its own, write the oper
 
 ### Requirement: A check that fails in a step with Docker says what the step's own containers said
 
-The system SHALL, when a check command ends with a failure in a step that has a Docker daemon, add to the end of what it reports a section with the state of the containers the step started and the last lines of the log of each that is not running or is not healthy, so that "unhealthy" comes with the database's own message. The lines of an image pull that only repeat a layer's progress SHALL be collapsed to the last one of each layer, because they would otherwise fill the end of the output, which is all the report keeps. A step with no daemon, or whose daemon cannot be asked, SHALL report the command's output alone.
+The system SHALL, when a check command ends with a failure in a step that has a Docker daemon, add to the end of what it reports a section with the state of the containers the step started and the last lines of the log of each that is not running or is not healthy, so that "unhealthy" comes with the database's own message, and, for a container that has a healthcheck and is not healthy, the result of its last probes (the exit code and what the probe printed), because the log of the container says nothing of why a probe failed. The lines of an image pull that only repeat a layer's progress SHALL be collapsed to the last one of each layer, because they would otherwise fill the end of the output, which is all the report keeps. A step with no daemon, or whose daemon cannot be asked, SHALL report the command's output alone.
 
 #### Scenario: A container that is unhealthy
 
 - **WHEN** `docker compose up -d --wait` fails because a container is unhealthy
 - **THEN** the report ends with that container's state and the last lines of its log
+
+#### Scenario: A healthcheck that fails
+
+- **WHEN** a container is `unhealthy` and its healthcheck printed something or exited with a code
+- **THEN** the report shows its last probes with their exit code and output, after the container's log
+
+#### Scenario: A container with no healthcheck
+
+- **WHEN** a container that is not running has no healthcheck
+- **THEN** no probes are shown for it
 
 #### Scenario: A pull that printed thousands of progress lines
 
