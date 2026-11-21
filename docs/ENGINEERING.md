@@ -74,7 +74,7 @@ The reasons live in [`docs/adr/`](adr/README.md). The ones that shape everything
 | --- | --- |
 | Dependencies point inwards; the domain imports the standard library only; adapters do not know each other | `import-linter` contracts in `pyproject.toml`, in the quality gate |
 | The pipeline logic is a pure function | no I/O is importable in `domain`; property tests over random event sequences (`tests/domain/test_work.py`) |
-| A finished work item never changes; loops are bounded | `decide` ignores events once finished; `max_rounds` in the policy; property tests |
+| A finished work item never changes; loops are bounded | `decide` ignores events once finished; `max_rounds` in the policy (review loops); the checks loop ends on a failure that repeats three times, or at ten times `max_rounds`; property tests |
 | A workflow change does not break running work | history replay test on a real Temporal server |
 | People decide only with a closed list of commands, never interpreted by a model | `shelf.domain.commands` matches a fixed word list; only trusted commenters count |
 | Only people with a role decide where roles are set | `may_decide` in `shelf.domain.config`, checked in `decide_work` |

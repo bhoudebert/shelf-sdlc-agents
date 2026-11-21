@@ -172,7 +172,8 @@ def test_the_loop_gives_up_after_the_policy_limit_and_asks_a_person() -> None:
 def test_failing_checks_send_work_back_to_the_implementer_with_the_report() -> None:
     course = course_for(EntryPoint.IMPLEMENT, Policy())
     state, _ = decide(course, Running(Phase.VERIFY), StepDone(Verified(passed=False, report="2 tests fail")))
-    assert state == Running(Phase.IMPLEMENT, 1, "2 tests fail")
+    assert isinstance(state, Running)
+    assert (state.phase, state.attempt, state.feedback) == (Phase.IMPLEMENT, 1, "2 tests fail")
 
 
 def test_the_round_budget_survives_the_trip_through_the_checks() -> None:
@@ -380,7 +381,8 @@ def test_a_red_ci_at_the_merge_puts_the_pull_request_back_to_draft_and_sends_the
     state, commands = decide(
         course, Running(Phase.PULL_REQUEST), StepDone(Verified(passed=False, report="spec check failed"))
     )
-    assert state == Running(Phase.IMPLEMENT, 1, "spec check failed")
+    assert isinstance(state, Running)
+    assert (state.phase, state.attempt, state.feedback) == (Phase.IMPLEMENT, 1, "spec check failed")
     assert commands[0] == SetPullRequestReady(ready=False)
     assert RunStep(Phase.IMPLEMENT, 1, "spec check failed") in commands
     assert not any(isinstance(command, AskPerson) for command in commands)
@@ -422,7 +424,8 @@ def test_the_checks_that_find_the_ci_still_running_look_again_in_the_same_round(
 def test_red_ci_sends_the_work_back_to_the_implementer_like_failing_checks() -> None:
     course = course_for(EntryPoint.IMPLEMENT, Policy())
     state, _ = decide(course, Running(Phase.VERIFY, 0, WAITING_FOR_CI), StepDone(Verified(False, "CI is red")))
-    assert state == Running(Phase.IMPLEMENT, 1, "CI is red")
+    assert isinstance(state, Running)
+    assert (state.phase, state.attempt, state.feedback) == (Phase.IMPLEMENT, 1, "CI is red")
 
 
 def test_work_started_before_the_ci_was_read_does_not_wait_for_it() -> None:
@@ -526,7 +529,9 @@ def test_failing_checks_and_a_code_review_that_cannot_decide_still_wait_for_a_pe
         return happy(state)
 
     _, state = drive(course, red)
-    assert state == AwaitingPerson(Phase.VERIFY, Reason.ESCALATION, "limit of 1 rounds reached:\nmake test failed")
+    assert state == AwaitingPerson(
+        Phase.VERIFY, Reason.ESCALATION, "the checks failed the same way 3 times in a row:\nmake test failed"
+    )
     _, state = drive(course, deadlocked(Phase.CODE_REVIEW, Verdict.ESCALATE))
     assert isinstance(state, AwaitingPerson)
     assert (state.phase, state.reason) == (Phase.CODE_REVIEW, Reason.ESCALATION)
@@ -595,3 +600,120 @@ def test_work_that_began_earlier_is_judged_by_the_count_alone() -> None:
     state, _ = decide(course, Running(Phase.CODE_REVIEW, 2), StepDone(repeated))
     assert isinstance(state, AwaitingPerson)
     assert "limit of 2 rounds" in state.detail
+
+
+def _failing(report: str) -> Event:
+    return StepDone(Verified(passed=False, report=report))
+
+
+def _checks_failing(course: Course, reports: list[str]) -> list[State]:
+    """Run the checks and the implementer in turn, the checks failing with each report; the states after each failure."""
+    state: State = Running(Phase.VERIFY, 0)
+    seen: list[State] = []
+    for report in reports:
+        state, _ = decide(course, state, _failing(report))
+        seen.append(state)
+        if not isinstance(state, Running):
+            break
+        state, _ = decide(course, state, StepDone(Produced()))
+    return seen
+
+
+def test_checks_that_fail_differently_each_time_go_on_past_the_maximum_number_of_rounds() -> None:
+    course = _course_at(CURRENT_PROTOCOL, max_rounds=3)
+
+    seen = _checks_failing(course, [f"test {name} failed" for name in "abcdefgh"])
+
+    assert all(isinstance(state, Running) and state.phase is Phase.IMPLEMENT for state in seen)
+
+
+def test_the_same_failure_three_times_in_a_row_asks_a_person_and_says_so() -> None:
+    course = _course_at(CURRENT_PROTOCOL, max_rounds=3)
+
+    seen = _checks_failing(course, ["connection refused", "connection refused", "connection refused"])
+
+    assert all(isinstance(state, Running) for state in seen[:2])
+    last = seen[2]
+    assert isinstance(last, AwaitingPerson)
+    assert last.reason is Reason.ESCALATION
+    assert "3 times in a row" in last.detail
+    assert "connection refused" in last.detail
+
+
+def test_numbers_timings_and_identifiers_do_not_make_a_failure_new() -> None:
+    course = _course_at(CURRENT_PROTOCOL)
+    reports = [
+        "Tests run: 133, Failures: 2 in 33.1 s\ncontainer 0123456789abcdef failed at 21:58:48",
+        "Tests run: 133, Failures: 2 in 29.7 s\ncontainer fedcba9876543210 failed at 22:03:10",
+        "Tests run: 133, Failures: 2 in 31.0 s\ncontainer 00aa11bb22cc33dd failed at 22:09:01",
+    ]
+
+    seen = _checks_failing(course, reports)
+
+    assert isinstance(seen[2], AwaitingPerson)
+
+
+def test_a_different_failure_starts_the_count_again() -> None:
+    course = _course_at(CURRENT_PROTOCOL)
+
+    seen = _checks_failing(course, ["x broke", "x broke", "y broke", "y broke", "y broke"])
+
+    assert all(isinstance(state, Running) for state in seen[:4])
+    assert isinstance(seen[4], AwaitingPerson)
+    assert "y broke" in seen[4].detail
+
+
+def test_a_pass_of_the_checks_starts_the_count_again() -> None:
+    course = _course_at(CURRENT_PROTOCOL)
+    state: State = Running(Phase.VERIFY, 0)
+    for _ in range(2):
+        state, _c = decide(course, state, _failing("same"))
+        state, _c = decide(course, state, StepDone(Produced()))
+    state, _c = decide(course, state, StepDone(Verified(passed=True)))
+    assert isinstance(state, Running)
+    assert state.phase is Phase.CODE_REVIEW
+    state, _c = decide(course, state, StepDone(Reviewed(Verdict.CHANGES, "a point")))
+    state, _c = decide(course, state, StepDone(Produced()))
+    assert isinstance(state, Running)
+    assert state.phase is Phase.VERIFY
+
+    state, _c = decide(course, state, _failing("same"))
+
+    assert isinstance(state, Running)
+    assert state.phase is Phase.IMPLEMENT
+
+
+def test_checks_that_never_settle_end_at_ten_times_the_maximum() -> None:
+    course = _course_at(CURRENT_PROTOCOL, max_rounds=1)
+
+    seen = _checks_failing(course, [f"failure {'x' * n}" for n in range(1, 30)])
+
+    assert isinstance(seen[-1], AwaitingPerson)
+    assert len(seen) == 10
+    assert "limit of 10 rounds" in seen[-1].detail
+
+
+def test_the_rounds_of_the_checks_are_not_taken_from_the_code_review_loop() -> None:
+    course = _course_at(CURRENT_PROTOCOL, max_rounds=3)
+    state: State = Running(Phase.VERIFY, 0)
+    for n in range(6):
+        state, _c = decide(course, state, _failing(f"failure {'y' * (n + 1)}"))
+        state, _c = decide(course, state, StepDone(Produced()))
+    state, _c = decide(course, state, StepDone(Verified(passed=True)))
+    assert isinstance(state, Running)
+
+    state, _c = decide(course, state, StepDone(Reviewed(Verdict.CHANGES, "a point")))
+
+    assert isinstance(state, Running)
+    assert state.phase is Phase.IMPLEMENT
+
+
+def test_checks_of_work_that_began_earlier_stop_at_the_count_alone() -> None:
+    course = _course_at(11, max_rounds=2)
+
+    seen = _checks_failing(course, ["boom", "boom", "boom"])
+
+    assert isinstance(seen[0], Running)
+    assert isinstance(seen[1], Running)
+    assert isinstance(seen[2], AwaitingPerson)
+    assert "limit of 2 rounds" in seen[2].detail
