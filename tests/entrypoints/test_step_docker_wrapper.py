@@ -11,12 +11,14 @@ ROOT = Path(__file__).parents[2]
 WRAPPER = ROOT / "scripts" / "shelf-step-docker"
 
 FAKES = {
+    # The daemon answers `docker info` only after it has written everything it will write, so the wrapper never runs ahead of the
+    # fake and a test never reads the files of a daemon that is still starting.
     "dockerd": (
         'echo "dockerd $*" >> "$FAKE/calls"; '
         'echo "resolv: $(cat "$SHELF_RESOLV_CONF" 2>/dev/null | tr "\\n" " ")" >> "$FAKE/calls"; '
-        'echo "daemon noise on stdout"; echo "daemon log line" >&2; sleep 3'
+        'echo "daemon noise on stdout"; echo "daemon log line" >&2; touch "$FAKE/started"; sleep 3'
     ),
-    "docker": '[ -f "$FAKE/ready" ]',
+    "docker": '[ -f "$FAKE/ready" ] && [ -f "$FAKE/started" ]',
     "setpriv": 'echo "setpriv $*"',
     "mount": 'echo "mount $*" >> "$FAKE/calls"',
 }
