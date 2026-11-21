@@ -310,6 +310,11 @@ The system SHALL read `SHELF_ISOLATION` when the worker starts, SHALL run the ag
 - **WHEN** `SHELF_ISOLATION` is `container`, the runner's token is set and the three shared folders are given
 - **THEN** the worker starts, clones into the shared folder and asks the runner for each agent step
 
+#### Scenario: The web service in container mode
+
+- **WHEN** `SHELF_ISOLATION` is `container` in the environment file the services share
+- **THEN** the web service still starts, because it runs no agent, and it holds neither the runner's token nor a shared folder
+
 ### Requirement: Links to pull requests use the GitHub address the App is registered on
 
 The system SHALL build the links it shows to pull requests from the web address of the GitHub the App belongs to, github.com unless the operator names another.
