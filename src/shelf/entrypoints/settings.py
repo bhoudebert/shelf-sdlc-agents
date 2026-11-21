@@ -1,7 +1,7 @@
 """Everything the operator sets through the environment, read once, validated, immutable."""
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import NoReturn
 
@@ -31,6 +31,8 @@ class ContainerSettings:
     steps_dir: Path
     sessions_dir: Path
     """The tools volume is the cache directory: the worker's own set-up and the steps use the same one."""
+    model_env: tuple[tuple[str, str], ...] = field(default=(), repr=False)
+    """The model credential the worker was given, sent with every step: a container inherits nothing from the worker."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -167,6 +169,7 @@ def _container(environ: Mapping[str, str], isolation: str) -> ContainerSettings 
         token=environ["SHELF_RUNNER_TOKEN"].strip(),
         steps_dir=Path(environ["SHELF_STEPS_DIR"].strip()),
         sessions_dir=Path(environ["SHELF_SESSIONS_DIR"].strip()),
+        model_env=tuple((name, environ[name].strip()) for name in MODEL_CREDENTIALS if environ.get(name, "").strip()),
     )
 
 

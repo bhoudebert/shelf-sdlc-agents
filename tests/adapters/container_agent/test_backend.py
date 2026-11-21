@@ -205,3 +205,18 @@ async def test_the_workers_own_variables_are_not_sent(tmp_path: Path) -> None:
     env = {"GH_TOKEN": "t", "HOME": "/cache/home/x", "PATH": "/x", "MISE_YES": "1", "CLAUDE_CODE_OAUTH_TOKEN": "o"}
     await ContainerBackend(runner).run(task(env=env))
     assert dict(runner.requests[0].env) == {"GH_TOKEN": "t", "CLAUDE_CODE_OAUTH_TOKEN": "o"}
+
+
+async def test_the_step_gets_the_model_credential_the_worker_was_given() -> None:
+    runner = FakeRunner(good())
+    await ContainerBackend(runner, model_env={"CLAUDE_CODE_OAUTH_TOKEN": "tok", "HOME": "/root"}).run(
+        task(env={"GH_TOKEN": "gh"})
+    )
+    assert runner.requests[0].env == {"CLAUDE_CODE_OAUTH_TOKEN": "tok", "GH_TOKEN": "gh"}
+
+
+async def test_without_a_credential_the_request_holds_none_and_the_credential_never_shows_in_a_repr() -> None:
+    runner = FakeRunner(good())
+    await ContainerBackend(runner).run(task(env={}))
+    assert runner.requests[0].env == {}
+    assert "tok-secret" not in repr(ContainerBackend(runner, model_env={"ANTHROPIC_API_KEY": "tok-secret"}))

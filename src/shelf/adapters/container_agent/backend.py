@@ -2,7 +2,7 @@
 
 import logging
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from fnmatch import fnmatchcase
 from pathlib import Path
 from uuid import uuid4
@@ -93,6 +93,8 @@ class ContainerBackend:
     """The sites an administrator added from the page, read for every step so a change applies at once."""
     volumes: Volumes | None = None
     """Where the clones, tools and sessions are; without it the request names none (a test with a fake runner)."""
+    model_env: Mapping[str, str] = field(default_factory=dict[str, str], repr=False)
+    """The model credential, sent with every step: a container inherits nothing from the worker."""
     new_key: Callable[[], str] = _new_key
     """A key for a step with none of its own yet; a later stage passes the workflow's, so a retry re-attaches."""
 
@@ -124,7 +126,11 @@ class ContainerBackend:
 
     def _request(self, task: AgentTask) -> StepRequest:
         """What to ask the runner for ``task``: its clone, repository, session and tools mode, their folders made."""
-        key, env, given = self.new_key(), sendable(task.env), task_input(task, self._settings(task))
+        key, env, given = (
+            self.new_key(),
+            sendable({**self.model_env, **task.env}),
+            task_input(task, self._settings(task)),
+        )
         if self.volumes is None:
             return StepRequest(key=key, env=env, input=given)
         self.volumes.prepare(task.repo, task.work)
