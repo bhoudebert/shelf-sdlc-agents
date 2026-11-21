@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from shelf.application.steps import Steps, branch_of, task_prompt
+from shelf.application.steps import Steps, branch_of, continuation_prompt, task_prompt
 from shelf.domain.ci import Ci, CiRun, CiState, judge
 from shelf.domain.config import RepoConfig
 from shelf.domain.context_repo import ContextRepo
@@ -18,6 +18,7 @@ from shelf.domain.policy import Autonomy
 from shelf.domain.result import Err, Ok
 from shelf.domain.runlog import RunRecord, ToolEvent
 from shelf.domain.story import agent_comment
+from shelf.domain.toolchain import DOCKER_ON_NOTE
 from shelf.domain.usage import Usage
 from shelf.domain.work import WAITING_FOR_CI, Produced, Reviewed, RunStep, Verdict, Verified
 from shelf.ports.agents import AgentTask
@@ -1434,3 +1435,40 @@ async def test_without_a_command_runner_the_checks_run_in_the_worker_as_before()
     await steps(workspaces=workspaces, config=config).run(NEED, RunStep(Phase.VERIFY, 0, ""))
 
     assert workspaces.workspace.ran == ["make test"]
+
+
+def test_a_continuation_tells_the_agent_about_its_environment_now_and_that_it_replaces_what_it_was_told() -> None:
+    prompt = continuation_prompt(
+        RunStep(Phase.IMPLEMENT, 1, "fix it", session="s-1"), "docs", environment=DOCKER_ON_NOTE
+    )
+
+    assert "own Docker daemon" in prompt
+    assert "replaces" in prompt
+
+
+def test_a_continuation_with_no_environment_says_nothing_about_docker() -> None:
+    assert "Docker" not in continuation_prompt(RunStep(Phase.SPEC_REVIEW, 1, "x", session="s-1"), "docs")
+
+
+async def continued(*, docker: bool, phase: Phase = Phase.IMPLEMENT) -> str:
+    agents = FakeAgents()
+    runner = steps(agents, cache_dir="/cache")
+    runner = replace(runner, docker=docker)
+    await runner.run(NEED, RunStep(phase, 1, "fix the tests", session="s-1"))
+    return agents.tasks[0].prompt
+
+
+async def test_a_continued_developer_is_told_it_has_docker_when_it_does() -> None:
+    prompt = await continued(docker=True)
+    assert "own Docker daemon" in prompt
+    assert "Docker is not available" not in prompt
+
+
+async def test_a_continued_developer_is_told_there_is_no_docker_when_there_is_none() -> None:
+    prompt = await continued(docker=False)
+    assert "Docker is not available" in prompt
+    assert "own Docker daemon" not in prompt
+
+
+async def test_a_continued_session_of_a_step_that_is_told_nothing_about_tools_hears_nothing_about_docker() -> None:
+    assert "Docker" not in await continued(docker=True, phase=Phase.SPEC_REVIEW)

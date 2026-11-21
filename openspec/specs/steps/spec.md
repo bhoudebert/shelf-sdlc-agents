@@ -1204,6 +1204,25 @@ The system SHALL tell the developer and the code reviewer, in the note about too
 - **WHEN** the developer is asked for tests against PostgreSQL and the step has a private Docker daemon
 - **THEN** it is told that Docker is available in its step, that it is the step's own and goes with it, and that the tests may start the database with `docker compose` or with Testcontainers
 
+### Requirement: A session that is continued is told whether Docker is available now
+
+The system SHALL, when the developer or the code reviewer continues its earlier session, tell it in the continuation whether a Docker daemon is available to it now, with the same text as in a first prompt, because the session keeps the first prompt's note and the environment may have changed since (Docker was off, or not yet built, when the session began). The continuation SHALL say that this note replaces what the agent was told before. A step that is not told about tools SHALL NOT be told about Docker.
+
+#### Scenario: Docker was turned on after the session began
+
+- **WHEN** the developer continues a session that began when Docker was not available, and Docker is on now
+- **THEN** the continuation tells it that it has its own Docker daemon and may start what the tests need, and that this replaces the earlier note
+
+#### Scenario: Docker is off
+
+- **WHEN** the developer continues a session and Docker is not on
+- **THEN** the continuation tells it that Docker is not available
+
+#### Scenario: A step that is told nothing about tools
+
+- **WHEN** a reviewer of a document continues its session
+- **THEN** the continuation says nothing about Docker
+
 ### Requirement: A step that runs repository code has its own Docker daemon when the operator enables it
 
 The system SHALL, when the operator has enabled Docker in steps and named the runtime for it, start each step that runs repository code (the developer, the code reviewer, the repository's checks and the tool set-up) with a Docker daemon of its own inside the step container, so that the agent and every tool it runs can use `docker`, `docker compose`, Testcontainers and the Docker API without any filtering. The worker SHALL ask for the daemon with one fixed field of the request, and the runner SHALL decide what that means, from the operator's runtime and one of a fixed set of profiles the operator chose (the standard one, then each adding to the one before: lifting the guest's seccomp and AppArmor, then its read-only and masked system paths, then all capabilities and the guest's cgroup namespace, which is everything privileged mode gives except the host's devices): it starts the step with the operator's runtime, gives the daemon a storage of its own in the step's memory (never a volume of the host, which a virtual machine reaches through a shared file system that is slow and cannot hold the daemon's layers), sized from the step's memory limit, and never mounts the host's engine socket, never starts the step privileged against the host and never falls back to a step without the runtime. What the daemon creates (images, containers, networks, volumes) SHALL live and end with the step container, and a runner that has no runtime for it SHALL refuse a request that asks for it. A container the step starts SHALL reach what the step reaches and nothing more, under the same network rules.
