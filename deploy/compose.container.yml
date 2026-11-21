@@ -36,7 +36,7 @@ services:
       - no-new-privileges:true
     environment:
       SHELF_STEP_IMAGE: shelf-sdlc-step:local
-      SHELF_RUNNER_TOKEN: ${SHELF_RUNNER_TOKEN:?run install.sh again: it writes SHELF_RUNNER_TOKEN into deploy/.env}
+      SHELF_RUNNER_TOKEN: "${SHELF_RUNNER_TOKEN:?run install.sh again, it writes SHELF_RUNNER_TOKEN into deploy/.env}"
       SHELF_RUNNER_SOCKET: /run/shelf-runner/runner.sock
       SHELF_STEP_NETWORK: shelf-sdlc-step
       SHELF_STEPS_VOLUME: shelf-sdlc_steps
@@ -54,7 +54,7 @@ services:
   worker:
     environment:
       SHELF_ISOLATION: container
-      SHELF_RUNNER_TOKEN: ${SHELF_RUNNER_TOKEN:?run install.sh again: it writes SHELF_RUNNER_TOKEN into deploy/.env}
+      SHELF_RUNNER_TOKEN: "${SHELF_RUNNER_TOKEN:?run install.sh again, it writes SHELF_RUNNER_TOKEN into deploy/.env}"
       SHELF_STEPS_DIR: /var/lib/shelf/steps
       SHELF_SESSIONS_DIR: /var/lib/shelf/sessions
     volumes:

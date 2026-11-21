@@ -16,7 +16,10 @@ def server(tmp_path: Path) -> Path:
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     for name, body in {
-        "docker": 'echo "$@" >> "${DOCKER_LOG:-/dev/null}"; exit 0',
+        "docker": (
+            'echo "$@" >> "${DOCKER_LOG:-/dev/null}"; '
+            'case "$*" in *" config -q"*) [ -z "$COMPOSE_ERROR" ] || { echo "$COMPOSE_ERROR" >&2; exit 1; };; esac; exit 0'
+        ),
         "ss": 'cat "$SS_OUTPUT" 2>/dev/null; exit 0',
         "curl": 'echo \'{"status": "ok", "revision": "unknown"}\'',
         "git": "exit 1",
@@ -31,10 +34,11 @@ def write_env(server: Path, **values: str) -> None:
     (server / "deploy" / ".env").write_text("".join(f"{k}={v}\n" for k, v in base.items()))
 
 
-def run(server: Path, busy: str = "") -> subprocess.CompletedProcess[str]:
+def run(server: Path, busy: str = "", compose_error: str = "") -> subprocess.CompletedProcess[str]:
     (server / "ss.out").write_text(busy)
     env = {
         **os.environ,
+        "COMPOSE_ERROR": compose_error,
         "PATH": f"{server / 'bin'}:{os.environ['PATH']}",
         "SS_OUTPUT": str(server / "ss.out"),
         "DOCKER_LOG": str(server / "docker.log"),
@@ -69,6 +73,35 @@ def test_a_port_in_use_by_something_else_stops_the_script_and_says_what_the_port
     assert "port 8080 is already in use" in done.stderr
     assert "not your site's public port" in done.stderr
     assert "Building revision" not in done.stdout
+
+
+def test_a_compose_file_that_cannot_be_read_is_reported_as_such_and_not_as_a_busy_port(server: Path) -> None:
+    write_env(server)
+    done = run(server, busy="LISTEN 0 4096 0.0.0.0:8080\n", compose_error="failed to parse compose.container.yml")
+    assert done.returncode == 1
+    assert "cannot read the deployment files" in done.stderr
+    assert "failed to parse compose.container.yml" in done.stderr
+    assert "already in use" not in done.stderr
+    assert "Building revision" not in done.stdout
+
+
+@pytest.mark.skipif(shutil.which("docker") is None, reason="needs docker compose to read the files")
+@pytest.mark.parametrize("overlays", [(), ("compose.container.yml",), ("compose.container.yml", "compose.nix.yml")])
+def test_the_compose_files_are_valid_for_real(tmp_path: Path, overlays: tuple[str, ...]) -> None:
+    """The script's own tests use a fake docker, so only this one proves that Compose can read the files."""
+    shutil.copytree(DEPLOY, tmp_path / "deploy")
+    deploy = tmp_path / "deploy"
+    (deploy / ".env").write_text("PUBLIC_URL=https://x.test\nSESSION_SECRET=s\nSHELF_RUNNER_TOKEN=t\n")
+    files = [arg for name in ("compose.yml", *overlays) for arg in ("-f", name)]
+    done = subprocess.run(  # noqa: S603
+        ["docker", "compose", "--env-file", ".env", *files, "config", "-q"],  # noqa: S607
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=deploy,
+        timeout=60,
+    )
+    assert done.returncode == 0, done.stderr
 
 
 def test_a_free_port_lets_the_script_go_on_to_build(server: Path) -> None:
