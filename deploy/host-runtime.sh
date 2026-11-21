@@ -227,12 +227,45 @@ $(printf '%s\n' "$probe_out" | tail -n 8)"
   return 1
 }
 
+# The resolvers a step with Docker is given (SHELF_STEP_DNS): on a user-defined network Docker names its embedded resolver, which
+# a virtual machine cannot reach, so a step cannot resolve anything. The operator's own value is proved if set; else the host's
+# upstream resolvers (those Docker copies on its default network, without the loopback ones). Sets found_dns.
+probe_host="${SHELF_PROBE_HOST:-api.anthropic.com}"
+find_dns() {
+  found_dns=""
+  upstream="${SHELF_STEP_DNS:-}"
+  if [ -z "$upstream" ]; then
+    upstream=$(docker run --rm --network bridge "$smoke_image" sh -c "grep '^nameserver' /etc/resolv.conf" 2> /dev/null \
+      | awk '$1 == "nameserver" {print $2}' | grep -v -e '^127\.' -e '^::1$' | paste -sd, -) || upstream=""
+  fi
+  if [ -z "$upstream" ]; then
+    echo "No upstream resolver of this host a step can use was found (a loopback one, such as systemd-resolved's, is out of a" >&2
+    echo "virtual machine's reach). Set SHELF_STEP_DNS in deploy/.env to the addresses of resolvers it can reach." >&2
+    return 1
+  fi
+  net="shelf-probe-$$"
+  docker network create "$net" > /dev/null 2>&1 || true
+  # shellcheck disable=SC2016
+  probe_out=$(timeout "${SHELF_PROBE_TIMEOUT:-240}" docker run --rm --runtime "$runtime" --network "$net" "$smoke_image" sh -c \
+    "for n in $(printf '%s' "$upstream" | tr ',' ' '); do echo nameserver \$n; done > /etc/resolv.conf; nslookup $probe_host 2>&1" 2>&1) || true
+  docker network rm "$net" > /dev/null 2>&1 || true
+  case "$probe_out" in
+    *"Name:"*) found_dns="$upstream"; return 0 ;;
+  esac
+  echo "A step under '$runtime' on a user-defined network could not resolve $probe_host with $upstream:" >&2
+  printf '%s\n' "$probe_out" | tail -n 6 >&2
+  echo "Set SHELF_STEP_DNS in deploy/.env to the addresses of resolvers a virtual machine can reach." >&2
+  return 1
+}
+
 smoke() {
   started=$(date +%s)
   host_kernel=$(uname -r)
   guest_kernel=$(docker run --rm --runtime "$runtime" "$smoke_image" uname -r) || fail "a container under '$runtime' did not start"
   [ "$guest_kernel" != "$host_kernel" ] || fail "the container reports the host's kernel ($host_kernel): it is not in a virtual machine"
   say "[ok]   a step container has its own kernel ($guest_kernel; the host runs $host_kernel), $(($(date +%s) - started)) s"
+  find_dns || exit 1
+  say "[ok]   a step resolves names with $found_dns (a user-defined network, under $runtime)"
   find_profile || exit 1
   if [ "$found_profile" = standard ]; then
     say "[ok]   a Docker daemon inside a step runs a container (profile standard), $probe_seconds s"
@@ -255,7 +288,10 @@ fi
 platform
 if [ "$mode" = probe ]; then
   listed || { say "The runtime '$runtime' is not installed here yet: run deploy/host-runtime.sh first." >&2; exit 2; }
+  find_dns || exit 1
+  dns_found="$found_dns"
   find_profile || exit 1
+  say "dns=$dns_found"
   say "profile=$found_profile"
   exit 0
 fi

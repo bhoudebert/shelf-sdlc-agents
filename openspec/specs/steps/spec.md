@@ -1287,6 +1287,30 @@ The system SHALL, when agents run in containers, run each command of a repositor
 - **WHEN** agents run in the worker's sandbox
 - **THEN** the checks run in the worker as before
 
+### Requirement: A step with Docker resolves names through the operator's resolvers, not Docker's embedded one
+
+The system SHALL, for a step that has a Docker daemon of its own, write the operator's resolvers (`SHELF_STEP_DNS`) into the step's `/etc/resolv.conf` before it starts the daemon, because on a user-defined network Docker names its embedded resolver, which lives in the host's network namespace and which a virtual machine cannot reach, so the step could not resolve the model's host, GitHub or a registry. The runner SHALL pass the resolvers to the step itself, from its own settings and never from a request, and SHALL accept only addresses that a virtual machine can reach (no loopback address). The containers the step's daemon starts SHALL inherit them. A step that is given no resolvers SHALL keep the file Docker wrote.
+
+#### Scenario: A step on a user-defined network resolves names
+
+- **WHEN** a step with Docker runs on the step network and the operator's resolvers are set
+- **THEN** its `/etc/resolv.conf` names them, the model's host resolves, and the step reaches the model
+
+#### Scenario: A resolver the guest cannot reach is refused
+
+- **WHEN** the operator's resolvers hold a loopback address or something that is not an address
+- **THEN** the runner and the worker refuse to start and name the setting
+
+#### Scenario: No resolvers given
+
+- **WHEN** `SHELF_STEP_DNS` is empty
+- **THEN** the step keeps the `/etc/resolv.conf` Docker wrote
+
+#### Scenario: A step without Docker
+
+- **WHEN** a step has no Docker daemon of its own
+- **THEN** it is built as before, and Docker's own resolver serves it
+
 ### Requirement: The checks step installs the repository's tools before it runs its checks
 
 The system SHALL, before it runs the repository's `checks`, install in the worker the tools that the clone declares for mise or detects from its CI, as for the developer and the code reviewer, so that a repository whose `mise.toml` an agent has just written is built with the tools that file declares; SHALL tell on the pull request when that installation failed, with its last line; and SHALL, when no check is configured, say on the pull request that nothing was verified here and how to configure one.

@@ -14,6 +14,7 @@ from shelf.domain.stepspec import (
     StepAsk,
     container_spec,
     parse_request,
+    parse_resolvers,
     tools_path,
 )
 from shelf.domain.toolchain import repository_home
@@ -457,3 +458,65 @@ def test_an_unknown_kind_is_still_refused() -> None:
     parsed = parse_request(request(kind="setup"), RULES)
     assert isinstance(parsed, Err)
     assert "kind" in parsed.error
+
+
+def dns_rules(*resolvers: str) -> RunnerRules:
+    return RunnerRules(
+        image="shelf-step:test", docker_image="shelf-step-docker:test", docker_runtime="kata", docker_dns=resolvers
+    )
+
+
+def dns_env(body: dict[str, Any]) -> list[str]:
+    return [item for item in body["Env"] if item.startswith("SHELF_STEP_DNS=")]
+
+
+def dns_spec(rules: RunnerRules, **changes: Any) -> dict[str, Any]:
+    parsed = parse_request(request(docker=True, **changes), rules)
+    assert isinstance(parsed, Ok), parsed
+    return container_spec(parsed.value, rules, expires=1)
+
+
+def test_a_step_with_docker_is_given_the_operators_resolvers() -> None:
+    assert dns_env(dns_spec(dns_rules("213.186.33.99")))[-1] == "SHELF_STEP_DNS=213.186.33.99"
+    assert dns_env(dns_spec(dns_rules("213.186.33.99", "2606:4700:4700::1111")))[-1] == (
+        "SHELF_STEP_DNS=213.186.33.99,2606:4700:4700::1111"
+    )
+
+
+def test_a_step_with_docker_and_no_resolvers_is_told_none() -> None:
+    assert dns_env(dns_spec(dns_rules()))[-1] == "SHELF_STEP_DNS="
+
+
+def test_a_request_cannot_choose_the_resolvers_of_its_step() -> None:
+    env = {"SHELF_STEP_DNS": "6.6.6.6"}
+    assert dns_env(dns_spec(dns_rules("213.186.33.99"), env=env))[-1] == "SHELF_STEP_DNS=213.186.33.99"
+    assert dns_env(dns_spec(dns_rules(), env=env))[-1] == "SHELF_STEP_DNS="
+
+
+def test_a_step_without_docker_is_not_given_resolvers() -> None:
+    body = container_spec(ask(), dns_rules("213.186.33.99"), expires=1)
+    assert dns_env(body) == []
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("213.186.33.99", ("213.186.33.99",)),
+        ("213.186.33.99, 8.8.8.8", ("213.186.33.99", "8.8.8.8")),
+        ("2606:4700:4700::1111", ("2606:4700:4700::1111",)),
+        ("", ()),
+        ("  ", ()),
+        ("1.1.1.1,1.1.1.1", ("1.1.1.1",)),
+    ],
+)
+def test_the_resolvers_are_read_as_addresses(text: str, expected: tuple[str, ...]) -> None:
+    assert parse_resolvers(text) == Ok(expected)
+
+
+@pytest.mark.parametrize(
+    "text", ["example.org", "127.0.0.53", "127.0.0.11", "::1", "::", "1.1.1.1;rm", "1.1.1.1 8.8.8.8", "300.1.1.1"]
+)
+def test_a_resolver_that_is_not_an_address_a_guest_can_reach_is_refused(text: str) -> None:
+    result = parse_resolvers(text)
+    assert isinstance(result, Err)
+    assert "SHELF_STEP_DNS" in result.error

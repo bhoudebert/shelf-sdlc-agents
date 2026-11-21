@@ -96,18 +96,27 @@ if [ "$(value SHELF_STEP_DOCKER)" = "on" ]; then
       ;;
     *) exit 1 ;;
   esac
-  # What a host allows differs (the guest's seccomp, its cgroup filesystem): the first profile under which a daemon in a step runs
-  # a container is found once, here, and written down. A value you set yourself is never replaced.
-  if [ -z "$(value SHELF_STEP_DOCKER_PROFILE)" ]; then
-    echo "Finding the profile a step with Docker needs on this host (a few containers start; this takes a minute or two)..."
-    probed=$(SHELF_STEP_RUNTIME="$runtime" sh "$host_script" --probe) || {
+  # What a host allows differs: the guest's seccomp and cgroup filesystem (the profile), and the resolvers a step can reach (a
+  # virtual machine cannot use Docker's embedded one). Each is found once, here, by the host script, and written down. A value
+  # you set yourself is proved but never replaced.
+  if [ -z "$(value SHELF_STEP_DOCKER_PROFILE)" ] || [ -z "$(value SHELF_STEP_DNS)" ]; then
+    echo "Finding what a step with Docker needs on this host (a few containers start; this takes a minute or two)..."
+    probed=$(SHELF_STEP_RUNTIME="$runtime" SHELF_STEP_DNS="$(value SHELF_STEP_DNS)" sh "$host_script" --probe) || {
       echo "ERROR: Docker in steps cannot be used on this host (see above). Set SHELF_STEP_DOCKER=off to go on without it." >&2
       exit 1
     }
     profile=$(printf '%s\n' "$probed" | sed -n 's/^profile=//p' | tail -n 1)
+    resolvers=$(printf '%s\n' "$probed" | sed -n 's/^dns=//p' | tail -n 1)
     [ -n "$profile" ] || { echo "ERROR: the host script named no profile." >&2; exit 1; }
-    printf 'SHELF_STEP_DOCKER_PROFILE=%s\n' "$profile" >> "$env_file"
-    echo "Wrote SHELF_STEP_DOCKER_PROFILE=$profile to $env_file."
+    [ -n "$resolvers" ] || { echo "ERROR: the host script named no resolvers: set SHELF_STEP_DNS in $env_file." >&2; exit 1; }
+    if [ -z "$(value SHELF_STEP_DOCKER_PROFILE)" ]; then
+      printf 'SHELF_STEP_DOCKER_PROFILE=%s\n' "$profile" >> "$env_file"
+      echo "Wrote SHELF_STEP_DOCKER_PROFILE=$profile to $env_file."
+    fi
+    if [ -z "$(value SHELF_STEP_DNS)" ]; then
+      printf 'SHELF_STEP_DNS=%s\n' "$resolvers" >> "$env_file"
+      echo "Wrote SHELF_STEP_DNS=$resolvers to $env_file."
+    fi
   fi
   docker_steps=yes
 fi

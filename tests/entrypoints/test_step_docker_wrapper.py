@@ -11,8 +11,14 @@ ROOT = Path(__file__).parents[2]
 WRAPPER = ROOT / "scripts" / "shelf-step-docker"
 
 FAKES = {
-    "dockerd": 'echo "dockerd $*" >> "$FAKE/calls"; echo "daemon noise on stdout"; echo "daemon log line" >&2; sleep 3',
-    "docker": '[ -f "$FAKE/ready" ]',
+    # The daemon answers `docker info` only after it has written everything it will write, so the wrapper never runs ahead of the
+    # fake and a test never reads the files of a daemon that is still starting.
+    "dockerd": (
+        'echo "dockerd $*" >> "$FAKE/calls"; '
+        'echo "resolv: $(cat "$SHELF_RESOLV_CONF" 2>/dev/null | tr "\\n" " ")" >> "$FAKE/calls"; '
+        'echo "daemon noise on stdout"; echo "daemon log line" >&2; touch "$FAKE/started"; sleep 3'
+    ),
+    "docker": '[ -f "$FAKE/ready" ] && [ -f "$FAKE/started" ]',
     "setpriv": 'echo "setpriv $*"',
     "mount": 'echo "mount $*" >> "$FAKE/calls"',
 }
@@ -28,11 +34,13 @@ def fake(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def run(fake: Path, *args: str, ready: bool) -> subprocess.CompletedProcess[str]:
+def run(fake: Path, *args: str, ready: bool, **extra: str) -> subprocess.CompletedProcess[str]:
     if ready:
         (fake / "ready").write_text("")
     env = {
         **os.environ,
+        "SHELF_RESOLV_CONF": str(fake / "resolv.conf"),
+        **extra,
         "PATH": f"{fake / 'bin'}:{os.environ['PATH']}",
         "FAKE": str(fake),
         "SHELF_DOCKERD_LOG": str(fake / "dockerd.log"),
@@ -111,3 +119,46 @@ def test_a_bind_remount_of_the_system_paths_that_is_refused_is_tried_the_plain_w
 
     assert done.returncode == 0, done.stderr
     assert "mount -o remount,rw /proc/sys" in (fake / "calls").read_text()
+
+
+def resolv(fake: Path) -> Path:
+    return fake / "resolv.conf"
+
+
+def test_the_operators_resolvers_are_written_before_the_daemon_starts(fake: Path) -> None:
+    resolv(fake).write_text("nameserver 127.0.0.11\n")
+
+    done = run(fake, "shelf-step", "/run/shelf/task.json", ready=True, SHELF_STEP_DNS="213.186.33.99,8.8.8.8")
+
+    assert done.returncode == 0, done.stderr
+    assert resolv(fake).read_text() == "nameserver 213.186.33.99\nnameserver 8.8.8.8\n"
+    assert "resolv: nameserver 213.186.33.99 nameserver 8.8.8.8" in (fake / "calls").read_text()
+
+
+def test_an_ipv6_resolver_is_written_too(fake: Path) -> None:
+    run(fake, "shelf-step", "/run/shelf/task.json", ready=True, SHELF_STEP_DNS="2606:4700:4700::1111")
+
+    assert resolv(fake).read_text() == "nameserver 2606:4700:4700::1111\n"
+
+
+@pytest.mark.parametrize("value", [None, ""])
+def test_with_no_resolvers_the_file_docker_wrote_stays(fake: Path, value: str | None) -> None:
+    resolv(fake).write_text("nameserver 127.0.0.11\n")
+    extra = {} if value is None else {"SHELF_STEP_DNS": value}
+
+    done = run(fake, "shelf-step", "/run/shelf/task.json", ready=True, **extra)
+
+    assert done.returncode == 0, done.stderr
+    assert resolv(fake).read_text() == "nameserver 127.0.0.11\n"
+
+
+@pytest.mark.parametrize("value", ["example.org", "1.1.1.1;touch pwned", "1.1.1.1 8.8.8.8", "$(id)"])
+def test_something_that_is_not_an_address_is_never_written_and_the_step_goes_on(fake: Path, value: str) -> None:
+    resolv(fake).write_text("nameserver 127.0.0.11\n")
+
+    done = run(fake, "shelf-step", "/run/shelf/task.json", ready=True, SHELF_STEP_DNS=value)
+
+    assert done.returncode == 0, done.stderr
+    assert resolv(fake).read_text() == "nameserver 127.0.0.11\n"
+    assert "SHELF_STEP_DNS" in done.stderr
+    assert "setpriv" in done.stdout

@@ -135,3 +135,25 @@ def test_a_profile_that_does_not_exist_is_refused_by_name_with_the_accepted_ones
     assert "standard" in str(failed.value)
     assert "systempaths" in str(failed.value)
     assert "full" in str(failed.value)
+
+
+DOCKER_ON = {"SHELF_STEP_DOCKER": "on", "SHELF_STEP_RUNTIME": "kata"}
+
+
+def test_the_resolvers_are_empty_unless_the_operator_names_them() -> None:
+    assert read_settings({**GOOD, **DOCKER_ON}).rules.docker_dns == ()
+
+
+def test_the_resolvers_the_operator_names_are_in_the_rules() -> None:
+    rules = read_settings({**GOOD, **DOCKER_ON, "SHELF_STEP_DNS": "213.186.33.99, 8.8.8.8"}).rules
+    assert rules.docker_dns == ("213.186.33.99", "8.8.8.8")
+
+
+@pytest.mark.parametrize("value", ["example.org", "127.0.0.53", "::1", "1.1.1.1;x"])
+def test_a_resolver_a_guest_cannot_reach_is_refused_by_name(value: str) -> None:
+    with pytest.raises(RunnerSettingsError, match="SHELF_STEP_DNS"):
+        read_settings({**GOOD, **DOCKER_ON, "SHELF_STEP_DNS": value})
+
+
+def test_resolvers_are_ignored_when_docker_in_steps_is_off() -> None:
+    assert read_settings({**GOOD, "SHELF_STEP_DNS": "213.186.33.99"}).rules.docker_dns == ()

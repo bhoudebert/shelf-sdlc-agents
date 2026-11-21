@@ -5,7 +5,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import NoReturn
 
-from shelf.domain.stepspec import DOCKER_PROFILES
+from shelf.domain.result import Err
+from shelf.domain.stepspec import DOCKER_PROFILES, parse_resolvers
 
 
 class MissingSettingError(ValueError):
@@ -178,6 +179,8 @@ def _container(environ: Mapping[str, str], isolation: str) -> ContainerSettings 
     if docker and profile and profile not in DOCKER_PROFILES:
         message = f"SHELF_STEP_DOCKER_PROFILE must be one of {', '.join(DOCKER_PROFILES)}, not {profile!r}"
         raise ValueError(message)
+    if docker and isinstance(resolvers := parse_resolvers(environ.get("SHELF_STEP_DNS", "")), Err):
+        raise ValueError(resolvers.error)
     if missing := [name for name in CONTAINER_NEEDS if not environ.get(name, "").strip()]:
         message = "SHELF_ISOLATION=container needs " + ", ".join(
             f"{name} ({CONTAINER_NEEDS[name]})" for name in missing

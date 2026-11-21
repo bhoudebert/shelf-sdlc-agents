@@ -5,6 +5,7 @@ any engine option: the container is built here, from the request's few names and
 step can do is decided in one place that a test can read.
 """
 
+import ipaddress
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -47,6 +48,8 @@ DOCKER_PROFILES: Final = ("standard", "unconfined", "systempaths", "full")
 AppArmor, ``systempaths`` also its read-only and masked system paths, ``full`` also all capabilities and the guest's
 cgroup namespace. Hosts differ, so the operator names one, found by ``deploy/host-runtime.sh --probe``. None is
 privileged mode, which under the runtime passes the host's devices on: ``full`` is all it gives except those."""
+DNS_VARIABLE: Final = "SHELF_STEP_DNS"
+"""Where a step with Docker finds its resolvers: set by the runner from its own rules, never from a request."""
 DOCKER_COMMAND: Final = "shelf-step-docker"
 """The wrapper that starts the step's daemon as root and then runs the step as its own user."""
 TOOLS: Final = (".local/share/mise", ".m2", ".npm", ".cache")
@@ -100,6 +103,8 @@ class RunnerRules:
     """The runtime that makes a Docker daemon inside a step safe (decision 0020). Empty: no step has Docker."""
     docker_image: str = ""
     """The image of a step with a Docker daemon; the plain step image when empty."""
+    docker_dns: tuple[str, ...] = ()
+    """The resolvers a step with Docker is given: Docker's embedded one is out of a virtual machine's reach."""
     docker_profile: str = "standard"
     """One of ``DOCKER_PROFILES``: what the host needs for the daemon in a step to start."""
 
@@ -120,6 +125,27 @@ class StepAsk:
     input: Mapping[str, Any]
     docker: bool = False
     """The step has a Docker daemon of its own. Only a runner with a runtime for it accepts it."""
+
+
+def parse_resolvers(text: str) -> Result[tuple[str, ...], str]:
+    """The addresses in ``text`` (comma separated), or the first thing that is not one a virtual machine can reach.
+
+    A loopback address names the host itself from the host's side, so it means nothing in a guest; neither does an
+    unspecified one. A name is refused: nothing can resolve it before the resolvers work.
+    """
+    found: list[str] = []
+    for part in (item.strip() for item in text.split(",")):
+        if not part:
+            continue
+        try:
+            address = ipaddress.ip_address(part)
+        except ValueError:
+            return Err(f"{DNS_VARIABLE} takes addresses separated by commas, not {part[:40]!r}")
+        if address.is_loopback or address.is_unspecified:
+            return Err(f"{DNS_VARIABLE} may not name {part}: a virtual machine cannot reach the host's own address")
+        if str(address) not in found:
+            found.append(str(address))
+    return Ok(tuple(found))
 
 
 def _object(value: object) -> dict[str, Any] | None:
@@ -364,5 +390,14 @@ def _with_docker(body: dict[str, Any], rules: RunnerRules) -> dict[str, Any]:
         host["CapAdd"] = [*host["CapAdd"], "ALL"]
         host["CgroupnsMode"] = "host"
     host["Mounts"] = [*host["Mounts"], {"Type": "volume", "Target": DOCKER_STORAGE}]
+    # last, so that a request's own variable of that name never wins: empty means Docker's own file stays
+    env = [*body["Env"], f"{DNS_VARIABLE}={','.join(rules.docker_dns)}"]
     command = [DOCKER_COMMAND, *body["Cmd"]]
-    return {**body, "Image": rules.docker_image or rules.image, "User": "0:0", "Cmd": command, "HostConfig": host}
+    return {
+        **body,
+        "Image": rules.docker_image or rules.image,
+        "User": "0:0",
+        "Cmd": command,
+        "Env": env,
+        "HostConfig": host,
+    }
