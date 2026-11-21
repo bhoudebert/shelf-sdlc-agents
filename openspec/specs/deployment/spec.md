@@ -315,6 +315,25 @@ The system SHALL read `SHELF_STEP_DOCKER` (`off` when unset, or `on`) and `SHELF
 - **WHEN** `SHELF_STEP_DOCKER` is `on`, the runtime is installed and named, and `SHELF_ISOLATION` is `container`
 - **THEN** the services start and the steps that run repository code get a Docker daemon
 
+### Requirement: The install guide and the install script say what the host needs, and what installing it does
+
+The system SHALL list, in the install guide of the site and in `deploy/README` text shown by the install script, everything an operator must install or enable on the host for each mode: the container engine and its minimum version, and, for Docker in steps, the runtime (its name, the kernel, the distribution releases it is known to work on, and the settings of the host it depends on, such as the kernel's rules for user namespaces or access to virtualisation), the command that installs it, and what that command does to a host that already runs containers (whether it restarts the engine and so stops them). `install.sh` SHALL check what it can (the engine version, the runtime the engine reports, the kernel) and, when `SHELF_STEP_DOCKER` is `on` and something is missing, SHALL stop before it builds anything and print what is missing and the page that says how to add it, so that no operator has to find out from a failed work.
+
+#### Scenario: Docker in steps with no runtime installed
+
+- **WHEN** `SHELF_STEP_DOCKER` is `on` and the engine lists no runtime by the name in `SHELF_STEP_RUNTIME`
+- **THEN** `install.sh` stops, names the missing runtime, and prints the guide's address
+
+#### Scenario: A host that is not known to work
+
+- **WHEN** the host's distribution release or kernel is one the guide lists as failing for the runtime
+- **THEN** `install.sh` says so before it builds anything and does not go on unless the operator confirms
+
+#### Scenario: What installing it does is written down
+
+- **WHEN** an operator reads the guide's section on the runtime
+- **THEN** it says whether the install restarts the container engine and what that does to containers already running on the host
+
 ### Requirement: The worker refuses an isolation setting it cannot honour
 
 The system SHALL read `SHELF_ISOLATION` when the worker starts, SHALL run the agents in the worker under the sandbox when it is unset or `sandbox`, and SHALL refuse to start, naming the setting and the accepted values, when it holds anything else or asks for `container` without what that mode needs (the runner's token and the folders of the clones, the tools and the sessions that it shares with the runner), so that an agent never runs with less isolation than the operator asked for.
