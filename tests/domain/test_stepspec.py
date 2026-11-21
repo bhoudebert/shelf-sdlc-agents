@@ -7,6 +7,7 @@ from hypothesis import strategies as st
 from shelf.domain.model import RepoRef
 from shelf.domain.result import Err, Ok
 from shelf.domain.stepspec import (
+    DOCKER_PROFILES,
     Limits,
     RunnerRules,
     StepAsk,
@@ -314,3 +315,51 @@ def test_the_limits_of_the_step_cover_what_its_daemon_starts() -> None:
     host = docker_spec(limits={"memory_mb": 1024, "pids": 100})["HostConfig"]
     assert host["Memory"] == 1024 * 1024 * 1024
     assert host["PidsLimit"] == 100
+
+
+def profile_rules(profile: str) -> RunnerRules:
+    return RunnerRules(
+        image="shelf-step:test", docker_image="shelf-step-docker:test", docker_runtime="kata", docker_profile=profile
+    )
+
+
+def profile_host(profile: str) -> dict[str, Any]:
+    parsed = parse_request(request(docker=True), profile_rules(profile))
+    assert isinstance(parsed, Ok)
+    return container_spec(parsed.value, profile_rules(profile), expires=1)["HostConfig"]
+
+
+def test_the_standard_profile_is_the_default_and_lifts_nothing() -> None:
+    assert RunnerRules(image="x").docker_profile == "standard"
+    host = profile_host("standard")
+    assert host["SecurityOpt"] == ["no-new-privileges"]
+    assert "CgroupnsMode" not in host
+
+
+def test_the_unconfined_profile_lifts_the_guests_seccomp_and_apparmor_and_nothing_else() -> None:
+    host = profile_host("unconfined")
+    assert host["SecurityOpt"] == ["no-new-privileges", "seccomp=unconfined", "apparmor=unconfined"]
+    assert "CgroupnsMode" not in host
+
+
+def test_the_cgroupns_profile_also_shares_the_guests_cgroup_namespace() -> None:
+    host = profile_host("cgroupns")
+    assert host["SecurityOpt"] == ["no-new-privileges", "seccomp=unconfined", "apparmor=unconfined"]
+    assert host["CgroupnsMode"] == "host"
+
+
+@pytest.mark.parametrize("profile", DOCKER_PROFILES)
+def test_no_profile_is_privileged_or_gives_a_device_a_host_path_or_the_engine_socket(profile: str) -> None:
+    host = profile_host(profile)
+    assert host["Privileged"] is False
+    assert "Devices" not in host
+    assert "Binds" not in host
+    assert {m["Type"] for m in host["Mounts"]} == {"volume"}
+    assert not any("docker.sock" in m["Target"] for m in host["Mounts"])
+    assert host["Runtime"] == "kata"
+
+
+def test_a_step_without_docker_is_the_same_under_every_profile() -> None:
+    plain = container_spec(ask(), profile_rules("standard"), expires=1)
+    for profile in DOCKER_PROFILES:
+        assert container_spec(ask(), profile_rules(profile), expires=1) == plain

@@ -119,3 +119,18 @@ async def test_the_engine_must_have_the_runtime_the_operator_named() -> None:
 
 async def test_an_engine_is_not_asked_for_runtimes_when_docker_is_off() -> None:
     await check_runtime(FakeEngine(runtimes=[]), read_settings(GOOD).rules)
+
+
+def test_the_profile_is_standard_unless_the_operator_names_another() -> None:
+    on = {**GOOD, "SHELF_STEP_DOCKER": "on", "SHELF_STEP_RUNTIME": "kata"}
+    assert read_settings(on).rules.docker_profile == "standard"
+    assert read_settings({**on, "SHELF_STEP_DOCKER_PROFILE": "unconfined"}).rules.docker_profile == "unconfined"
+
+
+@pytest.mark.parametrize("value", ["privileged", "all", "Standard ", "none"])
+def test_a_profile_that_does_not_exist_is_refused_by_name_with_the_accepted_ones(value: str) -> None:
+    on = {**GOOD, "SHELF_STEP_DOCKER": "on", "SHELF_STEP_RUNTIME": "kata", "SHELF_STEP_DOCKER_PROFILE": value}
+    with pytest.raises(RunnerSettingsError, match="SHELF_STEP_DOCKER_PROFILE") as failed:
+        read_settings(on)
+    assert "standard" in str(failed.value)
+    assert "cgroupns" in str(failed.value)

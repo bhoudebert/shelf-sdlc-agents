@@ -64,6 +64,7 @@ services:
       SHELF_STEP_DOCKER: "${SHELF_STEP_DOCKER:-off}"
       SHELF_STEP_RUNTIME: "${SHELF_STEP_RUNTIME:-}"
       SHELF_STEP_DOCKER_IMAGE: shelf-sdlc-step-docker:local
+      SHELF_STEP_DOCKER_PROFILE: "${SHELF_STEP_DOCKER_PROFILE:-}"
       SHELF_RUNNER_TOKEN: "${SHELF_RUNNER_TOKEN:?run install.sh again, it writes SHELF_RUNNER_TOKEN into deploy/.env}"
       SHELF_RUNNER_SOCKET: /run/shelf-runner/runner.sock
       SHELF_STEP_NETWORK: shelf-sdlc-step
@@ -84,6 +85,7 @@ services:
       SHELF_ISOLATION: container
       SHELF_STEP_DOCKER: "${SHELF_STEP_DOCKER:-off}"
       SHELF_STEP_RUNTIME: "${SHELF_STEP_RUNTIME:-}"
+      SHELF_STEP_DOCKER_PROFILE: "${SHELF_STEP_DOCKER_PROFILE:-}"
       SHELF_RUNNER_TOKEN: "${SHELF_RUNNER_TOKEN:?run install.sh again, it writes SHELF_RUNNER_TOKEN into deploy/.env}"
       SHELF_STEPS_DIR: /var/lib/shelf/steps
       SHELF_SESSIONS_DIR: /var/lib/shelf/sessions
