@@ -1192,12 +1192,51 @@ The system SHALL, for the developer and the code reviewer on a repository that d
 
 ### Requirement: The agent is told that the system runs the checks, with the repository's tools, outside its sandbox
 
-The system SHALL tell the developer and the code reviewer, in the note about tools, that the repository's checks (`checks` in its configuration) are run by the system after the step, outside the agent's sandbox, with the tools that `mise` or the flake declares and with the network, so that the agent does not spend its turns making a build run in its sandbox; that a command in the sandbox may write only the clone and `$TMPDIR`; and that Docker is not available, so tests have to run without it (an embedded database, or a test that is skipped when the service is missing, and says so).
+The system SHALL tell the developer and the code reviewer, in the note about tools, that the repository's checks (`checks` in its configuration) are run by the system after the step, outside the agent's sandbox, with the tools that `mise` or the flake declares and with the network, so that the agent does not spend its turns making a build run in its sandbox; that a command in the sandbox may write only the clone and `$TMPDIR`; and, when the step has a private Docker daemon (see the requirement on the step's own Docker daemon), that Docker is available and is the step's own, so that tests and tools may start what they need; and, when it has none, that Docker is not available, so tests have to run without it (an embedded database, or a test that is skipped when the service is missing, and says so).
 
-#### Scenario: A build that needs a database
+#### Scenario: A build that needs a database, with no Docker daemon in the step
 
-- **WHEN** the developer is asked for tests against PostgreSQL
-- **THEN** it is told that the system runs the checks without Docker and that the tests must run without it
+- **WHEN** the developer is asked for tests against PostgreSQL and the step has no private Docker daemon
+- **THEN** it is told that Docker is not available and that the tests must run without it
+
+#### Scenario: A build that needs a database, with a Docker daemon in the step
+
+- **WHEN** the developer is asked for tests against PostgreSQL and the step has a private Docker daemon
+- **THEN** it is told that Docker is available in its step, that it is the step's own and goes with it, and that the tests may start the database with `docker compose` or with Testcontainers
+
+### Requirement: A step that runs repository code has its own Docker daemon when the operator enables it
+
+The system SHALL, when the operator has enabled Docker in steps and named the runtime for it, start each step that runs repository code (the developer, the code reviewer, the repository's checks and the tool set-up) with a Docker daemon of its own inside the step container, so that the agent and every tool it runs can use `docker`, `docker compose`, Testcontainers and the Docker API without any filtering. The worker SHALL ask for the daemon with one fixed field of the request, and the runner SHALL decide what that means: it starts the step with the operator's runtime, gives the daemon a storage of its own, and never mounts the host's engine socket, never starts the step privileged against the host and never falls back to a step without the runtime. What the daemon creates (images, containers, networks, volumes) SHALL live and end with the step container, except the images, which SHALL be kept in a storage volume per repository that one step at a time holds. A container the step starts SHALL reach what the step reaches and nothing more, under the same network rules.
+
+#### Scenario: A repository that starts its own dependencies
+
+- **WHEN** the repository's tests run `docker compose up -d --wait` or start a Testcontainers database, in the developer's step or in the checks
+- **THEN** the daemon of that step starts it, the tests reach it, and it is gone when the step ends
+
+#### Scenario: Any container, not only a database
+
+- **WHEN** a step runs `docker run` for an OAuth2 server, a cache, a browser, or builds an image from the repository's Dockerfile
+- **THEN** the daemon of that step does it, with no list of allowed images or options
+
+#### Scenario: The host is out of reach
+
+- **WHEN** a step container started under the daemon asks to mount a host path, to run privileged, or to reach the host's engine socket
+- **THEN** it can only affect the step's own daemon, and the host's containers, volumes and files are not visible
+
+#### Scenario: The second step does not pull again
+
+- **WHEN** a later step of the same repository starts the same image
+- **THEN** it is found in the repository's image storage and not pulled
+
+#### Scenario: A step that does not run repository code
+
+- **WHEN** the step is the spec, the design, the plan or a review of a document
+- **THEN** it has no Docker daemon
+
+#### Scenario: A request asks for more than the one field
+
+- **WHEN** a request to the runner carries a mount, a capability, a device or privileged mode next to the Docker field
+- **THEN** the runner refuses it and starts no container
 
 ### Requirement: The checks step installs the repository's tools before it runs its checks
 

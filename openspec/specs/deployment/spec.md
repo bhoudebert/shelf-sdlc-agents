@@ -286,6 +286,35 @@ The system SHALL let the operator turn the agents' sandbox off, for hosts where 
 - **WHEN** the sandbox cannot start and the operator turns it off
 - **THEN** the agents can run commands with the container as the only boundary
 
+### Requirement: Docker in steps is off until the operator names a runtime that can honour it
+
+The system SHALL read `SHELF_STEP_DOCKER` (`off` when unset, or `on`) and `SHELF_STEP_RUNTIME` (the name of the container runtime that makes a daemon inside a step safe), SHALL give steps a private Docker daemon only when the first is `on`, and SHALL refuse to start, naming the setting, when `SHELF_STEP_DOCKER` is `on` and the runtime is not named, is not one the container engine reports, or the isolation is not `container`, so that a step never gets a daemon without the boundary that makes it safe.
+
+#### Scenario: Unset
+
+- **WHEN** `SHELF_STEP_DOCKER` is not set
+- **THEN** steps have no Docker daemon and the agents are told that Docker is not available
+
+#### Scenario: On without a runtime
+
+- **WHEN** `SHELF_STEP_DOCKER` is `on` and `SHELF_STEP_RUNTIME` is empty
+- **THEN** the runner and the worker refuse to start and say that a runtime must be named
+
+#### Scenario: A runtime the engine does not have
+
+- **WHEN** `SHELF_STEP_RUNTIME` names a runtime the container engine does not list
+- **THEN** the runner refuses to start and names the runtime and the ones the engine has
+
+#### Scenario: On in sandbox mode
+
+- **WHEN** `SHELF_STEP_DOCKER` is `on` and `SHELF_ISOLATION` is not `container`
+- **THEN** the worker refuses to start and says that Docker in steps needs the container mode
+
+#### Scenario: Everything set
+
+- **WHEN** `SHELF_STEP_DOCKER` is `on`, the runtime is installed and named, and `SHELF_ISOLATION` is `container`
+- **THEN** the services start and the steps that run repository code get a Docker daemon
+
 ### Requirement: The worker refuses an isolation setting it cannot honour
 
 The system SHALL read `SHELF_ISOLATION` when the worker starts, SHALL run the agents in the worker under the sandbox when it is unset or `sandbox`, and SHALL refuse to start, naming the setting and the accepted values, when it holds anything else or asks for `container` without what that mode needs (the runner's token and the folders of the clones, the tools and the sessions that it shares with the runner), so that an agent never runs with less isolation than the operator asked for.
