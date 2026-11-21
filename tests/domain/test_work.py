@@ -296,8 +296,12 @@ def test_the_state_always_matches_the_commands(entry: EntryPoint, policy: Policy
         match state:
             case Running(phase, attempt, feedback):
                 assert commands[-1:] in ((), (RunStep(phase, attempt, feedback),))
-                assert set(commands[:-1]) <= {PublishPullRequest()}
-                assert attempt <= policy.max_rounds
+                assert set(commands[:-1]) <= {
+                    PublishPullRequest(),
+                    SetPullRequestReady(ready=True),
+                    SetPullRequestReady(ready=False),
+                }
+                assert attempt <= policy.max_rounds * 2  # new points may go on to twice the rounds (#165)
             case AwaitingPerson():
                 assert commands == () or isinstance(commands[-1], AskPerson)
             case Finished(outcome):
