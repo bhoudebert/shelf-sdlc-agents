@@ -268,3 +268,92 @@ async def test_a_check_does_not_see_the_workers_secrets_or_the_model_credential(
     for leaked in ("session-secret-value", "github-app.pem", "model-token-value", "api-key-value"):
         assert leaked not in printed.output
     assert path.output.strip() == os.environ["PATH"]
+
+
+CONFIG = ".shelf/config.toml"
+
+
+def put_on_main(origin: Path, tmp_path: Path, path: str, content: str) -> None:
+    """A commit on the base branch, as a person would make it."""
+    clone = tmp_path / f"person-{abs(hash((path, content)))}"
+    git(tmp_path, "clone", "--quiet", str(origin), str(clone))
+    git(clone, "config", "user.name", "person")
+    git(clone, "config", "user.email", "person@example.org")
+    (clone / path).parent.mkdir(parents=True, exist_ok=True)
+    (clone / path).write_text(content)
+    git(clone, "add", "--all")
+    git(clone, "commit", "--quiet", "-m", "chore: configure")
+    git(clone, "push", "--quiet", "origin", "main")
+
+
+def on_branch(origin: Path, path: str, branch: str = "shelf/work-1") -> str:
+    return git(origin, "show", f"{branch}:{path}")
+
+
+async def test_an_agents_edit_of_the_configuration_is_not_committed_but_its_code_is(
+    origin: Path, tmp_path: Path
+) -> None:
+    put_on_main(origin, tmp_path, CONFIG, 'checks = ["./mvnw -B verify"]\n')
+    async with workspaces(origin, tmp_path).open(checkout()) as workspace:
+        (workspace.path / CONFIG).write_text('checks = ["true"]\n')
+        (workspace.path / "feature.txt").write_text("code\n")
+        assert await workspace.commit_and_push("feat: it")
+    assert on_branch(origin, "feature.txt") == "code"
+    assert on_branch(origin, CONFIG) == 'checks = ["./mvnw -B verify"]'
+
+
+async def test_a_configuration_an_agent_creates_where_there_was_none_is_not_committed(
+    origin: Path, tmp_path: Path
+) -> None:
+    async with workspaces(origin, tmp_path).open(checkout()) as workspace:
+        (workspace.path / ".shelf").mkdir()
+        (workspace.path / CONFIG).write_text('checks = ["true"]\n')
+        (workspace.path / "feature.txt").write_text("code\n")
+        assert await workspace.commit_and_push("feat: it")
+    assert CONFIG not in git(origin, "ls-tree", "-r", "--name-only", "shelf/work-1").splitlines()
+    assert "feature.txt" in git(origin, "ls-tree", "-r", "--name-only", "shelf/work-1").splitlines()
+
+
+async def test_a_step_that_only_changed_the_configuration_commits_and_pushes_nothing(
+    origin: Path, tmp_path: Path
+) -> None:
+    put_on_main(origin, tmp_path, CONFIG, 'checks = ["./mvnw -B verify"]\n')
+    async with workspaces(origin, tmp_path).open(checkout()) as workspace:
+        (workspace.path / CONFIG).write_text('checks = ["true"]\n')
+        assert not await workspace.commit_and_push("chore: config")
+    assert "shelf/work-1" not in git(origin, "branch", "--list")
+
+
+async def test_the_configuration_a_person_committed_to_the_branch_is_what_the_branch_keeps(
+    origin: Path, tmp_path: Path
+) -> None:
+    put_on_main(origin, tmp_path, CONFIG, 'checks = ["./mvnw -B verify"]\n')
+    async with workspaces(origin, tmp_path).open(checkout()) as first:
+        (first.path / "one.txt").write_text("1\n")
+        assert await first.commit_and_push("feat: one")
+    person = tmp_path / "person-branch"
+    git(tmp_path, "clone", "--quiet", "--branch", "shelf/work-1", str(origin), str(person))
+    git(person, "config", "user.name", "person")
+    git(person, "config", "user.email", "person@example.org")
+    (person / CONFIG).write_text('checks = ["docker compose up -d --wait && ./mvnw -B verify"]\n')
+    git(person, "add", "--all")
+    git(person, "commit", "--quiet", "-m", "fix(config): the person's change")
+    git(person, "push", "--quiet", "origin", "shelf/work-1")
+
+    async with workspaces(origin, tmp_path).open(checkout()) as second:
+        (second.path / CONFIG).write_text('checks = ["true"]\n')
+        (second.path / "two.txt").write_text("2\n")
+        assert await second.commit_and_push("feat: two")
+
+    assert on_branch(origin, CONFIG) == 'checks = ["docker compose up -d --wait && ./mvnw -B verify"]'
+    assert on_branch(origin, "two.txt") == "2"
+
+
+async def test_the_documents_of_the_work_under_the_same_folder_are_committed_as_before(
+    origin: Path, tmp_path: Path
+) -> None:
+    async with workspaces(origin, tmp_path).open(checkout()) as workspace:
+        (workspace.path / ".shelf" / "work-1").mkdir(parents=True)
+        (workspace.path / ".shelf" / "work-1" / "spec.md").write_text("spec\n")
+        assert await workspace.commit_and_push("docs: spec")
+    assert on_branch(origin, ".shelf/work-1/spec.md") == "spec"

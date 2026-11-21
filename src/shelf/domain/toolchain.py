@@ -86,7 +86,8 @@ SANDBOX_RECIPES = (
     "The repository's checks (`checks` in its configuration) are run by the system after you finish, outside this "
     "sandbox, with the tools that `mise` or the flake declares and with the network: declare what the project needs in "
     "`mise.toml` and do not spend your turns making a build run here. A command in this sandbox may write only the "
-    "clone and `$TMPDIR`."
+    "clone and `$TMPDIR`. The checks are read from the repository's default branch, not from yours: "
+    "`.shelf/config.toml` is not yours to edit, and a change to it is discarded."
 )
 
 DOCKER_OFF_NOTE = (
