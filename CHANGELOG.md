@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.3.0](https://github.com/bhoudebert/shelf-sdlc-agents/compare/v0.2.0...v0.3.0) (2026-11-21)
+
+
+### Features
+
+* **steps:** a container step reports as versioned lines, read by a backend against a fake runner ([#188](https://github.com/bhoudebert/shelf-sdlc-agents/issues/188)) ([e228871](https://github.com/bhoudebert/shelf-sdlc-agents/commit/e228871425386d43ad0f40531c79864265e576b0))
+* **steps:** container mode gets its clone, tools, sessions and policy volumes (3a) ([#191](https://github.com/bhoudebert/shelf-sdlc-agents/issues/191)) ([2e774ae](https://github.com/bhoudebert/shelf-sdlc-agents/commit/2e774aebe9d9038c6a8c68df81141f36ff583759))
+* **steps:** the runner service starts each step in a container it builds itself ([#189](https://github.com/bhoudebert/shelf-sdlc-agents/issues/189)) ([8e024e9](https://github.com/bhoudebert/shelf-sdlc-agents/commit/8e024e9ad622a7433c2d71c98a1d0feab4cc096f))
+
+
+### Bug fixes
+
+* **deploy:** the clone and session folders belong to the agent user in the image ([#195](https://github.com/bhoudebert/shelf-sdlc-agents/issues/195)) ([3f0f56a](https://github.com/bhoudebert/shelf-sdlc-agents/commit/3f0f56a3d9535ce0b0471c21a0706ec23a20fbae))
+* **deploy:** the container overlay parses, and a Compose file it cannot read is reported ([#193](https://github.com/bhoudebert/shelf-sdlc-agents/issues/193)) ([f34cd44](https://github.com/bhoudebert/shelf-sdlc-agents/commit/f34cd44383e7b70e1182d4c9919f31b3f0aa5456))
+* **deploy:** the web service starts in container mode and holds no key to the runner ([#194](https://github.com/bhoudebert/shelf-sdlc-agents/issues/194)) ([7cc664f](https://github.com/bhoudebert/shelf-sdlc-agents/commit/7cc664f5d0fc37ff1f7d568d135fffa1da4273b3))
+* **steps:** a container step gets the model credential the worker was given ([#196](https://github.com/bhoudebert/shelf-sdlc-agents/issues/196)) ([d08cc13](https://github.com/bhoudebert/shelf-sdlc-agents/commit/d08cc136b642801b617fb8d27eca119e01c44db3))
+* **steps:** the step user's home in the user database is the one HOME names ([#197](https://github.com/bhoudebert/shelf-sdlc-agents/issues/197)) ([0811bfb](https://github.com/bhoudebert/shelf-sdlc-agents/commit/0811bfb98d4e8d09e38619f80161cf0a2feba392))
+
 ## [0.2.0](https://github.com/bhoudebert/shelf-sdlc-agents/compare/v0.1.0...v0.2.0) (2026-11-18)
 
 
