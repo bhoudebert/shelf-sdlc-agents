@@ -101,7 +101,10 @@ FROM app AS step
 USER root
 RUN apt-get purge -y --auto-remove bubblewrap socat \
  && rm -rf /var/lib/apt/lists/* \
- && mkdir -p /home/step && chown 1000:1000 /home/step
+ && mkdir -p /home/step && chown 1000:1000 /home/step \
+ && usermod --home /home/step shelf
+# The user's home in /etc/passwd is the one HOME names: the JVM reads user.home from the user database, and would otherwise
+# look for ~/.m2 on the read-only root instead of in the tools volume.
 # The tools the worker's set-up installed into the repository's home are found through mise's shims, as in the worker.
 ENV HOME=/home/step PATH="/home/step/.local/share/mise/shims:$PATH"
 USER 1000

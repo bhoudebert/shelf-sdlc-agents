@@ -125,6 +125,7 @@ async def probe() -> None:
         "touch /etc/claude-code/a 2>/dev/null && echo policy=writable || echo policy=readonly; "
         "test -s /etc/claude-code/managed-settings.json && echo policy_read=yes; "
         "echo guard=$WARDEN_PROFILE; echo mise=$MISE_YES; echo path=$PATH; echo home=$HOME; "
+        "echo userdb=$(getent passwd $(id -u) | cut -d: -f6); "
         "cat /run/shelf/task.json"
     )
     out = await probe_run(script, "probe-1")
@@ -137,6 +138,7 @@ async def probe() -> None:
     )
     expect(facts.get("policy") == "readonly" and facts.get("policy_read") == "yes", "the policy is read-only and there")
     expect(facts.get("guard") == "shelf" and facts.get("mise") == "1", "the operator's variables are set")
+    expect(facts.get("userdb") == facts.get("home") == "/home/step", "the user database and HOME name one home")
     expect(facts.get("path", "").startswith("/home/step/.local/share/mise/shims:"), "the tool shims come first")
     expect('{"prompt":"x"}' in out, "it reads the task the runner put in the file")
     # a second container of the same work finds what the first left in the sessions folder (spike S4's first half)
