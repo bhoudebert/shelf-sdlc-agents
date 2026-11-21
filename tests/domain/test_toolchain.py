@@ -100,3 +100,13 @@ def test_the_sentence_about_docker_is_a_note_of_its_own_and_says_what_is_true_of
     assert "docker compose" in DOCKER_ON_NOTE
     assert "Testcontainers" in DOCKER_ON_NOTE
     assert "not available" not in DOCKER_ON_NOTE
+
+
+def test_the_note_about_tools_says_the_checks_come_from_the_default_branch_and_the_file_is_not_the_agents() -> None:
+    from shelf.domain.toolchain import SANDBOX_RECIPES, TOOLCHAIN_NOTE  # noqa: PLC0415
+
+    for text in (SANDBOX_RECIPES, TOOLCHAIN_NOTE):
+        flat = " ".join(text.split())
+        assert "default branch" in flat
+        assert ".shelf/config.toml" in flat
+        assert "is discarded" in flat

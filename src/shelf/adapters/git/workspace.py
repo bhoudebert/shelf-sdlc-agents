@@ -9,6 +9,7 @@ from collections.abc import AsyncGenerator, Callable, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Final
 
 from shelf.domain.secrets import for_commands
 from shelf.ports.workspace import Checkout, CheckResult
@@ -120,6 +121,10 @@ async def _clone_without_base(  # noqa: PLR0913, PLR0917 - one clone's worth of 
     await _git(repo, "push", "--quiet", "origin", f"HEAD:refs/heads/{checkout.base}", auth=auth, secrets=secrets)
 
 
+PROTECTED: Final = (".shelf/config.toml",)
+"""Files an agent's step never commits: the repository's own configuration, read from its default branch."""
+
+
 @dataclass(frozen=True, slots=True)
 class GitWorkspace:
     """One clone, alive for one step."""
@@ -131,11 +136,30 @@ class GitWorkspace:
     secrets: tuple[str, ...] = ()
     lease: str = ""
     """The commit the branch was at when it was cloned, for a branch that belongs to someone's pull request."""
+    start: str = ""
+    """The commit the branch held when the step began: what the protected files are put back to before a commit."""
 
     async def run(self, command: str) -> CheckResult:
         """Run a shell command in the clone, without the worker's secrets or the model credential in its environment."""
         # The commands are the repository's own checks, from its reviewed .shelf/config.toml: a shell is the point.
         return await _exec([command], self.path, shell=True, env=for_commands(os.environ))  # noqa: S604
+
+    async def _keep_the_configuration(self) -> None:
+        """Put the protected files back to what the branch held when the step began, or remove those it did not have.
+
+        The checks and the policy are read from the default branch: a change on a work's branch has no effect on the
+        work, and an agent that could change its own checks could make them pass. A person's earlier commit is part of
+        ``start``, so it is kept.
+        """
+        if not self.start:
+            return
+        for path in PROTECTED:
+            held = await _git(self.path, "cat-file", "-e", f"{self.start}:{path}", check=False)
+            if held.exit_code == 0:
+                await _git(self.path, "checkout", self.start, "--", path)
+            else:
+                await _git(self.path, "rm", "--quiet", "--force", "--cached", "--ignore-unmatch", "--", path)
+                (self.path / path).unlink(missing_ok=True)
 
     async def commit_and_push(self, message: str) -> bool:
         """Commit what changed and push the branch; ``False`` when nothing changed.
@@ -145,6 +169,7 @@ class GitWorkspace:
         """
         if not self.pushes:
             return False
+        await self._keep_the_configuration()
         await _git(self.path, "add", "--all")
         dirty = (await _git(self.path, "status", "--porcelain")).output.strip() != ""
         if dirty:
@@ -213,6 +238,9 @@ class GitWorkspaces:
                 await _git(repo, "checkout", "--quiet", "-B", checkout.branch, "FETCH_HEAD")
             else:
                 await _git(repo, "checkout", "--quiet", "-b", checkout.branch)
-            yield GitWorkspace(repo, checkout.branch, pushes=True, auth=auth, secrets=secrets, lease=checkout.lease)
+            began = (await _git(repo, "rev-parse", "HEAD", check=False)).output.strip()
+            yield GitWorkspace(
+                repo, checkout.branch, pushes=True, auth=auth, secrets=secrets, lease=checkout.lease, start=began
+            )
         finally:
             shutil.rmtree(directory, ignore_errors=True)
