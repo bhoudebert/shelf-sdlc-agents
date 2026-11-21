@@ -18,6 +18,7 @@ from shelf.adapters.config.github import GitHubRepoConfigs
 from shelf.adapters.config.operator_file import OperatorFile, read_operator
 from shelf.adapters.container_agent.backend import ContainerBackend, Volumes
 from shelf.adapters.container_agent.client import HttpStepRunner
+from shelf.adapters.container_agent.commands import ContainerCommands
 from shelf.adapters.git.workspace import GitWorkspaces
 from shelf.adapters.github_app.app_auth import installation_id, installation_token
 from shelf.adapters.github_app.context_sources import GitHubContextSources
@@ -38,6 +39,7 @@ from shelf.domain.operator import OperatorConfig
 from shelf.domain.toolchain import allowed_domains
 from shelf.entrypoints.settings import GitHubApp, Settings
 from shelf.ports.agents import AgentBackend
+from shelf.ports.commands import CommandRunner
 from shelf.ports.workspace import Workspaces
 
 log = logging.getLogger(__name__)
@@ -105,6 +107,18 @@ def agents_and_workspaces(settings: Settings, file: OperatorFile) -> tuple[Agent
     return backend, GitWorkspaces(root=clones)
 
 
+def command_runner(settings: Settings) -> CommandRunner | None:
+    """Where a repository's check commands run: as steps in container mode, else in the worker (``None``)."""
+    shared = settings.container
+    if shared is None:
+        return None
+    return ContainerCommands(
+        HttpStepRunner(shared.socket, shared.token),
+        Volumes(shared.steps_dir, Path(settings.cache_dir), shared.sessions_dir),
+        docker=shared.docker,
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class Services:
     """The adapters, built once from the settings."""
@@ -163,6 +177,7 @@ def build_services(settings: Settings, github: GitHubApp, client: httpx.AsyncCli
         max_turns=settings.max_turns,
         max_budget_usd=settings.max_budget_usd,
         cache_dir=settings.cache_dir,
+        commands=command_runner(settings),
         docker=settings.container is not None and settings.container.docker,
         base_path=os.environ.get("PATH", ""),
         ci_wait=settings.ci_wait,

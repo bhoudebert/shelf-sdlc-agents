@@ -83,7 +83,7 @@ def test_a_field_that_is_an_engine_option_is_refused(field: str) -> None:
         ({"clone": "volumes/x"}, "clone"),
         ({"session": "work/../x"}, "session"),
         ({"session": "other/x"}, "session"),
-        ({"kind": "check"}, "kind"),
+        ({"kind": "setup"}, "kind"),
         ({"mode": {"tools": "rwx"}}, "mode"),
         ({"mode": {"net": "rw"}}, "mode"),
         ({"limits": {"gpus": 1}}, "limits"),
@@ -396,3 +396,64 @@ def test_a_step_without_docker_is_the_same_under_every_profile() -> None:
     plain = container_spec(ask(), profile_rules("standard"), expires=1)
     for profile in DOCKER_PROFILES:
         assert container_spec(ask(), profile_rules(profile), expires=1) == plain
+
+
+def check_request(**changes: Any) -> dict[str, Any]:
+    body = request(kind="check", env={}, session="", input={"command": "./mvnw -B verify"})
+    return {**body, **changes}
+
+
+def check_ask(**changes: Any) -> StepAsk:
+    parsed = parse_request(check_request(**changes), RULES)
+    assert isinstance(parsed, Ok), parsed
+    return parsed.value
+
+
+def test_a_check_is_a_kind_the_runner_runs() -> None:
+    assert check_ask().kind == "check"
+
+
+@pytest.mark.parametrize("variable", ["ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN", "GH_TOKEN", "GITHUB_TOKEN"])
+def test_a_check_is_never_given_a_credential(variable: str) -> None:
+    parsed = parse_request(check_request(env={variable: "secret-value"}), RULES)
+    assert isinstance(parsed, Err)
+    assert variable in parsed.error
+    assert "secret-value" not in parsed.error
+
+
+def test_a_check_may_be_given_the_variables_that_are_not_credentials() -> None:
+    assert check_ask(env={"SHELF_STEP_X": "1"}).env == {"SHELF_STEP_X": "1"}
+
+
+@pytest.mark.parametrize("command", ["", "   ", None, 5, ["a"], "x" * 4001, "a\x00b"])
+def test_a_check_needs_a_command_that_is_text_of_a_sane_size(command: object) -> None:
+    parsed = parse_request(check_request(input={"command": command}), RULES)
+    assert isinstance(parsed, Err)
+    assert "command" in parsed.error
+
+
+def test_a_check_is_built_like_an_agent_step_and_runs_its_own_program() -> None:
+    body = container_spec(check_ask(), RULES, expires=1_000)
+    assert body["Cmd"] == ["shelf-check", "/run/shelf/task.json"]
+    assert body["User"] == "1000:1000"
+    assert body["HostConfig"]["CapDrop"] == ["ALL"]
+    assert [m for m in body["HostConfig"]["Mounts"] if m["Target"].endswith("/projects")] == []
+    tools = [m for m in body["HostConfig"]["Mounts"] if m["Target"].endswith("/.m2")]
+    assert tools[0]["ReadOnly"] is False
+
+
+def test_a_check_with_docker_runs_its_program_through_the_wrapper() -> None:
+    parsed = parse_request(check_request(docker=True), DOCKER_RULES)
+    assert isinstance(parsed, Ok)
+    assert container_spec(parsed.value, DOCKER_RULES, expires=1)["Cmd"] == [
+        "shelf-step-docker",
+        "shelf-check",
+        "/run/shelf/task.json",
+    ]
+    assert docker_spec()["Cmd"] == ["shelf-step-docker", "shelf-step", "/run/shelf/task.json"]
+
+
+def test_an_unknown_kind_is_still_refused() -> None:
+    parsed = parse_request(request(kind="setup"), RULES)
+    assert isinstance(parsed, Err)
+    assert "kind" in parsed.error

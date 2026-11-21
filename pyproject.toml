@@ -27,6 +27,7 @@ shelf-catalog = "shelf.entrypoints.catalog:main"
 shelf-cache = "shelf.entrypoints.cache:main"
 shelf-runner = "shelf.entrypoints.runner:main"
 shelf-step = "shelf.adapters.claude_agent.step:main"
+shelf-check = "shelf.adapters.step_check.check:main"
 
 [dependency-groups]
 dev = [

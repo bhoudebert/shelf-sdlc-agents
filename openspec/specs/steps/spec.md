@@ -330,7 +330,7 @@ The system SHALL read `SHELF_ISOLATION` as `sandbox` (the default: agents run in
 
 ### Requirement: A step in a container reports itself as a stream of versioned lines
 
-The system SHALL have the code that runs in a step's container report what the agent does as lines of JSON on its standard output, starting with a `hello` line that carries the protocol version, followed by `tool`, `tool_result`, `audit` and `result` lines and `ping` lines as a keepalive, and ending with an `exit` line written by whoever runs the container, never by the agent; and SHALL make the worker's reader ignore any field and any kind of line it does not know. A stream that ends without `exit`, a line that is not JSON and a protocol version newer than the worker knows SHALL fail the step, and the error SHALL NOT repeat the offending line.
+The system SHALL have the code that runs in a step's container report what the agent does as lines of JSON on its standard output, starting with a `hello` line that carries the protocol version, followed by `tool`, `tool_result`, `audit` and `result` lines (or, for a repository's check, one `check` line with the command's exit code and the end of its output) and `ping` lines as a keepalive, and ending with an `exit` line written by whoever runs the container, never by the agent; and SHALL make the worker's reader ignore any field and any kind of line it does not know. A stream that ends without `exit`, a line that is not JSON and a protocol version newer than the worker knows SHALL fail the step, and the error SHALL NOT repeat the offending line.
 
 #### Scenario: A round trip
 
@@ -1247,6 +1247,45 @@ The system SHALL, when the operator has enabled Docker in steps and named the ru
 
 - **WHEN** a request to the runner carries a mount, a capability, a device or privileged mode next to the Docker field
 - **THEN** the runner refuses it and starts no container
+
+### Requirement: In container mode the repository's checks run in a step of their own
+
+The system SHALL, when agents run in containers, run each command of a repository's `checks` as a `check` step in a container of its own, built by the runner from the same fixed rules as an agent step: the clone mounted at `/work`, the repository's tools and caches, the step's Docker daemon when Docker in steps is on, and the step's limits, but with no model credential and no `GH_TOKEN`, which the runner SHALL refuse in a request for a check. The code in the container SHALL run the command in a shell in `/work` and report one `check` line with its exit code and the end of its output; the worker SHALL turn it into the same result, report and lines as a check run in the worker, and SHALL NOT wrap the command in the worker's own paths, because the step has its own home and tool shims. A check whose step did not end properly (a stream that broke, a step that ran out of time or memory, a runner that could not be reached) SHALL fail the check and say why, and SHALL NOT count as passed. When agents run in the worker's sandbox the commands SHALL run as before.
+
+#### Scenario: A check that passes and one that fails
+
+- **WHEN** the checks are `./mvnw -B verify` and the command exits with 0, or with 1 after a failing test
+- **THEN** the worker reports the pass, or the failure with the command, its exit code and the end of its output, as for a check run in the worker
+
+#### Scenario: A check that needs Docker
+
+- **WHEN** Docker in steps is on and the check is `docker compose up -d --wait && ./mvnw -B verify`
+- **THEN** the check runs with a Docker daemon of its own, starts the database, and the tests reach it on `localhost`
+
+#### Scenario: No credential in a check
+
+- **WHEN** a request for a `check` step carries a model credential or a `GH_TOKEN`
+- **THEN** the runner refuses it, names the variable and starts no container
+
+#### Scenario: The tools of the repository
+
+- **WHEN** the worker installed the repository's tools before the checks
+- **THEN** the check finds them on its path in its own container, and what it downloads (a build's cache) stays in the repository's tools folder
+
+#### Scenario: A check that runs out of time
+
+- **WHEN** a check is still running when its time is up
+- **THEN** the check fails, saying that it ran out of time, and is not counted as passed
+
+#### Scenario: A check that could not run
+
+- **WHEN** the runner cannot be reached or the step's stream breaks
+- **THEN** the check fails with the reason and is not counted as passed
+
+#### Scenario: The worker's sandbox mode
+
+- **WHEN** agents run in the worker's sandbox
+- **THEN** the checks run in the worker as before
 
 ### Requirement: The checks step installs the repository's tools before it runs its checks
 

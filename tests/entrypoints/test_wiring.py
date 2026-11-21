@@ -102,3 +102,44 @@ def test_container_mode_wires_the_container_backend_and_clones_into_the_shared_v
     assert backend.volumes.tools == tmp_path / "tools"
     assert getattr(workspaces, "root", None) == tmp_path / "steps" / "steps"
     assert (tmp_path / "steps" / "steps").is_dir()
+
+
+def container_environ(tmp_path: Path, **more: str) -> dict[str, str]:
+    return {
+        **BASE,
+        "SHELF_ISOLATION": "container",
+        "SHELF_RUNNER_TOKEN": "t",
+        "SHELF_STEPS_DIR": str(tmp_path / "steps"),
+        "SHELF_SESSIONS_DIR": str(tmp_path / "sessions"),
+        "SHELF_CACHE_DIR": str(tmp_path / "tools"),
+        **more,
+    }
+
+
+def test_in_the_sandbox_mode_the_checks_run_in_the_worker() -> None:
+    from shelf.entrypoints.wiring import command_runner  # noqa: PLC0415
+
+    assert command_runner(from_environ(BASE)) is None
+
+
+def test_in_container_mode_the_checks_run_as_steps_over_the_same_volumes(tmp_path: Path) -> None:
+    from shelf.adapters.container_agent.commands import ContainerCommands  # noqa: PLC0415
+    from shelf.entrypoints.wiring import command_runner  # noqa: PLC0415
+
+    commands = command_runner(from_environ(container_environ(tmp_path)))
+
+    assert isinstance(commands, ContainerCommands)
+    assert commands.volumes.steps == tmp_path / "steps"
+    assert commands.volumes.tools == tmp_path / "tools"
+    assert commands.docker is False
+
+
+def test_a_check_asks_for_docker_when_the_operator_turned_it_on(tmp_path: Path) -> None:
+    from shelf.adapters.container_agent.commands import ContainerCommands  # noqa: PLC0415
+    from shelf.entrypoints.wiring import command_runner  # noqa: PLC0415
+
+    environ = container_environ(tmp_path, SHELF_STEP_DOCKER="on", SHELF_STEP_RUNTIME="kata")
+    commands = command_runner(from_environ(environ))
+
+    assert isinstance(commands, ContainerCommands)
+    assert commands.docker is True

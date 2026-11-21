@@ -117,6 +117,18 @@ class MemoryRecords:
         return self.kept
 
 
+@dataclass
+class FakeCommands:
+    """A command runner other than the worker's own shell: remembers what it was asked and answers from a table."""
+
+    results: dict[str, CheckResult] = field(default_factory=dict[str, CheckResult])
+    asked: list[tuple[str, Path, str]] = field(default_factory=list[tuple[str, Path, str]])
+
+    async def run(self, repo: str, workdir: Path, command: str) -> CheckResult:
+        self.asked.append((repo, workdir, command))
+        return self.results.get(command, CheckResult(command, 0, f"container output of {command}"))
+
+
 def steps(  # noqa: PLR0913, PLR0917 - one knob per thing a test of the steps may set
     agents: FakeAgents | None = None,
     workspaces: FakeWorkspaces | None = None,
@@ -124,6 +136,7 @@ def steps(  # noqa: PLR0913, PLR0917 - one knob per thing a test of the steps ma
     config: RepoConfig | None = None,
     cache_dir: str = "",
     run_records: "MemoryRecords | None" = None,
+    commands: FakeCommands | None = None,
 ) -> Steps:
     return Steps(
         workspaces=workspaces or FakeWorkspaces(),
@@ -138,6 +151,7 @@ def steps(  # noqa: PLR0913, PLR0917 - one knob per thing a test of the steps ma
         cache_dir=cache_dir,
         sleep=no_sleep,
         run_records=run_records,
+        commands=commands,
     )
 
 
@@ -1360,3 +1374,63 @@ def test_the_prompt_tells_a_step_without_docker_that_there_is_none() -> None:
 def test_a_step_that_gets_no_note_about_tools_gets_none_about_docker() -> None:
     prompt = task_prompt(NEED, RunStep(Phase.INTAKE, 0, ""), docker=True)
     assert "Docker" not in prompt
+
+
+async def test_with_a_command_runner_the_checks_run_there_and_not_in_the_workers_shell() -> None:
+    workspaces, commands = FakeWorkspaces(), FakeCommands()
+    config = RepoConfig(checks=("make lint", "make test"))
+
+    result = await steps(workspaces=workspaces, config=config, commands=commands).run(
+        NEED, RunStep(Phase.VERIFY, 0, "")
+    )
+
+    assert result == Verified(passed=True)
+    assert [(repo, command) for repo, _, command in commands.asked] == [
+        (REPO.full_name, "make lint"),
+        (REPO.full_name, "make test"),
+    ]
+    assert all(path == workspaces.workspace.path for _, path, _ in commands.asked)
+    assert workspaces.workspace.ran == []
+
+
+async def test_a_command_given_to_a_command_runner_is_not_wrapped_in_the_workers_own_paths() -> None:
+    commands = FakeCommands()
+    config = RepoConfig(checks=("./mvnw -B verify",))
+
+    await steps(config=config, commands=commands, cache_dir="/cache").run(NEED, RunStep(Phase.VERIFY, 0, ""))
+
+    assert [command for _, _, command in commands.asked] == ["./mvnw -B verify"]
+
+
+async def test_a_failing_check_in_a_container_is_reported_as_one_in_the_worker_is() -> None:
+    commands = FakeCommands({"make test": CheckResult("make test", 2, "[ERROR] 1 test failed")})
+    config = RepoConfig(checks=("make lint", "make test"))
+
+    result = await steps(config=config, commands=commands).run(NEED, RunStep(Phase.VERIFY, 0, ""))
+
+    assert isinstance(result, Verified)
+    assert not result.passed
+    assert "$ make test (exit 2)" in result.report
+    assert "[ERROR] 1 test failed" in result.report
+    assert "make lint" not in result.report
+
+
+async def test_a_check_that_did_not_run_is_a_failure_with_the_reason_and_never_a_pass() -> None:
+    reason = "the check did not run to its end: the step ran out of time"
+    commands = FakeCommands({"make test": CheckResult("make test", -1, reason)})
+    config = RepoConfig(checks=("make test",))
+
+    result = await steps(config=config, commands=commands).run(NEED, RunStep(Phase.VERIFY, 0, ""))
+
+    assert isinstance(result, Verified)
+    assert not result.passed
+    assert "ran out of time" in result.report
+
+
+async def test_without_a_command_runner_the_checks_run_in_the_worker_as_before() -> None:
+    workspaces = FakeWorkspaces()
+    config = RepoConfig(checks=("make test",))
+
+    await steps(workspaces=workspaces, config=config).run(NEED, RunStep(Phase.VERIFY, 0, ""))
+
+    assert workspaces.workspace.ran == ["make test"]

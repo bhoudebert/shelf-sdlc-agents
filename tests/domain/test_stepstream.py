@@ -8,6 +8,7 @@ from shelf.domain.runlog import ToolEvent
 from shelf.domain.stepstream import (
     PROTOCOL,
     Audit,
+    Check,
     Event,
     Exit,
     Hello,
@@ -40,6 +41,7 @@ EVENTS: list[Event] = [
         errors=("e1",),
         denials=("Bash: curl http://x",),
     ),
+    Check(1, "[ERROR] Tests run: 3, Failures: 1"),
     Ping(),
     Exit(0),
     Exit(-1, "timeout"),
@@ -178,3 +180,31 @@ def test_a_secret_a_sender_forgot_to_hide_is_hidden_on_arrival() -> None:
 def test_blank_lines_are_skipped() -> None:
     stream = feed(StepStream(), ["", encode(Hello()), "  ", encode(Exit(0))])
     assert stream.exit == Exit(0)
+
+
+def test_a_check_ends_well_with_its_line_and_the_exit_even_when_the_command_failed() -> None:
+    stream = feed(StepStream(), lines(Hello(), Check(2, "boom"), Exit(0)))
+    assert stream.check == Check(2, "boom")
+    assert stream.failure() == ""
+
+
+def test_a_check_that_ran_out_of_time_is_named_and_has_no_line() -> None:
+    stream = feed(StepStream(), lines(Hello(), Exit(-1, "timeout")))
+    assert stream.check is None
+    assert "ran out of time" in stream.failure()
+
+
+def test_a_step_that_exits_with_neither_a_result_nor_a_check_line_is_a_failure() -> None:
+    assert "without a result" in feed(StepStream(), lines(Hello(), Exit(0))).failure()
+
+
+def test_the_output_of_a_check_is_hidden_on_arrival_when_it_holds_a_secret() -> None:
+    token = "ghp_" + "a" * 30
+    stream = feed(StepStream(), lines(Hello(), Check(1, f"remote: https://{token}@github.com"), Exit(0)))
+    assert stream.check is not None
+    assert token not in stream.check.output
+
+
+def test_a_check_line_with_the_wrong_shape_is_a_protocol_error() -> None:
+    with pytest.raises(StreamError, match="code"):
+        decode('{"e":"check","code":"one","output":""}')
