@@ -288,7 +288,17 @@ The system SHALL let the operator turn the agents' sandbox off, for hosts where 
 
 ### Requirement: Docker in steps is off until the operator names a runtime that can honour it
 
-The system SHALL read `SHELF_STEP_DOCKER` (`off` when unset, or `on`), `SHELF_STEP_RUNTIME` (the name of the container runtime that makes a daemon inside a step safe) and `SHELF_STEP_DOCKER_PROFILE` (`standard` when unset, or `unconfined`, `systempaths` or `full`: how permissive the step's container is, as the host needs), SHALL give steps a private Docker daemon only when the first is `on`, and SHALL refuse to start, naming the setting, when `SHELF_STEP_DOCKER` is `on` and the runtime is not named, is not one the container engine reports, or the isolation is not `container`, so that a step never gets a daemon without the boundary that makes it safe.
+The system SHALL read `SHELF_STEP_DOCKER` (`off` when unset, or `on`), `SHELF_STEP_RUNTIME` (the name of the container runtime that makes a daemon inside a step safe) and `SHELF_STEP_DNS` (the resolvers a step with Docker is given, as addresses separated by commas; empty keeps Docker's own) and `SHELF_STEP_DOCKER_PROFILE` (`standard` when unset, or `unconfined`, `systempaths` or `full`: how permissive the step's container is, as the host needs), SHALL give steps a private Docker daemon only when the first is `on`, and SHALL refuse to start, naming the setting, when `SHELF_STEP_DOCKER` is `on` and the runtime is not named, is not one the container engine reports, or the isolation is not `container`, so that a step never gets a daemon without the boundary that makes it safe.
+
+#### Scenario: The resolvers of the host
+
+- **WHEN** `SHELF_STEP_DOCKER` is `on` and `SHELF_STEP_DNS` is not set
+- **THEN** `install.sh` asks the host script to probe, which finds the host's upstream resolvers (those Docker copies on its default network, without the loopback ones) and proves that a step under the runtime, on a user-defined network, resolves a name with them, and `install.sh` writes them into the environment file once and never replaces a value that is set
+
+#### Scenario: No resolver that works
+
+- **WHEN** the host has no upstream resolver a step can use, or a step cannot resolve a name with it
+- **THEN** the probe fails, says so, and says to set `SHELF_STEP_DNS` by hand
 
 #### Scenario: A profile that does not exist
 
