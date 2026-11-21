@@ -325,6 +325,15 @@ The system SHALL read `SHELF_ISOLATION` when the worker starts, SHALL run the ag
 - **WHEN** `SHELF_ISOLATION` is `container` in the environment file the services share
 - **THEN** the web service still starts, because it runs no agent, and it holds neither the runner's token nor a shared folder
 
+### Requirement: The step image's user lives in the home the tools are mounted on
+
+The system SHALL give the step image's user, in the user database as well as in `HOME`, the home the runner mounts the repository's tools on, so that a program that reads its home from the user database and one that reads `HOME` agree.
+
+#### Scenario: Both ways of asking give one home
+
+- **WHEN** a program in a step container asks the user database for the home of the user it runs as
+- **THEN** the answer is the folder `HOME` names
+
 ### Requirement: Links to pull requests use the GitHub address the App is registered on
 
 The system SHALL build the links it shows to pull requests from the web address of the GitHub the App belongs to, github.com unless the operator names another.

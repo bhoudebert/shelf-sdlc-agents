@@ -1289,6 +1289,11 @@ The system SHALL, for an agent step in container mode, clone into a folder of th
 - **WHEN** the worker holds no model credential
 - **THEN** the request holds none and the step fails as it does in the worker, by saying that no model is set up
 
+#### Scenario: A tool that asks the user database for its home finds the tools
+
+- **WHEN** a tool in the step, such as the JVM, takes its home from the user database and not from `HOME`
+- **THEN** it gets the same home the tools were mounted on, so that Maven finds the repository's `.m2` there and does not look for a folder on the read-only root
+
 ### Requirement: The step container reads its policy, its catalog and its guard rules and can change none of them
 
 The system SHALL mount into every step container, read-only, the volumes the operator names for the agents' managed policy, the skill catalog and the guard's rules, at their usual paths, and SHALL set the guard's variables from the operator's rules and never from a request, so that the guard's hooks run in the container as they do in the worker and an agent can neither change them nor point them elsewhere.
