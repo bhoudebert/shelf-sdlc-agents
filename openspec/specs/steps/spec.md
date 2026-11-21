@@ -1384,6 +1384,35 @@ The system SHALL, when a check command ends with a failure in a step that has a 
 - **WHEN** the check fails in a step that has no daemon
 - **THEN** the report is the command's output as before
 
+### Requirement: An agent's change to the repository's own configuration is never committed
+
+The system SHALL, before it commits what an agent step changed, put `.shelf/config.toml` back to what the branch held when the step began (or remove it when the branch had none), because the repository's checks and policy are read from its default branch: a change on a work's branch has no effect on the work, and an agent that could change its own checks could make them pass. A change that a person committed to the branch before the step began is part of what the branch held and SHALL be kept. The other files under `.shelf/`, the documents of the work, SHALL NOT be touched. The system SHALL tell the developer and the code reviewer, in the note about tools, that the checks are read from the default branch and that the file is not theirs to edit.
+
+#### Scenario: An agent rewrites the checks
+
+- **WHEN** the developer edits `.shelf/config.toml` and also writes code
+- **THEN** the commit holds the code and not the edit, and the branch's configuration is what it was when the step began
+
+#### Scenario: An agent creates the file
+
+- **WHEN** the repository has no `.shelf/config.toml` and an agent writes one
+- **THEN** it is not committed
+
+#### Scenario: Only the configuration changed
+
+- **WHEN** the only change of a step is to `.shelf/config.toml`
+- **THEN** nothing is committed or pushed
+
+#### Scenario: A person changed it first
+
+- **WHEN** a person committed a change to `.shelf/config.toml` to the branch, and a later step edits it
+- **THEN** the person's version is what the branch keeps
+
+#### Scenario: The documents of the work
+
+- **WHEN** an agent writes `.shelf/<work>/spec.md`
+- **THEN** it is committed as before
+
 ### Requirement: The checks step installs the repository's tools before it runs its checks
 
 The system SHALL, before it runs the repository's `checks`, install in the worker the tools that the clone declares for mise or detects from its CI, as for the developer and the code reviewer, so that a repository whose `mise.toml` an agent has just written is built with the tools that file declares; SHALL tell on the pull request when that installation failed, with its last line; and SHALL, when no check is configured, say on the pull request that nothing was verified here and how to configure one.
