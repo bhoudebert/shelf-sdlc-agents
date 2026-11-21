@@ -5,11 +5,12 @@
 #   sudo sh deploy/host-runtime.sh                # does the missing ones, after saying what it will change
 #   sudo sh deploy/host-runtime.sh --yes          # the same, without asking (needed without a terminal)
 #   sudo sh deploy/host-runtime.sh --restart-docker   # allows a Docker restart when a reload is not enough
+#   sh deploy/host-runtime.sh --probe             # changes nothing: finds the profile a step needs here, prints profile=<name>
 #
 # What it installs is the Kata Containers runtime: every step runs in a small virtual machine with its own kernel, so a
 # Docker daemon inside it cannot reach this host's Docker. It is safe to run again: each step checks whether it is done.
 # It works on Ubuntu and Debian, on x86_64 and arm64, on a host with /dev/kvm (a cloud VM needs nested virtualisation).
-# Exit status: 0 ready, 1 error or not possible here, 2 steps missing (--check), 3 Docker did not register the runtime.
+# Exit status: 0 ready, 1 error or not possible here, 2 steps missing (--check or --probe), 3 Docker did not register the runtime.
 set -eu
 
 # The release, pinned with its checksum, because this script runs as root. The digests are the ones GitHub shows for
@@ -40,7 +41,8 @@ for arg in "$@"; do
     --check) mode=check ;;
     --yes) yes=yes ;;
     --restart-docker) restart=yes ;;
-    -h | --help) sed -n '2,12p' "$0"; exit 0 ;;
+    --probe) mode=probe ;;
+    -h | --help) sed -n '2,13p' "$0"; exit 0 ;;
     *) echo "unknown option: $arg (see --help)" >&2; exit 1 ;;
   esac
 done
@@ -167,25 +169,76 @@ reload_do() {
   [ -z "$lost" ] || say "       WARNING: these containers stopped during the reload:$lost"
 }
 
+# What the runner gives a step that has a Docker daemon (DOCKER_CAPS and the profiles of src/shelf/domain/stepspec.py; a test keeps
+# them equal), never privileged mode: under the runtime it would hand the host's devices to the virtual machine.
+step_flags="--cap-add SYS_ADMIN --cap-add NET_ADMIN --cap-add SYS_RESOURCE --cap-add MKNOD --tmpfs /run:rw,nosuid,size=64m"
+profiles="standard unconfined cgroupns"
+profile_flags() {
+  case "$1" in
+    standard) printf '%s' "" ;;
+    unconfined) printf '%s' "--security-opt seccomp=unconfined --security-opt apparmor=unconfined" ;;
+    cgroupns) printf '%s' "--security-opt seccomp=unconfined --security-opt apparmor=unconfined --cgroupns=host" ;;
+  esac
+}
+# What the step's own command does before the daemon: make the cgroup filesystem writable. Then a daemon, and a container in it.
+probe_body='mount -o remount,rw /sys/fs/cgroup && echo cgroup-rw
+dockerd -H unix:///var/run/docker.sock > /tmp/dockerd.log 2>&1 &
+i=0
+until docker info > /dev/null 2>&1; do
+  i=$((i + 1))
+  [ "$i" -lt 40 ] || { echo "the daemon did not start in 40 s:"; tail -n 6 /tmp/dockerd.log; exit 1; }
+  sleep 1
+done
+docker run --rm hello-world > /dev/null 2>&1 && echo inner-ok'
+
+# Starts a step-like container under the runtime with one profile and says whether a daemon in it ran a container.
+# probe_out holds what it printed.
+probe_profile() {
+  probe_out=""
+  docker image inspect "$smoke_dind_image" > /dev/null 2>&1 || docker pull -q "$smoke_dind_image" > /dev/null 2>&1 || true
+  # shellcheck disable=SC2046,SC2086
+  probe_out=$(timeout "${SHELF_PROBE_TIMEOUT:-240}" docker run --rm --name "shelf-probe-$$" --runtime "$runtime" $step_flags \
+    $(profile_flags "$1") --entrypoint sh "$smoke_dind_image" -c "$probe_body" 2>&1) || true
+  docker rm -f "shelf-probe-$$" > /dev/null 2>&1 || true
+  case "$probe_out" in *inner-ok*) return 0 ;; esac
+  return 1
+}
+
+# The first profile, from the least permissive, under which a daemon in a step runs a container. Sets found_profile; on no
+# luck prints what each attempt said and returns 1.
+find_profile() {
+  found_profile=""
+  attempts=""
+  for profile in $profiles; do
+    started=$(date +%s)
+    if probe_profile "$profile"; then
+      found_profile="$profile"
+      probe_seconds=$(($(date +%s) - started))
+      return 0
+    fi
+    attempts="$attempts
+--- profile $profile:
+$(printf '%s\n' "$probe_out" | tail -n 8)"
+  done
+  printf '%s\n' "A Docker daemon in a step did not run a container under any profile:$attempts" >&2
+  printf '%s\n' "Docker in steps cannot be used on this host." >&2
+  return 1
+}
+
 smoke() {
   started=$(date +%s)
   host_kernel=$(uname -r)
   guest_kernel=$(docker run --rm --runtime "$runtime" "$smoke_image" uname -r) || fail "a container under '$runtime' did not start"
   [ "$guest_kernel" != "$host_kernel" ] || fail "the container reports the host's kernel ($host_kernel): it is not in a virtual machine"
   say "[ok]   a step container has its own kernel ($guest_kernel; the host runs $host_kernel), $(($(date +%s) - started)) s"
-  started=$(date +%s)
-  name="shelf-smoke-$$"
-  trap 'docker rm -f "$name" >/dev/null 2>&1 || true' EXIT
-  # --privileged is the privilege of the virtual machine's own kernel, not of this host.
-  docker run -d --runtime "$runtime" --privileged -e DOCKER_TLS_CERTDIR= --name "$name" "$smoke_dind_image" >/dev/null
-  n=0
-  until docker exec "$name" docker info >/dev/null 2>&1; do
-    n=$((n + 1))
-    [ "$n" -lt 45 ] || fail "the Docker daemon inside the step did not become ready in 90 s"
-    sleep 2
-  done
-  docker exec "$name" docker run --rm hello-world >/dev/null || fail "the Docker daemon inside the step could not run a container"
-  say "[ok]   a Docker daemon inside a step runs a container, $(($(date +%s) - started)) s"
+  find_profile || exit 1
+  if [ "$found_profile" = standard ]; then
+    say "[ok]   a Docker daemon inside a step runs a container (profile standard), $probe_seconds s"
+  else
+    say "[ok]   a Docker daemon inside a step runs a container, but only with the profile $found_profile, $probe_seconds s"
+    say "       The standard profile does not work on this host. Set SHELF_STEP_DOCKER_PROFILE=$found_profile in deploy/.env"
+    say "       (install.sh --install-runtime does it for you)."
+  fi
 }
 
 # ---- the run -------------------------------------------------------------------------------------------------------
@@ -198,6 +251,12 @@ if [ "$runtime" != "kata" ]; then
 fi
 
 platform
+if [ "$mode" = probe ]; then
+  listed || { say "The runtime '$runtime' is not installed here yet: run deploy/host-runtime.sh first." >&2; exit 2; }
+  find_profile || exit 1
+  say "profile=$found_profile"
+  exit 0
+fi
 say "[ok]   platform: ${PRETTY_NAME:-${ID:-linux}}, $(uname -m), Docker $engine, /dev/kvm"
 
 todo=""

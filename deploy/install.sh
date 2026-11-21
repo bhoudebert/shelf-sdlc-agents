@@ -96,6 +96,19 @@ if [ "$(value SHELF_STEP_DOCKER)" = "on" ]; then
       ;;
     *) exit 1 ;;
   esac
+  # What a host allows differs (the guest's seccomp, its cgroup filesystem): the first profile under which a daemon in a step runs
+  # a container is found once, here, and written down. A value you set yourself is never replaced.
+  if [ -z "$(value SHELF_STEP_DOCKER_PROFILE)" ]; then
+    echo "Finding the profile a step with Docker needs on this host (a few containers start; this takes a minute or two)..."
+    probed=$(SHELF_STEP_RUNTIME="$runtime" sh "$host_script" --probe) || {
+      echo "ERROR: Docker in steps cannot be used on this host (see above). Set SHELF_STEP_DOCKER=off to go on without it." >&2
+      exit 1
+    }
+    profile=$(printf '%s\n' "$probed" | sed -n 's/^profile=//p' | tail -n 1)
+    [ -n "$profile" ] || { echo "ERROR: the host script named no profile." >&2; exit 1; }
+    printf 'SHELF_STEP_DOCKER_PROFILE=%s\n' "$profile" >> "$env_file"
+    echo "Wrote SHELF_STEP_DOCKER_PROFILE=$profile to $env_file."
+  fi
   docker_steps=yes
 fi
 for name in PUBLIC_URL SESSION_SECRET; do

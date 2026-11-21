@@ -26,6 +26,7 @@ FAKES = {
     "id": 'echo "${FAKE_UID:-0}"',
     "docker": """
 state="$FAKE_STATE"
+echo "$*" >> "$state/docker.log"
 case "$1" in
   version) echo 28.2.2;;
   info)
@@ -38,11 +39,22 @@ case "$1" in
       *--format*) cat "$state/names" 2>/dev/null;;
       *) cat "$state/ids" 2>/dev/null;;
     esac;;
+  image) exit 0;;
+  pull) exit 0;;
   run)
     case "$*" in
       *"uname -r"*) cat "$state/guest";;
+      *--entrypoint*)
+        works=$(cat "$state/works" 2>/dev/null || echo standard)
+        level=1
+        case "$*" in *seccomp=unconfined*) level=2;; esac
+        case "$*" in *--cgroupns=host*) level=3;; esac
+        need=99
+        case "$works" in standard) need=1;; unconfined) need=2;; cgroupns) need=3;; esac
+        if [ "$level" -ge "$need" ]; then printf 'cgroup-rw\\ninner-ok\\n'; else
+          echo "mkdir: can't create directory '/sys/fs/cgroup/init': Read-only file system"; fi;;
     esac;;
-  exec|rm) ;;
+  rm) ;;
 esac
 exit 0
 """,
@@ -130,6 +142,7 @@ def host(tmp_path: Path) -> Host:
     (state / "names").write_text("shelf-sdlc-web-1\n")
     (state / "guest").write_text(f"{GUEST_KERNEL}\n")
     (state / "reload_registers").write_text("")
+    (state / "works").write_text("standard\n")
     (state / "release.tar").write_bytes(release_archive())
     for name, body in FAKES.items():
         (bin_dir / name).write_text(f"#!/bin/sh\n{body}\n")
@@ -219,7 +232,7 @@ def test_the_whole_run_installs_registers_and_proves_a_daemon_in_a_step(host: Ho
     assert not (host.root / "opt/.shelf-kata-stage").exists()
     assert "install: curl zstd" not in done.stdout  # fakes are on the path: nothing to install
     assert f"its own kernel ({GUEST_KERNEL}; the host runs {HOST_KERNEL})" in done.stdout
-    assert "a Docker daemon inside a step runs a container" in done.stdout
+    assert "a Docker daemon inside a step runs a container (profile standard)" in done.stdout
     assert "reload docker" in (host.state / "systemctl.log").read_text()
     assert "restart" not in (host.state / "systemctl.log").read_text()
 
@@ -246,7 +259,7 @@ def test_running_it_again_changes_nothing_and_runs_the_checks(host: Host) -> Non
     assert "[do]" not in again.stdout
     assert host.daemon_json.read_text() == daemon
     assert sorted(p.name for p in host.daemon_json.parent.iterdir()) == backups
-    assert "a Docker daemon inside a step runs a container" in again.stdout
+    assert "a Docker daemon inside a step runs a container (profile standard)" in again.stdout
 
 
 def test_other_settings_in_the_daemon_file_are_kept_and_a_dated_copy_is_made(host: Host) -> None:
@@ -345,3 +358,119 @@ def test_another_runtime_is_only_looked_for_never_installed(host: Host) -> None:
     assert other.returncode == 0
     assert "Docker lists the runtime 'runsc'" in other.stdout
     assert not (host.root / "opt").exists()
+
+
+def docker_calls(host: Host) -> str:
+    return (host.state / "docker.log").read_text()
+
+
+def test_the_proof_of_a_daemon_never_uses_privileged_mode(host: Host) -> None:
+    assert host.run("--yes").returncode == 0
+    assert "--privileged" not in docker_calls(host)
+
+
+def test_the_proof_gives_the_container_what_the_runner_gives_a_step(host: Host) -> None:
+    host.run("--yes")
+    call = next(line for line in docker_calls(host).splitlines() if "--entrypoint" in line)
+    for flag in ("--runtime kata", "--cap-add SYS_ADMIN", "--cap-add NET_ADMIN", "--tmpfs /run:rw,nosuid,size=64m"):
+        assert flag in call
+
+
+def test_a_host_that_needs_a_more_permissive_profile_is_told_which_and_how(host: Host) -> None:
+    (host.state / "works").write_text("unconfined\n")
+
+    done = host.run("--yes")
+
+    assert done.returncode == 0, done.stderr
+    assert "profile unconfined" in done.stdout
+    assert "SHELF_STEP_DOCKER_PROFILE=unconfined" in done.stdout
+    assert "a Docker daemon inside a step runs a container (profile standard)" not in done.stdout
+
+
+def test_the_ladder_goes_up_one_profile_at_a_time_and_stops_at_the_first_that_works(host: Host) -> None:
+    (host.state / "works").write_text("unconfined\n")
+    host.run("--yes")
+    probes = [line for line in docker_calls(host).splitlines() if "--entrypoint" in line]
+    assert len(probes) == 2
+    assert "seccomp=unconfined" not in probes[0]
+    assert "seccomp=unconfined" in probes[1]
+    assert not any("--cgroupns=host" in p for p in probes)
+
+
+def test_a_host_where_no_profile_works_fails_and_shows_what_each_attempt_said(host: Host) -> None:
+    (host.state / "works").write_text("none\n")
+
+    done = host.run("--yes")
+
+    assert done.returncode == 1
+    assert "Read-only file system" in done.stdout + done.stderr
+    assert "cannot be used on this host" in done.stdout + done.stderr
+
+
+def ready_host(host: Host) -> None:
+    assert host.run("--yes").returncode == 0
+    (host.state / "docker.log").unlink()
+
+
+def test_probing_names_the_first_profile_that_works_on_the_last_line(host: Host) -> None:
+    ready_host(host)
+    (host.state / "works").write_text("cgroupns\n")
+
+    done = host.run("--probe")
+
+    assert done.returncode == 0, done.stderr
+    assert done.stdout.strip().splitlines()[-1] == "profile=cgroupns"
+
+
+def test_probing_a_host_where_nothing_works_prints_no_profile_and_fails(host: Host) -> None:
+    ready_host(host)
+    (host.state / "works").write_text("none\n")
+
+    done = host.run("--probe")
+
+    assert done.returncode == 1
+    assert "profile=" not in done.stdout
+
+
+def test_probing_changes_nothing_on_the_host(host: Host) -> None:
+    ready_host(host)
+    daemon, systemctl = host.daemon_json.read_text(), (host.state / "systemctl.log").read_text()
+
+    host.run("--probe")
+
+    assert host.daemon_json.read_text() == daemon
+    assert (host.state / "systemctl.log").read_text() == systemctl
+    assert not any(line.startswith(("pull", "restart", "kill")) for line in docker_calls(host).splitlines())
+
+
+def test_probing_before_the_runtime_is_there_says_to_install_it_first(host: Host) -> None:
+    done = host.run("--probe")
+
+    assert done.returncode == 2
+    assert "profile=" not in done.stdout
+    assert "host-runtime.sh" in done.stdout + done.stderr
+
+
+def test_the_proof_runs_exactly_what_the_runner_would_start() -> None:
+    """The script cannot import the runner's rules: this keeps its flags equal to them, so a proof is a proof."""
+    from shelf.domain.result import Ok  # noqa: PLC0415
+    from shelf.domain.stepspec import DOCKER_CAPS, DOCKER_PROFILES, RunnerRules, container_spec, parse_request  # noqa: PLC0415
+
+    script = SCRIPT.read_text()
+    caps = re.search(r'step_flags="([^"]*)"', script)
+    assert caps is not None
+    assert tuple(re.findall(r"--cap-add (\w+)", caps.group(1))) == DOCKER_CAPS
+
+    for profile in DOCKER_PROFILES:
+        rules = RunnerRules(image="i", docker_image="d", docker_runtime="kata", docker_profile=profile)
+        body: dict[str, object] = {"key": "k", "repo": "a/b", "clone": "steps/x/repo", "docker": True, "input": {}}
+        ask = parse_request(body, rules)
+        assert isinstance(ask, Ok)
+        host = container_spec(ask.value, rules, expires=1)["HostConfig"]
+        assert f"--tmpfs /run:{host['Tmpfs']['/run']}" in (caps.group(1))
+        wanted = [f"--security-opt {o}" for o in host["SecurityOpt"] if o != "no-new-privileges"]
+        wanted += ["--cgroupns=host"] if host.get("CgroupnsMode") == "host" else []
+        listed = re.search(rf'{profile}\) printf \'%s\' "([^"]*)"', script)
+        assert listed is not None, profile
+        assert listed.group(1) == " ".join(wanted), profile
+    assert re.search(r'profiles="([^"]*)"', script).group(1).split() == list(DOCKER_PROFILES)  # pyright: ignore[reportOptionalMemberAccess]

@@ -37,6 +37,9 @@ DOCKER_STORAGE: Final = "/var/lib/docker"
 """Where the step's own Docker daemon keeps its images and containers: a volume of the step that goes with it."""
 DOCKER_CAPS: Final = ("SYS_ADMIN", "NET_ADMIN", "SYS_RESOURCE", "MKNOD")
 """What a daemon needs in the step's own kernel, added to Docker's default set. The runtime keeps them off the host."""
+DOCKER_PROFILES: Final = ("standard", "unconfined", "cgroupns")
+"""How permissive a step with Docker is, from the least: hosts differ, so the operator names one, found by
+``deploy/host-runtime.sh --probe``. None is privileged mode, which under the runtime passes the host's devices on."""
 DOCKER_COMMAND: Final = "shelf-step-docker"
 """The wrapper that starts the step's daemon as root and then runs the step as its own user."""
 TOOLS: Final = (".local/share/mise", ".m2", ".npm", ".cache")
@@ -90,6 +93,8 @@ class RunnerRules:
     """The runtime that makes a Docker daemon inside a step safe (decision 0020). Empty: no step has Docker."""
     docker_image: str = ""
     """The image of a step with a Docker daemon; the plain step image when empty."""
+    docker_profile: str = "standard"
+    """One of ``DOCKER_PROFILES``: what the host needs for the daemon in a step to start."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -331,6 +336,10 @@ def _with_docker(body: dict[str, Any], rules: RunnerRules) -> dict[str, Any]:
     host["CapDrop"] = []
     host["CapAdd"] = list(DOCKER_CAPS)
     host["Tmpfs"] = {**host["Tmpfs"], "/run": "rw,nosuid,size=64m"}
+    if rules.docker_profile in {"unconfined", "cgroupns"}:
+        host["SecurityOpt"] = [*host["SecurityOpt"], "seccomp=unconfined", "apparmor=unconfined"]
+    if rules.docker_profile == "cgroupns":
+        host["CgroupnsMode"] = "host"
     host["Mounts"] = [*host["Mounts"], {"Type": "volume", "Target": DOCKER_STORAGE}]
     command = [DOCKER_COMMAND, *body["Cmd"][1:]]
     return {**body, "Image": rules.docker_image or rules.image, "User": "0:0", "Cmd": command, "HostConfig": host}
