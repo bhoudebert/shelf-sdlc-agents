@@ -28,6 +28,10 @@ class EngineError(RuntimeError):
 class ContainerEngine(Protocol):
     """Create, start, read, stop and remove containers. The runner is the only caller."""
 
+    async def runtimes(self) -> list[str]:
+        """The names of the container runtimes the engine has. Raises ``EngineError`` when it cannot be read."""
+        ...
+
     async def create(self, spec: Mapping[str, Any], name: str) -> str:
         """Create a container from the engine's own request body and return its id."""
         ...

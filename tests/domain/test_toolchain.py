@@ -77,12 +77,11 @@ def test_a_check_runs_with_the_tools_on_its_path_and_a_compound_command_stays_wh
     assert with_environment({}, "make test") == "make test"
 
 
-def test_the_note_about_tools_says_the_system_runs_the_checks_and_that_there_is_no_docker() -> None:
+def test_the_note_about_tools_says_the_system_runs_the_checks() -> None:
     from shelf.domain.toolchain import SANDBOX_RECIPES, TOOLCHAIN_NOTE  # noqa: PLC0415
 
     for text in (SANDBOX_RECIPES, TOOLCHAIN_NOTE):
         assert "run by the system after you finish" in text
-        assert "Docker is not available" in text
 
 
 def test_the_sandbox_may_reach_the_hosts_a_jdk_and_maven_come_from() -> None:
@@ -90,3 +89,14 @@ def test_the_sandbox_may_reach_the_hosts_a_jdk_and_maven_come_from() -> None:
 
     for host in ("mise-java.jdx.dev", "api.adoptium.net", "cdn.azul.com", "corretto.aws", "archive.apache.org"):
         assert host in DEFAULT_ALLOWED_DOMAINS
+
+
+def test_the_sentence_about_docker_is_a_note_of_its_own_and_says_what_is_true_of_the_step() -> None:
+    from shelf.domain.toolchain import DOCKER_OFF_NOTE, DOCKER_ON_NOTE, SANDBOX_RECIPES  # noqa: PLC0415
+
+    assert "Docker" not in SANDBOX_RECIPES
+    assert "Docker is not available" in DOCKER_OFF_NOTE
+    assert "own Docker daemon" in DOCKER_ON_NOTE
+    assert "docker compose" in DOCKER_ON_NOTE
+    assert "Testcontainers" in DOCKER_ON_NOTE
+    assert "not available" not in DOCKER_ON_NOTE

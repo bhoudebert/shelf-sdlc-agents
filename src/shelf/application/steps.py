@@ -51,6 +51,8 @@ from shelf.domain.story import agent_comment
 from shelf.domain.titles import clean_title, fallback_title
 from shelf.domain.tool_detection import DECLARED, SOURCES, detect_tools, is_declared
 from shelf.domain.toolchain import (
+    DOCKER_OFF_NOTE,
+    DOCKER_ON_NOTE,
     TOOLCHAIN_NOTE,
     declared_failed,
     declared_ready,
@@ -283,6 +285,7 @@ def task_prompt(  # noqa: PLR0913
     results: Results | None = None,
     depth: ReviewDepth = ReviewDepth.STANDARD,
     sandbox_note: bool = False,
+    docker: bool = False,
 ) -> str:
     """What the agent is asked, built from the request, the documents so far and the feedback that sent work back."""
     folder = folder or documents_dir(work.id)
@@ -312,6 +315,7 @@ def task_prompt(  # noqa: PLR0913
         results_note(results or Results(), step.phase),
         review_note(depth, step.phase),
         setup or (TOOLCHAIN_NOTE if toolchain else ""),
+        (DOCKER_ON_NOTE if docker else DOCKER_OFF_NOTE) if toolchain else "",
         WEB_NOTE if web else "",
         SYSTEM_FILES_NOTE,
         SANDBOX_NOTE if sandbox_note else "",
@@ -348,6 +352,8 @@ class Steps:
     base_path: str = ""
     """The ``PATH`` the agents start from; the tool shims are put in front of it."""
     cache_dir: str = ""
+    docker: bool = False
+    """Each step that runs repository code has a Docker daemon of its own (decision 0020): the agents are told so."""
     """Where each repository's tools and package caches live; empty gives agents the worker's own home and no tools."""
     ci_wait: float = 1800.0
     """How long one checks step looks at the repository's CI before it hands the wait back to the workflow."""
@@ -485,6 +491,7 @@ class Steps:
             web=self.web,
             depth=_depth_for(work, step.phase, config),
             sandbox_note=step.phase in TOOL_PHASES and _uses_prettier(workspace.path),
+            docker=self.docker,
         )
         sink = RunSink()
         asked = continuation_prompt(step, folder_of(workspace.path, work.id), ci=ci_report) if step.session else prompt

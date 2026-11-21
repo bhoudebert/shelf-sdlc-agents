@@ -105,3 +105,8 @@ async def test_the_backend_reads_a_whole_step_from_the_runner_service_with_a_fak
     assert [tool.name for tool in sink.tools] == ["Bash"]
     [(spec, _)] = engine.created
     assert spec["HostConfig"]["ReadonlyRootfs"] is True
+
+
+def test_a_step_with_docker_says_so_in_one_field_and_a_step_without_it_says_nothing() -> None:
+    assert body_of(request(docker=True))["docker"] is True
+    assert "docker" not in body_of(request())

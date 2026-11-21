@@ -1343,3 +1343,20 @@ async def test_a_failed_installation_before_the_checks_is_said_and_the_checks_st
     )
     assert any("echo ok" in c for c in workspaces.workspace.ran)
     assert any("mise" in line and "failed" in line for line in "\n".join(pulls.commented).splitlines())
+
+
+def test_the_prompt_tells_a_step_with_docker_that_it_has_its_own_daemon() -> None:
+    prompt = task_prompt(NEED, RunStep(Phase.IMPLEMENT, 0, ""), toolchain=True, docker=True)
+    assert "own Docker daemon" in prompt
+    assert "Docker is not available" not in prompt
+
+
+def test_the_prompt_tells_a_step_without_docker_that_there_is_none() -> None:
+    prompt = task_prompt(NEED, RunStep(Phase.IMPLEMENT, 0, ""), toolchain=True)
+    assert "Docker is not available" in prompt
+    assert "own Docker daemon" not in prompt
+
+
+def test_a_step_that_gets_no_note_about_tools_gets_none_about_docker() -> None:
+    prompt = task_prompt(NEED, RunStep(Phase.INTAKE, 0, ""), docker=True)
+    assert "Docker" not in prompt

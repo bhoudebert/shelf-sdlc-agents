@@ -1,6 +1,7 @@
 import pytest
 
-from shelf.entrypoints.runner import RunnerSettingsError, read_settings
+from shelf.entrypoints.runner import RunnerSettingsError, check_runtime, read_settings
+from tests.adapters.container_runner.fakes import FakeEngine
 
 GOOD = {"SHELF_STEP_IMAGE": "shelf-step:1", "SHELF_RUNNER_TOKEN": "secret"}
 
@@ -72,3 +73,49 @@ def test_a_fixed_variable_with_a_bad_name_is_refused_without_its_value() -> None
     with pytest.raises(RunnerSettingsError, match="not a variable name") as caught:
         read_settings({**GOOD, "SHELF_STEP_SET_bad": "sk-secret"})
     assert "sk-secret" not in str(caught.value)
+
+
+def test_docker_in_steps_is_off_unless_the_operator_turns_it_on() -> None:
+    rules = read_settings(GOOD).rules
+    assert rules.docker_runtime == ""
+
+
+@pytest.mark.parametrize("value", ["yes", "1", "true", "private"])
+def test_a_docker_setting_that_is_not_on_or_off_is_refused_by_name(value: str) -> None:
+    with pytest.raises(RunnerSettingsError, match="SHELF_STEP_DOCKER"):
+        read_settings({**GOOD, "SHELF_STEP_DOCKER": value})
+
+
+def test_docker_on_without_a_runtime_does_not_start_and_says_a_runtime_must_be_named() -> None:
+    with pytest.raises(RunnerSettingsError, match="SHELF_STEP_RUNTIME"):
+        read_settings({**GOOD, "SHELF_STEP_DOCKER": "on"})
+
+
+def test_docker_on_with_a_runtime_is_in_the_rules_and_the_image_defaults_to_the_step_image() -> None:
+    rules = read_settings({**GOOD, "SHELF_STEP_DOCKER": "on", "SHELF_STEP_RUNTIME": "kata"}).rules
+    assert (rules.docker_runtime, rules.docker_image) == ("kata", "shelf-step:1")
+    other = read_settings(
+        {
+            **GOOD,
+            "SHELF_STEP_DOCKER": "on",
+            "SHELF_STEP_RUNTIME": "kata",
+            "SHELF_STEP_DOCKER_IMAGE": "shelf-step-docker:1",
+        }
+    ).rules
+    assert other.docker_image == "shelf-step-docker:1"
+
+
+def test_a_runtime_without_docker_on_is_ignored() -> None:
+    assert read_settings({**GOOD, "SHELF_STEP_RUNTIME": "kata"}).rules.docker_runtime == ""
+
+
+async def test_the_engine_must_have_the_runtime_the_operator_named() -> None:
+    rules = read_settings({**GOOD, "SHELF_STEP_DOCKER": "on", "SHELF_STEP_RUNTIME": "kata"}).rules
+    await check_runtime(FakeEngine(runtimes=["runc", "kata"]), rules)
+    with pytest.raises(RunnerSettingsError, match="kata") as failed:
+        await check_runtime(FakeEngine(runtimes=["runc"]), rules)
+    assert "runc" in str(failed.value)
+
+
+async def test_an_engine_is_not_asked_for_runtimes_when_docker_is_off() -> None:
+    await check_runtime(FakeEngine(runtimes=[]), read_settings(GOOD).rules)

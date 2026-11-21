@@ -100,6 +100,7 @@ def agents_and_workspaces(settings: Settings, file: OperatorFile) -> tuple[Agent
         extra_domains=extra,
         volumes=Volumes(shared.steps_dir, Path(settings.cache_dir), shared.sessions_dir),
         model_env=dict(shared.model_env),
+        docker=shared.docker,
     )
     return backend, GitWorkspaces(root=clones)
 
@@ -162,6 +163,7 @@ def build_services(settings: Settings, github: GitHubApp, client: httpx.AsyncCli
         max_turns=settings.max_turns,
         max_budget_usd=settings.max_budget_usd,
         cache_dir=settings.cache_dir,
+        docker=settings.container is not None and settings.container.docker,
         base_path=os.environ.get("PATH", ""),
         ci_wait=settings.ci_wait,
         ci_grace=settings.ci_grace,
