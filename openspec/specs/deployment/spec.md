@@ -315,6 +315,16 @@ The system SHALL read `SHELF_STEP_DOCKER` (`off` when unset, or `on`) and `SHELF
 - **WHEN** `SHELF_STEP_DOCKER` is `on`, the runtime is installed and named, and `SHELF_ISOLATION` is `container`
 - **THEN** the services start and the steps that run repository code get a Docker daemon
 
+#### Scenario: One setting for the services that share the environment file
+
+- **WHEN** `SHELF_STEP_DOCKER=on` is set in the environment file that the web service, the catalog, the worker and the runner share
+- **THEN** the web service and the catalog start with it off, as they run no agent, and the worker and the runner have it on
+
+#### Scenario: The image with Docker
+
+- **WHEN** the operator installs with `SHELF_STEP_DOCKER=on`
+- **THEN** `install.sh` builds the step image that has a Docker daemon, with the engine, its client and Compose in it, and the runner uses it only for a step that asks for Docker
+
 ### Requirement: The install guide and the install script say what the host needs, and what installing it does
 
 The system SHALL list, in the install guide of the site and in `deploy/README` text shown by the install script, everything an operator must install or enable on the host for each mode: the container engine and its minimum version, and, for Docker in steps, the runtime (its name, the kernel, the distribution releases it is known to work on, and the settings of the host it depends on, such as the kernel's rules for user namespaces or access to virtualisation), the command that installs it, and what that command does to a host that already runs containers (whether it restarts the engine and so stops them). `install.sh` SHALL check what it can (the engine version, the runtime the engine reports, the kernel) and, when `SHELF_STEP_DOCKER` is `on` and something is missing, SHALL stop before it builds anything and print what is missing and the page that says how to add it, so that no operator has to find out from a failed work.

@@ -16,10 +16,12 @@ services:
   web:
     environment:
       SHELF_ISOLATION: sandbox
+      SHELF_STEP_DOCKER: "off"
       SHELF_RUNNER_TOKEN: ""
 
   catalog:
     environment:
+      SHELF_STEP_DOCKER: "off"
       SHELF_RUNNER_TOKEN: ""
 
   step:
@@ -30,6 +32,18 @@ services:
       args:
         SHELF_REVISION: ${SHELF_REVISION:-unknown}
     image: shelf-sdlc-step:local
+    command: ["true"]
+
+  # The step image with a Docker daemon of its own (decision 0020). Built always, used only for a step that asks for Docker
+  # when SHELF_STEP_DOCKER=on, under the runtime SHELF_STEP_RUNTIME names (deploy/host-runtime.sh installs it).
+  step-docker:
+    profiles: ["tools"]
+    build:
+      context: ..
+      target: step-docker
+      args:
+        SHELF_REVISION: ${SHELF_REVISION:-unknown}
+    image: shelf-sdlc-step-docker:local
     command: ["true"]
 
   runner:
@@ -47,6 +61,9 @@ services:
       - no-new-privileges:true
     environment:
       SHELF_STEP_IMAGE: shelf-sdlc-step:local
+      SHELF_STEP_DOCKER: "${SHELF_STEP_DOCKER:-off}"
+      SHELF_STEP_RUNTIME: "${SHELF_STEP_RUNTIME:-}"
+      SHELF_STEP_DOCKER_IMAGE: shelf-sdlc-step-docker:local
       SHELF_RUNNER_TOKEN: "${SHELF_RUNNER_TOKEN:?run install.sh again, it writes SHELF_RUNNER_TOKEN into deploy/.env}"
       SHELF_RUNNER_SOCKET: /run/shelf-runner/runner.sock
       SHELF_STEP_NETWORK: shelf-sdlc-step
@@ -65,6 +82,8 @@ services:
   worker:
     environment:
       SHELF_ISOLATION: container
+      SHELF_STEP_DOCKER: "${SHELF_STEP_DOCKER:-off}"
+      SHELF_STEP_RUNTIME: "${SHELF_STEP_RUNTIME:-}"
       SHELF_RUNNER_TOKEN: "${SHELF_RUNNER_TOKEN:?run install.sh again, it writes SHELF_RUNNER_TOKEN into deploy/.env}"
       SHELF_STEPS_DIR: /var/lib/shelf/steps
       SHELF_SESSIONS_DIR: /var/lib/shelf/sessions

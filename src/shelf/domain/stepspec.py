@@ -23,7 +23,7 @@ CLONE: Final = re.compile(r"steps/[a-z0-9][a-z0-9_-]{0,63}/repo")
 SESSION: Final = re.compile(r"work/[a-z0-9][a-z0-9-]{0,63}")
 VARIABLE: Final = re.compile(r"[A-Z][A-Z0-9_]{0,63}")
 
-FIELDS: Final = frozenset({"key", "kind", "repo", "clone", "session", "mode", "limits", "env", "input"})
+FIELDS: Final = frozenset({"key", "kind", "repo", "clone", "session", "mode", "limits", "env", "input", "docker"})
 KINDS: Final = ("agent",)
 """The kinds the runner can run. ``check`` and ``setup`` come with the volumes of stage 3."""
 LIMITS: Final = ("cpus", "memory_mb", "pids", "tmp_mb", "seconds")
@@ -33,6 +33,12 @@ HOME: Final = "/home/step"
 TASK_DIR: Final = "/run/shelf"
 TASK_FILE: Final = "task.json"
 USER: Final = "1000:1000"
+DOCKER_STORAGE: Final = "/var/lib/docker"
+"""Where the step's own Docker daemon keeps its images and containers: a volume of the step that goes with it."""
+DOCKER_CAPS: Final = ("SYS_ADMIN", "NET_ADMIN", "SYS_RESOURCE", "MKNOD")
+"""What a daemon needs in the step's own kernel, added to Docker's default set. The runtime keeps them off the host."""
+DOCKER_COMMAND: Final = "shelf-step-docker"
+"""The wrapper that starts the step's daemon as root and then runs the step as its own user."""
 TOOLS: Final = (".local/share/mise", ".m2", ".npm", ".cache")
 """Where a repository's tools and caches live in a step, and in the repository's home in the tools volume."""
 CONFIG_TARGETS: Final = ("/etc/claude-code", "/opt/shelf/catalog", "/var/lib/shelf-guard", "/etc/shelf")
@@ -80,6 +86,10 @@ class RunnerRules:
     """``(volume, target)`` of each read-only config volume: the managed policy, the catalog, the guard's rules."""
     fixed_env: tuple[tuple[str, str], ...] = ()
     """Variables set in every step from the operator's rules, never from a request: the guard's profile and paths."""
+    docker_runtime: str = ""
+    """The runtime that makes a Docker daemon inside a step safe (decision 0020). Empty: no step has Docker."""
+    docker_image: str = ""
+    """The image of a step with a Docker daemon; the plain step image when empty."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,6 +106,8 @@ class StepAsk:
     limits: Limits
     env: Mapping[str, str]
     input: Mapping[str, Any]
+    docker: bool = False
+    """The step has a Docker daemon of its own. Only a runner with a runtime for it accepts it."""
 
 
 def _object(value: object) -> dict[str, Any] | None:
@@ -157,6 +169,15 @@ def _env(data: Mapping[str, Any], allowed: tuple[str, ...]) -> Result[dict[str, 
     return Ok(env)
 
 
+def _docker(data: Mapping[str, Any], rules: RunnerRules) -> Result[bool, str]:
+    wanted = data.get("docker", False)
+    if not isinstance(wanted, bool):
+        return Err("the field docker is not true or false")
+    if wanted and not rules.docker_runtime:
+        return Err("the field docker is refused: this runner has no runtime for a Docker daemon in a step")
+    return Ok(wanted)
+
+
 def _shape(data: object) -> Result[dict[str, Any], str]:
     body = _object(data)
     if body is None:
@@ -185,7 +206,8 @@ def parse_request(data: object, rules: RunnerRules) -> Result[StepAsk, str]:
     clone = _name(body, "clone", CLONE, required=True)
     session = _name(body, "session", SESSION, required=False)
     mode, limits, env = _mode(body), _limits(body, rules.limits), _env(body, rules.env_allowed)
-    if broken := _first_error(key, repo, clone, session, mode, limits, env):
+    docker = _docker(body, rules)
+    if broken := _first_error(key, repo, clone, session, mode, limits, env, docker):
         return Err(broken)
     # every result above is Ok here; the isinstance checks narrow the types for the reader and the checker
     if not (
@@ -196,6 +218,7 @@ def parse_request(data: object, rules: RunnerRules) -> Result[StepAsk, str]:
         and isinstance(mode, Ok)
         and isinstance(limits, Ok)
         and isinstance(env, Ok)
+        and isinstance(docker, Ok)
     ):
         return Err("the request is not valid")
     return Ok(
@@ -210,6 +233,7 @@ def parse_request(data: object, rules: RunnerRules) -> Result[StepAsk, str]:
             limits=limits.value,
             env=env.value,
             input=_object(body.get("input", {})) or {},
+            docker=docker.value,
         )
     )
 
@@ -263,7 +287,23 @@ def container_spec(ask: StepAsk, rules: RunnerRules, *, expires: int) -> dict[st
     if ask.session:
         mounts.append(_mount(rules.sessions_volume, f"{HOME}/.claude/projects", ask.session, readonly=False))
     limits = ask.limits
-    return {
+    host: dict[str, Any] = {
+        "ReadonlyRootfs": True,
+        "CapDrop": ["ALL"],
+        "SecurityOpt": ["no-new-privileges"],
+        "Init": True,
+        "Privileged": False,
+        "PidsLimit": limits.pids,
+        "Memory": limits.memory_mb * 1024 * 1024,
+        "MemorySwap": limits.memory_mb * 1024 * 1024,
+        "NanoCpus": int(limits.cpus * 1_000_000_000),
+        "Tmpfs": {"/tmp": f"rw,nosuid,size={limits.tmp_mb}m"},  # noqa: S108
+        "Mounts": mounts,
+        "NetworkMode": rules.network,
+        "PublishAllPorts": False,
+        "AutoRemove": False,
+    }
+    body: dict[str, Any] = {
         "Image": rules.image,
         "Cmd": ["shelf-step", f"{TASK_DIR}/{TASK_FILE}"],
         "User": USER,
@@ -274,20 +314,23 @@ def container_spec(ask: StepAsk, rules: RunnerRules, *, expires: int) -> dict[st
         "AttachStderr": True,
         "Tty": False,
         "NetworkDisabled": False,
-        "HostConfig": {
-            "ReadonlyRootfs": True,
-            "CapDrop": ["ALL"],
-            "SecurityOpt": ["no-new-privileges"],
-            "Init": True,
-            "Privileged": False,
-            "PidsLimit": limits.pids,
-            "Memory": limits.memory_mb * 1024 * 1024,
-            "MemorySwap": limits.memory_mb * 1024 * 1024,
-            "NanoCpus": int(limits.cpus * 1_000_000_000),
-            "Tmpfs": {"/tmp": f"rw,nosuid,size={limits.tmp_mb}m"},  # noqa: S108
-            "Mounts": mounts,
-            "NetworkMode": rules.network,
-            "PublishAllPorts": False,
-            "AutoRemove": False,
-        },
+        "HostConfig": host,
     }
+    return _with_docker(body, rules) if ask.docker else body
+
+
+def _with_docker(body: dict[str, Any], rules: RunnerRules) -> dict[str, Any]:
+    """The same container with a Docker daemon of its own, under the operator's runtime (decision 0020).
+
+    The daemon runs as root inside the step's own kernel, so the runtime is what keeps it from the host: the container
+    is still not privileged against the host, has no device, no host path and no engine socket, and its storage is a
+    volume that goes with it. The wrapper starts the daemon and runs the step as the step's user.
+    """
+    host = dict(body["HostConfig"])
+    host["Runtime"] = rules.docker_runtime
+    host["CapDrop"] = []
+    host["CapAdd"] = list(DOCKER_CAPS)
+    host["Tmpfs"] = {**host["Tmpfs"], "/run": "rw,nosuid,size=64m"}
+    host["Mounts"] = [*host["Mounts"], {"Type": "volume", "Target": DOCKER_STORAGE}]
+    command = [DOCKER_COMMAND, *body["Cmd"][1:]]
+    return {**body, "Image": rules.docker_image or rules.image, "User": "0:0", "Cmd": command, "HostConfig": host}

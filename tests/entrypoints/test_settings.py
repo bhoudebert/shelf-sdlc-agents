@@ -187,3 +187,35 @@ def test_container_mode_carries_the_model_credential_the_worker_was_given_and_hi
     assert settings.container is not None
     assert settings.container.model_env == (("CLAUDE_CODE_OAUTH_TOKEN", "sk-credential"),)
     assert "sk-credential" not in repr(settings)
+
+
+def test_docker_in_steps_is_off_by_default() -> None:
+    container = from_environ({**BASE, **CONTAINER}).container
+    assert container is not None
+    assert container.docker is False
+
+
+def test_docker_in_steps_on_with_a_runtime_is_read() -> None:
+    container = from_environ({**BASE, **CONTAINER, "SHELF_STEP_DOCKER": "on", "SHELF_STEP_RUNTIME": "kata"}).container
+    assert container is not None
+    assert container.docker is True
+
+
+def test_docker_in_steps_on_without_a_runtime_is_refused_naming_the_runtime() -> None:
+    with pytest.raises(MissingSettingError, match="SHELF_STEP_RUNTIME"):
+        from_environ({**BASE, **CONTAINER, "SHELF_STEP_DOCKER": "on"})
+
+
+def test_docker_in_steps_needs_the_container_mode() -> None:
+    with pytest.raises(ValueError, match="SHELF_ISOLATION=container"):
+        from_environ({**BASE, "SHELF_STEP_DOCKER": "on", "SHELF_STEP_RUNTIME": "kata"})
+
+
+def test_docker_off_in_sandbox_mode_is_fine() -> None:
+    assert from_environ({**BASE, "SHELF_STEP_DOCKER": "off"}).container is None
+
+
+@pytest.mark.parametrize("value", ["yes", "private", "1"])
+def test_a_docker_setting_that_is_not_on_or_off_is_refused_by_name(value: str) -> None:
+    with pytest.raises(ValueError, match="SHELF_STEP_DOCKER"):
+        from_environ({**BASE, **CONTAINER, "SHELF_STEP_DOCKER": value})

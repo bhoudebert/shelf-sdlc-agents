@@ -122,3 +122,14 @@ async def test_an_engine_that_cannot_be_reached_says_so() -> None:
     with pytest.raises(EngineError, match="could not be reached: ConnectError") as caught:
         await engine(httpx.MockTransport(handle)).owned()
     assert "/secret/path" not in str(caught.value)
+
+
+async def test_the_runtimes_are_the_ones_the_engine_reports_in_its_info() -> None:
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.url.path)
+        return httpx.Response(200, json={"Runtimes": {"runc": {}, "kata": {"path": "x"}}})
+
+    assert sorted(await engine(httpx.MockTransport(handler)).runtimes()) == ["kata", "runc"]
+    assert seen == ["/info"]

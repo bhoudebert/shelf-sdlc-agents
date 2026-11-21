@@ -130,6 +130,11 @@ class DockerEngine:
         """Remove the container and its anonymous volumes."""
         await self._send("DELETE", f"/containers/{container}", params={"force": 1, "v": 1}, ok=(204, 404))
 
+    async def runtimes(self) -> list[str]:
+        """The runtimes the engine reports in its info."""
+        response = await self._send("GET", "/info")
+        return list(response.json().get("Runtimes") or {})
+
     async def owned(self) -> list[Owned]:
         """The containers that carry the runner's label."""
         filters = json.dumps({"label": [MANAGED]})

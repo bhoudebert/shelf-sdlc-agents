@@ -1,5 +1,6 @@
 import json
 import os
+import pty
 import shutil
 import subprocess
 import tomllib
@@ -7,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from shelf.entrypoints.runner import read_settings
 from shelf.entrypoints.settings import from_environ
 
 DEPLOY = Path(__file__).parents[2] / "deploy"
@@ -421,3 +423,224 @@ def test_every_volume_the_worker_mounts_in_container_mode_is_a_folder_the_image_
     # the runner-socket volume is the runner's to create, and the worker only connects to it
     for target in (t for t in named if t != "/run/shelf-runner"):
         assert f"mkdir -p {target}" in dockerfile or f" {target} " in dockerfile, target
+
+
+@pytest.mark.skipif(shutil.which("docker") is None, reason="needs docker compose to resolve the services")
+def test_with_docker_in_steps_on_every_service_still_starts_and_the_runner_and_the_worker_agree(tmp_path: Path) -> None:
+    """The services share one environment file: web and the catalog must not refuse a setting that is the worker's."""
+    shutil.copytree(DEPLOY, tmp_path / "deploy")
+    deploy = tmp_path / "deploy"
+    (deploy / ".env").write_text(
+        "PUBLIC_URL=https://x.test\nSESSION_SECRET=s\nSHELF_ISOLATION=container\nSHELF_RUNNER_TOKEN=k\n"
+        "SHELF_STEP_DOCKER=on\nSHELF_STEP_RUNTIME=kata\n"
+    )
+    done = subprocess.run(
+        [  # noqa: S607
+            "docker", "compose", "--profile", "tools", "--env-file", ".env", "-f", "compose.yml",
+            "-f", "compose.container.yml", "config", "--format", "json",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=deploy,
+        timeout=60,
+    )  # fmt: skip
+    assert done.returncode == 0, done.stderr
+    services = json.loads(done.stdout)["services"]
+    assert from_environ(services["web"]["environment"]).container is None
+    worker = from_environ(services["worker"]["environment"])
+    assert worker.container is not None
+    assert worker.container.docker is True
+    runner = read_settings(services["runner"]["environment"])
+    assert (runner.rules.docker_runtime, runner.rules.docker_image) == ("kata", "shelf-sdlc-step-docker:local")
+    assert services["step-docker"]["build"]["target"] == "step-docker"
+    assert services["step-docker"]["image"] == "shelf-sdlc-step-docker:local"
+
+
+@pytest.mark.skipif(shutil.which("docker") is None, reason="needs docker compose to resolve the services")
+def test_with_docker_in_steps_off_the_runner_has_no_runtime_for_it(tmp_path: Path) -> None:
+    shutil.copytree(DEPLOY, tmp_path / "deploy")
+    deploy = tmp_path / "deploy"
+    (deploy / ".env").write_text(
+        "PUBLIC_URL=https://x.test\nSESSION_SECRET=s\nSHELF_ISOLATION=container\nSHELF_RUNNER_TOKEN=k\n"
+    )
+    done = subprocess.run(
+        [  # noqa: S607
+            "docker", "compose", "--env-file", ".env", "-f", "compose.yml", "-f", "compose.container.yml",
+            "config", "--format", "json",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=deploy,
+        timeout=60,
+    )  # fmt: skip
+    assert done.returncode == 0, done.stderr
+    runner = read_settings(json.loads(done.stdout)["services"]["runner"]["environment"])
+    assert runner.rules.docker_runtime == ""
+
+
+# --- Docker in steps: install.sh asks the host script whether the host is ready (decision 0020) ---
+
+FAKE_HOST_SCRIPT = """#!/bin/sh
+echo "host-runtime $*" >> "$HOST_LOG"
+case "$1" in
+  --check) [ -f "$HOST_READY" ] && exit 0; exit "${HOST_CHECK_FAILS_WITH:-2}";;
+  --yes) touch "$HOST_READY"; exit "${HOST_INSTALL_EXIT:-0}";;
+esac
+"""
+
+
+def docker_server(server: Path, **env: str) -> Path:
+    """The fake host script and a fake ``sudo`` that only logs and runs its command."""
+    (server / "deploy" / "host-runtime.sh").write_text(FAKE_HOST_SCRIPT)
+    (server / "bin" / "sudo").write_text('#!/bin/sh\necho "sudo $*" >> "$HOST_LOG"\nexec "$@"\n')
+    (server / "bin" / "sudo").chmod(0o755)
+    (server / "bin" / "id").write_text("#!/bin/sh\necho 1000\n")
+    (server / "bin" / "id").chmod(0o755)
+    write_env(server, SHELF_ISOLATION="container", SHELF_RUNNER_TOKEN="k", SHELF_STEP_DOCKER="on", **env)
+    return server / "host.log"
+
+
+def run_docker(
+    server: Path, *args: str, ready: bool = False, stdin: int | None = None, **env: str
+) -> subprocess.CompletedProcess[str]:
+    (server / "ss.out").write_text("")
+    if ready:
+        (server / "host.ready").write_text("")
+    return subprocess.run(  # noqa: S603
+        ["sh", str(server / "deploy" / "install.sh"), *args],  # noqa: S607
+        capture_output=True,
+        text=True,
+        env={
+            **os.environ,
+            "PATH": f"{server / 'bin'}:{os.environ['PATH']}",
+            "SS_OUTPUT": str(server / "ss.out"),
+            "DOCKER_LOG": str(server / "docker.log"),
+            "HOST_LOG": str(server / "host.log"),
+            "HOST_READY": str(server / "host.ready"),
+            **env,
+        },
+        check=False,
+        timeout=60,
+        stdin=subprocess.DEVNULL if stdin is None else stdin,
+    )
+
+
+def test_docker_in_steps_needs_the_container_mode(server: Path) -> None:
+    docker_server(server, SHELF_STEP_RUNTIME="kata")
+    write_env(server, SHELF_STEP_DOCKER="on", SHELF_STEP_RUNTIME="kata")
+
+    done = run_docker(server)
+
+    assert done.returncode == 1
+    assert "SHELF_ISOLATION=container" in done.stderr
+    assert not (server / "host.log").exists()
+
+
+def test_docker_in_steps_needs_a_runtime_to_be_named(server: Path) -> None:
+    docker_server(server)
+
+    done = run_docker(server)
+
+    assert done.returncode == 1
+    assert "SHELF_STEP_RUNTIME" in done.stderr
+
+
+def test_a_host_that_is_ready_goes_on_and_the_step_image_with_docker_is_built(server: Path) -> None:
+    docker_server(server, SHELF_STEP_RUNTIME="kata")
+
+    done = run_docker(server, ready=True)
+
+    assert done.returncode == 0, done.stderr
+    assert "host-runtime --check" in (server / "host.log").read_text()
+    assert "sudo" not in (server / "host.log").read_text()
+    assert "--profile tools build step-docker" in (server / "docker.log").read_text()
+
+
+def test_a_host_that_is_not_ready_stops_before_building_and_says_what_to_run(server: Path) -> None:
+    docker_server(server, SHELF_STEP_RUNTIME="kata")
+
+    done = run_docker(server)
+
+    assert done.returncode == 1
+    assert "sudo sh" in done.stderr
+    assert "host-runtime.sh" in done.stderr
+    assert "--install-runtime" in done.stderr
+    assert "Building revision" not in done.stdout
+    assert "sudo" not in (server / "host.log").read_text()
+
+
+def test_the_flag_runs_the_host_script_through_sudo_and_goes_on(server: Path) -> None:
+    docker_server(server, SHELF_STEP_RUNTIME="kata")
+
+    done = run_docker(server, "--install-runtime")
+
+    assert done.returncode == 0, done.stderr
+    log = (server / "host.log").read_text()
+    assert "sudo env SHELF_STEP_RUNTIME=kata sh" in log
+    assert "host-runtime.sh --yes" in log
+    assert log.rstrip().endswith("host-runtime --check")  # checked again after the install
+    assert "Building revision" in done.stdout
+
+
+def test_an_install_after_which_the_host_is_still_not_ready_stops(server: Path) -> None:
+    docker_server(server, SHELF_STEP_RUNTIME="kata")
+    (server / "deploy" / "host-runtime.sh").write_text(FAKE_HOST_SCRIPT.replace('touch "$HOST_READY"; ', ""))
+
+    done = run_docker(server, "--install-runtime")
+
+    assert done.returncode == 1
+    assert "Building revision" not in done.stdout
+
+
+def test_a_host_that_cannot_do_it_is_not_offered_an_install(server: Path) -> None:
+    docker_server(server, SHELF_STEP_RUNTIME="kata")
+
+    done = run_docker(server, "--install-runtime", HOST_CHECK_FAILS_WITH="1")
+
+    assert done.returncode == 1
+    assert "sudo" not in (server / "host.log").read_text()
+
+
+def test_a_person_at_the_terminal_is_asked_and_yes_runs_the_script(server: Path) -> None:
+    docker_server(server, SHELF_STEP_RUNTIME="kata")
+    master, slave = pty.openpty()
+    os.write(master, b"y\n")
+
+    done = run_docker(server, stdin=slave)
+
+    assert done.returncode == 0, done.stderr
+    assert "Install it now" in done.stdout
+    assert "host-runtime.sh --yes" in (server / "host.log").read_text()
+
+
+def test_a_person_at_the_terminal_who_says_no_changes_nothing(server: Path) -> None:
+    docker_server(server, SHELF_STEP_RUNTIME="kata")
+    master, slave = pty.openpty()
+    os.write(master, b"n\n")
+
+    done = run_docker(server, stdin=slave)
+
+    assert done.returncode == 1
+    assert "sudo" not in (server / "host.log").read_text()
+
+
+def test_the_host_script_is_never_asked_when_docker_in_steps_is_off(server: Path) -> None:
+    docker_server(server, SHELF_STEP_RUNTIME="kata")
+    write_env(server, SHELF_ISOLATION="container", SHELF_RUNNER_TOKEN="k")
+
+    done = run_docker(server)
+
+    assert done.returncode == 0, done.stderr
+    assert not (server / "host.log").exists()
+    assert "step-docker" not in (server / "docker.log").read_text()
+
+
+def test_the_flag_does_not_replace_the_address_of_a_first_install(server: Path) -> None:
+    (server / "ss.out").write_text("")
+
+    done = run_docker(server, "--install-runtime", "https://shelf.example.org")
+
+    assert done.returncode == 0, done.stderr
+    assert "PUBLIC_URL=https://shelf.example.org" in (server / "deploy" / ".env").read_text()

@@ -220,3 +220,33 @@ async def test_without_a_credential_the_request_holds_none_and_the_credential_ne
     await ContainerBackend(runner).run(task(env={}))
     assert runner.requests[0].env == {}
     assert "tok-secret" not in repr(ContainerBackend(runner, model_env={"ANTHROPIC_API_KEY": "tok-secret"}))
+
+
+@pytest.mark.parametrize(
+    ("phase", "has_docker"),
+    [
+        (Phase.IMPLEMENT, True),
+        (Phase.CODE_REVIEW, True),
+        (Phase.DESIGN, False),
+        (Phase.INTAKE, False),
+        (Phase.PLAN, False),
+    ],
+)
+async def test_only_the_steps_that_run_repository_code_get_docker(
+    tmp_path: Path, phase: Phase, *, has_docker: bool
+) -> None:
+    runner = FakeRunner(good())
+    where = volumes(tmp_path)
+    await ContainerBackend(runner, volumes=where, docker=True).run(
+        task(role=ROLES[phase], workdir=where.steps / "steps" / "a" / "repo", repo="acme/shop", work="w")
+    )
+    assert runner.requests[0].docker is has_docker
+
+
+async def test_no_step_gets_docker_when_the_operator_did_not_turn_it_on(tmp_path: Path) -> None:
+    runner = FakeRunner(good())
+    where = volumes(tmp_path)
+    await ContainerBackend(runner, volumes=where).run(
+        task(role=ROLES[Phase.IMPLEMENT], workdir=where.steps / "steps" / "a" / "repo", repo="acme/shop", work="w")
+    )
+    assert runner.requests[0].docker is False

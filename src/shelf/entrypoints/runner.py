@@ -17,7 +17,7 @@ from shelf.adapters.container_runner.app import create_app
 from shelf.adapters.container_runner.engine import DockerEngine
 from shelf.adapters.container_runner.service import StepService
 from shelf.domain.stepspec import CONFIG_TARGETS, VARIABLE, Limits, RunnerRules
-from shelf.ports.container_engine import EngineError
+from shelf.ports.container_engine import ContainerEngine, EngineError
 
 log = logging.getLogger("shelf.runner")
 REAP_EVERY = 60.0
@@ -79,6 +79,21 @@ def _fixed_env(environ: Mapping[str, str]) -> tuple[tuple[str, str], ...]:
     return tuple((name, environ[f"{SET_PREFIX}{name}"]) for name in names)
 
 
+def _docker(environ: Mapping[str, str], image: str) -> tuple[str, str]:
+    """``(runtime, image)`` of the steps that have a Docker daemon of their own, or empty ones when it is off."""
+    value = environ.get("SHELF_STEP_DOCKER", "").strip().lower()
+    if value not in {"", "on", "off"}:
+        message = f"SHELF_STEP_DOCKER must be on or off, not {value!r}"
+        raise RunnerSettingsError(message)
+    if value != "on":
+        return "", ""
+    runtime = environ.get("SHELF_STEP_RUNTIME", "").strip()
+    if not runtime:
+        message = "SHELF_STEP_DOCKER=on needs SHELF_STEP_RUNTIME: the runtime that makes a Docker daemon in a step safe"
+        raise RunnerSettingsError(message)
+    return runtime, environ.get("SHELF_STEP_DOCKER_IMAGE", "").strip() or image
+
+
 def read_settings(environ: Mapping[str, str]) -> RunnerSettings:
     """The runner's settings from the environment, or ``RunnerSettingsError``."""
     image = environ.get("SHELF_STEP_IMAGE", "").strip()
@@ -97,6 +112,7 @@ def read_settings(environ: Mapping[str, str]) -> RunnerSettings:
         seconds=int(_number(environ, "SHELF_STEP_SECONDS", Limits().seconds)),
     )
     defaults = RunnerRules(image=image)
+    docker_runtime, docker_image = _docker(environ, image)
     rules = RunnerRules(
         image=image,
         network=environ.get("SHELF_STEP_NETWORK", defaults.network),
@@ -106,6 +122,8 @@ def read_settings(environ: Mapping[str, str]) -> RunnerSettings:
         limits=ceiling,
         config=_config(environ),
         fixed_env=_fixed_env(environ),
+        docker_runtime=docker_runtime,
+        docker_image=docker_image,
     )
     return RunnerSettings(
         socket=environ.get("SHELF_RUNNER_SOCKET", "/run/shelf-runner/runner.sock"),
@@ -124,9 +142,24 @@ async def _reap_forever(service: StepService) -> None:
             log.warning("could not look for expired steps: %s", error)
 
 
+async def check_runtime(engine: ContainerEngine, rules: RunnerRules) -> None:
+    """Refuse to start when Docker in steps is on and the engine does not have the runtime the operator named."""
+    if not rules.docker_runtime:
+        return
+    have = await engine.runtimes()
+    if rules.docker_runtime not in have:
+        message = (
+            f"SHELF_STEP_RUNTIME names {rules.docker_runtime!r}, which the container engine does not have "
+            f"(it has: {', '.join(sorted(have)) or 'none'}): install it with deploy/host-runtime.sh"
+        )
+        raise RunnerSettingsError(message)
+
+
 async def serve(settings: RunnerSettings) -> None:
     """Check the engine, remove what expired, and serve until stopped."""
-    service = StepService(DockerEngine(settings.engine_socket), settings.rules)
+    engine = DockerEngine(settings.engine_socket)
+    await check_runtime(engine, settings.rules)
+    service = StepService(engine, settings.rules)
     removed = await service.reap()
     log.info("the engine is readable; removed %d expired steps", removed)
     app = create_app(service, settings.rules, settings.token)

@@ -19,6 +19,7 @@ class FakeEngine:
         fail_create: bool = False,
         existing: list[Owned] | None = None,
         unreadable: bool = False,
+        runtimes: list[str] | None = None,
     ) -> None:
         self.chunks = chunks or []
         self.finished = finished or Finished(0)
@@ -26,12 +27,16 @@ class FakeEngine:
         self.fail_create = fail_create
         self.existing = existing or []
         self.unreadable = unreadable
+        self.runtimes_listed = runtimes if runtimes is not None else ["runc"]
         self.created: list[tuple[Mapping[str, Any], str]] = []
         self.files: list[tuple[str, str, str, bytes]] = []
         self.started: list[str] = []
         self.killed: list[str] = []
         self.removed: list[str] = []
         self._stopped = asyncio.Event()
+
+    async def runtimes(self) -> list[str]:
+        return self.runtimes_listed
 
     async def create(self, spec: Mapping[str, Any], name: str) -> str:
         if self.fail_create:

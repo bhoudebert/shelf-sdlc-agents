@@ -234,3 +234,83 @@ def test_the_operators_variables_and_the_tool_installers_are_set_in_every_step()
     assert "WARDEN_PROFILE=shelf" in env
     assert {"MISE_YES=1", "MISE_LOCKFILE=false", "MISE_TRUSTED_CONFIG_PATHS=/work"} <= set(env)
     assert any(item.startswith("MISE_DISABLE_BACKENDS=") for item in env)
+
+
+DOCKER_RULES = RunnerRules(image="shelf-step:test", docker_image="shelf-step-docker:test", docker_runtime="kata")
+
+
+def docker_ask(**changes: Any) -> StepAsk:
+    parsed = parse_request(request(docker=True, **changes), DOCKER_RULES)
+    assert isinstance(parsed, Ok), parsed
+    return parsed.value
+
+
+def test_a_step_has_no_docker_unless_the_request_says_so() -> None:
+    assert ask().docker is False
+    assert docker_ask().docker is True
+
+
+def test_docker_is_refused_by_a_runner_that_has_no_runtime_for_it() -> None:
+    assert "docker" in refusal(docker=True)
+
+
+@pytest.mark.parametrize("value", ["yes", 1, None, ["x"]])
+def test_docker_must_be_true_or_false(value: object) -> None:
+    parsed = parse_request(request(docker=value), DOCKER_RULES)
+    assert isinstance(parsed, Err)
+    assert "docker" in parsed.error
+
+
+@pytest.mark.parametrize("field", ["mounts", "privileged", "devices", "capabilities", "runtime", "image"])
+def test_docker_is_the_only_field_a_request_may_add_for_it(field: str) -> None:
+    parsed = parse_request(request(docker=True, **{field: "x"}), DOCKER_RULES)
+    assert isinstance(parsed, Err)
+    assert field in parsed.error
+
+
+def docker_spec(**changes: Any) -> dict[str, Any]:
+    return container_spec(docker_ask(**changes), DOCKER_RULES, expires=1_000)
+
+
+def test_a_step_with_docker_runs_under_the_runtime_the_operator_named_and_is_not_privileged_on_the_host() -> None:
+    body = docker_spec()
+    host = body["HostConfig"]
+    assert host["Runtime"] == "kata"
+    assert host["Privileged"] is False
+    assert body["Image"] == "shelf-step-docker:test"
+    assert "Binds" not in host
+    assert "Devices" not in host
+    assert "PidMode" not in host
+    assert host["NetworkMode"] == "shelf-step"
+    assert host["PublishAllPorts"] is False
+
+
+def test_a_step_with_docker_never_gets_the_engine_socket_or_a_host_path() -> None:
+    mounts = docker_spec()["HostConfig"]["Mounts"]
+    assert {mount["Type"] for mount in mounts} == {"volume"}
+    assert not any("docker.sock" in mount["Target"] for mount in mounts)
+    assert {mount.get("Source", "") for mount in mounts} <= {"shelf-steps", "shelf-tools", "shelf-sessions", ""}
+
+
+def test_the_daemons_storage_is_a_volume_of_the_step_that_goes_with_it() -> None:
+    mounts = docker_spec()["HostConfig"]["Mounts"]
+    storage = [mount for mount in mounts if mount["Target"] == "/var/lib/docker"]
+    assert len(storage) == 1
+    assert "Source" not in storage[0]  # anonymous: removed with the container
+
+
+def test_a_step_with_docker_starts_through_the_wrapper_that_starts_the_daemon() -> None:
+    assert docker_spec()["Cmd"][0] == "shelf-step-docker"
+    assert spec()["Cmd"][0] == "shelf-step"
+
+
+def test_a_step_without_docker_is_built_exactly_as_before() -> None:
+    body = container_spec(ask(), DOCKER_RULES, expires=1_000)
+    assert body == container_spec(ask(), RULES, expires=1_000) | {"Image": "shelf-step:test"}
+    assert "Runtime" not in body["HostConfig"]
+
+
+def test_the_limits_of_the_step_cover_what_its_daemon_starts() -> None:
+    host = docker_spec(limits={"memory_mb": 1024, "pids": 100})["HostConfig"]
+    assert host["Memory"] == 1024 * 1024 * 1024
+    assert host["PidsLimit"] == 100

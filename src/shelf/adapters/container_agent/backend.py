@@ -7,6 +7,7 @@ from fnmatch import fnmatchcase
 from pathlib import Path
 from uuid import uuid4
 
+from shelf.domain.roles import RUNS_CODE
 from shelf.domain.runlog import redact
 from shelf.domain.stepspec import ENV_ALLOWED, TOOLS
 from shelf.domain.stepstream import StepStream, StreamError
@@ -93,6 +94,8 @@ class ContainerBackend:
     """The sites an administrator added from the page, read for every step so a change applies at once."""
     volumes: Volumes | None = None
     """Where the clones, tools and sessions are; without it the request names none (a test with a fake runner)."""
+    docker: bool = False
+    """Each step that runs repository code asks the runner for a Docker daemon of its own (decision 0020)."""
     model_env: Mapping[str, str] = field(default_factory=dict[str, str], repr=False)
     """The model credential, sent with every step: a container inherits nothing from the worker."""
     new_key: Callable[[], str] = _new_key
@@ -142,6 +145,7 @@ class ContainerBackend:
             tools_readonly=task.read_only_tools,
             env=env,
             input=given,
+            docker=self.docker and task.role.name in RUNS_CODE,
         )
 
     async def _run_once(self, task: AgentTask) -> str:

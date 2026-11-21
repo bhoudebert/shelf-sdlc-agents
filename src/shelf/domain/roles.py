@@ -21,6 +21,9 @@ class AgentRole:
     """File name under the work's document folder, for roles that write one."""
 
 
+RUNS_CODE: Final = frozenset({"implementer", "code_reviewer"})
+"""The roles whose steps run the repository's own code (its build and its tests): the ones that may have Docker."""
+
 TITLER = AgentRole("titler", WORKING)
 """Not a phase of the pipeline: names the pull request by the repository's own convention."""
 

@@ -26,6 +26,8 @@ def body_of(request: StepRequest) -> dict[str, Any]:
     }
     if request.limits:
         body["limits"] = dict(request.limits)
+    if request.docker:
+        body["docker"] = True
     return body
 
 

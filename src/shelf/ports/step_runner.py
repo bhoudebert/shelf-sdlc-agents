@@ -28,6 +28,8 @@ class StepRequest:
     """Ceilings this step asks for, under the operator's: ``cpus``, ``memory_mb``, ``pids``, ``tmp_mb``, ``seconds``."""
     env: Mapping[str, str] = field(default_factory=dict[str, str])
     input: Mapping[str, Any] = field(default_factory=dict[str, Any])
+    docker: bool = False
+    """The step has a Docker daemon of its own, under the operator's runtime: one flag, not an engine option."""
 
 
 class StepRunner(Protocol):

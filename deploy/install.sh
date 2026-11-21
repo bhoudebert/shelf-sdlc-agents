@@ -3,6 +3,7 @@
 #
 #   sh deploy/install.sh https://shelf.example.org     # first time: writes deploy/.env
 #   git pull && sh deploy/install.sh                   # later: rebuilds and replaces the running containers
+#   sh deploy/install.sh --install-runtime             # with SHELF_STEP_DOCKER=on: also installs what the host lacks (sudo)
 #
 # Open the address: if the GitHub App is not registered yet, the first visit registers it in one click and shows what
 # to paste into deploy/.env. Run the script again after that.
@@ -12,11 +13,19 @@ here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 env_file="$here/.env"
 compose="docker compose -f $here/compose.yml --env-file $env_file"
 
+install_runtime=""
+url=""
+for arg in "$@"; do
+  case "$arg" in
+    --install-runtime) install_runtime=yes ;;
+    *) [ -n "$url" ] || url="$arg" ;;
+  esac
+done
+
 command -v docker >/dev/null 2>&1 || { echo "Docker is required: https://docs.docker.com/engine/install/" >&2; exit 1; }
 docker compose version >/dev/null 2>&1 || { echo "Docker Compose v2 is required (docker compose)." >&2; exit 1; }
 
 if [ ! -f "$env_file" ]; then
-  url="${1:-}"
   [ -n "$url" ] || { echo "usage: sh deploy/install.sh https://your-address" >&2; exit 1; }
   secret=$(openssl rand -hex 32 2>/dev/null || head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')
   sed -e "s|^PUBLIC_URL=.*|PUBLIC_URL=${url%/}|" -e "s|^SESSION_SECRET=.*|SESSION_SECRET=${secret}|" \
@@ -42,6 +51,52 @@ if [ "$(value SHELF_ISOLATION)" = "container" ]; then
     printf 'SHELF_RUNNER_TOKEN=%s\n' "$token" >> "$env_file"
     echo "Wrote SHELF_RUNNER_TOKEN to $env_file: the worker's key to the runner."
   fi
+fi
+# SHELF_STEP_DOCKER=on gives each step that runs repository code a Docker daemon of its own, in a virtual machine of its own
+# (decision 0020). That needs a runtime on the host: host-runtime.sh checks it, and installs it when you let it.
+docker_steps=""
+if [ "$(value SHELF_STEP_DOCKER)" = "on" ]; then
+  [ -n "$container" ] || { echo "ERROR: SHELF_STEP_DOCKER=on needs SHELF_ISOLATION=container in $env_file." >&2; exit 1; }
+  runtime=$(value SHELF_STEP_RUNTIME)
+  [ -n "$runtime" ] || {
+    echo "ERROR: SHELF_STEP_DOCKER=on needs SHELF_STEP_RUNTIME in $env_file: the runtime that makes a Docker daemon in a step" >&2
+    echo "       safe. kata is the one $here/host-runtime.sh installs." >&2
+    exit 1
+  }
+  host_script="$here/host-runtime.sh"
+  as_root() { if [ "$(id -u)" = 0 ]; then "$@"; else sudo "$@"; fi; }
+  check=0
+  SHELF_STEP_RUNTIME="$runtime" sh "$host_script" --check || check=$?
+  case "$check" in
+    0) ;;
+    2)
+      if [ -n "$install_runtime" ]; then
+        answer=y
+      elif [ -t 0 ]; then
+        printf 'Install it now (the script says what it changes first, and asks for sudo)? [y/N] '
+        read -r answer
+      else
+        answer=n
+      fi
+      case "$answer" in
+        y | Y | yes)
+          as_root env SHELF_STEP_RUNTIME="$runtime" sh "$host_script" --yes || exit 1
+          SHELF_STEP_RUNTIME="$runtime" sh "$host_script" --check || {
+            echo "ERROR: the host is still not ready for Docker in steps (see above)." >&2
+            exit 1
+          }
+          ;;
+        *)
+          echo "ERROR: the host is not ready for Docker in steps. Install what is missing:" >&2
+          echo "         sudo sh $host_script" >&2
+          echo "       or run this script again with --install-runtime." >&2
+          exit 1
+          ;;
+      esac
+      ;;
+    *) exit 1 ;;
+  esac
+  docker_steps=yes
 fi
 for name in PUBLIC_URL SESSION_SECRET; do
   [ -n "$(value $name)" ] || { echo "ERROR: $name is empty in $env_file." >&2; exit 1; }
@@ -121,6 +176,9 @@ echo "Building revision $SHELF_REVISION"
 # The image a step runs in, and the network the steps use, before the runner starts its first container.
 if [ -n "$container" ]; then
   $compose --profile tools build step || { echo "ERROR: the step image could not be built (see above)." >&2; exit 1; }
+  if [ -n "$docker_steps" ]; then
+    $compose --profile tools build step-docker || { echo "ERROR: the step image with Docker could not be built (see above)." >&2; exit 1; }
+  fi
   docker network inspect shelf-sdlc-step >/dev/null 2>&1 || docker network create shelf-sdlc-step >/dev/null
 fi
 

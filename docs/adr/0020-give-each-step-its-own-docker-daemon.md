@@ -33,8 +33,9 @@ no step holds the runner's socket.
   devices, privileged mode or any other engine option.
 - **The network is the step's.** What a nested container reaches is what the step container reaches, so the step's network rules
   and the egress decisions of 0019 apply to it unchanged. Registries the daemon pulls from are hosts like any other.
-- **Images are cached per repository**, in a volume of the inner daemon's storage that one step at a time can hold, so the second
-  step does not pull the database again.
+- **Images are not cached between steps yet.** The daemon's storage is a volume of the step that goes with it, so each step pulls
+  what it starts. A cache per repository needs one holder at a time (two daemons must never share a storage) and is a change
+  of its own.
 - **The host is prepared by a script, not by hand.** A separate, rerunnable script installs and checks the runtime (Ubuntu and
   Debian), and `install.sh` offers to run it, so no operator has to follow a list of commands.
 - **The agents are told the truth.** The note about tools says that a private Docker is available, that it is the step's own and

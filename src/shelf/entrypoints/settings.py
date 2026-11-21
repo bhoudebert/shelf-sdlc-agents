@@ -33,6 +33,8 @@ class ContainerSettings:
     """The tools volume is the cache directory: the worker's own set-up and the steps use the same one."""
     model_env: tuple[tuple[str, str], ...] = field(default=(), repr=False)
     """The model credential the worker was given, sent with every step: a container inherits nothing from the worker."""
+    docker: bool = False
+    """Each step that runs repository code has a Docker daemon of its own, under the runtime the operator named."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -157,8 +159,19 @@ CONTAINER_NEEDS = {
 
 def _container(environ: Mapping[str, str], isolation: str) -> ContainerSettings | None:
     """What container mode needs, or ``None`` in sandbox mode; a missing setting is named with what it is for."""
+    docker = _switch(environ, "SHELF_STEP_DOCKER", default=False)
     if isolation != "container":
+        if docker:
+            message = (
+                "SHELF_STEP_DOCKER=on needs SHELF_ISOLATION=container: a step has its own Docker only in a container"
+            )
+            raise ValueError(message)
         return None
+    if docker and not environ.get("SHELF_STEP_RUNTIME", "").strip():
+        message = (
+            "SHELF_STEP_DOCKER=on needs SHELF_STEP_RUNTIME (the runtime that makes a Docker daemon in a step safe)"
+        )
+        raise MissingSettingError(message)
     if missing := [name for name in CONTAINER_NEEDS if not environ.get(name, "").strip()]:
         message = "SHELF_ISOLATION=container needs " + ", ".join(
             f"{name} ({CONTAINER_NEEDS[name]})" for name in missing
@@ -170,6 +183,7 @@ def _container(environ: Mapping[str, str], isolation: str) -> ContainerSettings 
         steps_dir=Path(environ["SHELF_STEPS_DIR"].strip()),
         sessions_dir=Path(environ["SHELF_SESSIONS_DIR"].strip()),
         model_env=tuple((name, environ[name].strip()) for name in MODEL_CREDENTIALS if environ.get(name, "").strip()),
+        docker=docker,
     )
 
 

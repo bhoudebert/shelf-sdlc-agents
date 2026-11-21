@@ -1,0 +1,24 @@
+#!/bin/sh
+# The command of a step that has a Docker daemon of its own (decision 0020).
+#
+# The runner starts this as root, in the step's own kernel (the operator's runtime keeps that away from the host). It
+# starts the daemon, waits until it answers, and then runs the step itself as the step's user, who may use the daemon's
+# socket and nothing else of root's. Everything the daemon starts lives in this container and goes with it.
+set -eu
+
+# The daemon's own output must not reach the step's output: the runner reads that as the step's lines.
+log="${SHELF_DOCKERD_LOG:-/run/dockerd.log}"
+dockerd --host=unix:///var/run/docker.sock --group=shelf > "$log" 2>&1 &
+
+waited=0
+until docker info > /dev/null 2>&1; do
+  waited=$((waited + 1))
+  if [ "$waited" -ge "${SHELF_DOCKERD_WAIT:-60}" ]; then
+    echo "the Docker daemon of this step did not start in ${SHELF_DOCKERD_WAIT:-60} s:" >&2
+    tail -n 20 "$log" >&2
+    exit 1
+  fi
+  sleep 1
+done
+
+exec setpriv --reuid=1000 --regid=1000 --init-groups shelf-step "$@"

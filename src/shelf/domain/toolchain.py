@@ -86,8 +86,19 @@ SANDBOX_RECIPES = (
     "The repository's checks (`checks` in its configuration) are run by the system after you finish, outside this "
     "sandbox, with the tools that `mise` or the flake declares and with the network: declare what the project needs in "
     "`mise.toml` and do not spend your turns making a build run here. A command in this sandbox may write only the "
-    "clone and `$TMPDIR`. Docker is not available and must not be tried: a compose file is for people, so tests have "
-    "to run without it (an embedded database, or a test that is skipped when the service is missing, and say so)."
+    "clone and `$TMPDIR`."
+)
+
+DOCKER_OFF_NOTE = (
+    "Docker is not available and must not be tried: a compose file is for people, so tests have to run without it (an "
+    "embedded database, or a test that is skipped when the service is missing, and say so)."
+)
+DOCKER_ON_NOTE = (
+    "Docker: this step has its own Docker daemon, running in its own virtual machine and gone when the step ends, so "
+    "start what the tests need: `docker compose up -d --wait`, a Testcontainers test or `docker run`, for a database, "
+    "a cache, an identity server or a service built from the repository's Dockerfile. It is not the host's Docker: "
+    "what you start lives and ends with this step, so stop nothing you did not start, and expect the first image pull "
+    "to take a while."
 )
 
 TOOLCHAIN_NOTE = (
