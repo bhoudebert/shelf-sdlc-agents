@@ -286,6 +286,25 @@ The system SHALL let the operator turn the agents' sandbox off, for hosts where 
 - **WHEN** the sandbox cannot start and the operator turns it off
 - **THEN** the agents can run commands with the container as the only boundary
 
+### Requirement: The worker refuses an isolation setting it cannot honour
+
+The system SHALL read `SHELF_ISOLATION` when the worker starts, SHALL run the agents in the worker under the sandbox when it is unset or `sandbox`, and SHALL refuse to start, naming the setting and the accepted values, when it holds anything else or asks for `container` without what that mode needs, so that an agent never runs with less isolation than the operator asked for.
+
+#### Scenario: Unset
+
+- **WHEN** `SHELF_ISOLATION` is not set
+- **THEN** the worker starts and the agents run in it under the sandbox, as before
+
+#### Scenario: A value that does not exist
+
+- **WHEN** `SHELF_ISOLATION` is `vm`
+- **THEN** the worker does not start and the message lists `sandbox` and `container`
+
+#### Scenario: Container mode that cannot run
+
+- **WHEN** `SHELF_ISOLATION` is `container` and the runner service is not available
+- **THEN** the worker does not start and the message names what is missing, instead of falling back to the sandbox
+
 ### Requirement: Links to pull requests use the GitHub address the App is registered on
 
 The system SHALL build the links it shows to pull requests from the web address of the GitHub the App belongs to, github.com unless the operator names another.
