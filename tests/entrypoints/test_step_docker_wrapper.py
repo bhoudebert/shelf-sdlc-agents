@@ -82,18 +82,30 @@ def test_the_image_that_uses_it_installs_the_daemon_the_client_and_compose() -> 
     assert 'CMD ["shelf-step-docker"' in stage
 
 
-def test_the_cgroup_filesystem_is_made_writable_before_the_daemon_starts(fake: Path) -> None:
+def test_the_cgroup_filesystem_and_the_system_paths_are_made_writable_before_the_daemon_starts(fake: Path) -> None:
     run(fake, "shelf-step", "/run/shelf/task.json", ready=True)
 
     calls = (fake / "calls").read_text().splitlines()
     assert calls[0] == "mount -o remount,rw /sys/fs/cgroup"
-    assert calls[1].startswith("dockerd ")
+    assert calls[1] == "mount -o remount,bind,rw /proc/sys"
+    assert calls[2].startswith("dockerd ")
 
 
 def test_a_remount_that_is_refused_does_not_stop_the_step_from_trying_the_daemon(fake: Path) -> None:
-    (fake / "bin" / "mount").write_text("#!/bin/sh\nexit 1\n")
+    (fake / "bin" / "mount").write_text('#!/bin/sh\necho "mount $*" >> "$FAKE/calls"\nexit 1\n')
 
     done = run(fake, "shelf-step", "/run/shelf/task.json", ready=True)
 
     assert done.returncode == 0, done.stderr
     assert "setpriv" in done.stdout
+
+
+def test_a_bind_remount_of_the_system_paths_that_is_refused_is_tried_the_plain_way(fake: Path) -> None:
+    (fake / "bin" / "mount").write_text(
+        '#!/bin/sh\necho "mount $*" >> "$FAKE/calls"\n[ "$2" = remount,bind,rw ] && exit 1\nexit 0\n'
+    )
+
+    done = run(fake, "shelf-step", "/run/shelf/task.json", ready=True)
+
+    assert done.returncode == 0, done.stderr
+    assert "mount -o remount,rw /proc/sys" in (fake / "calls").read_text()

@@ -7,6 +7,7 @@ from hypothesis import strategies as st
 from shelf.domain.model import RepoRef
 from shelf.domain.result import Err, Ok
 from shelf.domain.stepspec import (
+    DOCKER_CAPS,
     DOCKER_PROFILES,
     Limits,
     RunnerRules,
@@ -334,6 +335,7 @@ def test_the_standard_profile_is_the_default_and_lifts_nothing() -> None:
     host = profile_host("standard")
     assert host["SecurityOpt"] == ["no-new-privileges"]
     assert "CgroupnsMode" not in host
+    assert host["CapAdd"] == list(DOCKER_CAPS)
 
 
 def test_the_unconfined_profile_lifts_the_guests_seccomp_and_apparmor_and_nothing_else() -> None:
@@ -342,10 +344,41 @@ def test_the_unconfined_profile_lifts_the_guests_seccomp_and_apparmor_and_nothin
     assert "CgroupnsMode" not in host
 
 
-def test_the_cgroupns_profile_also_shares_the_guests_cgroup_namespace() -> None:
-    host = profile_host("cgroupns")
-    assert host["SecurityOpt"] == ["no-new-privileges", "seccomp=unconfined", "apparmor=unconfined"]
+def test_the_systempaths_profile_also_lifts_the_read_only_and_masked_system_paths() -> None:
+    host = profile_host("systempaths")
+    assert host["SecurityOpt"] == [
+        "no-new-privileges",
+        "seccomp=unconfined",
+        "apparmor=unconfined",
+        "systempaths=unconfined",
+    ]
+    assert "CgroupnsMode" not in host
+    assert host["CapAdd"] == list(DOCKER_CAPS)
+
+
+def test_the_full_profile_is_everything_privileged_mode_gives_except_the_hosts_devices() -> None:
+    host = profile_host("full")
+    assert host["SecurityOpt"] == [
+        "no-new-privileges",
+        "seccomp=unconfined",
+        "apparmor=unconfined",
+        "systempaths=unconfined",
+    ]
     assert host["CgroupnsMode"] == "host"
+    assert host["CapAdd"] == [*DOCKER_CAPS, "ALL"]
+    assert host["Privileged"] is False
+    assert "Devices" not in host
+
+
+def test_each_profile_adds_to_the_one_before_it() -> None:
+    previous: set[str] = set()
+    for profile in DOCKER_PROFILES:
+        host = profile_host(profile)
+        options: list[str] = host["SecurityOpt"]
+        caps: list[str] = host["CapAdd"]
+        now = {*options, *caps, *(["cgroupns"] if "CgroupnsMode" in host else [])}
+        assert previous <= now, profile
+        previous = now
 
 
 @pytest.mark.parametrize("profile", DOCKER_PROFILES)

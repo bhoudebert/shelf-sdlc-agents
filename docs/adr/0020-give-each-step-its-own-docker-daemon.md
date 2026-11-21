@@ -32,7 +32,7 @@ no step holds the runner's socket.
   operator's setting and the kind of step. The runner decides what it means. A request still has no field for mounts, capabilities,
   devices, privileged mode or any other engine option.
 - **How permissive the step is depends on the host, so the host says.** A daemon needs a writable cgroup filesystem, and what a host's
-  guest kernel and filters allow differs. The runner takes one of a fixed set of profiles (`standard`, `unconfined`, `cgroupns`),
+  guest kernel and filters allow differs. The runner takes one of a fixed set of profiles (`standard`, `unconfined`, `systempaths`, `full`),
   none of them privileged mode, which under Kata hands the host's devices to the virtual machine (it failed on the first real
   host). `host-runtime.sh --probe` finds the first that works on a host and `install.sh` writes it down, so no host is tuned by hand.
 - **The network is the step's.** What a nested container reaches is what the step container reaches, so the step's network rules
