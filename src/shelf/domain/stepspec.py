@@ -41,8 +41,10 @@ TASK_FILE: Final = "task.json"
 USER: Final = "1000:1000"
 DOCKER_STORAGE: Final = "/var/lib/docker"
 """Where the step's own Docker daemon keeps its images and containers: the step's memory, gone with it."""
-DOCKER_CAPS: Final = ("SYS_ADMIN", "NET_ADMIN", "SYS_RESOURCE", "MKNOD")
-"""What a daemon needs in the step's own kernel, added to Docker's default set. The runtime keeps them off the host."""
+DOCKER_CAPS: Final = ("SYS_ADMIN", "NET_ADMIN", "SYS_RESOURCE", "MKNOD", "SYS_PTRACE")
+"""What a daemon needs in the step's own kernel, added to Docker's default set. The runtime keeps them off the host.
+``SYS_PTRACE`` lets runc enter a container whose process changed user (a database after ``gosu``): without it ``exec``
+fails with ``setns`` and no healthcheck of such a container can pass."""
 DOCKER_PROFILES: Final = ("standard", "unconfined", "systempaths", "full")
 """How permissive a step with Docker is, each adding to the one before: ``unconfined`` lifts the guest's seccomp and
 AppArmor, ``systempaths`` also its read-only and masked system paths, ``full`` also all capabilities and the guest's

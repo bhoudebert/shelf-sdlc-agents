@@ -47,6 +47,11 @@ no step holds the runner's socket.
   The image now copies the project's own binaries at a pinned version, the proof runs in that image with the runner's own
   flags (read-only root, init, no `no-new-privileges` on the daemon's container: the wrapper gives it to the agent's command),
   and `install.sh` builds the image before it probes. What passes the proof is what runs.
+- **A step can enter a container that dropped its privileges.** Found on the host: `docker exec` worked in a root busybox and failed in
+  postgres (`error executing setns process`) under the runner's flags, and worked in both with `CAP_SYS_PTRACE`. runc cannot open the
+  namespaces of a process that changed user (a database after `gosu`) without it, so no healthcheck of such a container could pass.
+  The step carries the capability (it concerns only processes inside the step's own VM), and the host proof starts a database, not a
+  root busybox, so it can no longer pass while a real database could never become healthy.
 - **The network is the step's.** What a nested container reaches is what the step container reaches, so the step's network rules
   and the egress decisions of 0019 apply to it unchanged. Registries the daemon pulls from are hosts like any other.
 - **Images are not cached between steps yet.** The daemon's storage is a volume of the step that goes with it, so each step pulls
