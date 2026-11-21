@@ -172,16 +172,18 @@ reload_do() {
 # What the runner gives a step that has a Docker daemon (DOCKER_CAPS and the profiles of src/shelf/domain/stepspec.py; a test keeps
 # them equal), never privileged mode: under the runtime it would hand the host's devices to the virtual machine.
 step_flags="--cap-add SYS_ADMIN --cap-add NET_ADMIN --cap-add SYS_RESOURCE --cap-add MKNOD --tmpfs /run:rw,nosuid,size=64m"
-profiles="standard unconfined cgroupns"
+profiles="standard unconfined systempaths full"
 profile_flags() {
   case "$1" in
     standard) printf '%s' "" ;;
     unconfined) printf '%s' "--security-opt seccomp=unconfined --security-opt apparmor=unconfined" ;;
-    cgroupns) printf '%s' "--security-opt seccomp=unconfined --security-opt apparmor=unconfined --cgroupns=host" ;;
+    systempaths) printf '%s' "--security-opt seccomp=unconfined --security-opt apparmor=unconfined --security-opt systempaths=unconfined" ;;
+    full) printf '%s' "--security-opt seccomp=unconfined --security-opt apparmor=unconfined --security-opt systempaths=unconfined --cgroupns=host --cap-add ALL" ;;
   esac
 }
-# What the step's own command does before the daemon: make the cgroup filesystem writable. Then a daemon, and a container in it.
+# What the step's own command does before the daemon: make the cgroup filesystem and /proc/sys writable. Then a daemon, and a container in it.
 probe_body='mount -o remount,rw /sys/fs/cgroup && echo cgroup-rw
+mount -o remount,bind,rw /proc/sys || mount -o remount,rw /proc/sys && echo procsys-rw
 dockerd -H unix:///var/run/docker.sock > /tmp/dockerd.log 2>&1 &
 i=0
 until docker info > /dev/null 2>&1; do

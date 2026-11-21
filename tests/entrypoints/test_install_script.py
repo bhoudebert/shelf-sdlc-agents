@@ -666,12 +666,12 @@ def test_the_profile_the_host_needs_is_found_and_written_into_the_environment_fi
 
 
 def test_a_profile_that_is_already_set_is_never_probed_again(server: Path) -> None:
-    docker_server(server, SHELF_STEP_RUNTIME="kata", SHELF_STEP_DOCKER_PROFILE="cgroupns")
+    docker_server(server, SHELF_STEP_RUNTIME="kata", SHELF_STEP_DOCKER_PROFILE="full")
 
     done = run_docker(server, ready=True, HOST_PROFILE="unconfined")
 
     assert done.returncode == 0, done.stderr
-    assert profile_of(server) == ["SHELF_STEP_DOCKER_PROFILE=cgroupns"]
+    assert profile_of(server) == ["SHELF_STEP_DOCKER_PROFILE=full"]
     assert "--probe" not in (server / "host.log").read_text()
 
 
@@ -680,7 +680,7 @@ def test_the_second_run_does_not_probe_again(server: Path) -> None:
     run_docker(server, ready=True, HOST_PROFILE="unconfined")
     (server / "host.log").unlink()
 
-    done = run_docker(server, ready=True, HOST_PROFILE="cgroupns")
+    done = run_docker(server, ready=True, HOST_PROFILE="full")
 
     assert done.returncode == 0, done.stderr
     assert profile_of(server) == ["SHELF_STEP_DOCKER_PROFILE=unconfined"]

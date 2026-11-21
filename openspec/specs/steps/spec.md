@@ -1206,12 +1206,17 @@ The system SHALL tell the developer and the code reviewer, in the note about too
 
 ### Requirement: A step that runs repository code has its own Docker daemon when the operator enables it
 
-The system SHALL, when the operator has enabled Docker in steps and named the runtime for it, start each step that runs repository code (the developer, the code reviewer, the repository's checks and the tool set-up) with a Docker daemon of its own inside the step container, so that the agent and every tool it runs can use `docker`, `docker compose`, Testcontainers and the Docker API without any filtering. The worker SHALL ask for the daemon with one fixed field of the request, and the runner SHALL decide what that means, from the operator's runtime and one of a fixed set of profiles the operator chose (the standard one, one that also lifts the guest's seccomp and AppArmor, one that also shares the guest's cgroup namespace): it starts the step with the operator's runtime, gives the daemon a storage of its own, and never mounts the host's engine socket, never starts the step privileged against the host and never falls back to a step without the runtime. What the daemon creates (images, containers, networks, volumes) SHALL live and end with the step container, and a runner that has no runtime for it SHALL refuse a request that asks for it. A container the step starts SHALL reach what the step reaches and nothing more, under the same network rules.
+The system SHALL, when the operator has enabled Docker in steps and named the runtime for it, start each step that runs repository code (the developer, the code reviewer, the repository's checks and the tool set-up) with a Docker daemon of its own inside the step container, so that the agent and every tool it runs can use `docker`, `docker compose`, Testcontainers and the Docker API without any filtering. The worker SHALL ask for the daemon with one fixed field of the request, and the runner SHALL decide what that means, from the operator's runtime and one of a fixed set of profiles the operator chose (the standard one, then each adding to the one before: lifting the guest's seccomp and AppArmor, then its read-only and masked system paths, then all capabilities and the guest's cgroup namespace, which is everything privileged mode gives except the host's devices): it starts the step with the operator's runtime, gives the daemon a storage of its own, and never mounts the host's engine socket, never starts the step privileged against the host and never falls back to a step without the runtime. What the daemon creates (images, containers, networks, volumes) SHALL live and end with the step container, and a runner that has no runtime for it SHALL refuse a request that asks for it. A container the step starts SHALL reach what the step reaches and nothing more, under the same network rules.
 
 #### Scenario: A repository that starts its own dependencies
 
 - **WHEN** the repository's tests run `docker compose up -d --wait` or start a Testcontainers database, in the developer's step or in the checks
 - **THEN** the daemon of that step starts it, the tests reach it, and it is gone when the step ends
+
+#### Scenario: A daemon needs writable system paths
+
+- **WHEN** a step with Docker starts
+- **THEN** the step's own start makes the cgroup filesystem and `/proc/sys` writable before it starts the daemon, because a container gets them read-only and the daemon must make cgroups and set `ip_forward`
 
 #### Scenario: A profile the host needs
 

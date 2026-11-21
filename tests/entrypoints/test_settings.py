@@ -230,5 +230,5 @@ def test_the_worker_refuses_a_profile_that_does_not_exist_by_name(value: str) ->
 
 def test_the_worker_accepts_every_profile_the_runner_has() -> None:
     env = {**BASE, **CONTAINER, "SHELF_STEP_DOCKER": "on", "SHELF_STEP_RUNTIME": "kata"}
-    for profile in ("standard", "unconfined", "cgroupns"):
+    for profile in ("standard", "unconfined", "systempaths", "full"):
         assert from_environ({**env, "SHELF_STEP_DOCKER_PROFILE": profile}).container is not None

@@ -133,4 +133,5 @@ def test_a_profile_that_does_not_exist_is_refused_by_name_with_the_accepted_ones
     with pytest.raises(RunnerSettingsError, match="SHELF_STEP_DOCKER_PROFILE") as failed:
         read_settings(on)
     assert "standard" in str(failed.value)
-    assert "cgroupns" in str(failed.value)
+    assert "systempaths" in str(failed.value)
+    assert "full" in str(failed.value)
