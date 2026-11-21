@@ -379,7 +379,13 @@ def test_the_proof_of_a_daemon_never_uses_privileged_mode(host: Host) -> None:
 def test_the_proof_gives_the_container_what_the_runner_gives_a_step(host: Host) -> None:
     host.run("--yes")
     call = next(line for line in docker_calls(host).splitlines() if "--entrypoint" in line)
-    for flag in ("--runtime kata", "--cap-add SYS_ADMIN", "--cap-add NET_ADMIN", "--tmpfs /run:rw,nosuid,size=64m"):
+    for flag in (
+        "--runtime kata",
+        "--cap-add SYS_ADMIN",
+        "--cap-add NET_ADMIN",
+        "--tmpfs /run:rw,nosuid,size=64m",
+        "--tmpfs /var/lib/docker:rw,size=",
+    ):
         assert flag in call
 
 
@@ -475,6 +481,10 @@ def test_the_proof_runs_exactly_what_the_runner_would_start() -> None:
         assert isinstance(ask, Ok)
         host = container_spec(ask.value, rules, expires=1)["HostConfig"]
         assert f"--tmpfs /run:{host['Tmpfs']['/run']}" in (caps.group(1))
+        # the storage of the step's daemon is memory in the runner as in the proof (the size follows the step's limit there)
+        assert host["Tmpfs"]["/var/lib/docker"].startswith("rw,size=")
+        assert "--tmpfs /var/lib/docker:rw,size=" in caps.group(1)
+        assert not [m for m in host["Mounts"] if m["Target"] == "/var/lib/docker"]
         wanted = [f"--security-opt {o}" for o in host["SecurityOpt"] if o != "no-new-privileges"]
         wanted += ["--cgroupns=host"] if host.get("CgroupnsMode") == "host" else []
         wanted += ["--cap-add ALL"] if "ALL" in host["CapAdd"] else []
