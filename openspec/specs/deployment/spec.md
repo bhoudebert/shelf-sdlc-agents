@@ -320,6 +320,11 @@ The system SHALL read `SHELF_STEP_DOCKER` (`off` when unset, or `on`), `SHELF_ST
 - **WHEN** `SHELF_STEP_DOCKER` is `on`, the runtime is installed and named, and `SHELF_ISOLATION` is `container`
 - **THEN** the services start and the steps that run repository code get a Docker daemon
 
+#### Scenario: Container mode runs the repository's checks in steps
+
+- **WHEN** the worker is given the runner's address and token (`SHELF_ISOLATION=container`)
+- **THEN** it runs each command of a repository's checks as a step through the runner, over the same clone, tools and sessions volumes as the agents' steps and with a Docker daemon in it when `SHELF_STEP_DOCKER` is `on`, and in the sandbox mode it runs them in its own shell
+
 #### Scenario: One setting for the services that share the environment file
 
 - **WHEN** `SHELF_STEP_DOCKER=on` is set in the environment file that the web service, the catalog, the worker and the runner share
