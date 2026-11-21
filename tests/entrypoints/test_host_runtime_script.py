@@ -725,3 +725,36 @@ def test_the_proof_starts_a_service_that_drops_its_privileges_and_waits_for_its_
 def test_the_proof_asks_the_published_port_of_the_database_too() -> None:
     body = proof_script()
     assert "nc -z" in body or "busybox wget" in body
+
+
+def test_dns_proves_the_resolvers_alone_and_changes_nothing(host: Host) -> None:
+    ready_host(host)
+
+    done = host.run("--dns", SHELF_STEP_DNS="9.9.9.9")
+
+    assert done.returncode == 0, done.stderr
+    assert "dns=9.9.9.9" in done.stdout
+    assert "profile=" not in done.stdout
+    calls = docker_calls(host)
+    assert "nslookup" in calls
+    assert "--cap-add" not in calls, "the profile is not probed"
+
+
+def test_dns_fails_with_what_the_step_said_when_the_resolvers_do_not_resolve(host: Host) -> None:
+    ready_host(host)
+    (host.state / "dns_works").unlink()
+
+    done = host.run("--dns", SHELF_STEP_DNS="9.9.9.9")
+
+    assert done.returncode == 1
+    assert "dns=" not in done.stdout
+    assert "api.anthropic.com" in done.stderr
+
+
+def test_dns_without_resolvers_to_prove_says_so_and_fails(host: Host) -> None:
+    ready_host(host)
+
+    done = host.run("--dns")
+
+    assert done.returncode == 1
+    assert "SHELF_STEP_DNS" in done.stderr
