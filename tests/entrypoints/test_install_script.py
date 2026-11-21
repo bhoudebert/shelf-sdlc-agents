@@ -390,3 +390,34 @@ def test_in_container_mode_only_the_worker_holds_the_runner_key_and_every_servic
     worker = from_environ(services["worker"]["environment"])
     assert worker.container is not None
     assert worker.container.token == "the-key"
+
+
+@pytest.mark.skipif(shutil.which("docker") is None, reason="needs docker compose to resolve the mounts")
+def test_every_volume_the_worker_mounts_in_container_mode_is_a_folder_the_image_gives_to_its_user(
+    tmp_path: Path,
+) -> None:
+    """A new named volume takes the owner of the image's folder: without one the non-root worker cannot write in it."""
+    shutil.copytree(DEPLOY, tmp_path / "deploy")
+    deploy = tmp_path / "deploy"
+    (deploy / ".env").write_text(
+        "PUBLIC_URL=https://x.test\nSESSION_SECRET=s\nSHELF_ISOLATION=container\nSHELF_RUNNER_TOKEN=k\n"
+    )
+    done = subprocess.run(
+        [  # noqa: S607
+            "docker", "compose", "--env-file", ".env", "-f", "compose.yml", "-f", "compose.container.yml",
+            "config", "--format", "json",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=deploy,
+        timeout=60,
+    )  # fmt: skip
+    assert done.returncode == 0, done.stderr
+    mounts = json.loads(done.stdout)["services"]["worker"]["volumes"]
+    named = [m["target"] for m in mounts if m["type"] == "volume" and not m.get("read_only")]
+    assert "/var/lib/shelf/steps" in named
+    dockerfile = (DEPLOY.parent / "Dockerfile").read_text()
+    # the runner-socket volume is the runner's to create, and the worker only connects to it
+    for target in (t for t in named if t != "/run/shelf-runner"):
+        assert f"mkdir -p {target}" in dockerfile or f" {target} " in dockerfile, target
