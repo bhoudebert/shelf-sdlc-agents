@@ -111,6 +111,7 @@ case "$1" in
   info) {"exit 0" if info_ok else "exit 1"};;
   ps) cat {tmp_path}/containers.tsv;;
   logs) i=$((61 - $3)); while [ "$i" -le 60 ]; do echo "log line $i of $4"; i=$((i+1)); done;;
+  inspect) cat {tmp_path}/health-$4.json 2>/dev/null || echo null;;
 esac
 exit 0
 """
@@ -243,3 +244,62 @@ async def test_a_command_that_prints_a_pulls_progress_has_it_collapsed_in_what_i
     [_, check] = await ran(command, tmp_path)
 
     assert check == Check(1, " dad2840f1c78 Extracting [==]  2MB/2MB\nrest\n")
+
+
+HEALTH = (
+    '{"Status":"unhealthy","FailingStreak":3,"Log":['
+    '{"ExitCode":1,"Output":"/var/run/postgresql:5432 - no response\\n","End":"2026-11-21T21:10:31Z"},'
+    '{"ExitCode":-1,"Output":"OCI runtime exec failed: setns\\n","End":"2026-11-21T21:10:36Z"}]}'
+)
+
+
+async def test_an_unhealthy_container_shows_the_last_probes_of_its_healthcheck(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake_docker(tmp_path, monkeypatch, containers=UNHEALTHY)
+    (tmp_path / "health-work-postgres-1.json").write_text(HEALTH)
+
+    [_, check] = await ran("echo 'container work-postgres-1 is unhealthy'; exit 1", tmp_path)
+
+    assert isinstance(check, Check)
+    section = check.output.split("--- work-postgres-1")[1]
+    assert "healthcheck" in section
+    assert "exit code 1" in section
+    assert "no response" in section
+    assert "exit code -1" in section
+    assert "OCI runtime exec failed: setns" in section
+
+
+async def test_a_container_with_no_healthcheck_shows_no_probes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_docker(tmp_path, monkeypatch, containers=UNHEALTHY)
+
+    [_, check] = await ran("echo bad; exit 1", tmp_path)
+
+    assert isinstance(check, Check)
+    assert "healthcheck" not in check.output
+
+
+async def test_health_that_is_not_json_is_left_out_and_the_rest_of_the_report_stays(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake_docker(tmp_path, monkeypatch, containers=UNHEALTHY)
+    (tmp_path / "health-work-postgres-1.json").write_text("not json at all")
+
+    [_, check] = await ran("echo bad; exit 1", tmp_path)
+
+    assert isinstance(check, Check)
+    assert "log line 60 of work-postgres-1" in check.output
+    assert "healthcheck" not in check.output
+
+
+async def test_only_the_last_probes_are_shown_and_each_is_cut(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_docker(tmp_path, monkeypatch, containers=UNHEALTHY)
+    probes = ",".join(f'{{"ExitCode":1,"Output":"probe {n} {"x" * 900}","End":"t"}}' for n in range(1, 9))
+    (tmp_path / "health-work-postgres-1.json").write_text('{"Status":"unhealthy","Log":[' + probes + "]}")
+
+    [_, check] = await ran("echo bad; exit 1", tmp_path)
+
+    assert isinstance(check, Check)
+    assert "probe 8 " in check.output
+    assert "probe 4 " not in check.output, "only the last probes"
+    assert "x" * 600 not in check.output, "each probe is cut"
