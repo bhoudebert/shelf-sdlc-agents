@@ -16,7 +16,7 @@ import uvicorn
 from shelf.adapters.container_runner.app import create_app
 from shelf.adapters.container_runner.engine import DockerEngine
 from shelf.adapters.container_runner.service import StepService
-from shelf.domain.stepspec import Limits, RunnerRules
+from shelf.domain.stepspec import CONFIG_TARGETS, VARIABLE, Limits, RunnerRules
 from shelf.ports.container_engine import EngineError
 
 log = logging.getLogger("shelf.runner")
@@ -53,6 +53,32 @@ def _number(environ: Mapping[str, str], name: str, default: float) -> float:
     return value
 
 
+SET_PREFIX = "SHELF_STEP_SET_"
+
+
+def _config(environ: Mapping[str, str]) -> tuple[tuple[str, str], ...]:
+    """``SHELF_STEP_CONFIG``: ``volume:target`` pairs, each mounted read-only, each at a place the product reads."""
+    mounts: list[tuple[str, str]] = []
+    for item in (part.strip() for part in environ.get("SHELF_STEP_CONFIG", "").split(",")):
+        if not item:
+            continue
+        volume, _, target = item.partition(":")
+        if not volume or target not in CONFIG_TARGETS:
+            message = f"SHELF_STEP_CONFIG takes volume:target, and a target is one of {', '.join(CONFIG_TARGETS)}"
+            raise RunnerSettingsError(message)
+        mounts.append((volume, target))
+    return tuple(mounts)
+
+
+def _fixed_env(environ: Mapping[str, str]) -> tuple[tuple[str, str], ...]:
+    """Every ``SHELF_STEP_SET_<NAME>`` is ``<NAME>`` in each step: how the operator sets the guard's variables."""
+    names = sorted(key.removeprefix(SET_PREFIX) for key in environ if key.startswith(SET_PREFIX))
+    if bad := [name for name in names if VARIABLE.fullmatch(name) is None]:
+        message = f"{SET_PREFIX}{bad[0][:40]} is not a variable name"
+        raise RunnerSettingsError(message)
+    return tuple((name, environ[f"{SET_PREFIX}{name}"]) for name in names)
+
+
 def read_settings(environ: Mapping[str, str]) -> RunnerSettings:
     """The runner's settings from the environment, or ``RunnerSettingsError``."""
     image = environ.get("SHELF_STEP_IMAGE", "").strip()
@@ -78,6 +104,8 @@ def read_settings(environ: Mapping[str, str]) -> RunnerSettings:
         tools_volume=environ.get("SHELF_TOOLS_VOLUME", defaults.tools_volume),
         sessions_volume=environ.get("SHELF_SESSIONS_VOLUME", defaults.sessions_volume),
         limits=ceiling,
+        config=_config(environ),
+        fixed_env=_fixed_env(environ),
     )
     return RunnerSettings(
         socket=environ.get("SHELF_RUNNER_SOCKET", "/run/shelf-runner/runner.sock"),

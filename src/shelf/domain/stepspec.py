@@ -11,12 +11,15 @@ from dataclasses import dataclass, field
 from fnmatch import fnmatchcase
 from typing import Any, Final, cast
 
+from shelf.domain.mise_config import NO_CODE_AT_INSTALL
 from shelf.domain.result import Err, Ok, Result
+from shelf.domain.toolchain import repository_folder
 
 KEY: Final = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,127}")
 REPO: Final = re.compile(r"[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9._-]{1,100}")
 """GitHub owners have no underscore, so ``tools_path`` cannot give two repositories the same folder."""
-CLONE: Final = re.compile(r"steps/[a-z0-9][a-z0-9-]{0,63}")
+CLONE: Final = re.compile(r"steps/[a-z0-9][a-z0-9_-]{0,63}/repo")
+"""A folder of the clones volume that holds one clone, as the worker makes it: ``steps/<name>/repo``."""
 SESSION: Final = re.compile(r"work/[a-z0-9][a-z0-9-]{0,63}")
 VARIABLE: Final = re.compile(r"[A-Z][A-Z0-9_]{0,63}")
 
@@ -30,8 +33,14 @@ HOME: Final = "/home/step"
 TASK_DIR: Final = "/run/shelf"
 TASK_FILE: Final = "task.json"
 USER: Final = "1000:1000"
-TOOLS: Final = ((".local/share/mise", "mise"), (".m2", "m2"), (".npm", "npm"), (".cache", "cache"))
-"""Where a repository's tools and caches live in the step, and the folder of each in that repository's tools volume."""
+TOOLS: Final = (".local/share/mise", ".m2", ".npm", ".cache")
+"""Where a repository's tools and caches live in a step, and in the repository's home in the tools volume."""
+CONFIG_TARGETS: Final = ("/etc/claude-code", "/opt/shelf/catalog", "/var/lib/shelf-guard", "/etc/shelf")
+"""The only places a config volume may be mounted: where the product reads its policy, catalog and guard rules."""
+
+
+ENV_ALLOWED: Final = ("ANTHROPIC_*", "CLAUDE_CODE_*", "GH_TOKEN", "GITHUB_TOKEN", "SHELF_STEP_*")
+"""The patterns of the variables a request may give a step: the worker sends only these, the runner refuses the rest."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,14 +74,12 @@ class RunnerRules:
     tools_volume: str = "shelf-tools"
     sessions_volume: str = "shelf-sessions"
     limits: Limits = field(default_factory=Limits)
-    env_allowed: tuple[str, ...] = (
-        "ANTHROPIC_*",
-        "CLAUDE_CODE_*",
-        "GH_TOKEN",
-        "GITHUB_TOKEN",
-        "SHELF_STEP_*",
-    )
+    env_allowed: tuple[str, ...] = ENV_ALLOWED
     """Patterns an ``env`` name must match. Anything else is refused."""
+    config: tuple[tuple[str, str], ...] = ()
+    """``(volume, target)`` of each read-only config volume: the managed policy, the catalog, the guard's rules."""
+    fixed_env: tuple[tuple[str, str], ...] = ()
+    """Variables set in every step from the operator's rules, never from a request: the guard's profile and paths."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -208,8 +215,8 @@ def parse_request(data: object, rules: RunnerRules) -> Result[StepAsk, str]:
 
 
 def tools_path(repo: str) -> str:
-    """The folder of the tools volume that holds one repository's tools and caches."""
-    return repo.replace("/", "__")
+    """The repository's home in the tools volume: where the worker's own set-up installs the tools."""
+    return repository_folder(repo)
 
 
 def _mount(source: str, target: str, subpath: str, *, readonly: bool) -> dict[str, Any]:
@@ -224,6 +231,19 @@ def labels_of(ask: StepAsk, *, expires: int) -> dict[str, str]:
     return {"shelf.managed": "true", "shelf.step": ask.key, "shelf.expires": str(expires)}
 
 
+def _fixed_env(rules: RunnerRules) -> list[str]:
+    """What every step gets whatever it asked: its home, the tool installer's settings and the operator's own."""
+    fixed = {
+        "HOME": HOME,
+        "MISE_YES": "1",
+        "MISE_LOCKFILE": "false",
+        "MISE_DISABLE_BACKENDS": NO_CODE_AT_INSTALL,
+        "MISE_TRUSTED_CONFIG_PATHS": WORKDIR,
+        **dict(rules.fixed_env),
+    }
+    return [f"{name}={value}" for name, value in fixed.items()]
+
+
 def container_spec(ask: StepAsk, rules: RunnerRules, *, expires: int) -> dict[str, Any]:
     """The engine's request to create the container: fixed by this function, never by the request.
 
@@ -233,11 +253,12 @@ def container_spec(ask: StepAsk, rules: RunnerRules, *, expires: int) -> dict[st
         _mount(rules.steps_volume, WORKDIR, ask.clone, readonly=ask.clone_readonly),
         *(
             _mount(
-                rules.tools_volume, f"{HOME}/{target}", f"{tools_path(ask.repo)}/{name}", readonly=ask.tools_readonly
+                rules.tools_volume, f"{HOME}/{folder}", f"{tools_path(ask.repo)}/{folder}", readonly=ask.tools_readonly
             )
-            for target, name in TOOLS
+            for folder in TOOLS
         ),
         {"Type": "volume", "Target": TASK_DIR},
+        *(_mount(volume, target, "", readonly=True) for volume, target in rules.config),
     ]
     if ask.session:
         mounts.append(_mount(rules.sessions_volume, f"{HOME}/.claude/projects", ask.session, readonly=False))
@@ -247,7 +268,7 @@ def container_spec(ask: StepAsk, rules: RunnerRules, *, expires: int) -> dict[st
         "Cmd": ["shelf-step", f"{TASK_DIR}/{TASK_FILE}"],
         "User": USER,
         "WorkingDir": WORKDIR,
-        "Env": [f"{name}={value}" for name, value in ask.env.items()] + [f"HOME={HOME}"],
+        "Env": [f"{name}={value}" for name, value in ask.env.items()] + _fixed_env(rules),
         "Labels": labels_of(ask, expires=expires),
         "AttachStdout": True,
         "AttachStderr": True,

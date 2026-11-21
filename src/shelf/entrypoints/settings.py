@@ -23,6 +23,17 @@ class GitHubApp:
 
 
 @dataclass(frozen=True, slots=True)
+class ContainerSettings:
+    """The runner's address and token, and the shared volumes as the worker sees them."""
+
+    socket: str
+    token: str
+    steps_dir: Path
+    sessions_dir: Path
+    """The tools volume is the cache directory: the worker's own set-up and the steps use the same one."""
+
+
+@dataclass(frozen=True, slots=True)
 class Settings:
     """The instance's settings."""
 
@@ -39,7 +50,9 @@ class Settings:
     nested_sandbox: bool
     sandbox: bool
     isolation: str
-    """Where agents run: ``sandbox``, in the worker. ``container`` waits for the runner (decision 0019)."""
+    """Where agents run: ``sandbox`` in the worker, or ``container``, one per step through the runner (0019)."""
+    container: ContainerSettings | None
+    """How the worker reaches the runner and the volumes they share; set exactly when ``isolation`` is ``container``."""
     claude_cli: str | None
     catalog_dir: Path
     cache_dir: str
@@ -129,13 +142,32 @@ def _isolation(environ: Mapping[str, str]) -> str:
     if value not in ISOLATIONS:
         message = f"SHELF_ISOLATION must be one of {', '.join(ISOLATIONS)}, not {value!r}"
         raise ValueError(message)
-    if value == "container":
-        message = (
-            "SHELF_ISOLATION=container needs the runner service, which this release does not have yet "
-            "(decision 0019, stage 2): leave it unset or use sandbox"
-        )
-        raise ValueError(message)
     return value
+
+
+CONTAINER_NEEDS = {
+    "SHELF_RUNNER_TOKEN": "the token the runner was started with",
+    "SHELF_STEPS_DIR": "where the clones volume is mounted in the worker",
+    "SHELF_SESSIONS_DIR": "where the sessions volume is mounted in the worker",
+    "SHELF_CACHE_DIR": "where the tools volume is mounted in the worker",
+}
+
+
+def _container(environ: Mapping[str, str], isolation: str) -> ContainerSettings | None:
+    """What container mode needs, or ``None`` in sandbox mode; a missing setting is named with what it is for."""
+    if isolation != "container":
+        return None
+    if missing := [name for name in CONTAINER_NEEDS if not environ.get(name, "").strip()]:
+        message = "SHELF_ISOLATION=container needs " + ", ".join(
+            f"{name} ({CONTAINER_NEEDS[name]})" for name in missing
+        )
+        raise MissingSettingError(message)
+    return ContainerSettings(
+        socket=environ.get("SHELF_RUNNER_SOCKET", "").strip() or "/run/shelf-runner/runner.sock",
+        token=environ["SHELF_RUNNER_TOKEN"].strip(),
+        steps_dir=Path(environ["SHELF_STEPS_DIR"].strip()),
+        sessions_dir=Path(environ["SHELF_SESSIONS_DIR"].strip()),
+    )
 
 
 def _switch(environ: Mapping[str, str], name: str, *, default: bool) -> bool:
@@ -152,6 +184,7 @@ def _switch(environ: Mapping[str, str], name: str, *, default: bool) -> bool:
 def from_environ(environ: Mapping[str, str]) -> Settings:
     """Read the settings from ``environ``; raise ``MissingSettingError`` naming what is missing."""
     budget = environ.get("SHELF_MAX_BUDGET_USD", "").strip()
+    isolation = _isolation(environ)
     return Settings(
         public_url=_required(environ, "PUBLIC_URL").rstrip("/"),
         session_secret=_required(environ, "SESSION_SECRET"),
@@ -177,7 +210,8 @@ def from_environ(environ: Mapping[str, str]) -> Settings:
         ci_wait=float(environ.get("SHELF_CI_WAIT", "1800")),
         ci_grace=float(environ.get("SHELF_CI_GRACE", "120")),
         sandbox=environ.get("SHELF_SANDBOX_DISABLED", "").strip().lower() not in {"1", "true", "yes"},
-        isolation=_isolation(environ),
+        isolation=isolation,
+        container=_container(environ, isolation),
         port=int(environ.get("PORT", "8080")),
         revision=environ.get("SHELF_REVISION", "unknown"),
         model_credential=any(environ.get(key, "").strip() for key in MODEL_CREDENTIALS),

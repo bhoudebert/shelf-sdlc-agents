@@ -276,3 +276,50 @@ def test_the_script_warns_when_the_worker_cannot_reach_the_nix_daemon(server: Pa
 
 def test_the_overlay_is_a_file_next_to_the_install_script() -> None:
     assert (DEPLOY / "compose.nix.yml").is_file()
+
+
+def test_container_mode_is_not_part_of_a_normal_install(server: Path) -> None:
+    write_env(server)
+    run(server)
+    log = (server / "docker.log").read_text()
+    assert "compose.container.yml" not in log
+    assert "SHELF_RUNNER_TOKEN" not in (server / "deploy" / ".env").read_text()
+
+
+def test_asking_for_containers_adds_the_overlay_builds_the_step_image_and_writes_a_token(server: Path) -> None:
+    write_env(server, SHELF_ISOLATION="container")
+    (server / "bin" / "docker").write_text(
+        '#!/bin/sh\necho "$@" >> "${DOCKER_LOG:-/dev/null}"\ncase "$*" in *"network inspect"*) exit 1;; esac\nexit 0\n'
+    )
+    run(server)
+    log = (server / "docker.log").read_text()
+    assert "compose.container.yml" in log
+    assert "--profile tools build step" in log
+    assert "network create shelf-sdlc-step" in log
+    token = [
+        line.split("=", 1)[1]
+        for line in (server / "deploy" / ".env").read_text().splitlines()
+        if line.startswith("SHELF_RUNNER_TOKEN=")
+    ]
+    assert len(token) == 1
+    assert len(token[0]) >= 32
+
+
+def test_a_token_that_is_already_there_is_kept(server: Path) -> None:
+    write_env(server, SHELF_ISOLATION="container", SHELF_RUNNER_TOKEN="mine")
+    run(server)
+    assert (server / "deploy" / ".env").read_text().count("SHELF_RUNNER_TOKEN=") == 1
+    assert "SHELF_RUNNER_TOKEN=mine" in (server / "deploy" / ".env").read_text()
+
+
+def test_the_container_overlay_gives_the_runner_the_socket_and_the_worker_only_the_runners_door() -> None:
+    overlay = (DEPLOY / "compose.container.yml").read_text()
+    runner = overlay.split("\n  runner:\n", 1)[1].split("\n  worker:\n", 1)[0]
+    worker = overlay.split("\n  worker:\n", 1)[1].split("\nvolumes:\n", 1)[0]
+    assert "/var/run/docker.sock" in runner
+    assert "/var/run/docker.sock" not in worker, "only the runner holds the engine's socket"
+    assert "read_only: true" in runner
+    assert "cap_drop: [ALL]" in runner
+    assert "env_file" not in runner, "no secret of the product reaches the runner"
+    assert "SHELF_STEP_SET_WARDEN_PROFILE" in runner
+    assert "SHELF_ISOLATION: container" in worker

@@ -1,12 +1,16 @@
 """``AgentBackend`` over the runner service: each step is a container, and what it does comes back as lines."""
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
+from fnmatch import fnmatchcase
+from pathlib import Path
 from uuid import uuid4
 
 from shelf.domain.runlog import redact
+from shelf.domain.stepspec import ENV_ALLOWED, TOOLS
 from shelf.domain.stepstream import StepStream, StreamError
+from shelf.domain.toolchain import repository_folder
 from shelf.ports.agents import AgentTask, RunSink
 from shelf.ports.step_runner import StepRequest, StepRunner, StepSettings, task_input
 
@@ -42,6 +46,40 @@ def _note(stream: StepStream, sink: RunSink) -> None:
 
 
 @dataclass(frozen=True, slots=True)
+class Volumes:
+    """The three volumes the worker shares with the runner, as the worker sees them."""
+
+    steps: Path
+    """Holds ``steps/<name>/repo``, the clones: the worker's workspaces are made under ``steps/``."""
+    tools: Path
+    """Holds ``home/<owner>__<name>``, the repositories' homes: the worker's own tool set-up writes there too."""
+    sessions: Path
+    """Holds ``work/<id>``, the sessions of each work."""
+
+    def clone_of(self, workdir: Path) -> str:
+        """The clone's place in the clones volume, which is all the request says of it."""
+        try:
+            return workdir.relative_to(self.steps).as_posix()
+        except ValueError:
+            reason = "the step's clone is not in the shared clones volume (SHELF_STEPS_DIR)"
+            role = "step"
+            raise StepFailedError(role, reason) from None
+
+    def prepare(self, repo: str, work: str) -> None:
+        """Make the folders the runner mounts: it never makes one, and a missing one stops the container."""
+        home = self.tools / repository_folder(repo)
+        for folder in TOOLS:
+            (home / folder).mkdir(parents=True, exist_ok=True)
+        if work:
+            (self.sessions / "work" / work).mkdir(parents=True, exist_ok=True)
+
+
+def sendable(env: Mapping[str, str]) -> dict[str, str]:
+    """The variables the runner accepts. The worker's own ``HOME``, ``PATH`` and ``MISE_*`` stay in the worker."""
+    return {name: value for name, value in env.items() if any(fnmatchcase(name, p) for p in ENV_ALLOWED)}
+
+
+@dataclass(frozen=True, slots=True)
 class ContainerBackend:
     """Runs roles in a container per step: the worker holds no agent process, it asks the runner and reads lines."""
 
@@ -53,6 +91,8 @@ class ContainerBackend:
     """The skill sources the operator bound to a role, read for every step so an edit applies at once."""
     extra_domains: Callable[[], tuple[str, ...]] | None = None
     """The sites an administrator added from the page, read for every step so a change applies at once."""
+    volumes: Volumes | None = None
+    """Where the clones, tools and sessions are; without it the request names none (a test with a fake runner)."""
     new_key: Callable[[], str] = _new_key
     """A key for a step with none of its own yet; a later stage passes the workflow's, so a retry re-attaches."""
 
@@ -82,8 +122,24 @@ class ContainerBackend:
                 task = replace(task, resume="", prompt=task.fallback_prompt or task.prompt)
         return await self._run_once(task)
 
+    def _request(self, task: AgentTask) -> StepRequest:
+        """What to ask the runner for ``task``: its clone, repository, session and tools mode, their folders made."""
+        key, env, given = self.new_key(), sendable(task.env), task_input(task, self._settings(task))
+        if self.volumes is None:
+            return StepRequest(key=key, env=env, input=given)
+        self.volumes.prepare(task.repo, task.work)
+        return StepRequest(
+            key=key,
+            repo=task.repo,
+            clone=self.volumes.clone_of(task.workdir),
+            session=f"work/{task.work}" if task.work else "",
+            tools_readonly=task.read_only_tools,
+            env=env,
+            input=given,
+        )
+
     async def _run_once(self, task: AgentTask) -> str:
-        request = StepRequest(key=self.new_key(), env=dict(task.env), input=task_input(task, self._settings(task)))
+        request = self._request(task)
         stream = StepStream()
         reason = ""
         try:

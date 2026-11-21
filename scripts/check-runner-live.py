@@ -7,7 +7,9 @@ network (so no host firewall is involved), and checks, in this order:
 1. the container the runner builds is locked down for real: not root, no capability, a read-only root, writable only
    where it should be;
 2. a whole step runs: hello, a tool call, a result and an ``exit`` written by the runner, and the container is gone after;
-3. a step that runs past its deadline is stopped and ends with the reason ``timeout``.
+3. the policy volume is mounted read-only, the operator's variables are set and a later container of the same work finds
+   the session an earlier one left;
+4. a step that runs past its deadline is stopped and ends with the reason ``timeout``.
 
 No credential and no cost: the "model" is ``warden/live/mock_anthropic.py``.
 """
@@ -34,7 +36,9 @@ IMAGE = os.environ.get("STEP_IMAGE", "shelf-step-test")
 TOKEN = "live-check-token"  # noqa: S105
 SUFFIX = str(os.getpid())
 MOCK = f"shelf-live-mock-{SUFFIX}"
-NETWORK, STEPS, TOOLS, SESSIONS = (f"shelf-live-{name}-{SUFFIX}" for name in ("net", "steps", "tools", "sessions"))
+NETWORK, STEPS, TOOLS, SESSIONS, POLICY = (
+    f"shelf-live-{name}-{SUFFIX}" for name in ("net", "steps", "tools", "sessions", "policy")
+)
 REPO = "acme/shop"
 
 
@@ -56,16 +60,15 @@ def expect(condition: bool, what: str) -> None:
 def prepare() -> None:
     """The network and the three volumes, with the folders the runner will mount (it never creates one)."""
     docker("network", "create", NETWORK)
-    for volume in (STEPS, TOOLS, SESSIONS):
+    for volume in (STEPS, TOOLS, SESSIONS, POLICY):
         docker("volume", "create", volume)
-    tools = [f"/tools/{REPO.replace('/', '__')}/{name}" for name in ("mise", "m2", "npm", "cache")]
-    script = (
-        f"mkdir -p /steps/steps/t1 {' '.join(tools)} /sessions/work/t1 && chown -R 1000:1000 /steps /tools /sessions"
-    )
+    home = f"/tools/home/{REPO.replace('/', '__')}"
+    tools = [f"{home}/{name}" for name in (".local/share/mise", ".m2", ".npm", ".cache")]
+    script = f"mkdir -p /steps/steps/t1/repo {' '.join(tools)} /sessions/work/t1 && chown -R 1000:1000 /steps /tools /sessions"
     docker(
         "run", "--rm", "-u", "0", "--entrypoint", "sh",
-        "-v", f"{STEPS}:/steps", "-v", f"{TOOLS}:/tools", "-v", f"{SESSIONS}:/sessions",
-        IMAGE, "-c", script,
+        "-v", f"{STEPS}:/steps", "-v", f"{TOOLS}:/tools", "-v", f"{SESSIONS}:/sessions", "-v", f"{POLICY}:/policy",
+        IMAGE, "-c", script + " && echo '{\"hooks\":{}}' > /policy/managed-settings.json",
     )  # fmt: skip
 
 
@@ -81,26 +84,27 @@ def background(command: list[str], env: dict[str, str] | None = None) -> Iterato
 
 def rules(socket_dir: str) -> RunnerRules:
     del socket_dir
-    return RunnerRules(image=IMAGE, network=NETWORK, steps_volume=STEPS, tools_volume=TOOLS, sessions_volume=SESSIONS)
+    return RunnerRules(
+        image=IMAGE,
+        network=NETWORK,
+        steps_volume=STEPS,
+        tools_volume=TOOLS,
+        sessions_volume=SESSIONS,
+        config=((POLICY, "/etc/claude-code"),),
+        fixed_env=(("WARDEN_PROFILE", "shelf"),),
+    )
 
 
-async def probe() -> None:
-    """The container the runner builds, with its command replaced by a script that reports what it can do."""
+async def probe_run(script: str, key: str) -> str:
+    """One container the runner would build, with its command replaced by ``script``; what it printed."""
     ask = parse_request(
-        {"key": "probe/1", "repo": REPO, "clone": "steps/t1", "session": "work/t1", "input": {"prompt": "x"}},
+        {"key": key, "repo": REPO, "clone": "steps/t1/repo", "session": "work/t1", "input": {"prompt": "x"}},
         rules(""),
     )
     spec = container_spec(ask.value, rules(""), expires=int(time.time()) + 300)  # pyright: ignore[reportAttributeAccessIssue]
-    script = (
-        "echo uid=$(id -u); echo caps=$(grep CapEff /proc/self/status | cut -f2); "
-        "touch /x 2>/dev/null && echo root=writable || echo root=readonly; "
-        "touch /tmp/a && echo tmp=writable; touch /work/a && echo work=writable; "
-        "touch /home/step/.m2/a && echo m2=writable; touch /home/step/.claude/projects/a && echo sessions=writable; "
-        "cat /run/shelf/task.json"
-    )
     spec = {**spec, "Cmd": ["sh", "-c", script], "Entrypoint": []}
     engine = DockerEngine()
-    container = await engine.create(spec, f"shelf-step-probe-{SUFFIX}")
+    container = await engine.create(spec, f"shelf-step-probe-{key}-{SUFFIX}")
     try:
         await engine.put_file(container, "/run/shelf", "task.json", b'{"prompt":"x"}')
         await engine.start(container)
@@ -108,6 +112,22 @@ async def probe() -> None:
         await engine.wait(container)
     finally:
         await engine.remove(container)
+    return out
+
+
+async def probe() -> None:
+    """The container the runner builds, with its command replaced by a script that reports what it can do."""
+    script = (
+        "echo uid=$(id -u); echo caps=$(grep CapEff /proc/self/status | cut -f2); "
+        "touch /x 2>/dev/null && echo root=writable || echo root=readonly; "
+        "touch /tmp/a && echo tmp=writable; touch /work/a && echo work=writable; "
+        "touch /home/step/.m2/a && echo m2=writable; touch /home/step/.claude/projects/a && echo sessions=writable; "
+        "touch /etc/claude-code/a 2>/dev/null && echo policy=writable || echo policy=readonly; "
+        "test -s /etc/claude-code/managed-settings.json && echo policy_read=yes; "
+        "echo guard=$WARDEN_PROFILE; echo mise=$MISE_YES; echo path=$PATH; echo home=$HOME; "
+        "cat /run/shelf/task.json"
+    )
+    out = await probe_run(script, "probe-1")
     facts = dict(line.split("=", 1) for line in out.splitlines() if "=" in line)
     expect(facts.get("uid") == "1000", "the step is not root")
     expect(facts.get("caps") == "0000000000000000", "the step has no capability")
@@ -115,7 +135,16 @@ async def probe() -> None:
     expect(
         all(facts.get(name) == "writable" for name in ("tmp", "work", "m2", "sessions")), "it writes where it should"
     )
+    expect(facts.get("policy") == "readonly" and facts.get("policy_read") == "yes", "the policy is read-only and there")
+    expect(facts.get("guard") == "shelf" and facts.get("mise") == "1", "the operator's variables are set")
+    expect(facts.get("path", "").startswith("/home/step/.local/share/mise/shims:"), "the tool shims come first")
     expect('{"prompt":"x"}' in out, "it reads the task the runner put in the file")
+    # a second container of the same work finds what the first left in the sessions folder (spike S4's first half)
+    await probe_run(
+        "mkdir -p /home/step/.claude/projects/-work && echo kept > /home/step/.claude/projects/-work/s", "w1"
+    )
+    again = await probe_run("cat /home/step/.claude/projects/-work/s", "w2")
+    expect(again.strip() == "kept", "a later container of the same work finds the earlier session")
 
 
 async def step(socket: str, host: str, port: int, key: str, seconds: int | None = None) -> tuple[list[str], float]:
@@ -123,7 +152,7 @@ async def step(socket: str, host: str, port: int, key: str, seconds: int | None 
     request = StepRequest(
         key=key,
         repo=REPO,
-        clone="steps/t1",
+        clone="steps/t1/repo",
         session="work/t1",
         limits={"seconds": seconds} if seconds else {},
         env={"ANTHROPIC_BASE_URL": f"http://{host}:{port}", "ANTHROPIC_API_KEY": "mock", "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"},
@@ -177,6 +206,8 @@ def main() -> int:
                 "SHELF_STEPS_VOLUME": STEPS,
                 "SHELF_TOOLS_VOLUME": TOOLS,
                 "SHELF_SESSIONS_VOLUME": SESSIONS,
+                "SHELF_STEP_CONFIG": f"{POLICY}:/etc/claude-code",
+                "SHELF_STEP_SET_WARDEN_PROFILE": "shelf",
             }
             docker(*mock)
             with background([sys.executable, "-m", "shelf.entrypoints.runner"], env):
@@ -189,7 +220,7 @@ def main() -> int:
     finally:
         docker("rm", "-f", MOCK, check=False)
         docker("network", "rm", NETWORK, check=False)
-        docker("volume", "rm", "-f", STEPS, TOOLS, SESSIONS, check=False)
+        docker("volume", "rm", "-f", STEPS, TOOLS, SESSIONS, POLICY, check=False)
     print(json.dumps({"image": IMAGE}))
     return 0
 

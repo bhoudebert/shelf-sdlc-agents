@@ -77,3 +77,28 @@ def test_a_configuration_mistake_stops_the_program_with_one_readable_line() -> N
     with pytest.raises(SystemExit) as stop:
         exit_with(MissingSettingError("SESSION_SECRET is required"))
     assert str(stop.value) == "shelf: cannot start: SESSION_SECRET is required"
+
+
+def test_container_mode_wires_the_container_backend_and_clones_into_the_shared_volume(tmp_path: Path) -> None:
+    from shelf.adapters.claude_agent.backend import ClaudeBackend  # noqa: PLC0415
+    from shelf.adapters.config.operator_file import OperatorFile  # noqa: PLC0415
+    from shelf.adapters.container_agent.backend import ContainerBackend  # noqa: PLC0415
+    from shelf.entrypoints.wiring import agents_and_workspaces  # noqa: PLC0415
+
+    file = OperatorFile(tmp_path / "absent.toml")
+    sandboxed, _ = agents_and_workspaces(from_environ(BASE), file)
+    assert isinstance(sandboxed, ClaudeBackend)
+    environ = {
+        **BASE,
+        "SHELF_ISOLATION": "container",
+        "SHELF_RUNNER_TOKEN": "t",
+        "SHELF_STEPS_DIR": str(tmp_path / "steps"),
+        "SHELF_SESSIONS_DIR": str(tmp_path / "sessions"),
+        "SHELF_CACHE_DIR": str(tmp_path / "tools"),
+    }
+    backend, workspaces = agents_and_workspaces(from_environ(environ), file)
+    assert isinstance(backend, ContainerBackend)
+    assert backend.volumes is not None
+    assert backend.volumes.tools == tmp_path / "tools"
+    assert getattr(workspaces, "root", None) == tmp_path / "steps" / "steps"
+    assert (tmp_path / "steps" / "steps").is_dir()

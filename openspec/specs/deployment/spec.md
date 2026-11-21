@@ -288,7 +288,7 @@ The system SHALL let the operator turn the agents' sandbox off, for hosts where 
 
 ### Requirement: The worker refuses an isolation setting it cannot honour
 
-The system SHALL read `SHELF_ISOLATION` when the worker starts, SHALL run the agents in the worker under the sandbox when it is unset or `sandbox`, and SHALL refuse to start, naming the setting and the accepted values, when it holds anything else or asks for `container` without what that mode needs, so that an agent never runs with less isolation than the operator asked for.
+The system SHALL read `SHELF_ISOLATION` when the worker starts, SHALL run the agents in the worker under the sandbox when it is unset or `sandbox`, and SHALL refuse to start, naming the setting and the accepted values, when it holds anything else or asks for `container` without what that mode needs (the runner's token and the folders of the clones, the tools and the sessions that it shares with the runner), so that an agent never runs with less isolation than the operator asked for.
 
 #### Scenario: Unset
 
@@ -302,8 +302,13 @@ The system SHALL read `SHELF_ISOLATION` when the worker starts, SHALL run the ag
 
 #### Scenario: Container mode that cannot run
 
-- **WHEN** `SHELF_ISOLATION` is `container` and the runner service is not available
-- **THEN** the worker does not start and the message names what is missing, instead of falling back to the sandbox
+- **WHEN** `SHELF_ISOLATION` is `container` and the runner's token or one of the shared folders is not set
+- **THEN** the worker does not start and the message names each missing setting, instead of falling back to the sandbox
+
+#### Scenario: Container mode with everything set
+
+- **WHEN** `SHELF_ISOLATION` is `container`, the runner's token is set and the three shared folders are given
+- **THEN** the worker starts, clones into the shared folder and asks the runner for each agent step
 
 ### Requirement: Links to pull requests use the GitHub address the App is registered on
 

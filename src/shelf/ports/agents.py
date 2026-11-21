@@ -49,6 +49,12 @@ class AgentTask:
     """The session of an earlier run to continue; empty to start a new one."""
     fallback_prompt: str = ""
     """What to ask instead, from the start, when the session to continue cannot be continued."""
+    repo: str = ""
+    """``owner/name`` of the repository, for a backend that gives each repository its own tools."""
+    work: str = ""
+    """The work's id, for a backend that keeps a work's sessions together."""
+    read_only_tools: bool = False
+    """The role reads the repository's tools and caches but must not change them (a reviewer)."""
 
 
 class AgentBackend(Protocol):

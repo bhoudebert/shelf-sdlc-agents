@@ -322,6 +322,15 @@ async def test_only_the_developer_is_given_the_installation_token() -> None:
     assert [bool(task.env) for task in agents.tasks] == [False, False, True, False]
 
 
+async def test_every_agent_task_names_its_repository_and_work_and_only_the_developer_may_change_the_tools() -> None:
+    agents = FakeAgents()
+    runner = steps(agents)
+    for phase in (Phase.INTAKE, Phase.IMPLEMENT, Phase.CODE_REVIEW):
+        await runner.run(NEED, RunStep(phase, 0, ""))
+    assert {(task.repo, task.work) for task in agents.tasks} == {("acme/shop", "work-1")}
+    assert [task.read_only_tools for task in agents.tasks] == [True, False, True]
+
+
 async def test_every_agent_is_pointed_at_the_specs_decisions_and_conventions_of_the_repository() -> None:
     agents, workspaces = FakeAgents(), FakeWorkspaces()
     root = workspaces.workspace.path

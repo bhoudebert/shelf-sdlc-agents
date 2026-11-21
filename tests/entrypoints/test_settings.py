@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from shelf.entrypoints.settings import MissingSettingError, from_environ
+from shelf.entrypoints.settings import ContainerSettings, MissingSettingError, from_environ
 
 BASE = {"PUBLIC_URL": "https://shelf.example.org/", "SESSION_SECRET": "s" * 32}
 APP = {
@@ -155,6 +155,26 @@ def test_an_unknown_isolation_is_refused_and_the_message_lists_the_choices() -> 
         from_environ({**BASE, "SHELF_ISOLATION": "vm"})
 
 
-def test_container_isolation_is_refused_until_the_runner_exists() -> None:
-    with pytest.raises(ValueError, match="runner service"):
+CONTAINER = {
+    "SHELF_ISOLATION": "container",
+    "SHELF_RUNNER_TOKEN": "t",
+    "SHELF_STEPS_DIR": "/var/lib/shelf/steps",
+    "SHELF_SESSIONS_DIR": "/var/lib/shelf/sessions",
+    "SHELF_CACHE_DIR": "/cache",
+}
+
+
+def test_container_isolation_needs_the_runner_and_the_three_volumes_and_names_what_is_missing() -> None:
+    with pytest.raises(MissingSettingError) as caught:
         from_environ({**BASE, "SHELF_ISOLATION": "container"})
+    for name in ("SHELF_RUNNER_TOKEN", "SHELF_STEPS_DIR", "SHELF_SESSIONS_DIR", "SHELF_CACHE_DIR"):
+        assert name in str(caught.value)
+
+
+def test_container_isolation_with_everything_set_is_read_whole() -> None:
+    settings = from_environ({**BASE, **CONTAINER})
+    assert settings.isolation == "container"
+    assert settings.container == ContainerSettings(
+        "/run/shelf-runner/runner.sock", "t", Path("/var/lib/shelf/steps"), Path("/var/lib/shelf/sessions")
+    )
+    assert from_environ(BASE).container is None

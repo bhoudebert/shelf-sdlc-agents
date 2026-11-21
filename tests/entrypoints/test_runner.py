@@ -48,3 +48,27 @@ def test_a_ceiling_that_is_not_a_positive_number_is_refused_by_name(value: str) 
     with pytest.raises(RunnerSettingsError, match="SHELF_STEP_CPUS") as caught:
         read_settings({**GOOD, "SHELF_STEP_CPUS": value})
     assert "secret" not in str(caught.value)
+
+
+def test_the_config_volumes_and_the_fixed_variables_come_from_the_operator() -> None:
+    settings = read_settings(
+        {
+            **GOOD,
+            "SHELF_STEP_CONFIG": "pol:/etc/claude-code, cat:/opt/shelf/catalog",
+            "SHELF_STEP_SET_WARDEN_PROFILE": "shelf",
+        }
+    )
+    assert settings.rules.config == (("pol", "/etc/claude-code"), ("cat", "/opt/shelf/catalog"))
+    assert settings.rules.fixed_env == (("WARDEN_PROFILE", "shelf"),)
+
+
+@pytest.mark.parametrize("config", ["pol:/etc/passwd", "pol", ":/etc/claude-code", "pol:/"])
+def test_a_config_volume_may_only_go_where_the_product_reads_config(config: str) -> None:
+    with pytest.raises(RunnerSettingsError, match="SHELF_STEP_CONFIG"):
+        read_settings({**GOOD, "SHELF_STEP_CONFIG": config})
+
+
+def test_a_fixed_variable_with_a_bad_name_is_refused_without_its_value() -> None:
+    with pytest.raises(RunnerSettingsError, match="not a variable name") as caught:
+        read_settings({**GOOD, "SHELF_STEP_SET_bad": "sk-secret"})
+    assert "sk-secret" not in str(caught.value)

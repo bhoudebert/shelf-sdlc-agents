@@ -32,6 +32,17 @@ if [ -f "$here/../.env" ]; then
 fi
 # SHELF_NIX=on adds a persistent Nix store and its daemon (compose.nix.yml): see the operate page of the guide.
 if [ "$(value SHELF_NIX)" = "on" ]; then compose="$compose -f $here/compose.nix.yml"; fi
+# SHELF_ISOLATION=container runs each agent step in a container of its own (compose.container.yml, decision 0019).
+container=""
+if [ "$(value SHELF_ISOLATION)" = "container" ]; then
+  container=yes
+  compose="$compose -f $here/compose.container.yml"
+  if [ -z "$(value SHELF_RUNNER_TOKEN)" ]; then
+    token=$(openssl rand -hex 32 2>/dev/null || head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')
+    printf 'SHELF_RUNNER_TOKEN=%s\n' "$token" >> "$env_file"
+    echo "Wrote SHELF_RUNNER_TOKEN to $env_file: the worker's key to the runner."
+  fi
+fi
 for name in PUBLIC_URL SESSION_SECRET; do
   [ -n "$(value $name)" ] || { echo "ERROR: $name is empty in $env_file." >&2; exit 1; }
 done
@@ -100,6 +111,12 @@ SHELF_REVISION=$(git -C "$here" rev-parse --short HEAD 2>/dev/null || echo unkno
 if [ -n "$(git -C "$here" status --porcelain 2>/dev/null)" ]; then SHELF_REVISION="$SHELF_REVISION-dirty"; fi
 export SHELF_REVISION
 echo "Building revision $SHELF_REVISION"
+
+# The image a step runs in, and the network the steps use, before the runner starts its first container.
+if [ -n "$container" ]; then
+  $compose --profile tools build step || { echo "ERROR: the step image could not be built (see above)." >&2; exit 1; }
+  docker network inspect shelf-sdlc-step >/dev/null 2>&1 || docker network create shelf-sdlc-step >/dev/null
+fi
 
 # Always replace the web and worker containers, so a rebuilt image is the one that serves.
 $compose up -d --build --force-recreate
