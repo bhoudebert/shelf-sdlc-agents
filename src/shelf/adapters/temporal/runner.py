@@ -5,9 +5,17 @@ import time
 import uuid
 from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any
 
-from temporalio.client import Client, WorkflowExecutionStatus, WorkflowFailureError, WorkflowHandle
+from temporalio.client import (
+    Client,
+    WorkflowExecution,
+    WorkflowExecutionDescription,
+    WorkflowExecutionStatus,
+    WorkflowFailureError,
+    WorkflowHandle,
+)
 from temporalio.service import RPCError
 
 from shelf.adapters.temporal import wire
@@ -56,6 +64,11 @@ class TemporalRunner:
     _listed: dict[str, tuple[float, Sequence[WorkView]]] = field(
         default_factory=dict[str, tuple[float, Sequence[WorkView]]], repr=False
     )
+    _finished: dict[str, tuple[datetime | None, WorkView]] = field(
+        default_factory=dict[str, tuple[datetime | None, WorkView]], repr=False
+    )
+    """The picture of each work that is over, with the time it closed. It cannot change, and a query makes the worker
+    replay the whole history of the workflow: a board that refreshes every few seconds must not do that for old work."""
 
     async def start(self, request: WorkRequest) -> WorkId:
         """Start a workflow for ``request`` with the policy of its repository."""
@@ -151,20 +164,39 @@ class TemporalRunner:
             return cached[1]
         gate = asyncio.Semaphore(MAX_CONCURRENT_LOOKS)
 
-        async def look(workflow_id: str) -> WorkView | None:
+        async def look(execution: WorkflowExecution) -> WorkView | None:
             async with gate:
-                return await self._view(self.client.get_workflow_handle_for(WorkItemWorkflow.run, workflow_id))
+                if (kept := self._remembered(execution.id, execution.status, execution.close_time)) is not None:
+                    return kept
+                return await self._view(self.client.get_workflow_handle_for(WorkItemWorkflow.run, execution.id))
 
-        ids = [execution.id async for execution in self.client.list_workflows(f'WorkflowType = "{WORKFLOW_TYPE}"')]
-        looked = await asyncio.gather(*(look(workflow_id) for workflow_id in ids))
+        executions = [execution async for execution in self.client.list_workflows(f'WorkflowType = "{WORKFLOW_TYPE}"')]
+        looked = await asyncio.gather(*(look(execution) for execution in executions))
         views: Sequence[WorkView] = tuple(view for view in looked if view is not None)
         self._listed["all"] = (self.clock(), views)
         return views
+
+    def _remembered(
+        self, work_id: str, status: WorkflowExecutionStatus | None, closed: datetime | None
+    ) -> WorkView | None:
+        """The picture kept for a work that is over, if it was kept for the close it has now."""
+        if status is None or status == WorkflowExecutionStatus.RUNNING:
+            return None
+        kept = self._finished.get(work_id)
+        return kept[1] if kept is not None and kept[0] == closed else None
+
+    def _remember(self, work_id: str, description: WorkflowExecutionDescription, view: WorkView) -> WorkView:
+        """Keep ``view`` when the work is over; a work that is still running is looked at again each time."""
+        if description.status is not None and description.status != WorkflowExecutionStatus.RUNNING:
+            self._finished[work_id] = (description.close_time, view)
+        return view
 
     async def _view(self, handle: WorkflowHandle[WorkItemWorkflow, str]) -> WorkView | None:
         """The picture of one piece of work. One that exists but cannot be read is shown as failed, never hidden."""
         try:
             description = await handle.describe()
+            if (kept := self._remembered(handle.id, description.status, description.close_time)) is not None:
+                return kept
             memo = await description.memo()
             repo, requester, entry = (
                 RepoRef.parse(str(memo["repo"])),
@@ -177,26 +209,34 @@ class TemporalRunner:
             snapshot = await handle.query(WorkItemWorkflow.snapshot)
         except Exception as error:  # noqa: BLE001 - it exists, but its workflow task fails (an older release, or closed)
             if description.status == WorkflowExecutionStatus.TERMINATED:  # closed by an administrator
-                return WorkView(
-                    WorkId(handle.id),
-                    repo,
-                    requester,
-                    entry,
-                    Phase.INTAKE,
-                    detail=TERMINATED,
-                    outcome=Outcome.ABORTED,
-                    title=str(memo.get("title") or ""),
+                return self._remember(
+                    handle.id,
+                    description,
+                    WorkView(
+                        WorkId(handle.id),
+                        repo,
+                        requester,
+                        entry,
+                        Phase.INTAKE,
+                        detail=TERMINATED,
+                        outcome=Outcome.ABORTED,
+                        title=str(memo.get("title") or ""),
+                    ),
                 )
             if description.status in ENDED_BADLY:  # over for good: say why, instead of "cannot be read"
-                return WorkView(
-                    WorkId(handle.id),
-                    repo,
-                    requester,
-                    entry,
-                    Phase.INTAKE,
-                    detail=await _why_it_ended(handle, description.status),
-                    outcome=Outcome.ABORTED,
-                    title=str(memo.get("title") or ""),
+                return self._remember(
+                    handle.id,
+                    description,
+                    WorkView(
+                        WorkId(handle.id),
+                        repo,
+                        requester,
+                        entry,
+                        Phase.INTAKE,
+                        detail=await _why_it_ended(handle, description.status),
+                        outcome=Outcome.ABORTED,
+                        title=str(memo.get("title") or ""),
+                    ),
                 )
             kind = type(error).__name__
             message = f"This work cannot be read right now ({kind}). It may have been started by an older release."
@@ -210,22 +250,26 @@ class TemporalRunner:
                 detail=message,
                 title=str(memo.get("title") or ""),
             )
-        return WorkView(
-            id=WorkId(handle.id),
-            repo=repo,
-            requester=requester,
-            entry=entry,
-            phase=Phase(snapshot.phase),
-            waiting_for=Reason(snapshot.waiting_for) if snapshot.waiting_for else None,
-            detail=snapshot.detail,
-            outcome=Outcome(snapshot.outcome) if snapshot.outcome else None,
-            pull_request_url=snapshot.pull_request_url or self._link_of(repo, memo.get("pull_request")),
-            title=str(memo.get("title") or ""),
-            context=_context_of(memo),
-            updated_at=snapshot.updated_at,
-            times=tuple(sorted(snapshot.times.items())),
-            unattended=_unattended_of(memo),
-            review_depths=_depths_of(memo),
+        return self._remember(
+            handle.id,
+            description,
+            WorkView(
+                id=WorkId(handle.id),
+                repo=repo,
+                requester=requester,
+                entry=entry,
+                phase=Phase(snapshot.phase),
+                waiting_for=Reason(snapshot.waiting_for) if snapshot.waiting_for else None,
+                detail=snapshot.detail,
+                outcome=Outcome(snapshot.outcome) if snapshot.outcome else None,
+                pull_request_url=snapshot.pull_request_url or self._link_of(repo, memo.get("pull_request")),
+                title=str(memo.get("title") or ""),
+                context=_context_of(memo),
+                updated_at=snapshot.updated_at,
+                times=tuple(sorted(snapshot.times.items())),
+                unattended=_unattended_of(memo),
+                review_depths=_depths_of(memo),
+            ),
         )
 
     def _link_of(self, repo: RepoRef, number: object) -> str:

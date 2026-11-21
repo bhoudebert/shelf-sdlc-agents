@@ -1,7 +1,9 @@
 import asyncio
 import itertools
 from collections.abc import Callable
+from contextlib import AbstractContextManager
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 from temporalio.client import WorkflowExecutionStatus, WorkflowFailureError
@@ -155,7 +157,7 @@ class FinishedBadly:
         async def memo() -> dict[str, object]:
             return {"repo": "acme/shop", "requester": "alice", "entry": "need", "title": "loyalty points"}
 
-        return SimpleNamespace(status=self.status, memo=memo)
+        return SimpleNamespace(status=self.status, memo=memo, close_time=None)
 
     async def query(self, *args: object) -> None:
         message = "workflow task failed"
@@ -251,3 +253,124 @@ async def test_the_board_says_how_hard_each_review_looks(env: WorkflowEnvironmen
         without = await _until(runner, skipped, lambda v: v.waiting_for is not None)
     assert board.review_depths == (("spec", "quick"), ("design", "thorough"))
     assert dict(without.review_depths)["design"] == "off"
+
+
+class QueryCount:
+    """Counts the queries sent to workflows (each one makes the worker replay that workflow's history)."""
+
+    def __init__(self) -> None:
+        self.asked: list[str] = []
+
+    def patched(self) -> AbstractContextManager[object]:
+        from unittest.mock import patch  # noqa: PLC0415
+
+        from temporalio.client import WorkflowHandle  # noqa: PLC0415
+
+        original: Any = WorkflowHandle.query  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+        asked = self.asked
+
+        async def counting(handle: Any, *args: Any, **kwargs: Any) -> Any:
+            asked.append(handle.id)
+            return await original(handle, *args, **kwargs)
+
+        return patch.object(WorkflowHandle, "query", counting)
+
+
+def fresh_runner(env: WorkflowEnvironment) -> TemporalRunner:
+    """A runner that shares nothing between two lists, so every list is a real look."""
+    numbers = itertools.count(1)
+    return TemporalRunner(
+        env.client,
+        QUEUE,
+        FakeConfigs(),
+        Mode.SERVER,
+        next_id=lambda: WorkId(f"work-{next(numbers)}"),
+        cache_seconds=0.0,
+    )
+
+
+async def _finish(runner: TemporalRunner, work_id: WorkId) -> None:
+    await _until_waiting(runner, work_id, Reason.GATE)
+    await runner.decide(work_id, PersonDecided("carol", DecisionKind.ABORT))
+    await _until_finished(runner, work_id)
+
+
+async def test_a_finished_work_is_looked_at_once_and_then_remembered(env: WorkflowEnvironment) -> None:
+    starter = runner_for(env)
+    async with worker(env, FakeSteps(), FakePulls()):
+        done = await starter.start(WorkRequest(REPO, "alice", EntryPoint.NEED, "x"))
+        await _finish(starter, done)
+        runner = fresh_runner(env)  # it has seen nothing yet
+        count = QueryCount()
+        with count.patched():
+            first = await runner.list(None)
+            after_first = len(count.asked)
+            second = await runner.list(None)
+            third = await runner.list(None)
+    assert after_first == 1
+    assert len(count.asked) == 1, "a finished work cannot change: it is not replayed again"
+    assert first == second == third
+    assert first[0].outcome is Outcome.ABORTED
+
+
+async def test_a_work_that_is_still_running_is_asked_again_every_time(env: WorkflowEnvironment) -> None:
+    runner = fresh_runner(env)
+    async with worker(env, FakeSteps(), FakePulls()):
+        running = await runner.start(WorkRequest(REPO, "alice", EntryPoint.NEED, "x"))
+        await _until_waiting(runner, running, Reason.GATE)
+        count = QueryCount()
+        with count.patched():
+            await runner.list(None)
+            await runner.list(None)
+            await runner.list(None)
+    assert count.asked == [running] * 3
+
+
+async def test_only_the_running_work_is_asked_when_there_is_finished_work_too(env: WorkflowEnvironment) -> None:
+    starter = runner_for(env)
+    async with worker(env, FakeSteps(), FakePulls()):
+        done = await starter.start(WorkRequest(REPO, "alice", EntryPoint.NEED, "old"))
+        await _finish(starter, done)
+        running = await starter.start(WorkRequest(REPO, "alice", EntryPoint.NEED, "new"))
+        await _until_waiting(starter, running, Reason.GATE)
+        runner = fresh_runner(env)
+        await runner.list(None)  # the finished one is looked at here, once
+        count = QueryCount()
+        with count.patched():
+            await runner.list(None)
+            await runner.list(None)
+    assert count.asked == [running, running]
+
+
+async def test_the_page_of_one_finished_work_does_not_replay_it_on_every_refresh(env: WorkflowEnvironment) -> None:
+    starter = runner_for(env)
+    async with worker(env, FakeSteps(), FakePulls()):
+        done = await starter.start(WorkRequest(REPO, "alice", EntryPoint.NEED, "x"))
+        await _finish(starter, done)
+        runner = fresh_runner(env)
+        count = QueryCount()
+        with count.patched():
+            first = await runner.view(done)
+            again = await runner.view(done)
+            more = await runner.view(done)
+    assert len(count.asked) == 1
+    assert first == again == more
+
+
+async def test_a_look_that_failed_for_now_is_not_remembered_for_a_finished_work(env: WorkflowEnvironment) -> None:
+    from unittest.mock import patch  # noqa: PLC0415
+
+    from temporalio.client import WorkflowHandle  # noqa: PLC0415
+
+    starter = runner_for(env)
+    async with worker(env, FakeSteps(), FakePulls()):
+        done = await starter.start(WorkRequest(REPO, "alice", EntryPoint.NEED, "x"))
+        await _finish(starter, done)
+        runner = fresh_runner(env)
+        with patch.object(WorkflowHandle, "query", side_effect=RuntimeError("the worker is down")):
+            broken = await runner.view(done)
+        later = await runner.view(done)
+    assert broken is not None
+    assert broken.waiting_for is Reason.FAILURE
+    assert later is not None
+    assert later.outcome is Outcome.ABORTED, "the failure of one look is not kept as the picture of a finished work"
