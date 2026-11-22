@@ -4,15 +4,15 @@ from dataclasses import dataclass
 
 from shelf.domain.config import GATE_ROLES, RepoConfig, Role
 from shelf.domain.pipeline import Phase
-from shelf.domain.work import DecisionKind
+from shelf.domain.work import ArbitrationVerdict, DecisionKind
 
 FILE = "decisions.md"
 """The name of the log, in the work's documents folder."""
 
 HEADER = (
     "# Decisions\n\n"
-    "Who decided what, and when, on this work. The system appends an entry each time a person decides; "
-    "an agent never writes here.\n"
+    "Who decided what, and when, on this work. The system appends an entry each time a person decides, and "
+    "each time an arbitrator settles a disagreement; an agent never writes here itself.\n"
 )
 
 _SUBJECT: dict[Phase, str] = {
@@ -90,3 +90,18 @@ def append_entry(existing: str, record: DecisionRecord) -> str:
     """``existing`` with the entry added at the end; the log is created with its header when there is none."""
     base = existing if existing.strip() else HEADER
     return base.rstrip("\n") + "\n\n" + render_entry(record).rstrip("\n") + "\n"
+
+
+def render_arbitration(at: str, phase: Phase, verdict: ArbitrationVerdict, text: str) -> str:
+    """The entry for an arbitration, ready to append: what it decided, and what it said."""
+    step = phase.value.replace("_", " ")
+    lines = [f"## {at} · arbitrator settled the disagreement at {step}: {verdict.value}", ""]
+    if text.strip():
+        lines += [*(f"> {line}" if line else ">" for line in text.strip().splitlines()), ""]
+    return "\n".join(lines) + "\n"
+
+
+def append_arbitration(existing: str, at: str, phase: Phase, verdict: ArbitrationVerdict, text: str) -> str:
+    """``existing`` with the arbitration added at the end; the log is created with its header when there is none."""
+    base = existing if existing.strip() else HEADER
+    return base.rstrip("\n") + "\n\n" + render_arbitration(at, phase, verdict, text).rstrip("\n") + "\n"

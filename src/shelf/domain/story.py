@@ -25,6 +25,7 @@ SPEAKERS: dict[str, str] = {
     "implementer": "Developer",
     "code_reviewer": "Code reviewer",
     "checks": "Checks",
+    "arbitrator": "Arbitrator",
 }
 """The agents as the people they stand in for, by role name."""
 

@@ -186,6 +186,7 @@ def build_services(settings: Settings, github: GitHubApp, client: httpx.AsyncCli
         context_sources=context_sources,
         administrators=lambda: file.current().access.admins,
         run_records=FileRunRecords(Path(settings.runs_dir)) if settings.runs_dir else None,
+        conversations=GitHubConversations(client, app, token_for),
         nix=settings.nix,
     )
     runner = TemporalRunner(temporal, settings.task_queue, configs, operator.mode, app.web_url)

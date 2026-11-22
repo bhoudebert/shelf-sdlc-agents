@@ -27,6 +27,10 @@ RUNS_CODE: Final = frozenset({"implementer", "code_reviewer"})
 TITLER = AgentRole("titler", WORKING)
 """Not a phase of the pipeline: names the pull request by the repository's own convention."""
 
+ARBITRATOR = AgentRole("arbitrator", WORKING)
+"""Not a phase of the pipeline: settles a disagreement between an author and a reviewer (ADR 0021). It changes nothing:
+what it writes in its clone is discarded, like a reviewer's."""
+
 ROLES: dict[Phase, AgentRole] = {
     Phase.INTAKE: AgentRole("intake", WORKING, "spec.md"),
     Phase.SPEC_REVIEW: AgentRole("spec_critic", WORKING),

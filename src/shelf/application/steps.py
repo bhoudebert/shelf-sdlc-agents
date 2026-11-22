@@ -12,7 +12,7 @@ from shelf.domain.config import InvalidConfigError, RepoConfig
 from shelf.domain.context import CATEGORIES, EARLIER_WORK, context_brief
 from shelf.domain.context_repo import FOLDER, note_for, parse_context
 from shelf.domain.decisions import FILE as DECISIONS_FILE
-from shelf.domain.decisions import DecisionRecord, acted_as, append_entry
+from shelf.domain.decisions import DecisionRecord, acted_as, append_arbitration, append_entry
 from shelf.domain.formatters import (
     IGNORE_FILE,
     READ,
@@ -38,6 +38,7 @@ from shelf.domain.result import Err, Ok
 from shelf.domain.results import Results, results_note
 from shelf.domain.review import ReviewDepth, review_note
 from shelf.domain.roles import (
+    ARBITRATOR,
     PROVIDED_DOCUMENT,
     REVIEWERS,
     ROLES,
@@ -67,13 +68,26 @@ from shelf.domain.toolchain import (
     with_environment,
 )
 from shelf.domain.usage import Usage
-from shelf.domain.verdict import parse_verdict
+from shelf.domain.verdict import parse_arbitration, parse_verdict
 from shelf.domain.web import WEB_NOTE
-from shelf.domain.work import WAITING_FOR_CI, Produced, Reviewed, RunStep, StepResult, Verdict, Verified
+from shelf.domain.whole_story import FILE as STORY_FILE
+from shelf.domain.whole_story import render_story
+from shelf.domain.work import (
+    WAITING_FOR_CI,
+    Arbitrated,
+    ArbitrationVerdict,
+    Produced,
+    Reviewed,
+    RunStep,
+    StepResult,
+    Verdict,
+    Verified,
+)
 from shelf.ports.agents import AgentBackend, AgentTask, RunSink
 from shelf.ports.commands import CommandRunner
 from shelf.ports.configs import RepoConfigs
 from shelf.ports.context_sources import ContextSources
+from shelf.ports.conversation import Conversations
 from shelf.ports.run_records import RunRecords
 from shelf.ports.steps import PullRequests
 from shelf.ports.workspace import Checkout, Workspace, Workspaces
@@ -110,6 +124,15 @@ ALONE_REVIEWER_NOTE = (
     "recommend one option, ask for it with CHANGES, and the author will record the choice under an `Assumptions` "
     "heading. Keep ESCALATE for what nobody here can decide: a contradiction of the request, a fact that is not in "
     "the repository, money or access."
+)
+
+
+DEFAULT_MODELS: Mapping[str, str] = {ARBITRATOR.name: "opus"}
+"""The model of a role that must not follow the general one when nothing is set for it (ADR 0021)."""
+
+ARBITRATION_NOTE = (
+    "You arbitrate a disagreement between an author and a reviewer of this work. The whole story of the work, and the "
+    "dispute itself at the end, are in `{story}`: read all of it first."
 )
 
 
@@ -291,6 +314,11 @@ def continuation_prompt(step: RunStep, folder: str, *, ci: str = "", environment
     return "\n".join(lines)
 
 
+def _role_of(step: RunStep) -> AgentRole:
+    """The agent a step runs: the arbitrator when the step is an arbitration, else the phase's own role."""
+    return ARBITRATOR if step.arbitrates else ROLES[step.phase]
+
+
 def folder_of(root: Path, work_id: WorkId) -> str:
     """The folder a work keeps its documents in: the one it already has (a run that began before ``.shelf``)."""
     old = legacy_documents_dir(work_id)
@@ -405,6 +433,8 @@ class Steps:
     """The logins of the instance's administrators now, for the record of who decided what."""
     run_records: RunRecords | None = None
     """Where what each agent run did is kept, for diagnosing a work afterwards; none keeps nothing."""
+    conversations: Conversations | None = None
+    """Where the conversation of a work is read back, for the whole story an arbitrator is given."""
     now: Callable[[], datetime] = lambda: datetime.now(UTC)
     """Where other repositories are read from, as reference material put next to the clone (none without it)."""
 
@@ -554,6 +584,89 @@ class Steps:
             await self._story(work, step, workspace, config, answer),
         )
 
+    async def arbitrate(self, work: WorkContext, phase: Phase, issues: str, attempt: int = 0) -> Arbitrated:
+        """Settle the disagreement of ``phase``: an agent reads the whole story and answers FIX, OVERRULE or ESCALATE.
+
+        It changes nothing in the repository. What it says is also said on the pull request, as the arbitrator.
+        """
+        repo = work.request.repo
+        config = await self.configs.load(repo)
+        token = await self.token_for(repo)
+        reviewing = work.request.pull_request if phase is Phase.CODE_REVIEW else None
+        branch, lease = await self._branch(work)
+        step = RunStep(phase, attempt, issues, arbitrates=True)
+        async with self.workspaces.open(
+            Checkout(repo, token, branch, config.base_branch, reviewing, lease)
+        ) as workspace:
+            await self._attach_context(work, workspace)
+            folder = folder_of(workspace.path, work.id)
+            story = workspace.path / folder / STORY_FILE
+            story.parent.mkdir(parents=True, exist_ok=True)
+            ci = await self._ci_now(work)
+            story.write_text(await self._whole_story(work, workspace, folder, issues, ci), encoding="utf-8")
+            prompt = self._arbitration_prompt(work, phase, issues, f"{folder}/{STORY_FILE}", config.base_branch)
+            sink = RunSink()
+            answer = await self._ask_recorded((work, step, workspace, token), (prompt, ""), sink, (ToolSetup(), ""))
+        arbitrated = replace(parse_arbitration(answer), usage=sink.usage, session=sink.session_id)
+        words = f"**Arbitration: {arbitrated.verdict.value}**\n\n{arbitrated.text}".strip()
+        await self.pulls.comment(work, agent_comment(work.id, ARBITRATOR.name, words))
+        return arbitrated
+
+    async def _whole_story(self, work: WorkContext, workspace: Workspace, folder: str, issues: str, ci: Ci) -> str:
+        """Everything that led to a disagreement: the request, the documents, the conversation, the runs, the CI."""
+        documents = {
+            path.name: path.read_text(encoding="utf-8", errors="replace")
+            for path in sorted((workspace.path / folder).glob("*.md"))
+            if path.name != STORY_FILE
+        }
+        messages = ()
+        if self.conversations is not None:
+            try:
+                number = await self.conversations.pull_request_of(work.request.repo, branch_of(work))
+                if number is not None:
+                    messages = tuple(await self.conversations.read(work.request.repo, number))
+            except Exception:  # a conversation that cannot be read must not stop the arbitration
+                log.warning("could not read the conversation of %s for the arbitrator", work.id, exc_info=True)
+        runs = tuple(await self.run_records.read(str(work.id))) if self.run_records is not None else ()
+        return render_story(
+            work.request.text, documents, messages, runs, issues, ci.report() if ci.state is not CiState.NONE else ""
+        )
+
+    def _arbitration_prompt(self, work: WorkContext, phase: Phase, issues: str, story: str, base: str) -> str:
+        review = phase.value.replace("_", " ")
+        lines = [
+            f"Requested by: {work.request.requester}",
+            ARBITRATION_NOTE.format(story=story),
+            "",
+            (
+                f"The disagreement is at the {review}. The base branch is `{base}`: "
+                f"`git diff {base}...HEAD` shows what this work changed."
+            ),
+            "",
+            "What could not be settled:",
+            issues,
+            "",
+            "End your answer with one line: `ARBITRATION: FIX`, `ARBITRATION: OVERRULE` or `ARBITRATION: ESCALATE`.",
+        ]
+        return "\n".join(lines)
+
+    async def record_arbitration(
+        self, work: WorkContext, at: str, phase: Phase, verdict: ArbitrationVerdict, text: str
+    ) -> None:
+        """Append an arbitration to the work's decision log on its branch, committed by the system."""
+        repo = work.request.repo
+        try:
+            config = await self.configs.load(repo)
+        except InvalidConfigError:
+            config = RepoConfig()
+        token = await self.token_for(repo)
+        async with self.workspaces.open(Checkout(repo, token, branch_of(work), config.base_branch)) as workspace:
+            target = workspace.path / folder_of(workspace.path, work.id) / DECISIONS_FILE
+            target.parent.mkdir(parents=True, exist_ok=True)
+            existing = target.read_text(encoding="utf-8") if target.exists() else ""
+            target.write_text(append_arbitration(existing, at, phase, verdict, text), encoding="utf-8")
+            await workspace.commit_and_push(f"chore(shelf): record the arbitration of {phase.value} for {work.id}")
+
     async def record_decision(self, work: WorkContext, record: DecisionRecord) -> None:
         """Append a person's decision to the work's decision log on its branch, committed by the system."""
         repo = work.request.repo
@@ -599,7 +712,7 @@ class Steps:
 
     def _model_of(self, role: str) -> str | None:
         """The model a role asks for: its own, else the general one, else none (Claude Code decides)."""
-        return self.models.get(role) or self.model
+        return self.models.get(role) or DEFAULT_MODELS.get(role) or self.model
 
     def _title_prompt(self, work: WorkContext, base: str, workspace: Workspace) -> str:
         lines = [
@@ -661,11 +774,11 @@ class Steps:
                     work_id=str(work.id),
                     phase=step.phase.name.lower(),
                     attempt=step.attempt,
-                    role=ROLES[step.phase].name,
+                    role=_role_of(step).name,
                     started=started.isoformat(timespec="seconds"),
                     ended=self.now().isoformat(timespec="seconds"),
                     outcome=outcome,
-                    model=self._model_of(ROLES[step.phase].name) or (used.models[0] if used.models else ""),
+                    model=self._model_of(_role_of(step).name) or (used.models[0] if used.models else ""),
                     usage=used,
                     session=sink.session_id,
                     resumed=bool(step.session) and not sink.fell_back,
@@ -704,7 +817,7 @@ class Steps:
     ) -> str:
         """Ask the agent: ``prompts`` is what to ask and, for a session continued, the whole task to fall back on."""
         prompt, fallback = prompts
-        role = ROLES[step.phase]
+        role = _role_of(step)
         hidden = step.phase in TOOL_PHASES and _hide_sandbox_placeholders(workspace.path)
         try:
             return await self._run_agent(role, prompt, fallback, (work, step, workspace, token), sink, more_env)

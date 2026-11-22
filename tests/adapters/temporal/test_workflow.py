@@ -15,10 +15,12 @@ from shelf.domain.ci import Ci, CiState
 from shelf.domain.decisions import DecisionRecord
 from shelf.domain.model import PullInfo, WorkContext
 from shelf.domain.pipeline import KIND, Kind, Phase
-from shelf.domain.policy import CURRENT_PROTOCOL
+from shelf.domain.policy import ARBITRATES, CURRENT_PROTOCOL
 from shelf.domain.stage import Stage
 from shelf.domain.usage import Usage
 from shelf.domain.work import (
+    Arbitrated,
+    ArbitrationVerdict,
     AskPerson,
     DecisionKind,
     Event,
@@ -55,6 +57,21 @@ class FakeSteps:
     behaviour: Callable[[RunStep], Awaitable[StepResult]] | None = None
     recorded: list[DecisionRecord] = field(default_factory=list[DecisionRecord])
     record_fails: bool = False
+    arbitrations: list[Arbitrated] = field(default_factory=list[Arbitrated])
+    """What the arbitrator answers, in turn; it answers ESCALATE when the list is empty."""
+    arbitrated: list[tuple[Phase, str]] = field(default_factory=list[tuple[Phase, str]])
+    arbitration_records: list[tuple[Phase, ArbitrationVerdict, str]] = field(
+        default_factory=list[tuple[Phase, ArbitrationVerdict, str]]
+    )
+
+    async def arbitrate(self, work: WorkContext, phase: Phase, issues: str, attempt: int = 0) -> Arbitrated:
+        self.arbitrated.append((phase, issues))
+        return self.arbitrations.pop(0) if self.arbitrations else Arbitrated(ArbitrationVerdict.ESCALATE, "a person")
+
+    async def record_arbitration(
+        self, work: WorkContext, at: str, phase: Phase, verdict: ArbitrationVerdict, text: str
+    ) -> None:
+        self.arbitration_records.append((phase, verdict, text))
 
     async def record_decision(self, work: WorkContext, record: DecisionRecord) -> None:
         if self.record_fails:
@@ -544,3 +561,49 @@ async def test_a_step_that_reports_no_session_leaves_the_earlier_one_in_place(en
         await handle.result()
     writer_rounds = [s.session for s in steps.ran if s.phase is Phase.INTAKE]
     assert writer_rounds[:3] == ["", "s-writer-1", "s-writer-1"]
+
+
+async def test_a_deadlock_is_settled_by_the_arbitrator_and_the_author_goes_back_with_its_instructions(
+    env: WorkflowEnvironment,
+) -> None:
+    steps = FakeSteps(
+        {(Phase.SPEC_REVIEW, 0): Reviewed(Verdict.ESCALATE, "the limit is not defined")},
+        arbitrations=[Arbitrated(ArbitrationVerdict.FIX, "1. define the limit in R2")],
+    )
+    pulls = FakePulls()
+    async with worker(env, steps, pulls):
+        handle = await start(env, work_input("need", protocol=ARBITRATES, on_deadlock="arbitrate-ask"))
+        await until(handle, lambda s: s.waiting_for == "gate")
+        await handle.signal(WorkItemWorkflow.decided, wire.DecisionDto("alice", DecisionKind.ABORT, ""))
+        await handle.result()
+    assert steps.arbitrated == [(Phase.SPEC_REVIEW, "the limit is not defined")]
+    assert steps.arbitration_records == [(Phase.SPEC_REVIEW, ArbitrationVerdict.FIX, "1. define the limit in R2")]
+    intake_rounds = [step for step in steps.ran if step.phase is Phase.INTAKE]
+    assert "1. define the limit in R2" in intake_rounds[-1].feedback
+    assert not pulls.announced or all(ask.reason is not Reason.ESCALATION for ask in pulls.announced)
+
+
+async def test_an_arbitrator_that_cannot_decide_asks_a_person_with_its_brief(env: WorkflowEnvironment) -> None:
+    steps = FakeSteps(
+        {(Phase.SPEC_REVIEW, 0): Reviewed(Verdict.ESCALATE, "the limit is not defined")},
+        arbitrations=[Arbitrated(ArbitrationVerdict.ESCALATE, "Choose 10 or 50. I recommend 10.")],
+    )
+    pulls = FakePulls()
+    async with worker(env, steps, pulls):
+        handle = await start(env, work_input("need", protocol=ARBITRATES, on_deadlock="arbitrate-ask"))
+        snapshot = await until(handle, lambda s: s.waiting_for == "escalation")
+        await handle.signal(WorkItemWorkflow.decided, wire.DecisionDto("alice", DecisionKind.ABORT, ""))
+        await handle.result()
+    assert snapshot.detail.startswith("Choose 10 or 50. I recommend 10.")
+    assert "the limit is not defined" in snapshot.detail
+    assert steps.arbitration_records[0][1] is ArbitrationVerdict.ESCALATE
+
+
+async def test_work_started_before_arbitration_does_not_arbitrate(env: WorkflowEnvironment) -> None:
+    steps = FakeSteps({(Phase.SPEC_REVIEW, 0): Reviewed(Verdict.ESCALATE, "the limit is not defined")})
+    async with worker(env, steps, FakePulls()):
+        handle = await start(env, work_input("need", protocol=ARBITRATES - 1, on_deadlock="arbitrate-ask"))
+        await until(handle, lambda s: s.waiting_for == "escalation")
+        await handle.signal(WorkItemWorkflow.decided, wire.DecisionDto("alice", DecisionKind.ABORT, ""))
+        await handle.result()
+    assert steps.arbitrated == []
