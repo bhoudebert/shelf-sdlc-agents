@@ -355,6 +355,8 @@ class Steps:
     token_for: TokenFor
     prompt_for: PromptFor
     model: str | None = None
+    models: Mapping[str, str] = field(default_factory=dict[str, str])
+    """The model of the roles that have one of their own, by role name; the others use ``model``."""
     max_turns: int = 40
     max_budget_usd: float | None = None
     base_path: str = ""
@@ -567,12 +569,16 @@ class Steps:
                         read_only_tools=True,
                         max_turns=TITLE_TURNS,
                         max_budget_usd=self.max_budget_usd,
-                        model=self.model,
+                        model=self._model_of(TITLER.name),
                     )
                 )
         except Exception:  # noqa: BLE001 - a title is never worth stopping the work for
             return fallback
         return clean_title(answer, fallback)
+
+    def _model_of(self, role: str) -> str | None:
+        """The model a role asks for: its own, else the general one, else none (Claude Code decides)."""
+        return self.models.get(role) or self.model
 
     def _title_prompt(self, work: WorkContext, base: str, workspace: Workspace) -> str:
         lines = [
@@ -638,7 +644,7 @@ class Steps:
                     started=started.isoformat(timespec="seconds"),
                     ended=self.now().isoformat(timespec="seconds"),
                     outcome=outcome,
-                    model=self.model or (used.models[0] if used.models else ""),
+                    model=self._model_of(ROLES[step.phase].name) or (used.models[0] if used.models else ""),
                     usage=used,
                     session=sink.session_id,
                     resumed=bool(step.session) and not sink.fell_back,
@@ -713,7 +719,7 @@ class Steps:
                 },
                 max_turns=self.max_turns,
                 max_budget_usd=self.max_budget_usd,
-                model=self.model,
+                model=self._model_of(role.name),
                 sink=sink,
             )
         )

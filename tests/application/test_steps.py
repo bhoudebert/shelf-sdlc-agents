@@ -389,6 +389,12 @@ async def test_the_pull_request_is_named_by_the_agent_that_reads_the_conventions
     assert "loyalty points" in task.prompt  # the request, which decides the type
 
 
+async def test_the_titler_asks_for_its_own_model_too() -> None:
+    agents = FakeAgents("feat(readme): add GitHub badges")
+    await replace(steps(agents), model="m-general", models={"titler": "m-small"}).title(NEED)
+    assert [task.model for task in agents.tasks] == ["m-small"]
+
+
 async def test_a_title_that_cannot_be_made_falls_back_to_the_request_and_never_fails() -> None:
     class Broken:
         async def run(self, task: AgentTask) -> str:
@@ -677,6 +683,20 @@ def test_other_agents_get_no_such_note() -> None:
     assert "Nobody is available" not in task_prompt(NEED, RunStep(Phase.INTAKE, 0, ""))
     asked = WorkRequest(REPO, "alice", EntryPoint.NEED, "x", autonomy=Autonomy.strictest())
     assert "Nobody is available" not in task_prompt(WorkContext(WorkId("w"), asked), RunStep(Phase.INTAKE, 0, ""))
+
+
+async def test_a_role_asks_for_its_own_model_and_the_others_for_the_general_one() -> None:
+    agents = FakeAgents()
+    work = replace(steps(agents), model="m-general", models={"code_reviewer": "m-strong"})
+    await work.run(NEED, RunStep(Phase.CODE_REVIEW, 0, ""))
+    await work.run(NEED, RunStep(Phase.PLAN, 0, ""))
+    assert [task.model for task in agents.tasks] == ["m-strong", "m-general"]
+
+
+async def test_a_role_with_no_model_of_any_kind_asks_for_none() -> None:
+    agents = FakeAgents()
+    await replace(steps(agents), model=None, models={}).run(NEED, RunStep(Phase.PLAN, 0, ""))
+    assert [task.model for task in agents.tasks] == [None]
 
 
 async def test_an_agent_is_told_where_the_lasting_results_go() -> None:
