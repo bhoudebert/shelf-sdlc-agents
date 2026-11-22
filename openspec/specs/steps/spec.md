@@ -1649,3 +1649,19 @@ The system SHALL tell the code reviewer not to approve a fix when the author rep
 
 - **WHEN** the author says a case did not turn red after the rule it covers was removed
 - **THEN** the reviewer asks for changes, or runs the proof itself, and does not write that the case reaches the rule
+
+### Requirement: The arbitrator reads a dispute, decides it with evidence and says what proves it
+
+The system SHALL give the arbitrator, as an agent role of its own with its own model setting (`SHELF_MODEL_ARBITRATOR`, the `opus` alias when nothing is set), read-only access to the repository and the whole story of the work without cutting any of it (the request, every document in each version, every round of the conversation between the agents, the decision log, the record of each agent run, and what the CI said), and the specifications and decisions of the repository; SHALL tell it to decide each open point as right (the author must act), wrong (with the evidence) or not for it to decide; and SHALL tell it to end with exactly one line, `ARBITRATION: FIX`, `ARBITRATION: OVERRULE` or `ARBITRATION: ESCALATE`.
+
+The system SHALL tell it that a `FIX` carries numbered, concrete instructions and, for each, a command whose result proves it; that an `OVERRULE` carries, for each point, the file and line or the command output that shows the point wrong; that a point without evidence, a red CI, a contradiction with a specification or a decision, and anything about secrets, permissions or money is an `ESCALATE`; and that an `ESCALATE` carries the question, the options with what each costs, and a recommendation. The system SHALL tell the author who receives a `FIX` to run each proof and report its result.
+
+#### Scenario: A fix with a proof
+
+- **WHEN** the arbitrator finds two stale sentences in a decision record
+- **THEN** its fix names both with file and line and ends with a command that must find nothing, and the author reports that command's result
+
+#### Scenario: A point without evidence
+
+- **WHEN** the arbitrator cannot show a reviewer's point right or wrong from the files
+- **THEN** it ends with `ESCALATE` and asks the question that settles it

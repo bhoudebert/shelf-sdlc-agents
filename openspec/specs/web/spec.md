@@ -1060,3 +1060,54 @@ The system SHALL, when the workflow engine no longer holds a work but run record
 
 - **WHEN** the engine does not hold the work and no record exists
 - **THEN** the answer is not found
+
+### Requirement: The start form asks one question about a disagreement, with what each answer does
+
+The system SHALL replace, on the start form, the choice to stop at a deadlock by one question, "When the reviewer and the author cannot agree", with four answers (`ask`, `arbitrate-ask`, `arbitrate-go`, `go`), preset from the repository, each with one plain sentence of what happens and what it costs, the arbitrating answer that asks a person only when the arbitrator cannot decide marked as the recommended one for work that must go on alone, and the chosen answer summarised under the group in words (who decides, in how long, at what cost, when a person is asked).
+
+#### Scenario: The four answers
+
+- **WHEN** a person opens the start form
+- **THEN** the question shows four answers with their sentences, the repository's answer chosen, and a summary of the chosen one
+
+### Requirement: The review depths are sliders with a legend, and the start form defaults to the autonomous flow
+
+The system SHALL show each review depth (spec and design) as a slider with three labelled stops (quick, standard, thorough) and a legend that says what each stop does, usable with the keyboard and announced with its label, and SHALL tell the person that the depth changes what the reviewer is told and not the model's thinking effort. The system SHALL preset the start form, where the repository's `[policy]` says nothing, to the flow that goes on alone: no wait for the spec approval, the design reviewed by an agent, `arbitrate-go`, the spec reviewed quickly and the design at the standard depth; SHALL let the person change each choice; and SHALL keep for a work what it started with.
+
+#### Scenario: A repository with no policy
+
+- **WHEN** a person opens the start form for a repository whose file has no `[policy]`
+- **THEN** the spec approval is not asked, the design review is on, the answer to a disagreement is `arbitrate-go`, and each choice can be changed
+
+#### Scenario: A slider
+
+- **WHEN** a person moves the design depth slider with the arrow keys
+- **THEN** the label, the legend and the stored choice follow the stop it rests on
+
+### Requirement: A stop is a decision card, not a pasted review
+
+The system SHALL show a work that waits for a person at a disagreement as a decision card: the question in one line; what the reviewer says and what the author says, in two or three lines each with the full texts folded; the arbitrator's recommendation and brief when it ran; and buttons that act: follow the recommendation (send the changes with its text), edit it and send, go on and note it on the pull request (where the phase may be passed), and reject. The system SHALL write the comment on the pull request in the same shape, short, with the `/shelf changes` text ready to copy, and SHALL show an arbitration as an entry of its own in the conversation, with its verdict as a badge, and the work as arbitrating while it runs.
+
+#### Scenario: The arbitrator could not decide
+
+- **WHEN** a person opens a work that waits after an `ESCALATE`
+- **THEN** the card names the question, shows the options and the recommendation, and *Follow the recommendation* sends its text as the requested changes
+
+#### Scenario: No arbitrator
+
+- **WHEN** a work that waits at a disagreement has no arbitration
+- **THEN** the card still shows the two sides in short and offers the buttons that apply
+
+### Requirement: The merge view and the pull request say what was settled without the person
+
+The system SHALL end the pull request description and the work page, when the work is ready to merge, with a section "Settled without you" that lists every arbitration (phase, verdict, one line of why, a link), every open point passed on and every assumption an agent recorded, and SHALL mark an `OVERRULE` and a passed deadlock as to check before merging.
+
+#### Scenario: Ready to merge after an overrule
+
+- **WHEN** a work reaches the merge after an arbitration that overruled a reviewer
+- **THEN** the section lists it with its evidence and marks it to check before merging
+
+#### Scenario: Nothing was settled for the person
+
+- **WHEN** a work reaches the merge with no arbitration, no passed deadlock and no assumption
+- **THEN** the section says nothing was settled without the person
