@@ -16,6 +16,7 @@ services:
   web:
     environment:
       SHELF_ISOLATION: sandbox
+      SHELF_AGENTS_IN_CONTAINERS: "on"
       SHELF_STEP_DOCKER: "off"
       SHELF_RUNNER_TOKEN: ""
 

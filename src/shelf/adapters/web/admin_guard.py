@@ -79,6 +79,9 @@ def _site_route(web: Web, routes: APIRouter) -> None:
         session: Annotated[Session, Depends(web.signed_in)], site: Annotated[str, Form()]
     ) -> Response:
         by = _administrator(web, session)
+        if web.deps.settings.agents_in_containers:
+            message = "the list of sites is not applied when agents run in containers"
+            raise _refused(message, 409)
         store = web.deps.guard_rules
         if store is None:
             message = "this instance cannot apply rules from the page"

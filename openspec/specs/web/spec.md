@@ -901,7 +901,7 @@ The system SHALL let an administrator, in the Guard section of the admin page an
 
 ### Requirement: The admin page says the sites list is not applied when agents run in containers
 
-The system SHALL, when agents run in containers (`SHELF_ISOLATION=container` on the worker, told to the web service by `SHELF_AGENTS_IN_CONTAINERS`), replace the form that adds a site in the Guard section by a sentence saying that the list of sites is not applied in that mode (the sandbox that enforces it is off, the container is the boundary and its network is not filtered yet), SHALL refuse a site posted anyway, and SHALL keep listing the rules already added with a note that they are kept but not applied. In the other mode nothing changes.
+The system SHALL, when agents run in containers (`SHELF_ISOLATION=container` on the worker, told to the web service by `SHELF_AGENTS_IN_CONTAINERS=on`), replace the form that adds a site in the Guard section by a sentence saying that the list of sites is not applied in that mode (the sandbox that enforces it is off, the container is the boundary and its network is not filtered yet), SHALL refuse a site posted anyway, and SHALL keep listing the rules already added with a note that they are kept but not applied. In the other mode nothing changes.
 
 #### Scenario: The admin page in container mode
 
