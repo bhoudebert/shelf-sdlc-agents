@@ -23,3 +23,4 @@ Why the system is shaped the way it is. Behaviour is specified in `openspec/spec
 | [0018](0018-show-the-product-on-the-public-site.md) | Show the product on the public site, in the product's own tokens | accepted |
 | [0019](0019-run-each-step-in-an-isolated-environment.md) | Run each step in an isolated environment, with nothing less than today | proposed |
 | [0020](0020-give-each-step-its-own-docker-daemon.md) | Give each step its own Docker daemon, so that any agent can start any container | proposed |
+| [0021](0021-let-an-arbitrator-settle-a-disagreement.md) | Let an arbitrator settle a disagreement between an author and a reviewer | proposed |
