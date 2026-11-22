@@ -56,6 +56,15 @@ class Policy:
             return self.on_deadlock
         return DeadlockMode.GO if self.proceed_on_deadlock else DeadlockMode.ASK
 
+    @classmethod
+    def autonomous(cls) -> "Policy":
+        """What a repository that says nothing gets: the flow that goes on alone as far as it safely can (ADR 0021).
+
+        No wait for the spec approval, the design reviewed by an agent, a disagreement settled by an arbitrator and,
+        when it cannot, passed on with its open points. The merge and a failed step still ask a person.
+        """
+        return cls(spec_approval=False, design_review=True, on_deadlock=DeadlockMode.ARBITRATE_GO)
+
     def removed_stops(self) -> tuple[str, ...]:
         """The stops a person is not asked at, by name: ``spec``, ``design`` and ``deadlock``."""
         return tuple(
@@ -89,10 +98,17 @@ class Autonomy:
     on_deadlock: DeadlockMode | None = None
     """What happens at a disagreement for this work; ``None`` reads ``proceed_on_deadlock`` (ADR 0021)."""
 
+    @property
+    def deadlock_mode(self) -> DeadlockMode:
+        """The answer to a disagreement for this work: the one chosen, else ``go`` when it goes on, else ``ask``."""
+        if self.on_deadlock is not None:
+            return self.on_deadlock
+        return DeadlockMode.GO if self.proceed_on_deadlock else DeadlockMode.ASK
+
     @classmethod
     def strictest(cls) -> "Autonomy":
         """The choice that asks a person the most: the approval, the design review, and a wait at every deadlock."""
-        return cls(spec_approval=True, design_review=True, proceed_on_deadlock=False)
+        return cls(spec_approval=True, design_review=True, proceed_on_deadlock=False, on_deadlock=DeadlockMode.ASK)
 
     @classmethod
     def of(cls, policy: Policy) -> "Autonomy":
@@ -121,12 +137,7 @@ class Autonomy:
     @property
     def removes_a_stop(self) -> bool:
         """Whether this asks a person less than the strictest choice does."""
-        return (
-            not self.spec_approval
-            or not self.design_review
-            or self.proceed_on_deadlock
-            or (self.on_deadlock is not None and self.on_deadlock is not DeadlockMode.ASK)
-        )
+        return not self.spec_approval or not self.design_review or self.deadlock_mode is not DeadlockMode.ASK
 
 
 @dataclass(frozen=True, slots=True)

@@ -145,9 +145,13 @@ def parse_repo_config(text: str) -> RepoConfig:
             raise ConfigError(message)
         parsed = {"spec_review_depth", "design_review_depth", "on_deadlock"}
         plain = {k: v for k, v in policy.items() if k not in parsed}
+        said = _deadlock(policy.get("on_deadlock"))
+        if said is None and "proceed_on_deadlock" not in policy:
+            said = Policy.autonomous().on_deadlock  # the file says nothing about it: the autonomous answer
+        base = {"spec_approval": Policy.autonomous().spec_approval, "design_review": Policy.autonomous().design_review}
         built = Policy(
-            **plain,
-            on_deadlock=_deadlock(policy.get("on_deadlock")),
+            **{**base, **plain},
+            on_deadlock=said,
             spec_review_depth=_depth("spec_review_depth", policy.get("spec_review_depth", ReviewDepth.QUICK)),
             design_review_depth=_depth("design_review_depth", policy.get("design_review_depth", ReviewDepth.STANDARD)),
         )

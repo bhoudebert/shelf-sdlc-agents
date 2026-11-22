@@ -34,7 +34,7 @@ GATE_ROLES: dict[Phase, frozenset[Role]] = {
 class RepoConfig:
     """The ``.shelf/config.toml`` of a repository, with an administrator's overrides applied."""
 
-    policy: Policy = field(default_factory=Policy)
+    policy: Policy = field(default_factory=Policy.autonomous)
     entries: frozenset[EntryPoint] = frozenset(EntryPoint)
     base_branch: str = "main"
     checks: tuple[str, ...] = ()

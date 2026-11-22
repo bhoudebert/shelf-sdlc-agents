@@ -1,7 +1,8 @@
 import pytest
 
+from shelf.domain.config import RepoConfig
 from shelf.domain.pipeline import PIPELINE, EntryPoint, Phase
-from shelf.domain.policy import Autonomy, Policy, course_for
+from shelf.domain.policy import Autonomy, DeadlockMode, Policy, course_for
 from shelf.domain.review import ReviewDepth
 
 
@@ -45,7 +46,7 @@ def test_the_choices_start_from_what_the_repository_says() -> None:
     assert Autonomy.of(Policy(design_review=False)) == Autonomy(
         True, False, False, ReviewDepth.QUICK, ReviewDepth.STANDARD
     )
-    assert Autonomy.strictest() == Autonomy(True, True, False)
+    assert Autonomy.strictest() == Autonomy(True, True, False, on_deadlock=DeadlockMode.ASK)
 
 
 def test_only_the_strictest_choice_removes_no_stop() -> None:
@@ -73,3 +74,16 @@ def test_new_work_continues_its_agents_sessions_and_work_from_before_does_not() 
 
     assert course_for(EntryPoint.NEED, Policy()).resumes_sessions
     assert not course_for(EntryPoint.NEED, Policy(), 8).resumes_sessions
+
+
+def test_a_repository_that_says_nothing_gets_the_autonomous_flow() -> None:
+    policy = Policy.autonomous()
+    assert (policy.spec_approval, policy.design_review) == (False, True)
+    assert policy.deadlock_mode is DeadlockMode.ARBITRATE_GO
+    assert RepoConfig().policy == policy
+    assert policy.removed_stops() == ("spec", "deadlock")
+
+
+def test_the_strict_policy_is_still_what_a_bare_policy_says() -> None:
+    assert Policy().deadlock_mode is DeadlockMode.ASK
+    assert Policy().spec_approval

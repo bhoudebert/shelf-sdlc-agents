@@ -23,7 +23,7 @@ from shelf.domain.guard import GuardReport, StoppedCall
 from shelf.domain.guard_rules import OverlayRule, RuleKind
 from shelf.domain.model import Identity, RepoRef, WorkContext, WorkId, WorkView
 from shelf.domain.pipeline import EntryPoint, Phase
-from shelf.domain.policy import Autonomy, Policy
+from shelf.domain.policy import Autonomy, DeadlockMode, Policy
 from shelf.domain.reference import Imported, Reference
 from shelf.domain.result import Err, Ok, Result
 from shelf.domain.review import ReviewDepth
@@ -872,6 +872,18 @@ def test_a_pull_request_that_is_not_ours_shows_its_own_description() -> None:
     assert "Fixes the rounding" in page
 
 
+def answer(page: str, value: str) -> str:
+    """The input tag of the radio of the question about a disagreement that has ``value``."""
+    found = re.search(rf'<input type="radio" name="on_deadlock" value="{value}"[^>]*>', page)
+    assert found, f"no {value} answer"
+    return found.group(0)
+
+
+def chosen_answers(page: str) -> list[str]:
+    """The values of the answers to the question about a disagreement that are checked."""
+    return re.findall(r'<input type="radio" name="on_deadlock" value="([a-z-]+)" checked>', page)
+
+
 def box(page: str, name: str) -> str:
     """The input tag of the checkbox ``name`` on the start form."""
     found = re.search(rf'<input type="checkbox" name="{name}"[^>]*>', page)
@@ -879,25 +891,32 @@ def box(page: str, name: str) -> str:
     return found.group(0)
 
 
-def test_the_start_form_shows_the_stops_of_the_repository_and_says_what_removing_them_costs(app: Fixture) -> None:
+def test_the_start_form_shows_the_stops_of_the_repository_and_says_what_removing_them_costs() -> None:
+    app = Fixture(configs=FakeConfigs({REPO: RepoConfig()}))  # a repository that says nothing: the autonomous flow
     app.sign_in()
     page = app.client.get("/start").text
-    for name in ("spec_approval", "design_review"):
-        assert "checked" in box(page, name)
-    assert "checked" in box(page, "stop_on_deadlock")
+    assert "checked" not in box(page, "spec_approval")  # the autonomous default: the spec is not waited for
+    assert "checked" in box(page, "design_review")
+    assert chosen_answers(page) == ["arbitrate-go"]
     assert "less control and potentially less quality" in page
     assert "autonomy-warning" in page
     assert "never merged without you" in page
 
 
 def test_the_boxes_start_from_the_policy_of_the_repository() -> None:
-    policy = Policy(spec_approval=False, proceed_on_deadlock=True)
+    policy = Policy(spec_approval=True, on_deadlock=DeadlockMode.ARBITRATE_ASK)
     app = Fixture(configs=FakeConfigs({REPO: RepoConfig(policy=policy)}))
     app.sign_in()
     page = app.client.get("/start").text
-    assert "checked" not in box(page, "spec_approval")
+    assert "checked" in box(page, "spec_approval")
     assert "checked" in box(page, "design_review")
-    assert "checked" not in box(page, "stop_on_deadlock")
+    assert chosen_answers(page) == ["arbitrate-ask"]
+
+
+def test_the_old_setting_still_chooses_an_answer_on_the_form() -> None:
+    app = Fixture(configs=FakeConfigs({REPO: RepoConfig(policy=Policy(proceed_on_deadlock=True))}))
+    app.sign_in()
+    assert chosen_answers(app.client.get("/start").text) == ["go"]
 
 
 def test_picking_another_repository_reloads_the_boxes_with_its_values() -> None:
@@ -912,7 +931,7 @@ def test_a_repository_the_person_cannot_see_gets_the_strictest_boxes_from_the_fr
     app.sign_in()
     fragment = app.client.get("/start/autonomy", params={"repo": "acme/secret"}).text
     assert "checked" in box(fragment, "spec_approval")
-    assert "checked" in box(fragment, "stop_on_deadlock")
+    assert chosen_answers(fragment) == ["ask"]
 
 
 def test_the_fragment_needs_a_signed_in_person(app: Fixture) -> None:
@@ -927,8 +946,30 @@ def test_what_the_form_shows_is_what_the_work_starts_with(app: Fixture) -> None:
     data = {"repo": "acme/shop", "entry": "need", "text": "x", "autonomy_form": "1"}
     assert app.client.post("/start", data=data).status_code == 303
     assert app.runner.started[-1].autonomy == Autonomy(
-        spec_approval=False, design_review=False, proceed_on_deadlock=True
+        spec_approval=False,
+        design_review=False,
+        proceed_on_deadlock=True,
+        on_deadlock=DeadlockMode.GO,
     )
+
+
+def test_the_answer_chosen_for_a_disagreement_is_what_the_work_starts_with(app: Fixture) -> None:
+    app.sign_in()
+    for value in ("ask", "arbitrate-ask", "arbitrate-go", "go"):
+        data = {"repo": "acme/shop", "entry": "need", "text": "x", "autonomy_form": "1", "on_deadlock": value}
+        assert app.client.post("/start", data=data).status_code == 303
+        chosen = app.runner.started[-1].autonomy
+        assert chosen is not None
+        assert chosen.on_deadlock is DeadlockMode(value)
+        assert chosen.deadlock_mode.goes_on is (value in ("arbitrate-go", "go"))
+
+
+def test_a_form_from_before_the_question_still_means_what_its_box_said(app: Fixture) -> None:
+    app.sign_in()
+    base = {"repo": "acme/shop", "entry": "need", "text": "x", "autonomy_form": "1"}
+    app.client.post("/start", data={**base, "stop_on_deadlock": "1"})
+    assert app.runner.started[-1].autonomy is not None
+    assert app.runner.started[-1].autonomy.deadlock_mode is DeadlockMode.ASK
 
 
 def test_a_start_that_does_not_show_the_boxes_leaves_the_repositorys_policy(app: Fixture) -> None:
@@ -939,23 +980,24 @@ def test_a_start_that_does_not_show_the_boxes_leaves_the_repositorys_policy(app:
 
 def test_a_refused_start_keeps_the_repository_and_the_choices(app: Fixture) -> None:
     app.sign_in()
-    data = {"repo": "acme/shop", "entry": "need", "text": " ", "autonomy_form": "1"}
+    data = {"repo": "acme/shop", "entry": "need", "text": " ", "autonomy_form": "1", "on_deadlock": "arbitrate-ask"}
     page = app.client.post("/start", data=data).text
-    assert "checked" not in box(page, "stop_on_deadlock")
+    assert chosen_answers(page) == ["arbitrate-ask"]
     assert "checked" not in box(page, "spec_approval")
 
 
 def test_every_box_is_worded_so_that_checked_means_more_control(app: Fixture) -> None:
     app.sign_in()
     page = app.client.get("/start").text
-    assert "Stop and ask me when a spec or design review cannot settle" in page
+    assert "When the reviewer and the author cannot agree" in page
     assert "proceed_on_deadlock" not in page
+    assert "stop_on_deadlock" not in page
 
 
 def test_leaving_all_three_boxes_checked_is_the_fully_attended_choice(app: Fixture) -> None:
     app.sign_in()
     data = {"repo": "acme/shop", "entry": "need", "text": "x", "autonomy_form": "1"}
-    data |= {"spec_approval": "1", "design_review": "1", "stop_on_deadlock": "1"}
+    data |= {"spec_approval": "1", "design_review": "1", "on_deadlock": "ask"}
     assert app.client.post("/start", data=data).status_code == 303
     assert app.runner.started[-1].autonomy == Autonomy.strictest()
 
@@ -1072,10 +1114,12 @@ def test_the_form_offers_the_depth_of_the_reviews_preset_from_the_repositorys_ch
     app = Fixture(configs=FakeConfigs({REPO: RepoConfig(policy=Policy(design_review_depth=ReviewDepth.THOROUGH))}))
     app.sign_in()
     fragment = app.client.get("/start/autonomy", params={"repo": "acme/shop"}).text
-    select = fragment.split('id="design_review_depth"')[1].split("</select>")[0]
-    assert '<option value="thorough" selected>' in select
-    spec = fragment.split('id="spec_review_depth"')[1].split("</select>")[0]
-    assert '<option value="quick" selected>' in spec
+    design = fragment.split('id="design_review_depth"')[1].split("</ol>")[0]
+    assert 'type="range"' in design
+    assert 'value="2"' in design  # thorough is the last stop
+    assert 'aria-valuetext="Thorough: edge cases, failures"' in design
+    spec = fragment.split('id="spec_review_depth"')[1].split("</ol>")[0]
+    assert 'value="0"' in spec  # quick is the first
 
 
 def test_the_depth_chosen_on_the_form_is_what_the_work_starts_with(app: Fixture) -> None:
@@ -1684,3 +1728,20 @@ def test_the_admin_page_offers_the_sites_form_in_sandbox_mode() -> None:
     page = fixture.client.get("/admin").text
     assert 'name="site"' in page
     assert "Not applied." not in page
+
+
+def test_a_depth_slider_posts_the_stop_it_rests_on(app: Fixture) -> None:
+    app.sign_in()
+    data = {"repo": "acme/shop", "entry": "need", "text": "x", "autonomy_form": "1"}
+    app.client.post("/start", data={**data, "spec_review_depth": "2", "design_review_depth": "0"})
+    chosen = app.runner.started[-1].autonomy
+    assert chosen is not None
+    assert (chosen.spec_review_depth, chosen.design_review_depth) == (ReviewDepth.THOROUGH, ReviewDepth.QUICK)
+
+
+def test_the_form_says_what_the_chosen_answer_means_and_that_depth_is_not_thinking_effort(app: Fixture) -> None:
+    app.sign_in()
+    page = app.client.get("/start").text
+    for value in ("ask", "arbitrate-ask", "arbitrate-go", "go"):
+        assert f'data-answer="{value}"' in page
+    assert "not how long the model thinks" in page

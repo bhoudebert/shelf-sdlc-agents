@@ -173,7 +173,7 @@ def test_a_review_depth_that_is_not_known_is_refused_with_the_choices() -> None:
 
 def test_on_deadlock_names_what_happens_at_a_disagreement() -> None:
     assert parse_repo_config("[policy]\non_deadlock = 'arbitrate-go'").policy.on_deadlock is DeadlockMode.ARBITRATE_GO
-    assert parse_repo_config("").policy.on_deadlock is None
+    assert parse_repo_config("").policy.on_deadlock is DeadlockMode.ARBITRATE_GO  # the autonomous default
     assert parse_repo_config("[policy]\nproceed_on_deadlock = true").policy.deadlock_mode is DeadlockMode.GO
     with pytest.raises(ConfigError, match="on_deadlock must be one of ask, arbitrate-ask, arbitrate-go, go"):
         parse_repo_config("[policy]\non_deadlock = 'sometimes'")

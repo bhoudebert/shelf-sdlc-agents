@@ -13,7 +13,7 @@ from shelf.application.work import start_work
 from shelf.domain.config import InvalidConfigError
 from shelf.domain.model import RepoRef, WorkRequest
 from shelf.domain.pipeline import EntryPoint
-from shelf.domain.policy import Autonomy
+from shelf.domain.policy import Autonomy, DeadlockMode
 from shelf.domain.result import Err, Ok
 from shelf.domain.review import ReviewDepth
 from shelf.ports.configs import RepoConfigs
@@ -30,12 +30,79 @@ def explain(refusal: Refusal) -> tuple[str, int]:
             return reason, 403
 
 
+DEPTHS = (ReviewDepth.QUICK, ReviewDepth.STANDARD, ReviewDepth.THOROUGH)
+"""The stops of a depth slider, from left to right."""
+DEPTH_LEGEND = ("Quick: only what blocks", "Standard: the usual pass", "Thorough: edge cases, failures")
+
+ANSWERS: tuple[tuple[str, str, str, str], ...] = (
+    (
+        DeadlockMode.ASK.value,
+        "Ask me",
+        "Stop and wait for me, with the two sides and what each costs.",
+        "",
+    ),
+    (
+        DeadlockMode.ARBITRATE_ASK.value,
+        "An arbitrator decides; ask me only if it cannot",
+        (
+            "An agent reads the whole story and decides, in about a minute and for about the cost of one review. "
+            "You are asked only for what only a person can decide."
+        ),
+        "",
+    ),
+    (
+        DeadlockMode.ARBITRATE_GO.value,
+        "An arbitrator decides; go on if it cannot",
+        (
+            "As above, but a spec or design point the arbitrator cannot decide goes on to the pull request, written "
+            "down for you to read before you merge. A code review or a failing check that cannot be settled still "
+            "asks you."
+        ),
+        "Default",
+    ),
+    (
+        DeadlockMode.GO.value,
+        "Do not settle it, go on",
+        "The work goes on at once. What stayed open is posted on the pull request. Nobody arbitrates.",
+        "",
+    ),
+)
+SUMMARIES = {
+    DeadlockMode.ASK.value: "A person decides, at once: the work waits for you when the two sides disagree for good.",
+    DeadlockMode.ARBITRATE_ASK.value: (
+        "The arbitrator decides first, in about a minute, for about the cost of one review. "
+        "You are asked only when it says that only a person can decide."
+    ),
+    DeadlockMode.ARBITRATE_GO.value: (
+        "The arbitrator decides first. A spec or design point it cannot settle goes on to the pull request, "
+        "marked for you to check; a code review or a failing check it cannot settle asks you."
+    ),
+    DeadlockMode.GO.value: "Nobody decides: the work goes on and the open points are posted on the pull request.",
+}
+
+
 def depth_of(value: str) -> ReviewDepth | None:
-    """The depth the form named, or ``None`` (the repository's own) for a value nobody offered."""
+    """The depth the form named (a name, or a stop of the slider), or ``None`` (the repository's own)."""
     try:
         return ReviewDepth(value)
     except ValueError:
-        return None
+        pass
+    if value.strip() in ("0", "1", "2"):
+        return DEPTHS[int(value)]
+    return None
+
+
+def mode_of(on_deadlock: str, stop_on_deadlock: str) -> DeadlockMode:
+    """The answer the form gave to a disagreement; a form from before the question gives it by its old box."""
+    try:
+        return DeadlockMode(on_deadlock)
+    except ValueError:
+        return DeadlockMode.ASK if stop_on_deadlock else DeadlockMode.GO
+
+
+def _form_parts() -> dict[str, object]:
+    """What the autonomy section needs besides the choices: the four answers, their summaries, the depth legend."""
+    return {"answers": ANSWERS, "summaries": SUMMARIES, "depth_legend": DEPTH_LEGEND}
 
 
 def chosen_by(
@@ -45,18 +112,21 @@ def chosen_by(
     stop_on_deadlock: str,
     spec_review_depth: str = "",
     design_review_depth: str = "",
+    on_deadlock: str = "",
 ) -> Autonomy | None:
-    """What the form's three boxes say, or ``None`` when the form did not show them.
+    """What the form's two boxes, its question and its sliders say, or ``None`` when the form did not show them.
 
     A browser sends nothing for an unchecked box: the marker says the boxes were shown, so absent means unchecked.
-    Every box is worded so that checked means more control: the last one stops at a deadlock, so unchecked proceeds.
+    Every box is worded so that checked means more control.
     """
     if not form:
         return None
+    mode = mode_of(on_deadlock, stop_on_deadlock)
     return Autonomy(
         spec_approval=bool(spec_approval),
         design_review=bool(design_review),
-        proceed_on_deadlock=not stop_on_deadlock,
+        proceed_on_deadlock=mode.goes_on,
+        on_deadlock=mode,
         spec_review_depth=depth_of(spec_review_depth),
         design_review_depth=depth_of(design_review_depth),
     )
@@ -94,6 +164,7 @@ def router(web: Web) -> APIRouter:
             repos=repos,
             selected=selected,
             autonomy=chosen or (await defaults_of(deps.configs, selected) if selected else Autonomy.strictest()),
+            **_form_parts(),
             entries=views.entry_options(frozenset(EntryPoint)),
             install_url=deps.settings.install_url,
             error=error,
@@ -112,7 +183,7 @@ def router(web: Web) -> APIRouter:
         """The stops of one repository's policy, as the form shows them, when another repository is picked."""
         visible = {r.full_name for r in await deps.forge.repositories(session.user_token)}
         chosen = await defaults_of(deps.configs, repo) if repo in visible else Autonomy.strictest()
-        return web.render(request, "_autonomy.html", session, autonomy=chosen)
+        return web.render(request, "_autonomy.html", session, autonomy=chosen, **_form_parts())
 
     @routes.post("/start", dependencies=guarded)
     async def start(
@@ -130,9 +201,16 @@ def router(web: Web) -> APIRouter:
         stop_on_deadlock: Annotated[str, Form()] = "",
         spec_review_depth: Annotated[str, Form()] = "",
         design_review_depth: Annotated[str, Form()] = "",
+        on_deadlock: Annotated[str, Form()] = "",
     ) -> Response:
         chosen = chosen_by(
-            autonomy_form, spec_approval, design_review, stop_on_deadlock, spec_review_depth, design_review_depth
+            autonomy_form,
+            spec_approval,
+            design_review,
+            stop_on_deadlock,
+            spec_review_depth,
+            design_review_depth,
+            on_deadlock,
         )
         try:
             asked = WorkRequest(
