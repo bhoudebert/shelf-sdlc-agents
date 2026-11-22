@@ -250,3 +250,16 @@ async def test_no_step_gets_docker_when_the_operator_did_not_turn_it_on(tmp_path
         task(role=ROLES[Phase.IMPLEMENT], workdir=where.steps / "steps" / "a" / "repo", repo="acme/shop", work="w")
     )
     assert runner.requests[0].docker is False
+
+
+async def test_an_agent_that_could_not_reach_the_model_fails_the_step_with_its_words_and_what_to_check() -> None:
+    sink = RunSink()
+    words = "API Error: Can't reach the API server — check your internet or DNS (EAI_AGAIN)"
+    script = [encode(e) for e in (Hello(), Result(is_error=True, result=words), Exit(0))]
+
+    with pytest.raises(StepFailedError, match="implementer failed: API Error: Can't reach the API server") as failed:
+        await ContainerBackend(FakeRunner(script)).run(task(sink))
+
+    assert "SHELF_STEP_DNS" in str(failed.value)
+    assert "SHELF_STEP_DNS" in sink.error
+    assert words in sink.error
