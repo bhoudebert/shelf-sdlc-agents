@@ -6,6 +6,7 @@ agent's messages: it reads what this writes (``shelf.domain.stepstream``).
 
 import asyncio
 import json
+import os
 import sys
 from collections.abc import AsyncIterator, Callable
 from pathlib import Path
@@ -14,6 +15,7 @@ from claude_agent_sdk import AssistantMessage, ResultMessage, ToolResultBlock, T
 
 from shelf.adapters.claude_agent.backend import denial_line, options_for, usage_of
 from shelf.domain.runlog import redact, result_note, tool_summary
+from shelf.domain.stepenv import JDKS, jdk_environment
 from shelf.domain.stepstream import PROTOCOL, Event, Hello, Result, Tool, ToolResult, encode
 from shelf.ports.agents import AgentTask
 from shelf.ports.step_runner import StepSettings, task_from_input
@@ -88,11 +90,21 @@ def _write(event: Event) -> None:
     sys.stdout.flush()
 
 
-def main(argv: list[str] | None = None) -> int:
+def installed_jdks(home: Path) -> list[str]:
+    """The JDKs mise installed in ``home``: one folder per version, never a link (``latest``)."""
+    try:
+        return sorted(p.name for p in (home / JDKS).iterdir() if p.is_dir() and not p.is_symlink())
+    except OSError:
+        return []
+
+
+def main(argv: list[str] | None = None, home: Path | None = None) -> int:
     """Read the task as JSON from the file named first (or standard input), run it, write the lines."""
     args = sys.argv[1:] if argv is None else argv
     raw = Path(args[0]).read_text(encoding="utf-8") if args else sys.stdin.read()
     task, settings = task_from_input(json.loads(raw), WORKDIR)
+    base = home if home is not None else Path(os.environ.get("HOME", "/home/step"))
+    os.environ.update(jdk_environment(os.environ, str(base), installed_jdks(base)))
     try:
         asyncio.run(run_step(task, settings, _write))
     except Exception as error:  # noqa: BLE001 - the agent's CLI ending badly must not print a traceback that may hold a secret

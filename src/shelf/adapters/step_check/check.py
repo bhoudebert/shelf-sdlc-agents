@@ -8,6 +8,7 @@ failing command is a result, not a failure of the step.
 
 import asyncio
 import json
+import os
 import re
 import shutil
 import sys
@@ -15,6 +16,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Final, cast
 
+from shelf.domain.stepenv import JDKS, jdk_environment
 from shelf.domain.stepstream import PROTOCOL, Check, Event, Hello, encode
 
 WORKDIR: Final = Path("/work")
@@ -139,7 +141,15 @@ def _write(event: Event) -> None:
     sys.stdout.flush()
 
 
-def main(argv: list[str] | None = None, workdir: Path = WORKDIR) -> int:
+def installed_jdks(home: Path) -> list[str]:
+    """The JDKs mise installed in ``home``: one folder per version, never a link (``latest``)."""
+    try:
+        return sorted(p.name for p in (home / JDKS).iterdir() if p.is_dir() and not p.is_symlink())
+    except OSError:
+        return []
+
+
+def main(argv: list[str] | None = None, workdir: Path = WORKDIR, home: Path | None = None) -> int:
     """Read the task (``{"command": ...}``) from the file named first, run it, write the lines."""
     args = sys.argv[1:] if argv is None else argv
     try:
@@ -151,6 +161,8 @@ def main(argv: list[str] | None = None, workdir: Path = WORKDIR) -> int:
     if not isinstance(command, str) or not command.strip():
         sys.stderr.write("shelf-check stopped: the task has no command\n")
         return 1
+    base = home if home is not None else Path(os.environ.get("HOME", "/home/step"))
+    os.environ.update(jdk_environment(os.environ, str(base), installed_jdks(base)))
     asyncio.run(run_check(command, workdir, _write))
     return 0
 

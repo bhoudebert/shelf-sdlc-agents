@@ -148,3 +148,38 @@ async def test_a_step_whose_agent_dies_says_what_kind_of_error_and_nothing_else(
     assert '"e":"hello"' in seen.out
     assert "RuntimeError" in seen.err
     assert TOKEN not in seen.out + seen.err
+
+
+def test_the_agents_step_gives_its_commands_the_one_jdk_the_worker_installed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import json  # noqa: PLC0415
+    import os  # noqa: PLC0415
+
+    home = tmp_path / "home"
+    (home / ".local/share/mise/installs/java/temurin-27.0.1+0/bin").mkdir(parents=True)
+    monkeypatch.delenv("JAVA_HOME", raising=False)
+    monkeypatch.setenv("PATH", "/usr/bin")
+    seen: dict[str, str] = {}
+
+    async def fake_run_step(*_args: object, **_kwargs: object) -> None:
+        seen.update({"JAVA_HOME": os.environ.get("JAVA_HOME", ""), "PATH": os.environ["PATH"]})
+
+    monkeypatch.setattr(step, "run_step", fake_run_step)
+    task = tmp_path / "task.json"
+    task.write_text(json.dumps({"prompt": "go", "role": {"name": "implementer", "tools": []}}))
+
+    assert step.main([str(task)], home=home) == 0
+
+    java_home = f"{home}/.local/share/mise/installs/java/temurin-27.0.1+0"
+    assert seen == {"JAVA_HOME": java_home, "PATH": f"{java_home}/bin:/usr/bin"}
+
+
+def test_the_jdks_of_a_home_are_its_folders_and_never_a_link_or_a_file(tmp_path: Path) -> None:
+    root = tmp_path / ".local/share/mise/installs/java"
+    (root / "temurin-27.0.1+0").mkdir(parents=True)
+    (root / "latest").symlink_to("temurin-27.0.1+0")
+    (root / "notes.txt").write_text("x")
+
+    assert step.installed_jdks(tmp_path) == ["temurin-27.0.1+0"]
+    assert step.installed_jdks(tmp_path / "nowhere") == []
