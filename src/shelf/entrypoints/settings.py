@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import NoReturn
 
 from shelf.domain.result import Err
+from shelf.domain.roles import ROLES, TITLER
 from shelf.domain.stepspec import DOCKER_PROFILES, parse_resolvers
 
 
@@ -52,6 +53,8 @@ class Settings:
     task_queue: str
     github: GitHubApp | None
     model: str | None
+    models: tuple[tuple[str, str], ...]
+    """The model of each role that has one of its own (``SHELF_MODEL_<ROLE>``), as (role name, model) pairs."""
     max_turns: int
     max_budget_usd: float | None
     nested_sandbox: bool
@@ -97,6 +100,26 @@ WHERE: dict[str, str] = {
     "GITHUB_APP_PRIVATE_KEY": f"the .pem you downloaded under Private keys: put the file at deploy/secrets/{KEY_FILE}",
 }
 """Where each setting comes from, so a missing one says what to do and not only its name."""
+
+
+ROLE_NAMES = tuple(sorted({role.name for role in ROLES.values()} | {TITLER.name}))
+"""The agent roles, by name: what ``SHELF_MODEL_<ROLE>`` may name, in capitals."""
+
+
+def _models(environ: Mapping[str, str]) -> tuple[tuple[str, str], ...]:
+    """The ``SHELF_MODEL_<ROLE>`` settings. A name that is no role stops the start: a typo would leave a model unset."""
+    found: list[tuple[str, str]] = []
+    for key, raw in sorted(environ.items()):
+        value = raw.strip()
+        if not key.startswith("SHELF_MODEL_") or not value:
+            continue
+        role = key.removeprefix("SHELF_MODEL_").lower()
+        if role not in ROLE_NAMES:
+            names = ", ".join(f"SHELF_MODEL_{name.upper()}" for name in ROLE_NAMES)
+            message = f"{key} names no agent role: the roles are {names}"
+            raise MissingSettingError(message)
+        found.append((role, value))
+    return tuple(found)
 
 
 def _required(environ: Mapping[str, str], key: str) -> str:
@@ -220,6 +243,7 @@ def from_environ(environ: Mapping[str, str]) -> Settings:
         task_queue=environ.get("TASK_QUEUE", "shelf"),
         github=_github(environ),
         model=environ.get("SHELF_MODEL", "").strip() or None,
+        models=_models(environ),
         max_turns=int(environ.get("SHELF_MAX_TURNS", "40")),
         max_budget_usd=float(budget) if budget else None,
         nested_sandbox=environ.get("SHELF_NESTED_SANDBOX", "").strip().lower() in {"1", "true", "yes"},

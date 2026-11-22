@@ -281,6 +281,25 @@ The system SHALL tell every agent of work whose policy proceeds on deadlock that
 - **WHEN** a step of work that does not proceed on deadlock is prompted
 - **THEN** the prompt has no such note
 
+### Requirement: Each agent role can have a model of its own
+
+The system SHALL let the operator choose the model of each agent role with `SHELF_MODEL_<ROLE>`, where `<ROLE>` is the role's name in capitals (`INTAKE`, `SPEC_CRITIC`, `ARCHITECT`, `DESIGN_REVIEWER`, `PLANNER`, `IMPLEMENTER`, `CODE_REVIEWER`, `TITLER`). A role without a model of its own SHALL use `SHELF_MODEL`, and when that is not set either the system SHALL ask for no model and leave the choice to Claude Code. The run record of a step SHALL name the model the system asked for, else the one the provider reported. The system SHALL refuse to start, naming the variable and the roles, when a `SHELF_MODEL_` variable names no role, so that a misspelt name does not leave a reviewer on another model than the operator meant.
+
+#### Scenario: A role with a model of its own
+
+- **WHEN** `SHELF_MODEL_CODE_REVIEWER` and `SHELF_MODEL` are both set
+- **THEN** the code review's task asks for the first, and every other role's task for the second
+
+#### Scenario: No model set for a role
+
+- **WHEN** neither `SHELF_MODEL_<ROLE>` nor `SHELF_MODEL` is set
+- **THEN** the task asks for no model
+
+#### Scenario: A misspelt role
+
+- **WHEN** `SHELF_MODEL_REVIEWER` is set
+- **THEN** the system does not start and says which roles exist
+
 ### Requirement: A reviewer of work that skips a stop decides what the author can decide
 
 The system SHALL tell the spec reviewer and the design reviewer of work that does without a person at the spec or the design stop, and that still stops at a deadlock, that the person asked for the work to go on without them wherever it can. The reviewer SHALL NOT answer `ESCALATE` for a choice that the author can make from the request and the repository, even a trade-off: it SHALL recommend one option and ask for it with `CHANGES`, and the author records the choice under an `Assumptions` heading. The reviewer SHALL keep `ESCALATE` for what nobody here can decide (a contradiction of the request, a fact that is not in the repository, money or access). The system SHALL NOT add this note for work that stops at every stop, for work that proceeds on deadlock (which has its own note), or for any step that is not a spec or design review.

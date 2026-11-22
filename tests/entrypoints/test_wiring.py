@@ -43,6 +43,7 @@ async def test_every_adapter_is_wired_to_its_port_without_reaching_out(tmp_path:
         "GITHUB_APP_SLUG": "shelf",
         "GITHUB_WEBHOOK_SECRET": "ws",
         "SHELF_MODEL": "a-model",
+        "SHELF_MODEL_PLANNER": "a-planner-model",
     }
     settings = from_environ(environ)
     assert settings.github is not None
@@ -51,6 +52,7 @@ async def test_every_adapter_is_wired_to_its_port_without_reaching_out(tmp_path:
     assert services.runner.task_queue == "shelf"
     assert services.runner.mode is Mode.LOCAL
     assert services.steps.model == "a-model"
+    assert services.steps.models == {"planner": "a-planner-model"}
 
 
 async def test_the_web_service_serves_the_registration_helper_until_the_app_exists() -> None:

@@ -83,6 +83,25 @@ def test_the_budget_and_the_model_are_read() -> None:
     assert (settings.model, settings.max_budget_usd, settings.max_turns) == ("claude-sonnet-5-5", 2.5, 12)
 
 
+def test_each_role_can_have_a_model_of_its_own() -> None:
+    settings = from_environ(
+        {**BASE, "SHELF_MODEL": "m-general", "SHELF_MODEL_CODE_REVIEWER": " m-strong ", "SHELF_MODEL_TITLER": "m-small"}
+    )
+    assert settings.models == (("code_reviewer", "m-strong"), ("titler", "m-small"))
+    assert from_environ(BASE).models == ()
+
+
+def test_a_role_model_that_is_empty_is_not_a_setting() -> None:
+    assert from_environ({**BASE, "SHELF_MODEL_REVIEWER": "", "SHELF_MODEL_PLANNER": "  "}).models == ()
+
+
+def test_a_model_for_a_name_that_is_no_role_stops_the_start_and_lists_the_roles() -> None:
+    with pytest.raises(
+        MissingSettingError, match=r"SHELF_MODEL_REVIEWER names no agent role.*SHELF_MODEL_CODE_REVIEWER"
+    ):
+        from_environ({**BASE, "SHELF_MODEL_REVIEWER": "m"})
+
+
 def test_the_revision_of_the_build_is_read_and_defaults_to_unknown() -> None:
     assert from_environ(BASE).revision == "unknown"
     assert from_environ({**BASE, "SHELF_REVISION": "abc1234"}).revision == "abc1234"
