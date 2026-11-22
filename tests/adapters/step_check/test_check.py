@@ -303,3 +303,74 @@ async def test_only_the_last_probes_are_shown_and_each_is_cut(tmp_path: Path, mo
     assert "probe 8 " in check.output
     assert "probe 4 " not in check.output, "only the last probes"
     assert "x" * 600 not in check.output, "each probe is cut"
+
+
+def jdk_home(tmp_path: Path, *versions: str) -> Path:
+    home = tmp_path / "home"
+    for version in versions:
+        (home / ".local/share/mise/installs/java" / version / "bin").mkdir(parents=True)
+    return home
+
+
+def test_a_check_finds_the_one_jdk_the_worker_installed(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = jdk_home(tmp_path, "temurin-27.0.1+0")
+    monkeypatch.delenv("JAVA_HOME", raising=False)
+    task = tmp_path / "task.json"
+    task.write_text(json.dumps({"command": 'echo "$JAVA_HOME"; echo "${PATH%%:*}"'}))
+
+    assert main([str(task)], workdir=tmp_path, home=home) == 0
+
+    stream = StepStream()
+    for line in capsys.readouterr().out.splitlines():
+        stream.feed(line)
+    java_home = f"{home}/.local/share/mise/installs/java/temurin-27.0.1+0"
+    assert stream.check == Check(0, f"{java_home}\n{java_home}/bin\n")
+
+
+def test_a_check_leaves_a_java_home_that_is_set_alone(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = jdk_home(tmp_path, "temurin-27.0.1+0")
+    monkeypatch.setenv("JAVA_HOME", "/opt/mine")
+    task = tmp_path / "task.json"
+    task.write_text(json.dumps({"command": 'echo "$JAVA_HOME"'}))
+
+    main([str(task)], workdir=tmp_path, home=home)
+
+    stream = StepStream()
+    for line in capsys.readouterr().out.splitlines():
+        stream.feed(line)
+    assert stream.check == Check(0, "/opt/mine\n")
+
+
+def test_a_check_with_several_jdks_sets_nothing(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = jdk_home(tmp_path, "temurin-21", "temurin-27.0.1+0")
+    monkeypatch.delenv("JAVA_HOME", raising=False)
+    task = tmp_path / "task.json"
+    task.write_text(json.dumps({"command": 'echo "[$JAVA_HOME]"'}))
+
+    main([str(task)], workdir=tmp_path, home=home)
+
+    stream = StepStream()
+    for line in capsys.readouterr().out.splitlines():
+        stream.feed(line)
+    assert stream.check == Check(0, "[]\n")
+
+
+def test_a_check_in_a_home_with_no_tools_folder_runs_as_before(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("JAVA_HOME", raising=False)
+    task = tmp_path / "task.json"
+    task.write_text(json.dumps({"command": "echo fine"}))
+
+    assert main([str(task)], workdir=tmp_path, home=tmp_path / "nowhere") == 0
+
+    stream = StepStream()
+    for line in capsys.readouterr().out.splitlines():
+        stream.feed(line)
+    assert stream.check == Check(0, "fine\n")

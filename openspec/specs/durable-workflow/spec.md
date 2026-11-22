@@ -394,3 +394,27 @@ The system SHALL keep in the memo of a work, when it starts, the depth of its sp
 
 - **WHEN** the memo of a work has no depths
 - **THEN** the work is shown without them and nothing else changes
+
+### Requirement: A finished piece of work is read once, not replayed on every refresh
+
+The system SHALL, when it lists work or shows one piece of it, ask a workflow for its picture only when the work can still change: the picture of a work that is over SHALL be kept with the time the work closed and SHALL be used again for as long as the work closed at that time, because asking a workflow for its picture makes the worker replay its whole history and a board that refreshes every few seconds in every open tab would otherwise replay every finished work each time. A work that is still running SHALL be asked again on every look. A picture that could not be read for now (the worker was down, a task failed) SHALL NOT be kept for a work that is over.
+
+#### Scenario: Finished work
+
+- **WHEN** the board lists work again and again while some of it is over
+- **THEN** each finished work was asked for its picture once and is not asked again
+
+#### Scenario: Running work
+
+- **WHEN** a work is still running
+- **THEN** it is asked for its picture each time it is looked at
+
+#### Scenario: One finished work's page
+
+- **WHEN** the page of a finished work refreshes
+- **THEN** its workflow is not replayed again
+
+#### Scenario: A look that failed
+
+- **WHEN** a finished work could not be read once, and can be read the next time
+- **THEN** the next look shows its real picture, not the failure

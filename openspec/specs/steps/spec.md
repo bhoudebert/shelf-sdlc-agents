@@ -1452,6 +1452,25 @@ The system SHALL, before an agent's step in a container starts the agent, check 
 - **WHEN** a step fails for any other reason
 - **THEN** its error is reported as it is
 
+### Requirement: A step finds the JDK the worker installed without being told where it is
+
+The system SHALL, in a step that runs in a container, give the step `JAVA_HOME` and put its `bin` first on the `PATH` when the repository's tools hold exactly one JDK (a folder under `.local/share/mise/installs/java` of the step's home), and `JAVA_HOME` is not set already, so that `./mvnw`, `java` and a build tool find it whether or not the tool shims work. The step SHALL NOT guess when there are several JDKs or none, and SHALL NOT replace a `JAVA_HOME` that is set. This applies to an agent's step and to a repository's check alike.
+
+#### Scenario: One JDK
+
+- **WHEN** the home holds one JDK and `JAVA_HOME` is not set
+- **THEN** `JAVA_HOME` names it, and `java -version` and `./mvnw` run in the agent's commands and in a check
+
+#### Scenario: A JAVA_HOME that is set
+
+- **WHEN** the environment already names a `JAVA_HOME`
+- **THEN** it is left as it is
+
+#### Scenario: Several JDKs or none
+
+- **WHEN** the home holds several JDKs, or none
+- **THEN** nothing is set and the tool shims decide as before
+
 ### Requirement: The checks step installs the repository's tools before it runs its checks
 
 The system SHALL, before it runs the repository's `checks`, install in the worker the tools that the clone declares for mise or detects from its CI, as for the developer and the code reviewer, so that a repository whose `mise.toml` an agent has just written is built with the tools that file declares; SHALL tell on the pull request when that installation failed, with its last line; and SHALL, when no check is configured, say on the pull request that nothing was verified here and how to configure one.
