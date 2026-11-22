@@ -495,8 +495,8 @@ def test_the_proof_runs_exactly_what_the_runner_would_start() -> None:
         assert "--init" in caps.group(1)
         assert body_user(rules, ask.value) == "0:0"
         assert "--user 0:0" in caps.group(1)
-        assert host["Tmpfs"]["/tmp"].startswith("rw,nosuid,size=")  # noqa: S108
-        assert "--tmpfs /tmp:rw,nosuid,size=" in caps.group(1)
+        assert host["Tmpfs"]["/tmp"].startswith("rw,nosuid,exec,size=")  # noqa: S108
+        assert "--tmpfs /tmp:rw,nosuid,exec,size=" in caps.group(1)
         # the storage of the step's daemon is memory in the runner as in the proof (the size follows the step's limit there)
         assert host["Tmpfs"]["/var/lib/docker"].startswith("rw,size=")
         assert "--tmpfs /var/lib/docker:rw,size=" in caps.group(1)
