@@ -949,3 +949,17 @@ The system SHALL give the worker a folder for the records of agent runs that it 
 
 - **WHEN** `SHELF_RUNS_DIR` is empty
 - **THEN** no record is kept and the downloaded file says so
+
+### Requirement: The environment file can pin the model, in general and per agent role
+
+The system SHALL read `SHELF_MODEL` and `SHELF_MODEL_<ROLE>` (one per agent role, the role's name in capitals) from the environment file of the worker, and SHALL stop at start with the names it accepts when a `SHELF_MODEL_*` variable names no role. The example environment file SHALL show both forms, commented out, and say what runs when none is set.
+
+#### Scenario: A role with its own model
+
+- **WHEN** the environment file sets `SHELF_MODEL_PLANNER`
+- **THEN** the planner runs with that model and the other roles keep `SHELF_MODEL`, or the tool's own choice when it is not set
+
+#### Scenario: A misspelled role
+
+- **WHEN** the environment file sets `SHELF_MODEL_PLANER`
+- **THEN** the service does not start and the message lists the roles it accepts
