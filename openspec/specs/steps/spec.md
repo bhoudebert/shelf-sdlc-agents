@@ -281,6 +281,25 @@ The system SHALL tell every agent of work whose policy proceeds on deadlock that
 - **WHEN** a step of work that does not proceed on deadlock is prompted
 - **THEN** the prompt has no such note
 
+### Requirement: A reviewer of work that skips a stop decides what the author can decide
+
+The system SHALL tell the spec reviewer and the design reviewer of work that does without a person at the spec or the design stop, and that still stops at a deadlock, that the person asked for the work to go on without them wherever it can. The reviewer SHALL NOT answer `ESCALATE` for a choice that the author can make from the request and the repository, even a trade-off: it SHALL recommend one option and ask for it with `CHANGES`, and the author records the choice under an `Assumptions` heading. The reviewer SHALL keep `ESCALATE` for what nobody here can decide (a contradiction of the request, a fact that is not in the repository, money or access). The system SHALL NOT add this note for work that stops at every stop, for work that proceeds on deadlock (which has its own note), or for any step that is not a spec or design review.
+
+#### Scenario: A spec review of work that skips the spec stop
+
+- **WHEN** the spec review of work that does without a person at the spec stop, and does not proceed on deadlock, is prompted
+- **THEN** the prompt asks for `CHANGES` with a recommended option instead of `ESCALATE` for a choice the author can make
+
+#### Scenario: Work that stops everywhere
+
+- **WHEN** a review of work that skips no stop is prompted
+- **THEN** the prompt has no such note
+
+#### Scenario: Another step
+
+- **WHEN** the step of the developer, or a code review, of work that skips a stop is prompted
+- **THEN** the prompt has no such note
+
 ### Requirement: Secrets never appear in errors
 
 The system SHALL NOT include the installation token in an error raised by a failed git command.
