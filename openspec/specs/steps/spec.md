@@ -1631,3 +1631,21 @@ The system SHALL mount the temporary folder of a step, in the step's container a
 
 - **WHEN** the step's container is described
 - **THEN** its `/tmp` is limited in size and mounted `nosuid`
+
+### Requirement: A point the reviewer raises on what the work wrote is the author's to fix
+
+The system SHALL tell the developer that a reviewer's point about something this work wrote or changed (code, tests, specifications, decision records, the documents of the work) is in scope even when the plan did not list it, and that the developer either makes the change or answers with the evidence that the point is wrong; the developer SHALL NOT answer that the file is not theirs. A file that the system itself writes, and only in some cases, SHALL NOT be created by hand: the developer corrects the reference to it instead.
+
+#### Scenario: A decision record points to a file that does not exist
+
+- **WHEN** the reviewer asks to fix a reference in a decision record the work wrote, to a file that is missing
+- **THEN** the developer corrects the reference in the same round and does not leave the point open
+
+### Requirement: A fix whose proof stayed green is not approved on a claim
+
+The system SHALL tell the code reviewer not to approve a fix when the author reports that a check meant to fail (a test run against a weakened rule, a deliberately wrong expectation) stayed green, unless the reviewer ran that proof and saw it fail; and to say, under an approval, which proof it ran and which it could not.
+
+#### Scenario: The author reports a proof that stayed green
+
+- **WHEN** the author says a case did not turn red after the rule it covers was removed
+- **THEN** the reviewer asks for changes, or runs the proof itself, and does not write that the case reaches the rule
