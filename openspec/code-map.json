@@ -144,7 +144,8 @@
         "src/shelf/entrypoints/cache.py",
         "src/shelf/domain/nix.py",
         "src/shelf/adapters/step_check/*.py",
-        "src/shelf/ports/commands.py"
+        "src/shelf/ports/commands.py",
+        "src/shelf/domain/brief.py"
       ],
       "tests": [
         "tests/application/test_steps.py",
@@ -160,7 +161,8 @@
         "tests/domain/test_titles.py",
         "tests/domain/test_toolchain.py",
         "tests/domain/test_ci.py",
-        "tests/domain/test_secrets.py"
+        "tests/domain/test_secrets.py",
+        "tests/domain/test_brief.py"
       ]
     },
     "web": {

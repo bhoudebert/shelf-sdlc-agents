@@ -1086,7 +1086,7 @@ The system SHALL show each review depth (spec and design) as a slider with three
 
 ### Requirement: A stop is a decision card, not a pasted review
 
-The system SHALL show a work that waits for a person at a disagreement as a decision card: the question in one line; what the reviewer says and what the author says, in two or three lines each with the full texts folded; the arbitrator's recommendation and brief when it ran; and buttons that act: follow the recommendation (send the changes with its text), edit it and send, go on and note it on the pull request (where the phase may be passed), and reject. The system SHALL write the comment on the pull request in the same shape, short, with the `/shelf changes` text ready to copy, and SHALL show an arbitration as an entry of its own in the conversation, with its verdict as a badge, and the work as arbitrating while it runs.
+The system SHALL show a work that waits for a person at a disagreement as a decision card: the question in one line; what is still open, in its first lines with the full text folded; the arbitrator's recommendation and brief when it ran; and buttons that act: follow the recommendation (send the changes with its text), edit it and send, go on and note it on the pull request (where the phase may be passed), and reject. The system SHALL write the comment on the pull request in the same shape, short, with the `/shelf changes` text ready to copy, and SHALL show an arbitration as an entry of its own in the conversation, with its verdict as a badge, and the work as arbitrating while it runs.
 
 #### Scenario: The arbitrator could not decide
 
@@ -1096,7 +1096,7 @@ The system SHALL show a work that waits for a person at a disagreement as a deci
 #### Scenario: No arbitrator
 
 - **WHEN** a work that waits at a disagreement has no arbitration
-- **THEN** the card still shows the two sides in short and offers the buttons that apply
+- **THEN** the card still asks the question from what is open, shows it in short and offers the buttons that apply
 
 ### Requirement: The merge view and the pull request say what was settled without the person
 
