@@ -101,7 +101,10 @@
       </table>
     </div>
     {% endif %}
-    {% if guard.can_apply %}
+    {% if agents_in_containers %}
+    <h3 id="sites-title">Sites the agents' commands may reach</h3>
+    <p class="muted"><strong>Not applied.</strong> Agents run in containers on this instance: the sandbox that enforces a list of sites is off there, the container is the boundary, and its network is not filtered yet. <code>SHELF_ALLOWED_DOMAINS</code> and the sites added here are kept but have no effect in this mode.</p>
+    {% elif guard.can_apply %}
     <h3 id="sites-title">Sites the agents' commands may reach</h3>
     <p class="muted">Besides the built-in list (GitHub, the package registries, the tool downloads) and <code>SHELF_ALLOWED_DOMAINS</code>. It applies from the next step an agent starts. Reading a web page with the fetch tool does not need this.</p>
     <form method="post" action="/admin/guard/allow-site" class="inline-form">

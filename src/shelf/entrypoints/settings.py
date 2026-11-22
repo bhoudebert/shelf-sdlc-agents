@@ -81,6 +81,8 @@ class Settings:
     temporal_ui_upstream: str
     temporal_ui_writable: bool
     model_credential: bool
+    agents_in_containers: bool = False
+    """Agents run in containers: the worker's ``SHELF_ISOLATION``, or ``SHELF_AGENTS_IN_CONTAINERS`` told to the web."""
 
 
 MODEL_CREDENTIALS = ("CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL")
@@ -267,4 +269,5 @@ def from_environ(environ: Mapping[str, str]) -> Settings:
         model_credential=any(environ.get(key, "").strip() for key in MODEL_CREDENTIALS),
         temporal_ui_upstream=environ.get("TEMPORAL_UI_UPSTREAM", "").strip().rstrip("/"),
         temporal_ui_writable=environ.get("TEMPORAL_UI_WRITABLE", "").strip().lower() in {"1", "true", "yes"},
+        agents_in_containers=isolation == "container" or _switch(environ, "SHELF_AGENTS_IN_CONTAINERS", default=False),
     )

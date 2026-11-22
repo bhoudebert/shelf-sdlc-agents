@@ -58,6 +58,8 @@ class WebSettings:
     """Whether the proxy lets administrators change workflows (signal, terminate). Reading and queries always pass."""
     temporal_namespace: str = "default"
     model_configured: bool = True
+    agents_in_containers: bool = False
+    """True when agents run in containers: the list of sites their commands may reach is not applied there."""
     """False when no model credential is set: the interface then warns that agents will fail."""
 
     @property
@@ -148,6 +150,7 @@ class Web:
             "admin": self.is_admin(session),
             "webhook": self.webhook_status() if self.is_admin(session) else None,
             "model_ready": self.deps.settings.model_configured,
+            "agents_in_containers": self.deps.settings.agents_in_containers,
         }
         return self.templates.TemplateResponse(request, name, {**base, **context})
 

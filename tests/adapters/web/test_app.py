@@ -1169,13 +1169,14 @@ STOPPED = (
 )
 
 
-def applying(*, admin: str = "alice") -> tuple[Fixture, MemoryRules]:
+def applying(*, admin: str = "alice", settings: WebSettings = SETTINGS) -> tuple[Fixture, MemoryRules]:
     rules = MemoryRules()
     report = GuardReport(9, 2, 0, chain_intact=True, recent=STOPPED, web_hosts={"docs.rs": 3})
     fixture = Fixture(
         AccessRules(admins=frozenset({admin}), users=frozenset({"alice", "bob"})),
         guard=FakeGuard(Ok(report)),
         guard_rules=rules,
+        settings=settings,
     )
     return fixture, rules
 
@@ -1664,3 +1665,22 @@ def test_a_forgotten_work_with_no_record_or_of_a_repository_they_may_not_see_is_
     assert archived([secret]).client.get("/work/work-9/export").status_code == 404
     unnamed = RunRecord("work-9", "plan", 0, "planner", "t0", "t1", "finished")
     assert archived([unnamed]).client.get("/work/work-9/export").status_code == 404
+
+
+def test_the_admin_page_says_the_sites_list_is_not_applied_when_agents_run_in_containers() -> None:
+    fixture, rules = applying(settings=replace(SETTINGS, agents_in_containers=True))
+    fixture.sign_in()
+    page = fixture.client.get("/admin").text
+    assert "Not applied." in page
+    assert 'name="site"' not in page
+    response = fixture.client.post("/admin/guard/allow-site", data={"site": "registry.example.org"})
+    assert response.status_code == 409
+    assert rules.kept == []
+
+
+def test_the_admin_page_offers_the_sites_form_in_sandbox_mode() -> None:
+    fixture, _ = applying()
+    fixture.sign_in()
+    page = fixture.client.get("/admin").text
+    assert 'name="site"' in page
+    assert "Not applied." not in page

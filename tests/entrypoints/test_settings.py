@@ -263,3 +263,8 @@ def test_the_worker_refuses_a_resolver_a_guest_cannot_reach_by_name(value: str) 
 def test_the_worker_accepts_resolvers_that_are_addresses() -> None:
     env = {**BASE, **CONTAINER, "SHELF_STEP_DOCKER": "on", "SHELF_STEP_RUNTIME": "kata"}
     assert from_environ({**env, "SHELF_STEP_DNS": "213.186.33.99,8.8.8.8"}).container is not None
+
+
+def test_the_web_service_is_told_that_agents_run_in_containers() -> None:
+    assert not from_environ(BASE).agents_in_containers
+    assert from_environ({**BASE, "SHELF_AGENTS_IN_CONTAINERS": "on"}).agents_in_containers

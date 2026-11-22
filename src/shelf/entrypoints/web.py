@@ -45,6 +45,7 @@ async def build(settings: settings_module.Settings) -> FastAPI:
         temporal_writable=settings.temporal_ui_writable,
         temporal_namespace=settings.temporal_namespace,
         model_configured=settings.model_credential,
+        agents_in_containers=settings.agents_in_containers,
     )
     return create_app(
         WebDeps(

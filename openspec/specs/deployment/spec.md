@@ -963,3 +963,17 @@ The system SHALL read `SHELF_MODEL` and `SHELF_MODEL_<ROLE>` (one per agent role
 
 - **WHEN** the environment file sets `SHELF_MODEL_PLANER`
 - **THEN** the service does not start and the message lists the roles it accepts
+
+### Requirement: The web service is told when agents run in containers
+
+The system SHALL, in container mode, give the web service `SHELF_AGENTS_IN_CONTAINERS=on` (the web service itself runs no agent and keeps `SHELF_ISOLATION=sandbox`), and SHALL read the setting as on or off, refusing any other value by name, so that the admin page can say what does not apply in that mode.
+
+#### Scenario: Container mode
+
+- **WHEN** the stack starts with the container compose file
+- **THEN** the web service has `SHELF_AGENTS_IN_CONTAINERS=on` and the worker has `SHELF_ISOLATION=container`
+
+#### Scenario: A value that is neither on nor off
+
+- **WHEN** `SHELF_AGENTS_IN_CONTAINERS` is `maybe`
+- **THEN** the service does not start and the message names the setting
