@@ -1665,3 +1665,17 @@ The system SHALL tell it that a `FIX` carries numbered, concrete instructions an
 
 - **WHEN** the arbitrator cannot show a reviewer's point right or wrong from the files
 - **THEN** it ends with `ESCALATE` and asks the question that settles it
+
+### Requirement: The system builds the whole story for the arbitrator and gives it a model of its own
+
+The system SHALL write, before the arbitrator runs and in the work's documents folder of its throwaway clone, one file with the request, every document of the work, the conversation of the pull request, what each agent run did with its tool calls, what the CI says now and the dispute, and SHALL cut a part only beyond a very large limit, with a mark that says so. The arbitrator SHALL run on the model of `SHELF_MODEL_ARBITRATOR` and, when nothing is set for it, on `opus` and not on the general model; its answer SHALL be read for its last `ARBITRATION:` line, and an answer without one SHALL count as `ESCALATE`. The arbitrator SHALL change nothing in the repository.
+
+#### Scenario: Reading the story
+
+- **WHEN** the arbitrator runs on a disagreement of the design review
+- **THEN** its task names the story file, which holds the request, the spec, the decision log and the dispute
+
+#### Scenario: No verdict
+
+- **WHEN** the arbitrator answers without an `ARBITRATION:` line
+- **THEN** the result is `ESCALATE` and says that no verdict was given

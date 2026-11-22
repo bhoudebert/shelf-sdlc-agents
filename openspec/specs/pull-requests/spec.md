@@ -339,3 +339,12 @@ The system SHALL, when it reads the CI of a pull request's head commit, count ev
 
 - **WHEN** GitHub refuses the list of workflow runs
 - **THEN** the CI is read from its checks and statuses alone
+
+### Requirement: An arbitration is said on the pull request by the arbitrator
+
+The system SHALL post on the pull request, as the arbitrator and headed with its verdict, what the arbitrator decided, and SHALL describe it in the progress comment as a line of its own (a fix sends the author back, an overrule goes on).
+
+#### Scenario: An overrule
+
+- **WHEN** the arbitrator overrules a reviewer
+- **THEN** the pull request shows a comment from the Arbitrator with its evidence, and the progress comment lists it

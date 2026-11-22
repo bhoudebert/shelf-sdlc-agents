@@ -335,3 +335,12 @@ The system SHALL NOT arbitrate a second time in the same phase: after a `FIX` th
 
 - **WHEN** a work started before this protocol deadlocks
 - **THEN** it asks a person, or goes on, exactly as it did
+
+### Requirement: The decision log records each arbitration
+
+The system SHALL append to the decision log of a work, when an arbitrator settles a disagreement, an entry with the time, the phase, the verdict and what the arbitrator said, committed by the system, and SHALL say in the log's header that the system writes it for both persons' decisions and arbitrations.
+
+#### Scenario: An overrule
+
+- **WHEN** the arbitrator overrules a design review
+- **THEN** the log has an entry "arbitrator settled the disagreement at design review: overrule" with its evidence

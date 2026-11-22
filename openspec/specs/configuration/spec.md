@@ -159,3 +159,17 @@ The system SHALL read from `shelf.toml` a `[roles.<name>]` table for any agent r
 
 - **WHEN** the file has `[roles.gardener]`
 - **THEN** the file is refused and the error names the roles that exist
+
+### Requirement: A repository file can say what happens at a disagreement
+
+The system SHALL read `[policy] on_deadlock` of a repository's file as one of `ask`, `arbitrate-ask`, `arbitrate-go` and `go`, and refuse any other value with an error that lists them; SHALL, when the key is absent, read `proceed_on_deadlock` as `go` when true and `ask` when false; and SHALL let a person's choice on the start form take the place of the file's.
+
+#### Scenario: The file names an answer
+
+- **WHEN** the file has `on_deadlock = "arbitrate-go"`
+- **THEN** its policy asks an arbitrator at a disagreement and goes on where the phase may be passed
+
+#### Scenario: A value nobody knows
+
+- **WHEN** the file has `on_deadlock = "sometimes"`
+- **THEN** the file is refused and the error names the four answers
