@@ -1693,3 +1693,17 @@ The system SHALL tell the agents of a work that nobody will answer, and to write
 
 - **WHEN** a work skips the spec approval and its answer is `arbitrate-ask`
 - **THEN** its spec and design reviewers are told to decide what the author can decide
+
+### Requirement: An arbitrator that cannot decide writes a question and an answer to send
+
+The system SHALL tell the arbitrator that an `ESCALATE` carries a line `Question:` with what a person must answer, the options with what each costs, and a line `Recommended answer:` with the text to send to the author if the person agrees; and SHALL read those two lines to build the decision card and the comment, falling back to the first line of its text when there is no `Question:` line.
+
+#### Scenario: Both lines
+
+- **WHEN** the arbitrator ends with `ESCALATE` and writes both lines
+- **THEN** the card asks that question and its button sends that answer to the agents
+
+#### Scenario: No question line
+
+- **WHEN** the arbitrator ends with `ESCALATE` and writes neither line
+- **THEN** the card asks the first line of its text and offers no recommendation button

@@ -10,6 +10,7 @@ from dataclasses import dataclass, replace
 from enum import StrEnum, auto
 from typing import NamedTuple, assert_never
 
+from shelf.domain.brief import DISPUTE_MARK
 from shelf.domain.pipeline import KIND, LOOP_BACK, PIPELINE, Kind, Phase
 from shelf.domain.policy import Course
 from shelf.domain.usage import Usage
@@ -601,7 +602,7 @@ def _unsettled(course: Course, phase: Phase, issues: str, *, blocking: bool = Tr
 
     ``brief`` is what the arbitrator said when it could not decide: the person, or the pull request, gets it first.
     """
-    said = f"{brief}\n\n---\nThe dispute:\n{issues}" if brief else issues
+    said = f"{brief}{DISPUTE_MARK}{issues}" if brief else issues
     if _minor(course, phase, blocking=blocking) or (course.proceeds_on_deadlock and phase in PASSABLE):
         moved = _advance(course, phase, 0)
         return Transition(moved.state, (NoteOpenPoints(phase, said), *moved.commands))

@@ -17,6 +17,7 @@ from shelf.adapters.web.context import WebDeps, WebSettings
 from shelf.adapters.web.sessions import SessionStore
 from shelf.domain.access import AccessRules
 from shelf.domain.app_check import REQUIRED_EVENTS, REQUIRED_PERMISSIONS, AppFacts
+from shelf.domain.brief import DISPUTE_MARK
 from shelf.domain.config import RepoConfig, Role
 from shelf.domain.context_repo import ContextRepo
 from shelf.domain.guard import GuardReport, StoppedCall
@@ -1745,3 +1746,53 @@ def test_the_form_says_what_the_chosen_answer_means_and_that_depth_is_not_thinki
     for value in ("ask", "arbitrate-ask", "arbitrate-go", "go"):
         assert f'data-answer="{value}"' in page
     assert "not how long the model thinks" in page
+
+
+def _escalated(app: Fixture, detail: str) -> None:
+    app.sign_in()
+    app.runner.views[WorkId("work-1")] = WorkView(
+        WorkId("work-1"),
+        REPO,
+        "alice",
+        EntryPoint.NEED,
+        Phase.DESIGN_REVIEW,
+        waiting_for=Reason.ESCALATION,
+        detail=detail,
+    )
+
+
+def test_a_wait_at_a_disagreement_is_a_decision_card_with_a_button_that_follows_the_recommendation(
+    app: Fixture,
+) -> None:
+    detail = "Question: 10 or 50?\nRecommended answer: Use 50.".replace("\n", "\n") + DISPUTE_MARK + "the limit"
+    _escalated(app, detail)
+    page = app.client.get("/work/work-1").text
+    assert "Decision needed" in page
+    assert "10 or 50?" in page
+    assert "Follow the recommendation" in page
+    assert 'name="note" value="Use 50."' in page
+    assert "Go on as it is" in page
+    assert ">Use 50.</textarea>" in page  # to edit and send
+    assert "What the agents said" not in page  # the card holds it
+
+
+def test_a_card_without_an_arbitrator_has_no_recommendation_button(app: Fixture) -> None:
+    _escalated(app, "limit of 3 rounds reached:\nvague")
+    page = app.client.get("/work/work-1").text
+    assert "Decision needed" in page
+    assert "used its 3 rounds" in page
+    assert "Follow the recommendation" not in page
+
+
+def test_following_the_recommendation_sends_its_text_as_the_requested_changes(app: Fixture) -> None:
+    _escalated(app, "Question: q\nRecommended answer: Use 50." + DISPUTE_MARK + "x")
+    response = app.client.post("/work/work-1/decide", data={"kind": "changes", "note": "Use 50."})
+    assert response.status_code == 200
+    assert app.runner.decisions == [(WorkId("work-1"), PersonDecided("alice", DecisionKind.CHANGES, "Use 50."))]
+
+
+def test_the_other_waits_keep_their_own_panel(app: Fixture) -> None:
+    waiting(app)
+    page = app.client.get("/work/work-1").text
+    assert "Decision needed" not in page
+    assert "Your decision" in page

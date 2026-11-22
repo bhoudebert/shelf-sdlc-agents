@@ -344,3 +344,12 @@ The system SHALL append to the decision log of a work, when an arbitrator settle
 
 - **WHEN** the arbitrator overrules a design review
 - **THEN** the log has an entry "arbitrator settled the disagreement at design review: overrule" with its evidence
+
+### Requirement: A disagreement a person must settle keeps the dispute apart from the arbitrator's brief
+
+The system SHALL put, in the detail of a wait that follows an arbitration that could not decide, the arbitrator's text first, a fixed mark, and the dispute after it, so that a reader can tell them apart; and a wait at a disagreement nobody arbitrated SHALL carry the dispute alone.
+
+#### Scenario: After an arbitration
+
+- **WHEN** the arbitrator cannot decide and a person is asked
+- **THEN** the detail holds the arbitrator's text, the mark and the dispute, in that order

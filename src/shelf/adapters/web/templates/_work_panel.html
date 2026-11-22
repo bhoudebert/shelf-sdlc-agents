@@ -24,14 +24,33 @@
   </ol>
 
   <div class="below{% if decisions %} has-decisions{% endif %}">
+    {% if brief %}
+    <section class="card" aria-labelledby="card-title">
+      <h3 id="card-title">Decision needed</h3>
+      <p class="card-question">{{ brief.question }}</p>
+      {% if brief.arbitrated %}<p class="hint">An arbitrator read the whole story of this work and could not decide. What it wrote:</p>
+      <pre class="card-brief">{{ brief.brief }}</pre>{% endif %}
+      <h4>What is still open</h4>
+      <p class="card-open">{{ brief.short }}</p>
+      <details><summary>The full text</summary><pre>{{ brief.dispute }}</pre></details>
+      {% if brief.recommended %}
+      <form class="card-follow" hx-post="/work/{{ item.id }}/decide" hx-target="#panel" hx-swap="outerHTML">
+        <input type="hidden" name="kind" value="changes">
+        <input type="hidden" name="note" value="{{ brief.recommended }}">
+        <button class="btn big">Follow the recommendation</button>
+        <p class="hint">Sends this to the agents: <q>{{ brief.recommended }}</q></p>
+      </form>
+      {% endif %}
+    </section>
+    {% endif %}
     {% if decisions %}
     <form class="decide" hx-post="/work/{{ item.id }}/decide" hx-target="#panel" hx-swap="outerHTML" aria-labelledby="decide-title">
-      <h3 id="decide-title">Your decision</h3>
+      <h3 id="decide-title">{% if brief %}Or decide it yourself{% else %}Your decision{% endif %}</h3>
       {% if flash %}<p class="flash {{ 'ok' if flash == 'Decision sent.' else 'bad' }}" role="status">{{ glyph("done" if flash == "Decision sent." else "stopped") }}<span>{{ flash }}</span></p>{% endif %}
       {% set go = decisions|selectattr("value", "in", ["approve", "resume"])|list %}
       {% if go %}
       <div class="go">
-        {% for decision in go %}<button class="btn big" name="kind" value="{{ decision.value }}">{{ decision.label }}</button>{% endfor %}
+        {% for decision in go %}<button class="btn big" name="kind" value="{{ decision.value }}">{% if brief and decision.value == "approve" %}Go on as it is{% else %}{{ decision.label }}{% endif %}</button>{% endfor %}
       </div>
       {% endif %}
       {% set asks = decisions|selectattr("needs_note")|list %}
@@ -39,7 +58,7 @@
       <div class="ask">
         <label for="note">What should change</label>
         <p class="hint" id="note-hint">This is what the agents receive, so say what is wrong and what you expect. It grows as you write, and your draft is kept if you leave the page. Press Ctrl+Enter to send.</p>
-        <textarea id="note" name="note" rows="9" class="roomy" data-draft="work-{{ item.id }}" aria-describedby="note-hint"></textarea>
+        <textarea id="note" name="note" rows="9" class="roomy" data-draft="work-{{ item.id }}" aria-describedby="note-hint">{% if brief %}{{ brief.recommended }}{% endif %}</textarea>
         <div class="ask-actions">
           {% for decision in asks %}<button class="btn-secondary" name="kind" value="{{ decision.value }}">{{ decision.label }}</button>{% endfor %}
         </div>
@@ -59,7 +78,7 @@
     <p class="flash {{ 'ok' if flash == 'Decision sent.' else 'bad' }}" role="status">{{ glyph("done" if flash == "Decision sent." else "stopped") }}<span>{{ flash }}</span></p>
     {% endif %}
 
-    {% if item.detail %}
+    {% if item.detail and not brief %}
     <section class="detail" aria-labelledby="detail-title">
       <h3 id="detail-title">What the agents said</h3>
       <pre>{{ item.detail }}</pre>

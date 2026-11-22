@@ -348,3 +348,17 @@ The system SHALL post on the pull request, as the arbitrator and headed with its
 
 - **WHEN** the arbitrator overrules a reviewer
 - **THEN** the pull request shows a comment from the Arbitrator with its evidence, and the progress comment lists it
+
+### Requirement: A wait at a disagreement is announced as a question with a ready answer
+
+The system SHALL announce a wait at a disagreement on the pull request with the question in bold, what is still open in its first lines, the reply that follows the arbitrator's recommendation as a block to copy when it gave one, and the arbitrator's brief and the full dispute folded; and SHALL keep the other announcements as they are.
+
+#### Scenario: The arbitrator recommended an answer
+
+- **WHEN** a work waits after an arbitrator could not decide and recommended an answer
+- **THEN** the comment shows the question, a block with `/shelf changes` and the recommendation, and the brief and the dispute folded
+
+#### Scenario: Nobody arbitrated
+
+- **WHEN** a work waits at a disagreement no arbitrator looked at
+- **THEN** the comment asks the question from what is open and offers no recommendation

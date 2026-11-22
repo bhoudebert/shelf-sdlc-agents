@@ -31,7 +31,8 @@ How to write the answer, by verdict:
   Say that the author must run each proof and report its result. Write the instructions as the author's only task: they will
   read nothing else.
 - `OVERRULE`: for each point, why it is wrong or out of scope, with the evidence.
-- `ESCALATE`: the question a person must answer, in one sentence; the options, with what each one costs or risks; and which
-  one you recommend and why. Write it so that the person can answer in one line.
+- `ESCALATE`: write exactly these lines, then anything you want to add: `Question: <the question a person must answer, in
+  one sentence>`; the options, each with what it costs or risks; `Recommended answer: <the text to send to the author if the
+  person agrees with you, written as the author's task>`. Write it so that the person can answer in one line.
 
 End your answer with exactly one line: `ARBITRATION: FIX`, `ARBITRATION: OVERRULE` or `ARBITRATION: ESCALATE`.

@@ -6,6 +6,7 @@ import pytest
 
 from shelf.adapters.github_app.pulls import GitHubPullRequests, announcement, events_from
 from shelf.adapters.github_app.settings import GitHubAppSettings
+from shelf.domain.brief import DISPUTE_MARK
 from shelf.domain.ci import CiState
 from shelf.domain.model import PullInfo, RepoRef, WorkContext, WorkId, WorkRequest
 from shelf.domain.pipeline import EntryPoint, Phase
@@ -518,3 +519,23 @@ async def test_two_different_checks_are_both_counted(settings: GitHubAppSettings
         {"id": 2, "name": "test", "status": "completed", "conclusion": "success"},
     ]
     assert (await adapter(settings, ci_handler(runs)).ci(REVIEW)).state is CiState.RED
+
+
+def test_a_disagreement_is_announced_as_a_question_with_a_ready_answer_and_the_rest_folded() -> None:
+    detail = (
+        "Question: 10 or 50?\nRecommended answer: Use 50.\n---\n"
+        "the reviewer and the author disagree, 1 point(s) came back:\nthe limit"
+    ).replace("\n---\n", DISPUTE_MARK)
+    text = announcement(NEED, AskPerson(Phase.DESIGN_REVIEW, Reason.ESCALATION, detail))
+    assert "**10 or 50?**" in text
+    assert "/shelf changes Use 50." in text
+    assert "<summary>The arbitrator's brief</summary>" in text
+    assert "<summary>The full dispute</summary>" in text
+    assert text.index("**10 or 50?**") < text.index("<details>")
+
+
+def test_a_disagreement_nobody_arbitrated_is_still_a_question() -> None:
+    text = announcement(NEED, AskPerson(Phase.SPEC_REVIEW, Reason.ESCALATION, "limit of 3 rounds reached:\nvague"))
+    assert "used its 3 rounds" in text
+    assert "The arbitrator" not in text
+    assert "/shelf changes" not in text.split("**A person is needed**")[1].split("`/shelf approve`")[0]
