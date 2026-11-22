@@ -977,3 +977,12 @@ The system SHALL, in container mode, give the web service `SHELF_AGENTS_IN_CONTA
 
 - **WHEN** `SHELF_AGENTS_IN_CONTAINERS` is `maybe`
 - **THEN** the service does not start and the message names the setting
+
+### Requirement: The arbitrator's model is a role setting like the others
+
+The system SHALL accept `SHELF_MODEL_ARBITRATOR` among the per-role model settings and list `ARBITRATOR` among the roles it names when a setting is misspelt; and the example environment file SHALL show it, saying that the arbitrator runs on `opus` when it is not set.
+
+#### Scenario: The setting is set
+
+- **WHEN** the environment file sets `SHELF_MODEL_ARBITRATOR`
+- **THEN** the service starts and the arbitrator uses that model

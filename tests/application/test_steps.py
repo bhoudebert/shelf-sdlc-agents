@@ -20,7 +20,7 @@ from shelf.domain.runlog import RunRecord, ToolEvent
 from shelf.domain.story import agent_comment
 from shelf.domain.toolchain import DOCKER_ON_NOTE
 from shelf.domain.usage import Usage
-from shelf.domain.work import WAITING_FOR_CI, Produced, Reviewed, RunStep, Verdict, Verified
+from shelf.domain.work import WAITING_FOR_CI, ArbitrationVerdict, Produced, Reviewed, RunStep, Verdict, Verified
 from shelf.ports.agents import AgentTask
 from shelf.ports.workspace import Checkout, CheckResult
 from tests.adapters.temporal.test_workflow import FakePulls
@@ -1516,3 +1516,50 @@ async def test_a_continued_developer_is_told_there_is_no_docker_when_there_is_no
 
 async def test_a_continued_session_of_a_step_that_is_told_nothing_about_tools_hears_nothing_about_docker() -> None:
     assert "Docker" not in await continued(docker=True, phase=Phase.SPEC_REVIEW)
+
+
+async def test_the_arbitrator_reads_the_whole_story_and_answers_with_its_verdict() -> None:
+    agents = FakeAgents("1. change line 17\nproof: grep REQUIRES_NEW docs\n\nARBITRATION: FIX")
+    workspaces = FakeWorkspaces()
+    folder = workspaces.workspace.path / ".shelf" / "work-1"
+    folder.mkdir(parents=True)
+    (folder / "spec.md").write_text("the spec text", encoding="utf-8")
+    (folder / "decisions.md").write_text("an earlier decision", encoding="utf-8")
+    pulls = FakePulls()
+    arbitrated = await steps(agents, workspaces, pulls).arbitrate(NEED, Phase.DESIGN_REVIEW, "two points came back")
+    assert arbitrated.verdict is ArbitrationVerdict.FIX
+    assert arbitrated.text.startswith("1. change line 17")
+    [task] = agents.tasks
+    assert task.role.name == "arbitrator"
+    assert task.system_prompt == "prompt of arbitrator"
+    assert task.model == "opus"  # not the general model: the arbitrator has its own
+    assert ".shelf/work-1/story.md" in task.prompt
+    assert "two points came back" in task.prompt
+    story = (folder / "story.md").read_text(encoding="utf-8")
+    for part in ("loyalty points", "the spec text", "an earlier decision", "two points came back"):
+        assert part in story
+    assert workspaces.workspace.pushed == []  # an arbitrator changes nothing
+    assert any("Arbitrator" in body and "Arbitration: fix" in body for body in pulls.commented)
+
+
+async def test_the_arbitrators_own_model_setting_wins_over_its_default() -> None:
+    agents = FakeAgents("ARBITRATION: OVERRULE")
+    await replace(steps(agents), models={"arbitrator": "m-chosen"}).arbitrate(NEED, Phase.SPEC_REVIEW, "x")
+    assert [task.model for task in agents.tasks] == ["m-chosen"]
+
+
+async def test_an_arbitrator_without_a_verdict_decided_nothing() -> None:
+    arbitrated = await steps(FakeAgents("I am not sure")).arbitrate(NEED, Phase.SPEC_REVIEW, "x")
+    assert arbitrated.verdict is ArbitrationVerdict.ESCALATE
+    assert "gave no verdict" in arbitrated.text
+
+
+async def test_an_arbitration_is_written_into_the_decision_log_and_committed() -> None:
+    workspaces = FakeWorkspaces()
+    await steps(workspaces=workspaces).record_arbitration(
+        NEED, "2026-11-22T10:00:00+00:00", Phase.DESIGN_REVIEW, ArbitrationVerdict.OVERRULE, "no evidence in the files"
+    )
+    log = (workspaces.workspace.path / ".shelf/work-1/decisions.md").read_text(encoding="utf-8")
+    assert "arbitrator settled the disagreement at design review: overrule" in log
+    assert "> no evidence in the files" in log
+    assert workspaces.workspace.pushed == ["chore(shelf): record the arbitration of design_review for work-1"]

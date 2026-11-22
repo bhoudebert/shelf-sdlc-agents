@@ -8,10 +8,13 @@ from dataclasses import dataclass, field
 
 from shelf.domain.model import RepoRef, WorkContext, WorkId, WorkRequest
 from shelf.domain.pipeline import EntryPoint, Phase
-from shelf.domain.policy import Autonomy, Course, Policy, course_for
+from shelf.domain.policy import Autonomy, Course, DeadlockMode, Policy, course_for
 from shelf.domain.review import ReviewDepth
 from shelf.domain.usage import StepUsage, Usage
 from shelf.domain.work import (
+    Arbitrated,
+    Arbitrating,
+    ArbitrationVerdict,
     AwaitingPerson,
     DecisionKind,
     Event,
@@ -53,6 +56,8 @@ class WorkInput:
     """How the work behaves, fixed at start. Work started before the field existed has 1, the original behaviour."""
     context: list[str] = field(default_factory=list[str])
     """Other repositories the agents may read as reference; work started before the field existed has none."""
+    on_deadlock: str = ""
+    """What happens when a reviewer and its author cannot agree (ADR 0021); empty reads ``proceed_on_deadlock``."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,6 +70,27 @@ class StepInput:
     feedback: str
     session: str = ""
     """The agent's session from an earlier round, to continue; empty for work that does not resume."""
+
+
+@dataclass(frozen=True, slots=True)
+class ArbitrationInput:
+    """The input of the activity that runs the arbitrator on a disagreement."""
+
+    work: WorkInput
+    phase: str
+    issues: str
+    attempt: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class ArbitrationRecordInput:
+    """The input of the activity that writes an arbitration into the decision log."""
+
+    work: WorkInput
+    phase: str
+    verdict: str
+    text: str
+    at: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -227,7 +253,13 @@ class Snapshot:
 
 def course_of(work: WorkInput) -> Course:
     """The course of the work, from its policy and entry point."""
-    policy = Policy(work.max_rounds, work.spec_approval, work.design_review, work.proceed_on_deadlock)
+    policy = Policy(
+        work.max_rounds,
+        work.spec_approval,
+        work.design_review,
+        work.proceed_on_deadlock,
+        on_deadlock=DeadlockMode(work.on_deadlock) if work.on_deadlock else None,
+    )
     return course_for(EntryPoint(work.entry), policy, work.protocol)
 
 
@@ -246,6 +278,7 @@ def context_of(work: WorkInput) -> WorkContext:
             work.proceed_on_deadlock,
             ReviewDepth(work.spec_review_depth) if work.spec_review_depth else None,
             ReviewDepth(work.design_review_depth) if work.design_review_depth else None,
+            DeadlockMode(work.on_deadlock) if work.on_deadlock else None,
         ),
     )
     return WorkContext(WorkId(work.work_id), request)
@@ -260,6 +293,8 @@ def result_of(output: StepOutput) -> StepResult:
             return Reviewed(Verdict(output.verdict), output.text, repeated=output.repeated, blocking=output.blocking)
         case "verified":
             return Verified(output.passed, output.text, output.waiting)
+        case "arbitrated":
+            return Arbitrated(ArbitrationVerdict(output.verdict), output.text)
         case other:
             message = f"unknown step result kind: {other!r}"
             raise ValueError(message)
@@ -282,6 +317,8 @@ def output_of(result: StepResult) -> StepOutput:
             )
         case Verified(passed, report, waiting):
             return StepOutput("verified", passed=passed, text=report, waiting=waiting)
+        case Arbitrated(verdict, text, usage, session):
+            return StepOutput("arbitrated", verdict=verdict, text=text, usage=usage_dto(usage), session=session)
 
 
 def usage_dto(usage: Usage | None) -> UsageDto | None:
@@ -352,7 +389,7 @@ def snapshot_of(
     """Describe ``state`` for the board; ``last_phase`` is where a finished piece of work ended."""
     seen = dict(times or {})
     match state:
-        case Running(phase):
+        case Running(phase) | Arbitrating(Running(phase)):
             return Snapshot(phase, pull_request_url=pull_request_url, updated_at=updated_at, times=seen)
         case AwaitingPerson(phase, reason, detail):
             return Snapshot(

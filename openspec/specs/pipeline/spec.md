@@ -210,4 +210,18 @@ The system SHALL start new work under a protocol version (12) in which a failing
 #### Scenario: New work
 
 - **WHEN** a course is built for new work
-- **THEN** it has protocol 12 and its checks loop is judged by the repetition of its failure
+- **THEN** it has the current protocol and its checks loop is judged by the repetition of its failure
+
+### Requirement: The course carries the answer to a disagreement, and protocol 13 arbitrates
+
+The system SHALL give a course the answer to a disagreement of its policy (`ask`, `arbitrate-ask`, `arbitrate-go` or `go`), SHALL let the course go on past a deadlock of a document review when the answer is `arbitrate-go` or `go`, and SHALL name `deadlock` among the stops a policy removes only for those two. A course started with protocol 13, the current one, arbitrates a deadlock when its answer says so; a course of an earlier protocol does not.
+
+#### Scenario: A new course
+
+- **WHEN** a course is built for new work whose policy answers `arbitrate-ask`
+- **THEN** it has protocol 13, it arbitrates a deadlock, and its removed stops do not name `deadlock`
+
+#### Scenario: An old course
+
+- **WHEN** a course of protocol 12 has the answer `arbitrate-ask`
+- **THEN** it does not arbitrate

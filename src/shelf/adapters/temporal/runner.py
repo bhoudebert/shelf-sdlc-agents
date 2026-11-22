@@ -93,6 +93,7 @@ class TemporalRunner:
             poll_ceiling_seconds=ceiling.total_seconds(),
             protocol=CURRENT_PROTOCOL,
             context=list(request.context),
+            on_deadlock=policy.on_deadlock.value if policy.on_deadlock else "",
         )
         await self.client.start_workflow(
             WorkItemWorkflow.run,

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import NoReturn
 
 from shelf.domain.result import Err
-from shelf.domain.roles import ROLES, TITLER
+from shelf.domain.roles import ARBITRATOR, ROLES, TITLER
 from shelf.domain.stepspec import DOCKER_PROFILES, parse_resolvers
 
 
@@ -104,7 +104,7 @@ WHERE: dict[str, str] = {
 """Where each setting comes from, so a missing one says what to do and not only its name."""
 
 
-ROLE_NAMES = tuple(sorted({role.name for role in ROLES.values()} | {TITLER.name}))
+ROLE_NAMES = tuple(sorted({role.name for role in ROLES.values()} | {TITLER.name, ARBITRATOR.name}))
 """The agent roles, by name: what ``SHELF_MODEL_<ROLE>`` may name, in capitals."""
 
 

@@ -418,3 +418,22 @@ The system SHALL, when it lists work or shows one piece of it, ask a workflow fo
 
 - **WHEN** a finished work could not be read once, and can be read the next time
 - **THEN** the next look shows its real picture, not the failure
+
+### Requirement: The workflow runs the arbitrator as an activity and records what it decides
+
+The system SHALL record in the input of a piece of work the answer to a disagreement it started with (empty for work that predates it, which then reads `proceed_on_deadlock`); SHALL run the arbitrator for the command that asks for it as an activity with a heartbeat and a timeout of the steps, whose failure leaves the deadlock to the answer chosen and does not fail the work; SHALL write each arbitration into the decision log of the work as another activity whose failure is logged and never fatal; and SHALL keep the arbitrator's usage with the work's other runs. The work shows the phase of the disagreement while the arbitrator reads it, and a person's abort or reject ends it.
+
+#### Scenario: A fix
+
+- **WHEN** a review deadlocks in a work that arbitrates and the arbitrator answers `FIX`
+- **THEN** the author runs again with its instructions, the arbitration is in the decision log and nobody is asked
+
+#### Scenario: The arbitrator cannot decide
+
+- **WHEN** the arbitrator answers `ESCALATE` in a work that asks a person in that case
+- **THEN** the work waits with the arbitrator's brief first and the dispute after it
+
+#### Scenario: A work from before
+
+- **WHEN** a work started under an earlier protocol deadlocks
+- **THEN** no arbitrator runs and its history replays unchanged

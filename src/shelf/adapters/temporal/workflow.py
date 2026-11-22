@@ -17,8 +17,11 @@ with workflow.unsafe.imports_passed_through():
     from shelf.domain.pipeline import Phase
     from shelf.domain.polling import next_interval
     from shelf.domain.progress import describe
-    from shelf.domain.roles import ROLES
+    from shelf.domain.roles import ARBITRATOR, ROLES
     from shelf.domain.work import (
+        Arbitrate,
+        Arbitrating,
+        ArbitrationVerdict,
         AskPerson,
         AwaitingPerson,
         CancelStep,
@@ -32,6 +35,7 @@ with workflow.unsafe.imports_passed_through():
         PersonDecided,
         PublishPullRequest,
         PullRequestClosed,
+        RecordArbitration,
         Running,
         RunStep,
         SetPullRequestReady,
@@ -51,6 +55,8 @@ READY = "shelf_set_ready"
 PROGRESS = "shelf_progress"
 OPEN_POINTS = "shelf_note_open_points"
 RECORD_DECISION = "shelf_record_decision"
+ARBITRATE = "shelf_arbitrate"
+RECORD_ARBITRATION = "shelf_record_arbitration"
 CLOSE_PULL_REQUEST = "shelf_close_pull_request"
 
 STEP_TIMEOUT = timedelta(minutes=45)
@@ -146,6 +152,8 @@ class WorkItemWorkflow:
                     await self._set_ready(work, ready=ready)
                 case NoteOpenPoints(phase, issues):
                     await self._note_open_points(work, phase, issues)
+                case Arbitrate() | RecordArbitration():
+                    await self._execute_arbitration(work, command)
                 case PublishPullRequest():
                     await self._publish(work)
                 case Conclude(outcome):
@@ -171,6 +179,8 @@ class WorkItemWorkflow:
         match state, event:
             case Running(phase, attempt), StepDone(result):
                 self._log.append(wire.LogEntryDto(phase, describe(result, attempt), self._now()))
+            case Arbitrating(Running(phase)), StepDone(result):
+                self._log.append(wire.LogEntryDto(phase, describe(result, 0), self._now()))
             case Running(phase), StepFailed(reason):
                 self._log.append(wire.LogEntryDto(phase, f"failed: {reason[:80]}", self._now()))
             case AwaitingPerson(phase), PersonDecided(_, kind):
@@ -311,6 +321,45 @@ class WorkItemWorkflow:
         except ActivityError as error:
             event = StepFailed(str(error.cause or error))
         self._events.put_nowait(event)
+
+    async def _execute_arbitration(self, work: wire.WorkInput, command: Arbitrate | RecordArbitration) -> None:
+        match command:
+            case Arbitrate(phase):
+                self._touch(phase)
+                self._step = asyncio.create_task(self._run_arbitration(work, command))
+            case RecordArbitration(phase, verdict, text):
+                await self._record_arbitration(work, phase, verdict, text)
+
+    async def _run_arbitration(self, work: wire.WorkInput, command: Arbitrate) -> None:
+        try:
+            output = await workflow.execute_activity(
+                ARBITRATE,
+                wire.ArbitrationInput(work, command.phase, command.issues),
+                result_type=wire.StepOutput,
+                start_to_close_timeout=STEP_TIMEOUT,
+                heartbeat_timeout=STEP_HEARTBEAT,
+                retry_policy=RetryPolicy(maximum_attempts=2),
+            )
+            if output.usage is not None:
+                self._usage.append(wire.StepUsageDto(command.phase, 0, ARBITRATOR.name, output.usage))
+            event: Event = StepDone(wire.result_of(output))
+        except ActivityError as error:
+            event = StepFailed(str(error.cause or error))
+        self._events.put_nowait(event)
+
+    async def _record_arbitration(
+        self, work: wire.WorkInput, phase: Phase, verdict: ArbitrationVerdict, text: str
+    ) -> None:
+        """Write what the arbitrator decided into the repository; a failure is logged, never fatal."""
+        try:
+            await workflow.execute_activity(
+                RECORD_ARBITRATION,
+                wire.ArbitrationRecordInput(work, phase, verdict, text, self._now()),
+                start_to_close_timeout=PUBLISH_TIMEOUT,
+                retry_policy=RetryPolicy(maximum_attempts=2),
+            )
+        except ActivityError:
+            workflow.logger.warning("could not record the arbitration at %s", phase)
 
     @staticmethod
     def _agent_of(phase: str) -> str:

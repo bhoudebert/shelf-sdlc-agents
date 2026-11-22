@@ -8,7 +8,7 @@ from shelf.domain.decisions import DecisionRecord
 from shelf.domain.model import PullInfo, WorkContext
 from shelf.domain.pipeline import Phase
 from shelf.domain.stage import Stage
-from shelf.domain.work import AskPerson, Event, RunStep, StepResult
+from shelf.domain.work import Arbitrated, ArbitrationVerdict, AskPerson, Event, RunStep, StepResult
 
 
 class StepRunner(Protocol):
@@ -24,6 +24,16 @@ class StepRunner(Protocol):
 
     async def record_decision(self, work: WorkContext, record: DecisionRecord) -> None:
         """Append a person's decision to the work's decision log on its branch."""
+        ...
+
+    async def arbitrate(self, work: WorkContext, phase: Phase, issues: str, attempt: int = 0) -> Arbitrated:
+        """Settle the disagreement of ``phase`` with an arbitrator that reads the whole story of the work."""
+        ...
+
+    async def record_arbitration(
+        self, work: WorkContext, at: str, phase: Phase, verdict: ArbitrationVerdict, text: str
+    ) -> None:
+        """Append an arbitration to the work's decision log on its branch."""
         ...
 
 

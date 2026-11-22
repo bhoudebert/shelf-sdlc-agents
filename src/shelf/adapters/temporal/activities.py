@@ -10,12 +10,14 @@ from temporalio import activity
 from shelf.adapters.temporal import wire
 from shelf.adapters.temporal.workflow import (
     ANNOUNCE,
+    ARBITRATE,
     CLOSE_PULL_REQUEST,
     OPEN_POINTS,
     POLL,
     PROGRESS,
     PUBLISH,
     READY,
+    RECORD_ARBITRATION,
     RECORD_DECISION,
     RUN_STEP,
     STAGE,
@@ -26,7 +28,7 @@ from shelf.domain.progress import Entry, Position, render_progress
 from shelf.domain.roles import ROLES
 from shelf.domain.stage import stage_of
 from shelf.domain.story import open_points_comment
-from shelf.domain.work import AskPerson, DecisionKind, Outcome, Reason, RunStep
+from shelf.domain.work import ArbitrationVerdict, AskPerson, DecisionKind, Outcome, Reason, RunStep
 from shelf.ports.steps import PullRequests, StepRunner
 
 HEARTBEAT_EVERY = 15.0
@@ -59,6 +61,22 @@ def _steps_activities(steps: StepRunner, pulls: PullRequests) -> Sequence[Callab
                 await beating
         return wire.output_of(result)
 
+    @activity.defn(name=ARBITRATE)
+    async def arbitrate(arbitration: wire.ArbitrationInput) -> wire.StepOutput:
+        beating = asyncio.create_task(keep_alive(activity.heartbeat, HEARTBEAT_EVERY))
+        try:
+            result = await steps.arbitrate(
+                wire.context_of(arbitration.work),
+                Phase(arbitration.phase),
+                arbitration.issues,
+                arbitration.attempt,
+            )
+        finally:
+            beating.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await beating
+        return wire.output_of(result)
+
     @activity.defn(name=ANNOUNCE)
     async def announce(ask: wire.AskInput) -> None:
         await pulls.announce(wire.context_of(ask.work), AskPerson(Phase(ask.phase), Reason(ask.reason), ask.detail))
@@ -73,7 +91,7 @@ def _steps_activities(steps: StepRunner, pulls: PullRequests) -> Sequence[Callab
         events = await pulls.poll(wire.context_of(work))
         return [dto for event in events if (dto := wire.dto_of(event)) is not None]
 
-    return [run_step, announce, publish, poll]
+    return [run_step, arbitrate, announce, publish, poll]
 
 
 def _pull_request_activities(pulls: PullRequests) -> Sequence[Callable[..., Any]]:
@@ -123,7 +141,17 @@ def _record_activities(steps: StepRunner) -> Sequence[Callable[..., Any]]:
             DecisionRecord(record.at, record.login, DecisionKind(record.kind), Phase(record.phase), record.note),
         )
 
-    return [record_decision]
+    @activity.defn(name=RECORD_ARBITRATION)
+    async def record_arbitration(record: wire.ArbitrationRecordInput) -> None:
+        await steps.record_arbitration(
+            wire.context_of(record.work),
+            record.at,
+            Phase(record.phase),
+            ArbitrationVerdict(record.verdict),
+            record.text,
+        )
+
+    return [record_decision, record_arbitration]
 
 
 def build_activities(steps: StepRunner, pulls: PullRequests) -> Sequence[Callable[..., Any]]:

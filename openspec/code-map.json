@@ -18,7 +18,8 @@
       ],
       "tests": [
         "tests/domain/test_work.py",
-        "tests/domain/test_stage.py"
+        "tests/domain/test_stage.py",
+        "tests/domain/test_arbitration.py"
       ]
     },
     "access": {
@@ -133,6 +134,7 @@
         "src/shelf/domain/results.py",
         "src/shelf/domain/review.py",
         "src/shelf/domain/titles.py",
+        "src/shelf/domain/whole_story.py",
         "src/shelf/domain/web.py",
         "src/shelf/domain/toolchain.py",
         "src/shelf/domain/ci.py",

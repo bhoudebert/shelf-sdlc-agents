@@ -7,6 +7,8 @@ from shelf.domain.pipeline import KIND, EntryPoint, Kind, Phase
 from shelf.domain.policy import CURRENT_PROTOCOL, Course, Policy, course_for
 from shelf.domain.work import (
     WAITING_FOR_CI,
+    Arbitrate,
+    Arbitrating,
     AskPerson,
     AwaitingPerson,
     CancelStep,
@@ -303,6 +305,8 @@ def test_the_state_always_matches_the_commands(entry: EntryPoint, policy: Policy
                     SetPullRequestReady(ready=False),
                 }
                 assert attempt <= policy.max_rounds * 2  # new points may go on to twice the rounds (#165)
+            case Arbitrating():
+                assert commands == () or isinstance(commands[-1], Arbitrate)
             case AwaitingPerson():
                 assert commands == () or isinstance(commands[-1], AskPerson)
             case Finished(outcome):

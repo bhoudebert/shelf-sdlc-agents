@@ -268,3 +268,9 @@ def test_the_worker_accepts_resolvers_that_are_addresses() -> None:
 def test_the_web_service_is_told_that_agents_run_in_containers() -> None:
     assert not from_environ(BASE).agents_in_containers
     assert from_environ({**BASE, "SHELF_AGENTS_IN_CONTAINERS": "on"}).agents_in_containers
+
+
+def test_the_arbitrator_has_a_model_setting_of_its_own() -> None:
+    assert dict(from_environ({**BASE, "SHELF_MODEL_ARBITRATOR": "claude-opus-5-5"}).models) == {
+        "arbitrator": "claude-opus-5-5"
+    }

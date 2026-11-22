@@ -8,7 +8,7 @@ from shelf.domain.access import AccessRules
 from shelf.domain.config import InvalidConfigError, RepoConfig, Role
 from shelf.domain.operator import OperatorConfig
 from shelf.domain.pipeline import EntryPoint
-from shelf.domain.policy import Policy
+from shelf.domain.policy import DeadlockMode, Policy
 from shelf.domain.polling import Mode
 from shelf.domain.results import KINDS, Conflicts, Results
 from shelf.domain.review import ReviewDepth
@@ -83,6 +83,17 @@ def _depth(key: str, value: object) -> ReviewDepth:
         raise ConfigError(message) from error
 
 
+def _deadlock(value: object) -> DeadlockMode | None:
+    """``[policy] on_deadlock``: absent leaves the old ``proceed_on_deadlock`` to say what happens."""
+    if value is None:
+        return None
+    try:
+        return DeadlockMode(value)
+    except ValueError as error:
+        message = f"[policy] on_deadlock must be one of {', '.join(m.value for m in DeadlockMode)}"
+        raise ConfigError(message) from error
+
+
 def _results(table: Mapping[str, Any]) -> Results:
     """``[results]``: where the specs and the decision records of a repository are, and which of them a run writes."""
     _only("results", table, {"specs", "decisions", "write", "conflicts"})
@@ -119,6 +130,7 @@ def parse_repo_config(text: str) -> RepoConfig:
             "spec_approval",
             "design_review",
             "proceed_on_deadlock",
+            "on_deadlock",
             "spec_review_depth",
             "design_review_depth",
         },
@@ -131,9 +143,11 @@ def parse_repo_config(text: str) -> RepoConfig:
         if empty:
             message = f"[roles] {', '.join(empty)} has no one: list the people, or leave the role out"
             raise ConfigError(message)
-        plain = {k: v for k, v in policy.items() if k not in {"spec_review_depth", "design_review_depth"}}
+        parsed = {"spec_review_depth", "design_review_depth", "on_deadlock"}
+        plain = {k: v for k, v in policy.items() if k not in parsed}
         built = Policy(
             **plain,
+            on_deadlock=_deadlock(policy.get("on_deadlock")),
             spec_review_depth=_depth("spec_review_depth", policy.get("spec_review_depth", ReviewDepth.QUICK)),
             design_review_depth=_depth("design_review_depth", policy.get("design_review_depth", ReviewDepth.STANDARD)),
         )
