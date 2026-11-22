@@ -251,6 +251,40 @@ The system SHALL, for work that begins after this requirement, read two lines of
 - **WHEN** work that began under an earlier protocol gets a verdict
 - **THEN** it is judged by the count of rounds alone, as before
 
+### Requirement: The checks loop goes on while it makes progress, and stops when the same failure keeps coming back
+
+The system SHALL, for work that begins after this requirement, send the work back to the implementer every time the checks fail, without a count of rounds that stops it early, and SHALL ask a person instead when the same failure comes back three times in a row, naming the failure and saying how many times it came back. Two failures are the same when their reports are equal once numbers, timings and long hexadecimal identifiers are ignored. A round that finds a different failure starts the count again, and so does a pass of the checks. The loop SHALL still end at a ceiling of ten times the policy's maximum number of rounds, so that a loop that never settles cannot spend without end. The rounds the checks used SHALL NOT be taken from the budget of the code review loop that follows them.
+
+#### Scenario: The checks keep failing differently
+
+- **WHEN** the checks fail after the policy's maximum number of rounds, each time with a different report
+- **THEN** the work goes back to the implementer again
+
+#### Scenario: The same failure comes back
+
+- **WHEN** the checks fail three times in a row with the same report, apart from numbers and timings
+- **THEN** the work waits for a person, who is told that the failure came back three times and what it was
+
+#### Scenario: A pass resets the count
+
+- **WHEN** the checks pass, and fail again later the way they failed before
+- **THEN** the count of the same failure starts again at one
+
+#### Scenario: The ceiling
+
+- **WHEN** the checks have sent the work back ten times the policy's maximum number of rounds without settling
+- **THEN** the work waits for a person and says the limit of rounds was reached
+
+#### Scenario: Checks rounds and review rounds
+
+- **WHEN** the checks sent the work back several times before the code review asks for a change
+- **THEN** the review loop still has its own rounds
+
+#### Scenario: Work that began before
+
+- **WHEN** work that began under an earlier protocol has its checks fail
+- **THEN** it is judged by the count of rounds alone, as before
+
 ### Requirement: The merge is asked only after the CI of the ready pull request is seen
 
 The system SHALL, for work under protocol 11 and later that readies a pull request, enter the merge phase as a step (the CI look) and ask a person for the merge only when that step finds the CI green or absent; while the CI runs it looks again in the same round, and when the CI is red it puts the pull request back to draft and sends the work to the implementer with the failing runs, counted as a round.

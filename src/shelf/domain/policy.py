@@ -154,6 +154,11 @@ class Course:
         return self.protocol >= JUDGES_REVIEW_LOOPS
 
     @property
+    def judges_check_loops(self) -> bool:
+        """Whether the checks loop ends on a failure that keeps coming back, not on a count alone (protocol 12)."""
+        return self.protocol >= JUDGES_CHECK_LOOPS
+
+    @property
     def looks_at_ci_before_merge(self) -> bool:
         """Whether the CI is looked at again once the pull request is ready, before a person is asked (protocol 11)."""
         return self.protocol >= LOOKS_AT_CI_BEFORE_MERGE and self.readies_pull_request
@@ -164,7 +169,7 @@ class Course:
         return self.opens_early and (self.publishes_pull_request or self.adopts_pull_request)
 
 
-CURRENT_PROTOCOL = 11
+CURRENT_PROTOCOL = 12
 """The behaviour new work starts with. Raise it, and gate the new behaviour on it, whenever a change would alter what
 the workflow does for a history recorded before: protocol 1 is the original behaviour, which old work keeps."""
 
@@ -207,6 +212,11 @@ JUDGES_REVIEW_LOOPS = 10
 
 LOOKS_AT_CI_BEFORE_MERGE = 11
 """The protocol under which the work looks at the CI after the pull request is ready, before it asks for the merge."""
+
+
+JUDGES_CHECK_LOOPS = 12
+"""The protocol under which a failing check goes back to the implementer while the failure changes, and a person is
+asked when the same one comes back three times in a row, or at ten times the maximum number of rounds."""
 
 
 def course_for(entry: EntryPoint, policy: Policy, protocol: int = CURRENT_PROTOCOL) -> Course:

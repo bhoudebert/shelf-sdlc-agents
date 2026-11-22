@@ -5,7 +5,8 @@ They do no I/O: the workflow engine feeds them events and executes the commands,
 production runs and what the tests exercise.
 """
 
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, replace
 from enum import StrEnum, auto
 from typing import NamedTuple, assert_never
 
@@ -140,6 +141,12 @@ class Running:
     phase: Phase
     attempt: int = 0
     feedback: str = ""
+    failed: str = ""
+    """How the checks' last failure looked (``fingerprint``): empty when they have not failed, or since they passed."""
+    same: int = 0
+    """How many times in a row the checks failed that way."""
+    fixes: int = 0
+    """How many times the checks sent the work back: those rounds are not the code review's."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -252,7 +259,7 @@ def decide(course: Course, state: State, event: Event) -> Transition:
 def _when_running(course: Course, state: Running, event: Event) -> Transition:
     match event:
         case StepDone(result):
-            return _with_publication(course, state, _after_step(course, state, result))
+            return _with_publication(course, state, _remembering(course, state, _after_step(course, state, result)))
         case StepFailed(reason):
             return _ask(state.phase, Reason.FAILURE, reason)
         case PersonDecided(kind=DecisionKind.ABORT):
@@ -265,6 +272,34 @@ def _when_running(course: Course, state: Running, event: Event) -> Transition:
             return Transition(state)
         case _ as unreachable:
             assert_never(unreachable)
+
+
+CHECK_REPEATS = 3
+"""How many times in a row the same failure of the checks is tried again before a person is asked."""
+CHECK_CEILING = 10
+"""The checks loop ends at this many times the maximum number of rounds, so that it cannot run without end."""
+
+_NUMBER = re.compile(r"\b[0-9a-f]{12,}\b|[0-9]+")
+
+
+def fingerprint(report: str) -> str:
+    """What a failure of the checks looks like, without what changes between runs: numbers, timings, identifiers.
+
+    Two reports that give the same fingerprint are the same failure.
+    """
+    return " ".join(_NUMBER.sub("#", report).split())
+
+
+def _remembering(course: Course, state: Running, moved: Transition) -> Transition:
+    """Keep, across the phases, what the checks loop remembers: how it failed last and how many rounds it used."""
+    if not course.judges_check_loops or not isinstance(moved.state, Running):
+        return moved
+    after = moved.state
+    if after.failed or after.same or after.fixes:  # the checks have just set them
+        return moved
+    passed = KIND[state.phase] is Kind.VERIFY and moved.state.phase is not state.phase
+    keep = {"fixes": state.fixes} if passed else {"failed": state.failed, "same": state.same, "fixes": state.fixes}
+    return Transition(replace(after, **keep), moved.commands)
 
 
 def _with_publication(course: Course, state: Running, transition: Transition) -> Transition:
@@ -307,8 +342,29 @@ def _after_checks(course: Course, state: Running, seen: Verified) -> Transition:
         return _enter(course, state.phase, state.attempt, feedback=WAITING_FOR_CI)
     if seen.waiting or seen.passed:
         return _ask(state.phase, Reason.MERGE, "") if at_merge else _advance(course, state.phase, state.attempt)
-    back = _send_back(course, state, seen.report)
+    back = (
+        _send_checks_back(course, state, seen.report)
+        if course.judges_check_loops
+        else _send_back(course, state, seen.report)
+    )
     return Transition(back.state, (SetPullRequestReady(ready=False), *back.commands)) if at_merge else back
+
+
+def _send_checks_back(course: Course, state: Running, report: str) -> Transition:
+    """Send a failing check back to the implementer; ask a person when it fails the same way again and again."""
+    failed = fingerprint(report)
+    same = state.same + 1 if failed == state.failed else 1
+    fixes = state.fixes + 1
+    if same >= CHECK_REPEATS:
+        detail = f"the checks failed the same way {same} times in a row:\n{report}"
+        return _deadlocked(course, state.phase, detail)
+    limit = course.max_rounds * CHECK_CEILING
+    if fixes >= limit:
+        return _deadlocked(course, state.phase, f"limit of {limit} rounds reached:\n{report}")
+    back = _enter(course, LOOP_BACK[state.phase], state.attempt + 1, report)
+    if isinstance(back.state, Running):
+        back = Transition(replace(back.state, failed=failed, same=same, fixes=fixes), back.commands)
+    return back
 
 
 def _when_waiting(course: Course, state: AwaitingPerson, event: Event) -> Transition:
@@ -395,7 +451,8 @@ def _send_back(course: Course, state: Running, feedback: str, review: Reviewed |
         detail = f"the reviewer and the author disagree, {review.repeated} point(s) came back:\n{feedback}"
         return _deadlocked(course, state.phase, detail, blocking=blocking)
     limit = course.max_rounds * 2 if judges else course.max_rounds
-    if state.attempt >= limit:
+    used = state.attempt - state.fixes if course.judges_check_loops else state.attempt
+    if used >= limit:
         return _deadlocked(course, state.phase, f"limit of {limit} rounds reached:\n{feedback}", blocking=blocking)
     return _enter(course, LOOP_BACK[state.phase], state.attempt + 1, feedback)
 
