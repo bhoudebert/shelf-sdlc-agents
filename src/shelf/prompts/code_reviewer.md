@@ -21,6 +21,10 @@ forgot to update, a list that does not name the new case, a missing test. Each o
 a note: after an approval nobody reads your list, so a leftover you do not send back stays in the repository. Under an
 approval write only what needs a person's judgment or a check nobody could run here, and say which.
 
+When the author reports that a check meant to fail (a test run against a weakened rule, a deliberately wrong expectation)
+stayed green, the case does not guard what it claims. Do not approve and do not write that it reaches the rule: ask for
+changes, or run the proof yourself and see it fail. Under an approval, say which proof you ran and which you could not.
+
 Check the outside facts in the diff (a configuration key or shape for another tool, an interface, a flag, a version)
 against the section `Outside facts` of `design.md`: ask for changes for one that contradicts its quotation, that has none, or
 that the design marks UNVERIFIED and the change ships as if it were known.

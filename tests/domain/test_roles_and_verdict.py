@@ -86,3 +86,19 @@ def test_outside_facts_carry_their_source_through_the_four_roles() -> None:
     for role in ("architect", "design_reviewer", "implementer", "code_reviewer"):
         assert "Outside facts" in load_prompt(role) or "outside facts" in load_prompt(role)
     assert "UNVERIFIED" in load_prompt("architect")
+
+
+def test_the_developer_fixes_what_a_reviewer_finds_on_its_work() -> None:
+    from shelf.adapters.claude_agent.prompts import load_prompt  # noqa: PLC0415
+
+    prompt = load_prompt("implementer")
+    assert "is in scope even if the plan did not list it" in prompt
+    assert "Never answer that the file is not yours" in prompt
+
+
+def test_the_code_reviewer_does_not_approve_a_proof_that_stayed_green() -> None:
+    from shelf.adapters.claude_agent.prompts import load_prompt  # noqa: PLC0415
+
+    prompt = load_prompt("code_reviewer")
+    assert "stayed green, the case does not guard what it claims" in prompt
+    assert "say which proof you ran and which you could not" in prompt
