@@ -293,3 +293,45 @@ The system SHALL, for work under protocol 11 and later that readies a pull reque
 
 - **WHEN** the pull request was marked ready and the CI look finds a red run
 - **THEN** the pull request is a draft again and the implementer is sent the failing runs, and nobody is asked to merge
+
+### Requirement: A deadlock is settled by an arbitrator when the work asks for one
+
+The system SHALL read, for a piece of work, one answer to "when the reviewer and the author cannot agree": `ask`, `arbitrate-ask`, `arbitrate-go` or `go`, from the person who started it, else from the repository's `[policy] on_deadlock`, else `ask`; SHALL read the old `proceed_on_deadlock` as `go` when true and `ask` when false; and SHALL keep the answer with the work, so that a later edit never changes work already running.
+
+The system SHALL, at a deadlock (a reviewer's `ESCALATE`, a point that came back, a loop that used its rounds, a failing check that repeats) of a work whose answer is `arbitrate-ask` or `arbitrate-go`, run the arbitrator once for that phase, and act on its last line:
+
+- `ARBITRATION: FIX`: send the author back for one more round with the arbitrator's instructions and the proof it asked for;
+- `ARBITRATION: OVERRULE`: go on to the next phase and record the decision;
+- `ARBITRATION: ESCALATE`: ask a person, with the arbitrator's brief, when the answer is `arbitrate-ask`; go on and post the open point on the pull request when the answer is `arbitrate-go` and the phase is one of the two document reviews; ask a person for the code review and the checks in every case.
+
+The system SHALL NOT arbitrate a second time in the same phase: after a `FIX` that the reviewer still finds unfinished, or an `OVERRULE` that the reviewer repeats, the answer's own rule applies (`ask` a person, or `go` on where the phase may be passed). The system SHALL NOT arbitrate a failed step or the merge, and SHALL write each arbitration into the decision log of the work, with its verdict. The behaviour applies to works started with the protocol that introduces it; earlier works replay unchanged.
+
+#### Scenario: The arbitrator finds the reviewer right
+
+- **WHEN** a design review deadlocks, the work answers `arbitrate-ask` and the arbitrator ends with `FIX`
+- **THEN** the architect is sent back with its numbered instructions and nobody is asked
+
+#### Scenario: The arbitrator finds the reviewer wrong
+
+- **WHEN** a code review deadlocks and the arbitrator ends with `OVERRULE`, citing evidence for each point
+- **THEN** the work goes on to the next phase and the decision log says which points were overruled and why
+
+#### Scenario: Only a person can decide
+
+- **WHEN** the arbitrator ends with `ESCALATE` and the work answers `arbitrate-ask`
+- **THEN** a person is asked, with the question, the options and the recommendation
+
+#### Scenario: Escalation in a work that goes on
+
+- **WHEN** the arbitrator ends with `ESCALATE` in the spec review and the work answers `arbitrate-go`
+- **THEN** the work goes on and the open point is posted on the pull request; in the code review a person is asked instead
+
+#### Scenario: No second arbitration
+
+- **WHEN** the author did not do what a `FIX` asked and the reviewer repeats the point
+- **THEN** the arbitrator does not run again and a person is asked, or the work goes on, as the answer says
+
+#### Scenario: Old work
+
+- **WHEN** a work started before this protocol deadlocks
+- **THEN** it asks a person, or goes on, exactly as it did
