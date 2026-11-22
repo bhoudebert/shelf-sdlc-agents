@@ -14,6 +14,7 @@
   </form>
   {% endif %}
   {% include "_work_panel.html" %}
+  <section id="settled" class="settled" hx-get="/work/{{ item.id }}/settled" hx-trigger="load" hx-swap="outerHTML" aria-label="Settled without you" hidden></section>
   <section id="usage" class="usage" hx-get="/work/{{ item.id }}/usage" hx-trigger="load, every 30s" hx-swap="outerHTML" aria-label="What the agents used">
     <h2>What the agents used</h2>
     <p class="muted">Loading&hellip;</p>

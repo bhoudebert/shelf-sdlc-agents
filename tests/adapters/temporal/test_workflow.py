@@ -15,7 +15,7 @@ from shelf.domain.ci import Ci, CiState
 from shelf.domain.decisions import DecisionRecord
 from shelf.domain.model import PullInfo, WorkContext
 from shelf.domain.pipeline import KIND, Kind, Phase
-from shelf.domain.policy import ARBITRATES, CURRENT_PROTOCOL
+from shelf.domain.policy import ARBITRATES, CURRENT_PROTOCOL, SETTLED_IN_THE_OPEN
 from shelf.domain.stage import Stage
 from shelf.domain.usage import Usage
 from shelf.domain.work import (
@@ -63,6 +63,12 @@ class FakeSteps:
     arbitration_records: list[tuple[Phase, ArbitrationVerdict, str]] = field(
         default_factory=list[tuple[Phase, ArbitrationVerdict, str]]
     )
+
+    settled: str = ""
+    """What the merge announcement says was settled without a person."""
+
+    async def settled_summary(self, work: WorkContext) -> str:
+        return self.settled
 
     async def arbitrate(self, work: WorkContext, phase: Phase, issues: str, attempt: int = 0) -> Arbitrated:
         self.arbitrated.append((phase, issues))
@@ -607,3 +613,27 @@ async def test_work_started_before_arbitration_does_not_arbitrate(env: WorkflowE
         await handle.signal(WorkItemWorkflow.decided, wire.DecisionDto("alice", DecisionKind.ABORT, ""))
         await handle.result()
     assert steps.arbitrated == []
+
+
+async def test_the_ask_for_the_merge_says_what_was_settled_without_the_person(env: WorkflowEnvironment) -> None:
+    steps = FakeSteps(settled="**Settled without you**\n\n- an overrule")
+    pulls = FakePulls()
+    async with worker(env, steps, pulls):
+        handle = await start(env, work_input("need", spec_approval=False))
+        await until(handle, lambda s: s.waiting_for == "merge")
+        await handle.signal(WorkItemWorkflow.pull_request_closed, True)
+        await handle.result()
+    [merge] = [ask for ask in pulls.announced if ask.reason is Reason.MERGE]
+    assert merge.detail == "**Settled without you**\n\n- an overrule"
+
+
+async def test_work_from_before_does_not_say_it(env: WorkflowEnvironment) -> None:
+    steps = FakeSteps(settled="**Settled without you**")
+    pulls = FakePulls()
+    async with worker(env, steps, pulls):
+        handle = await start(env, work_input("need", spec_approval=False, protocol=SETTLED_IN_THE_OPEN - 1))
+        await until(handle, lambda s: s.waiting_for == "merge")
+        await handle.signal(WorkItemWorkflow.pull_request_closed, True)
+        await handle.result()
+    [merge] = [ask for ask in pulls.announced if ask.reason is Reason.MERGE]
+    assert merge.detail == ""
