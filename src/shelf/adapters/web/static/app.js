@@ -20,6 +20,18 @@
     });
   }
 
+  // Depth sliders: say the stop the slider rests on, to the eye and to a screen reader. The fragment that holds them is
+  // replaced when another repository is picked, so the listener sits on the document.
+  document.addEventListener("input", function (event) {
+    var slider = event.target;
+    if (!slider || !slider.classList || !slider.classList.contains("slider")) return;
+    var row = slider.closest(".depth-row");
+    if (!row) return;
+    row.setAttribute("data-stop", slider.value);
+    var stop = row.querySelector(".stop-" + slider.value);
+    if (stop) slider.setAttribute("aria-valuetext", stop.textContent);
+  });
+
   // Board filter. The filter lives on #board itself, which is never replaced, so it survives live updates.
   var board = document.getElementById("board");
   var buttons = document.querySelectorAll(".filters button");

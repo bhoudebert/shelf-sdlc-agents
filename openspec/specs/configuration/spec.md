@@ -173,3 +173,22 @@ The system SHALL read `[policy] on_deadlock` of a repository's file as one of `a
 
 - **WHEN** the file has `on_deadlock = "sometimes"`
 - **THEN** the file is refused and the error names the four answers
+
+### Requirement: A repository that says nothing about its stops gets the autonomous flow
+
+The system SHALL give a repository with no `.shelf/config.toml`, and a file that does not name a choice, the flow that goes on alone as far as it safely can: no wait for the spec approval, the design reviewed by an agent, and a disagreement settled by an arbitrator and, when it cannot, passed on with its open points (`arbitrate-go`); SHALL keep what a file does say (`spec_approval`, `design_review`, `on_deadlock`, or `proceed_on_deadlock` alone, which keeps its old meaning and so does not turn arbitration on); and SHALL still ask a person at the merge and for a failed step.
+
+#### Scenario: No file
+
+- **WHEN** a repository has no configuration file
+- **THEN** its policy has no spec approval, a design review and the answer `arbitrate-go`
+
+#### Scenario: A file that names a choice
+
+- **WHEN** the file sets `spec_approval = true` and nothing else
+- **THEN** the spec approval is asked, and the other choices are the autonomous ones
+
+#### Scenario: A file with the old setting only
+
+- **WHEN** the file sets `proceed_on_deadlock = false`
+- **THEN** a disagreement asks a person, as it did

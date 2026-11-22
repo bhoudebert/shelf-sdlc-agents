@@ -1679,3 +1679,17 @@ The system SHALL write, before the arbitrator runs and in the work's documents f
 
 - **WHEN** the arbitrator answers without an `ARBITRATION:` line
 - **THEN** the result is `ESCALATE` and says that no verdict was given
+
+### Requirement: What the agents are told about being alone follows the answer to a disagreement
+
+The system SHALL tell the agents of a work that nobody will answer, and to write each choice under an `Assumptions` heading, when the work's answer to a disagreement goes on (`arbitrate-go` or `go`), whatever the other choices; and SHALL tell the reviewers of the spec and the design of a work that skips a stop but does not go on that they decide what the author can decide.
+
+#### Scenario: A work that goes on after an arbitrator
+
+- **WHEN** a work's answer is `arbitrate-go`
+- **THEN** its agents are told that nobody is available
+
+#### Scenario: A work that arbitrates and then asks
+
+- **WHEN** a work skips the spec approval and its answer is `arbitrate-ask`
+- **THEN** its spec and design reviewers are told to decide what the author can decide

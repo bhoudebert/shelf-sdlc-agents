@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from shelf.domain.config import RepoConfig
 from shelf.domain.model import Identity, PullInfo, RepoRef, WorkId, WorkRequest, WorkView
 from shelf.domain.pipeline import Phase
+from shelf.domain.policy import Policy
 from shelf.domain.usage import StepUsage
 from shelf.domain.work import PersonDecided
 
@@ -79,4 +80,4 @@ class FakeConfigs:
     by_repo: dict[RepoRef, RepoConfig] = field(default_factory=dict[RepoRef, RepoConfig])
 
     async def load(self, repo: RepoRef) -> RepoConfig:
-        return self.by_repo.get(repo, RepoConfig())
+        return self.by_repo.get(repo, RepoConfig(policy=Policy()))  # the attended flow: tests of defaults say so

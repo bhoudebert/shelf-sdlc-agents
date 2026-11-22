@@ -159,7 +159,7 @@ def _reviews_alone(work: WorkContext, phase: Phase) -> bool:
     return (
         phase in (Phase.SPEC_REVIEW, Phase.DESIGN_REVIEW)
         and chosen is not None
-        and not chosen.proceed_on_deadlock
+        and not chosen.deadlock_mode.goes_on
         and (not chosen.spec_approval or not chosen.design_review)
     )
 
@@ -357,7 +357,7 @@ def task_prompt(  # noqa: PLR0913
         lines += ["", picture]
     if work.request.text:
         lines += ["", "The request:", work.request.text]
-    if work.request.autonomy and work.request.autonomy.proceed_on_deadlock:
+    if work.request.autonomy and work.request.autonomy.deadlock_mode.goes_on:
         lines += ["", UNATTENDED_NOTE]
     elif _reviews_alone(work, step.phase):
         lines += ["", ALONE_REVIEWER_NOTE]

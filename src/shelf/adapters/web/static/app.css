@@ -375,10 +375,27 @@ input:not([type="radio"]):not([type="checkbox"]):focus-visible, select:focus-vis
 .depth { display: grid; gap: 18px; margin: 18px 0 14px; max-width: 46rem; }
 .depth-row { display: grid; gap: 8px; }
 .depth select { max-width: 100%; }
+.answers { border: 0; margin: 0; padding: 0; min-width: 0; display: grid; gap: 10px; }
+.answers legend { font-weight: 600; padding: 0; margin-bottom: 6px; }
+.choice input[type="radio"] { border-radius: 50%; }
+.choice input[type="radio"]::before { width: 10px; height: 10px; border: 0; border-radius: 50%; background: var(--ground); transform: scale(0); }
+.choice input[type="radio"]:checked::before { transform: scale(1); }
+.choice-tag { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 99px; font-size: .78rem; font-weight: 600; color: var(--ink); background: var(--surface); box-shadow: inset 0 0 0 1px var(--orbit); }
+.answer-summary { display: none; margin: 0; max-width: 62ch; padding: 10px 14px; border-radius: var(--radius); color: var(--ink); background: var(--surface); box-shadow: inset 0 0 0 1px var(--orbit); }
+.answers:has(input[value="ask"]:checked) .answer-summary[data-answer="ask"],
+.answers:has(input[value="arbitrate-ask"]:checked) .answer-summary[data-answer="arbitrate-ask"],
+.answers:has(input[value="arbitrate-go"]:checked) .answer-summary[data-answer="arbitrate-go"],
+.answers:has(input[value="go"]:checked) .answer-summary[data-answer="go"] { display: block; }
+.slider { width: 100%; max-width: 46rem; accent-color: var(--accent); min-height: 44px; margin: 0; }
+.legend { list-style: none; margin: 0; padding: 0; max-width: 46rem; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; font-size: .9rem; color: var(--ink-2); }
+.legend .stop:nth-child(2) { text-align: center; }
+.legend .stop:nth-child(3) { text-align: right; }
+.depth-row[data-stop="0"] .stop-0, .depth-row[data-stop="1"] .stop-1, .depth-row[data-stop="2"] .stop-2 { color: var(--ink); font-weight: 700; }
 .autonomy-warning { display: none; max-width: none; margin: 0; padding: 12px 16px; border-radius: var(--radius); color: var(--ink); background: color-mix(in srgb, var(--danger) 9%, var(--raised)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 45%, transparent); }
 .autonomy:has(input[name="spec_approval"]:not(:checked)) .autonomy-warning,
 .autonomy:has(input[name="design_review"]:not(:checked)) .autonomy-warning,
-.autonomy:has(input[name="stop_on_deadlock"]:not(:checked)) .autonomy-warning { display: block; }
+.autonomy:has(input[name="on_deadlock"][value="go"]:checked) .autonomy-warning,
+.autonomy:has(input[name="on_deadlock"][value="arbitrate-go"]:checked) .autonomy-warning { display: block; }
 .entries { border: 0; margin: 0; padding: 0; min-width: 0; display: grid; gap: 6px; }
 .entries legend { margin-bottom: 2px; }
 .entries .hint { margin: 0 0 6px; }

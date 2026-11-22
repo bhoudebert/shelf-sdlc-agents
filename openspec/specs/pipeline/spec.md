@@ -225,3 +225,17 @@ The system SHALL give a course the answer to a disagreement of its policy (`ask`
 
 - **WHEN** a course of protocol 12 has the answer `arbitrate-ask`
 - **THEN** it does not arbitrate
+
+### Requirement: The autonomous policy is named, and the strictest choice asks a person at every stop
+
+The system SHALL name the autonomous policy (no spec approval, a design review, `arbitrate-go`) and the strictest choice for a work (the approval, the design review and `ask`), SHALL derive the answer of a work from its own choice, else from its policy, and SHALL tell the agents of a work that goes on past a disagreement that nobody will answer, and the reviewers of a work that skips a stop but asks at a disagreement that they should decide what the author can decide.
+
+#### Scenario: The agents are told
+
+- **WHEN** a work's answer is `arbitrate-go` or `go`
+- **THEN** its agents are told that nobody is available and that each choice they make goes under `Assumptions`
+
+#### Scenario: A work that asks at a disagreement
+
+- **WHEN** a work skips the spec approval and its answer is `ask` or `arbitrate-ask`
+- **THEN** the reviewers of its spec and design are told to decide what the author can decide
