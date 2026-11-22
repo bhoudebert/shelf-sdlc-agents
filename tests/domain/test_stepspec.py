@@ -191,7 +191,7 @@ def test_the_limits_become_engine_limits() -> None:
     assert host["NanoCpus"] == 2_000_000_000
     assert host["Memory"] == host["MemorySwap"] == 1024 * 1024 * 1024
     assert host["PidsLimit"] == 100
-    assert host["Tmpfs"] == {"/tmp": "rw,nosuid,size=64m"}  # noqa: S108
+    assert host["Tmpfs"] == {"/tmp": "rw,nosuid,exec,size=64m"}  # noqa: S108
 
 
 def test_the_container_carries_labels_so_a_restart_can_find_it() -> None:

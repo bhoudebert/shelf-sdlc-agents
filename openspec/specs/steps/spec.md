@@ -1617,3 +1617,17 @@ The system SHALL mount into every step container, read-only, the volumes the ope
 
 - **WHEN** a request's environment names a variable of the guard
 - **THEN** the runner refuses the request, naming the variable
+
+### Requirement: A step can run a program it writes to its temporary folder
+
+The system SHALL mount the temporary folder of a step, in the step's container and in the container of its own Docker daemon, so that programs in it can run (without `noexec`), because tools unpack native libraries there (Testcontainers' JNA, Maven plugins, Node addons). It SHALL keep `nosuid` and the size limit of the step.
+
+#### Scenario: A native library unpacked to the temporary folder
+
+- **WHEN** a step's tool writes an executable or a native library to `/tmp` and runs or loads it
+- **THEN** it runs, with no flag to point the tool at another folder
+
+#### Scenario: Set-user-id stays off
+
+- **WHEN** the step's container is described
+- **THEN** its `/tmp` is limited in size and mounted `nosuid`

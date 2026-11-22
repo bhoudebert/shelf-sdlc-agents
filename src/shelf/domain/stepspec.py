@@ -349,7 +349,7 @@ def container_spec(ask: StepAsk, rules: RunnerRules, *, expires: int) -> dict[st
         "Memory": limits.memory_mb * 1024 * 1024,
         "MemorySwap": limits.memory_mb * 1024 * 1024,
         "NanoCpus": int(limits.cpus * 1_000_000_000),
-        "Tmpfs": {"/tmp": f"rw,nosuid,size={limits.tmp_mb}m"},  # noqa: S108
+        "Tmpfs": {"/tmp": f"rw,nosuid,exec,size={limits.tmp_mb}m"},  # noqa: S108
         "Mounts": mounts,
         "NetworkMode": rules.network,
         "PublishAllPorts": False,

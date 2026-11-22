@@ -293,6 +293,27 @@ async def _finish(runner: TemporalRunner, work_id: WorkId) -> None:
     await _until_waiting(runner, work_id, Reason.GATE)
     await runner.decide(work_id, PersonDecided("carol", DecisionKind.ABORT))
     await _until_finished(runner, work_id)
+    await _until_closed(runner, work_id)
+
+
+async def _until_closed(runner: TemporalRunner, work_id: WorkId) -> None:
+    """Wait until Temporal itself says the workflow is over, in its description and in the list.
+
+    The view says the work is finished a moment before the workflow closes, and the list lags behind the description:
+    a test that counts looks must not start in that gap.
+    """
+    handle = runner.client.get_workflow_handle(work_id)
+    async with asyncio.timeout(20):
+        while True:
+            described = (await handle.describe()).status
+            listed = [e.status async for e in runner.client.list_workflows(f'WorkflowId = "{work_id}"')]
+            if (
+                described != WorkflowExecutionStatus.RUNNING
+                and listed
+                and WorkflowExecutionStatus.RUNNING not in listed
+            ):
+                return
+            await asyncio.sleep(0.05)
 
 
 async def test_a_finished_work_is_looked_at_once_and_then_remembered(env: WorkflowEnvironment) -> None:
