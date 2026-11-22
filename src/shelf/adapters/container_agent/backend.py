@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from shelf.domain.roles import RUNS_CODE
 from shelf.domain.runlog import redact
+from shelf.domain.stepfail import explain_model_failure
 from shelf.domain.stepspec import ENV_ALLOWED, TOOLS
 from shelf.domain.stepstream import StepStream, StreamError
 from shelf.domain.toolchain import repository_folder
@@ -162,6 +163,7 @@ class ContainerBackend:
         done = stream.result
         if not reason:
             reason = (done.result or done.subtype) if done is not None and done.is_error else stream.failure()
+            reason = explain_model_failure(reason)
         if reason:
             if task.sink is not None and not task.sink.error:
                 task.sink.error = redact(" ".join(reason.split()))[:400]
