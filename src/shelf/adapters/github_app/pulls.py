@@ -10,6 +10,7 @@ import httpx
 
 from shelf.adapters.github_app.forge import pull_info
 from shelf.adapters.github_app.settings import GitHubAppSettings
+from shelf.domain.brief import brief_of
 from shelf.domain.ci import Ci, CiRun, CiState, is_red, judge, latest_of_each
 from shelf.domain.commands import HELP, MARKER, is_ours, parse_command
 from shelf.domain.model import PullInfo, RepoRef, WorkContext
@@ -64,9 +65,23 @@ def announcement(work: WorkContext, ask: AskPerson) -> str:
         Reason.FAILURE: "A step failed",
         Reason.MERGE: "Ready for review and merge",
     }[ask.reason]
-    detail = f"\n\n{ask.detail}" if ask.detail else ""
+    detail = (
+        (_decision_card(ask.detail) if ask.reason is Reason.ESCALATION else f"\n\n{ask.detail}") if ask.detail else ""
+    )
     read = _where_to_read(work, ask.phase)
     return f"{MARKER}{work.id} -->\n**{heading}** ({ask.phase}){detail}{read}\n\n{HELP}"
+
+
+def _decision_card(detail: str) -> str:
+    """What a disagreement asks of a person, short: the question, what is open, a ready answer, the rest folded."""
+    brief = brief_of(detail)
+    parts = [f"\n\n**{brief.question}**", f"\n\n{brief.short}"]
+    if brief.recommended:
+        parts.append(f"\n\nTo follow the recommendation, reply:\n\n```\n/shelf changes {brief.recommended}\n```")
+    if brief.arbitrated:
+        parts.append(f"\n\n<details><summary>The arbitrator's brief</summary>\n\n{brief.brief}\n\n</details>")
+    parts.append(f"\n\n<details><summary>The full dispute</summary>\n\n{brief.dispute}\n\n</details>")
+    return "".join(parts)
 
 
 READ_AT: dict[Phase, str] = {

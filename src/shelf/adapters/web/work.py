@@ -10,11 +10,12 @@ from shelf.adapters.web import views
 from shelf.adapters.web.context import Web
 from shelf.adapters.web.sessions import Session
 from shelf.application.work import decide_work
+from shelf.domain.brief import Brief, brief_of
 from shelf.domain.config import InvalidConfigError
 from shelf.domain.model import WorkContext, WorkId, WorkRequest, WorkView
 from shelf.domain.result import Ok
 from shelf.domain.usage import summarize
-from shelf.domain.work import DecisionKind
+from shelf.domain.work import DecisionKind, Reason
 from shelf.ports.runner import UnreachableWorkError
 from shelf.ports.steps import PullRequests
 
@@ -22,7 +23,7 @@ log = logging.getLogger(__name__)
 
 HTTP_OK = 200
 
-type Panel = tuple[views.ItemView, list[views.TimelineStep], list[views.DecisionOption]]
+type Panel = tuple[views.ItemView, list[views.TimelineStep], list[views.DecisionOption], Brief | None]
 
 UNREACHABLE = (
     "This work cannot take a decision: it is finished or was started by an older release. "
@@ -48,11 +49,13 @@ def router(web: Web) -> APIRouter:  # noqa: C901 - one small closure per route
 
     async def panel_of(session: Session, work_id: str) -> Panel:
         work = await web.visible_work(session, work_id)
-        return views.item_view(work), views.timeline(work), views.decision_options(work.waiting_for)
+        item = views.item_view(work)
+        brief = brief_of(work.detail) if work.waiting_for is Reason.ESCALATION and work.detail else None
+        return item, views.timeline(work), views.decision_options(work.waiting_for), brief
 
     @routes.get("/work/{work_id}", response_class=HTMLResponse)
     async def page(request: Request, session: Annotated[Session, Depends(web.signed_in)], work_id: str) -> Response:
-        item, timeline, decisions = await panel_of(session, work_id)
+        item, timeline, decisions, brief = await panel_of(session, work_id)
         return web.render(
             request,
             "work.html",
@@ -60,8 +63,9 @@ def router(web: Web) -> APIRouter:  # noqa: C901 - one small closure per route
             item=item,
             timeline=timeline,
             decisions=decisions,
+            brief=brief,
             flash="",
-            version=views.version_of(item, timeline, decisions),
+            version=views.version_of(item, timeline, decisions, brief),
             temporal_link=web.temporal_link(work_id) if web.is_admin(session) else "",
             can_close=web.is_admin(session) and item.outcome == "",
         )
@@ -77,8 +81,8 @@ def router(web: Web) -> APIRouter:  # noqa: C901 - one small closure per route
     async def panel(
         request: Request, session: Annotated[Session, Depends(web.signed_in)], work_id: str, v: str = ""
     ) -> Response:
-        item, timeline, decisions = await panel_of(session, work_id)
-        version = views.version_of(item, timeline, decisions)
+        item, timeline, decisions, brief = await panel_of(session, work_id)
+        version = views.version_of(item, timeline, decisions, brief)
         if v == version:  # nothing new: answer with no content so the page is left exactly as it is
             return Response(status_code=204)
         return web.render(
@@ -88,6 +92,7 @@ def router(web: Web) -> APIRouter:  # noqa: C901 - one small closure per route
             item=item,
             timeline=timeline,
             decisions=decisions,
+            brief=brief,
             flash="",
             version=version,
         )
@@ -134,7 +139,7 @@ def router(web: Web) -> APIRouter:  # noqa: C901 - one small closure per route
         kind: Annotated[str, Form()],
         note: Annotated[str, Form()] = "",
     ) -> Response:
-        item, timeline, decisions = await panel_of(session, work_id)
+        item, timeline, decisions, brief = await panel_of(session, work_id)
         try:
             decision = DecisionKind(kind)
         except ValueError:
@@ -146,7 +151,14 @@ def router(web: Web) -> APIRouter:  # noqa: C901 - one small closure per route
                 deps.pulls, await web.visible_work(session, work_id), f"{session.identity.login} {verb} the work"
             )
         response = web.render(
-            request, "_work_panel.html", session, item=item, timeline=timeline, decisions=decisions, flash=flash
+            request,
+            "_work_panel.html",
+            session,
+            item=item,
+            timeline=timeline,
+            decisions=decisions,
+            brief=brief,
+            flash=flash,
         )
         response.status_code = status
         return response
