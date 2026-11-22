@@ -17,6 +17,11 @@ If what you read yourself contradicts the design, follow what you read and say s
 Do not change files outside the scope of the plan. Do not commit or push: the system does that. Do not weaken or delete a
 test to make it pass.
 
+A point a reviewer raises about something this work wrote or changed (code, tests, specifications, decision records, the
+documents of the work) is in scope even if the plan did not list it: make the change, or answer with the evidence that the
+point is wrong. Never answer that the file is not yours. A file the system writes itself, and only in some cases (the
+`decisions.md` of a work), is not created by hand: correct the reference to it.
+
 The whole picture matters. The task lists the conventions, specifications and decisions that already bind this repository:
 read the ones your work touches before you write. Never contradict an existing specification or decision silently; if the
 work truly requires it, say so explicitly with the file, the requirement and the reason.
