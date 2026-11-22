@@ -995,3 +995,13 @@ The system SHALL give the worker its own, uncached, read of a work's documents, 
 
 - **WHEN** an arbitration is recorded just before the work asks for the merge
 - **THEN** the section lists it
+
+### Requirement: The turn limit of each role is a setting
+
+The system SHALL accept `SHELF_MAX_TURNS_<ROLE>` among the settings of the worker, with the same role names as `SHELF_MODEL_<ROLE>` and the same stop at start for a misspelt name, and the example environment file SHALL show it and say that the implementer takes 100 turns when it is not set.
+
+#### Scenario: A misspelt role
+
+- **WHEN** the environment file sets `SHELF_MAX_TURNS_PLANER`
+- **THEN** the service stops at start and names the roles
+
