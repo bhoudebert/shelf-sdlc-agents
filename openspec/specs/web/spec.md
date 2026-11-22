@@ -899,6 +899,25 @@ The system SHALL let an administrator, in the Guard section of the admin page an
 - **WHEN** someone who is not an administrator posts a site
 - **THEN** it is refused and nothing changes
 
+### Requirement: The admin page says the sites list is not applied when agents run in containers
+
+The system SHALL, when agents run in containers (`SHELF_ISOLATION=container` on the worker, told to the web service by `SHELF_AGENTS_IN_CONTAINERS`), replace the form that adds a site in the Guard section by a sentence saying that the list of sites is not applied in that mode (the sandbox that enforces it is off, the container is the boundary and its network is not filtered yet), SHALL refuse a site posted anyway, and SHALL keep listing the rules already added with a note that they are kept but not applied. In the other mode nothing changes.
+
+#### Scenario: The admin page in container mode
+
+- **WHEN** an administrator opens the admin page and agents run in containers
+- **THEN** the Guard section says the sites list is not applied and offers no field to add a site
+
+#### Scenario: A site posted in container mode
+
+- **WHEN** an administrator posts a site anyway
+- **THEN** it is refused with a conflict and nothing is kept
+
+#### Scenario: Sandbox mode
+
+- **WHEN** agents run in the worker's sandbox
+- **THEN** the form to add a site is shown as before
+
 ### Requirement: An administrator frees a project agent file for the agents' writes, from the admin page
 
 The system SHALL let an administrator, in the Guard section of the admin page and when the instance keeps rules from the page, choose from a fixed list of project-level agent files (`opencode.json`, `opencode.jsonc`, the `.opencode` and `.codex` folders, the Copilot and hooks folders under `.github`) one that agents may write, add it, see who added it and when, and remove it; SHALL offer nothing outside that list, so that the settings and hooks of Claude Code, the guard's own files and the git hooks can never be freed from the page; SHALL keep it with the other rules added from the page and write it to the guard's overlay as `[paths] unprotect`; SHALL say that the file still goes through the pull request, where a person reads it; and SHALL apply it from the next call an agent makes.
