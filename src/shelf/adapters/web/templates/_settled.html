@@ -1,0 +1,19 @@
+<section id="settled" class="settled" hx-get="/work/{{ work_id }}/settled?v={{ version }}" hx-trigger="every 20s" hx-swap="outerHTML" aria-label="Settled without you"{% if not at_the_merge and not found %} hidden{% endif %}>
+  <h2>Settled without you</h2>
+  {% if failed %}
+  <p class="muted">The work's documents could not be read just now. This will try again.</p>
+  {% elif not found %}
+  <p class="muted">Nothing. No arbitrator was needed, nothing was passed on and no agent wrote an assumption.</p>
+  {% else %}
+  {% if found.to_check %}<p class="settled-check" role="note"><strong>{{ found.to_check|length }} to check before you merge</strong>, marked below.</p>{% endif %}
+  <ul class="settled-list">
+    {% for line in found.lines %}
+    <li class="settled-{{ line.kind }}{% if line.check %} settled-flag{% endif %}">
+      {% if line.check %}<span class="settled-mark" aria-label="Check this before you merge">⚠</span>{% endif %}
+      <strong>{% if line.kind == "overruled" %}The arbitrator overruled the reviewer at the {{ line.where }}{% elif line.kind == "passed" %}The {{ line.where }} could not be settled and the work went on{% elif line.kind == "fixed" %}The arbitrator found the reviewer right at the {{ line.where }}, and the author fixed it{% else %}An agent assumed, in <code>{{ line.where }}</code>{% endif %}</strong>
+      <span class="settled-why">{{ line.why }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</section>

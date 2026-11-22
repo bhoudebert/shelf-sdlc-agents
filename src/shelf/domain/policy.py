@@ -219,6 +219,11 @@ class Course:
         return self.protocol >= ARBITRATES and self.deadlock.arbitrates
 
     @property
+    def arbitrates_in_the_open(self) -> bool:
+        """Whether the merge announcement says what was settled without the person (protocol 14)."""
+        return self.protocol >= SETTLED_IN_THE_OPEN
+
+    @property
     def looks_at_ci_before_merge(self) -> bool:
         """Whether the CI is looked at again once the pull request is ready, before a person is asked (protocol 11)."""
         return self.protocol >= LOOKS_AT_CI_BEFORE_MERGE and self.readies_pull_request
@@ -229,7 +234,7 @@ class Course:
         return self.opens_early and (self.publishes_pull_request or self.adopts_pull_request)
 
 
-CURRENT_PROTOCOL = 13
+CURRENT_PROTOCOL = 14
 """The behaviour new work starts with. Raise it, and gate the new behaviour on it, whenever a change would alter what
 the workflow does for a history recorded before: protocol 1 is the original behaviour, which old work keeps."""
 
@@ -281,6 +286,9 @@ asked when the same one comes back three times in a row, or at ten times the max
 
 ARBITRATES = 13
 """The protocol under which a deadlock goes to an arbitrator first, when the work asks for one (ADR 0021)."""
+
+SETTLED_IN_THE_OPEN = 14
+"""The protocol under which the ask for the merge says what was settled without the person (ADR 0021)."""
 
 
 def course_for(entry: EntryPoint, policy: Policy, protocol: int = CURRENT_PROTOCOL) -> Course:

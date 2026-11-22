@@ -48,6 +48,7 @@ from shelf.domain.roles import (
     legacy_documents_dir,
 )
 from shelf.domain.runlog import RunRecord, keep_events, redact
+from shelf.domain.settled import markdown_of, settled_of
 from shelf.domain.story import agent_comment
 from shelf.domain.titles import clean_title, fallback_title
 from shelf.domain.tool_detection import DECLARED, SOURCES, detect_tools, is_declared
@@ -88,6 +89,7 @@ from shelf.ports.commands import CommandRunner
 from shelf.ports.configs import RepoConfigs
 from shelf.ports.context_sources import ContextSources
 from shelf.ports.conversation import Conversations
+from shelf.ports.documents import Documents
 from shelf.ports.run_records import RunRecords
 from shelf.ports.steps import PullRequests
 from shelf.ports.workspace import Checkout, Workspace, Workspaces
@@ -435,6 +437,8 @@ class Steps:
     """Where what each agent run did is kept, for diagnosing a work afterwards; none keeps nothing."""
     conversations: Conversations | None = None
     """Where the conversation of a work is read back, for the whole story an arbitrator is given."""
+    documents: Documents | None = None
+    """Where the documents of a work are read back, for what was settled without a person."""
     now: Callable[[], datetime] = lambda: datetime.now(UTC)
     """Where other repositories are read from, as reference material put next to the clone (none without it)."""
 
@@ -611,6 +615,22 @@ class Steps:
         words = f"**Arbitration: {arbitrated.verdict.value}**\n\n{arbitrated.text}".strip()
         await self.pulls.comment(work, agent_comment(work.id, ARBITRATOR.name, words))
         return arbitrated
+
+    async def settled_summary(self, work: WorkContext) -> str:
+        """What was settled without a person, as the section the merge announcement ends with; empty when unknown."""
+        if self.documents is None:
+            return ""
+        try:
+            documents = await self.documents.read(work.request.repo, work.id)
+            messages = ()
+            if self.conversations is not None:
+                number = await self.conversations.pull_request_of(work.request.repo, branch_of(work))
+                if number is not None:
+                    messages = tuple(await self.conversations.read(work.request.repo, number))
+        except Exception:  # an unreadable story must never hold back the ask for the merge
+            log.warning("could not read what was settled without a person on %s", work.id, exc_info=True)
+            return ""
+        return markdown_of(settled_of(documents, messages))
 
     async def _whole_story(self, work: WorkContext, workspace: Workspace, folder: str, issues: str, ci: Ci) -> str:
         """Everything that led to a disagreement: the request, the documents, the conversation, the runs, the CI."""

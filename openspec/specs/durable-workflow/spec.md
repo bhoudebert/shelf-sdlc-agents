@@ -437,3 +437,17 @@ The system SHALL record in the input of a piece of work the answer to a disagree
 
 - **WHEN** a work started under an earlier protocol deadlocks
 - **THEN** no arbitrator runs and its history replays unchanged
+
+### Requirement: Work of protocol 14 says what was settled without the person when it asks for the merge
+
+The system SHALL, for work started with protocol 14, the current one, ask the step runner for what was settled without the person when it announces the wait for the merge, and use it as the announcement's detail when there is one; and work of an earlier protocol SHALL announce the merge as it did.
+
+#### Scenario: New work
+
+- **WHEN** a work of protocol 14 reaches the merge
+- **THEN** the announcement carries the section
+
+#### Scenario: Earlier work
+
+- **WHEN** a work of protocol 13 reaches the merge
+- **THEN** the announcement has no detail, as before

@@ -26,6 +26,10 @@ class StepRunner(Protocol):
         """Append a person's decision to the work's decision log on its branch."""
         ...
 
+    async def settled_summary(self, work: WorkContext) -> str:
+        """What was settled without a person on the work, as markdown for the merge announcement; empty if unknown."""
+        ...
+
     async def arbitrate(self, work: WorkContext, phase: Phase, issues: str, attempt: int = 0) -> Arbitrated:
         """Settle the disagreement of ``phase`` with an arbitrator that reads the whole story of the work."""
         ...

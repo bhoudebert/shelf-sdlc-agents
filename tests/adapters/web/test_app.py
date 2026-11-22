@@ -1796,3 +1796,42 @@ def test_the_other_waits_keep_their_own_panel(app: Fixture) -> None:
     page = app.client.get("/work/work-1").text
     assert "Decision needed" not in page
     assert "Your decision" in page
+
+
+def _settled_page(documents: dict[str, str], story: list[Message], waiting: Reason | None) -> str:
+    fixture = Fixture(
+        documents=FakeDocuments(documents),
+        conversations=FakeConversations(story, branches={}),
+    )
+    fixture.sign_in()
+    fixture.runner.views[WorkId("work-1")] = WorkView(
+        WorkId("work-1"),
+        REPO,
+        "alice",
+        EntryPoint.NEED,
+        Phase.PULL_REQUEST,
+        waiting_for=waiting,
+        pull_request_url="https://github.com/acme/shop/pull/12",
+    )
+    return fixture.client.get("/work/work-1/settled").text
+
+
+def test_the_merge_page_lists_what_was_settled_without_the_person_and_flags_what_to_check() -> None:
+    log = "# Decisions\n\n## 2026-11-22T10:00:00+00:00 · arbitrator settled the disagreement at design review: overrule\n\n> no evidence\n"
+    page = _settled_page({"decisions.md": log, "design.md": "## Assumptions\n\n- The limit is 50.\n"}, [], Reason.MERGE)
+    assert "Settled without you" in page
+    assert "1 to check before you merge" in page
+    assert "The arbitrator overruled the reviewer at the design review" in page
+    assert "An agent assumed" in page
+    assert "settled-flag" in page
+
+
+def test_the_merge_page_says_when_nothing_was_settled_without_the_person() -> None:
+    page = _settled_page({}, [], Reason.MERGE)
+    assert "Nothing. No arbitrator was needed" in page
+    assert " hidden" not in page.split(">")[0]
+
+
+def test_the_section_stays_hidden_before_the_merge_when_there_is_nothing_to_say() -> None:
+    page = _settled_page({}, [], Reason.GATE)
+    assert " hidden" in page.split(">")[0]

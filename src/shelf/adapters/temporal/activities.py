@@ -79,7 +79,11 @@ def _steps_activities(steps: StepRunner, pulls: PullRequests) -> Sequence[Callab
 
     @activity.defn(name=ANNOUNCE)
     async def announce(ask: wire.AskInput) -> None:
-        await pulls.announce(wire.context_of(ask.work), AskPerson(Phase(ask.phase), Reason(ask.reason), ask.detail))
+        context = wire.context_of(ask.work)
+        detail = ask.detail
+        if Reason(ask.reason) is Reason.MERGE and wire.course_of(ask.work).arbitrates_in_the_open:
+            detail = await steps.settled_summary(context) or detail
+        await pulls.announce(context, AskPerson(Phase(ask.phase), Reason(ask.reason), detail))
 
     @activity.defn(name=PUBLISH)
     async def publish(work: wire.WorkInput) -> str:

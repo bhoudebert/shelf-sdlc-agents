@@ -180,13 +180,15 @@
         "src/shelf/domain/guard_rules.py",
         "src/shelf/ports/guard_rules.py",
         "src/shelf/adapters/warden/rules_store.py",
-        "src/shelf/adapters/web/admin_guard.py"
+        "src/shelf/adapters/web/admin_guard.py",
+        "src/shelf/domain/settled.py"
       ],
       "tests": [
         "tests/adapters/web/*.py",
         "tests/adapters/caching/*.py",
         "tests/adapters/web/test_templates.py",
-        "tests/adapters/github_app/test_conversation.py"
+        "tests/adapters/github_app/test_conversation.py",
+        "tests/domain/test_settled.py"
       ]
     },
     "deployment": {
