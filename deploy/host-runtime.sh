@@ -6,6 +6,7 @@
 #   sudo sh deploy/host-runtime.sh --yes          # the same, without asking (needed without a terminal)
 #   sudo sh deploy/host-runtime.sh --restart-docker   # allows a Docker restart when a reload is not enough
 #   sh deploy/host-runtime.sh --probe             # changes nothing: finds the profile a step needs here, prints profile=<name>
+#   sh deploy/host-runtime.sh --dns               # changes nothing: proves SHELF_STEP_DNS still resolves in a step, prints dns=<list>
 #
 # What it installs is the Kata Containers runtime: every step runs in a small virtual machine with its own kernel, so a
 # Docker daemon inside it cannot reach this host's Docker. It is safe to run again: each step checks whether it is done.
@@ -42,7 +43,8 @@ for arg in "$@"; do
     --yes) yes=yes ;;
     --restart-docker) restart=yes ;;
     --probe) mode=probe ;;
-    -h | --help) sed -n '2,13p' "$0"; exit 0 ;;
+    --dns) mode=dns ;;
+    -h | --help) sed -n '2,14p' "$0"; exit 0 ;;
     *) echo "unknown option: $arg (see --help)" >&2; exit 1 ;;
   esac
 done
@@ -332,6 +334,14 @@ if [ "$runtime" != "kata" ]; then
 fi
 
 platform
+if [ "$mode" = dns ]; then
+  listed || { say "The runtime '$runtime' is not installed here yet: run deploy/host-runtime.sh first." >&2; exit 2; }
+  [ -n "${SHELF_STEP_DNS:-}" ] || { say "--dns proves the resolvers of SHELF_STEP_DNS: it is not set." >&2; exit 1; }
+  find_dns || exit 1
+  say "dns=$found_dns"
+  exit 0
+fi
+
 if [ "$mode" = probe ]; then
   listed || { say "The runtime '$runtime' is not installed here yet: run deploy/host-runtime.sh first." >&2; exit 2; }
   find_dns || exit 1

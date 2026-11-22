@@ -99,7 +99,9 @@ if [ "$(value SHELF_STEP_DOCKER)" = "on" ]; then
   # What a host allows differs: the guest's seccomp and cgroup filesystem (the profile), and the resolvers a step can reach (a
   # virtual machine cannot use Docker's embedded one). Each is found once, here, by the host script, and written down. A value
   # you set yourself is proved but never replaced.
+  probed_now=no
   if [ -z "$(value SHELF_STEP_DOCKER_PROFILE)" ] || [ -z "$(value SHELF_STEP_DNS)" ]; then
+    probed_now=yes
     # The proof runs in the image of a step, so it is built first (the build below finds it cached).
     echo "Building the image of a step with Docker, which the host is proved with..."
     $compose --profile tools build step-docker || { echo "ERROR: the step image with Docker could not be built (see above)." >&2; exit 1; }
@@ -120,6 +122,15 @@ if [ "$(value SHELF_STEP_DOCKER)" = "on" ]; then
       printf 'SHELF_STEP_DNS=%s\n' "$resolvers" >> "$env_file"
       echo "Wrote SHELF_STEP_DNS=$resolvers to $env_file."
     fi
+  fi
+  # The resolvers written down earlier are the host's own and can change: prove them again, cheaply (one container), and stop
+  # here rather than let every step fail minutes later with "cannot reach the API server".
+  if [ "$probed_now" = no ] && [ -n "$(value SHELF_STEP_DNS)" ]; then
+    SHELF_STEP_RUNTIME="$runtime" SHELF_STEP_DNS="$(value SHELF_STEP_DNS)" sh "$host_script" --dns > /dev/null || {
+      echo "ERROR: the resolvers of the steps (SHELF_STEP_DNS=$(value SHELF_STEP_DNS) in $env_file) no longer resolve in a step (see above)." >&2
+      echo "       Remove that line and run this script again to find others, or set addresses a step can reach." >&2
+      exit 1
+    }
   fi
   docker_steps=yes
 fi
