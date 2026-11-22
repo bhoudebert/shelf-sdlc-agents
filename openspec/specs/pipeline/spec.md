@@ -210,7 +210,7 @@ The system SHALL start new work under a protocol version (12) in which a failing
 #### Scenario: New work
 
 - **WHEN** a course is built for new work
-- **THEN** it has protocol 12 and its checks loop is judged by the repetition of its failure
+- **THEN** it has the current protocol and its checks loop is judged by the repetition of its failure
 
 ### Requirement: The course carries the answer to a disagreement, and protocol 13 arbitrates
 
