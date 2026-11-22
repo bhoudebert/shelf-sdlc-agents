@@ -47,9 +47,12 @@ meaning.
 
 ### What the arbitrator does
 
-It runs once per deadlock, read-only on the repository, with a model of its own (`SHELF_MODEL_ARBITRATOR`; Opus is the
-sensible choice, since a reviewer is usually Opus too). It reads the document under review, the reviewer's last review, the
-author's last answer, the repository's specifications and decisions, and the decision log of the work. It ends with one line:
+It runs once per deadlock, read-only on the repository, with a model of its own: `SHELF_MODEL_ARBITRATOR`, which is Opus
+(the `opus` alias) when nothing is set. Its view is not limited: it is given the **whole story of the work**, the same account
+the work page's download gives a person (the request, every document in each of its versions, every round of the conversation
+between the agents, the decision log, the record of each agent run with its tool calls, and what the CI said), and the
+repository with its specifications and decisions. A dispute is judged by what led to it, not by its last two messages. It
+ends with one line:
 
 - `ARBITRATION: FIX`: the reviewer is right and the author did not do it. The arbitrator writes numbered, concrete
   instructions and the command that proves each (for example a `grep` that must find nothing). The author gets one more
@@ -69,13 +72,31 @@ Limits that keep it from being a rubber stamp:
 - Failed steps (the model unreachable, a tool that crashed) and the merge are not arbitrated: they are not disagreements.
   They still ask a person.
 
+### Autonomous by default
+
+A start form that asks the person to configure autonomy asks for the opposite of what the product is for. The defaults are
+the flow that goes on alone as far as it safely can, and the person customises what they want to keep:
+
+- no wait for the spec approval (the spec is still reviewed by an agent),
+- the design reviewed by an agent,
+- `on_deadlock = arbitrate-go`,
+- the review depths as today (quick for the spec, standard for the design).
+
+The merge, and a failed step, still ask. A repository's `[policy]` and the person's choices on the start form override
+every default; a work that has started keeps what it started with. Changing the defaults changes what a repository without
+a `[policy]` does for new works: it is a behaviour change, named in the release.
+
 ### What a person sees, and where
 
 The point of the role is also to make the remaining human stops readable, and to put a person's attention where it is cheapest
 and safest.
 
 1. **The start form.** One group of four radio buttons instead of a checkbox, each with a plain sentence of what happens and
-   what it costs; the chosen one is summarised under the group.
+   what it costs; the chosen one is summarised under the group. The two selects "How hard should the reviewer look?" become
+   one slider each, with three labelled stops (Quick, Standard, Thorough) and a legend that says what each does. The depth
+   changes what the reviewer is told (how many problems at most, how far to look: `domain/review.py`); it does not change the
+   model's thinking effort, which Shelf does not set for any role today. Tying depth to an effort setting is a possible later
+   decision, not part of this one.
 2. **The stop.** "A person is needed" becomes a decision card: the question in one line; "the reviewer says / the author says"
    in two or three lines each (full texts folded); the arbitrator's recommendation when there was one; buttons that do
    something: *Follow the recommendation* (sends the changes with its text), *Edit and send*, *Go on and note it on the pull

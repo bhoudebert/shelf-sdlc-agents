@@ -1070,6 +1070,20 @@ The system SHALL replace, on the start form, the choice to stop at a deadlock by
 - **WHEN** a person opens the start form
 - **THEN** the question shows four answers with their sentences, the repository's answer chosen, and a summary of the chosen one
 
+### Requirement: The review depths are sliders with a legend, and the start form defaults to the autonomous flow
+
+The system SHALL show each review depth (spec and design) as a slider with three labelled stops (quick, standard, thorough) and a legend that says what each stop does, usable with the keyboard and announced with its label, and SHALL tell the person that the depth changes what the reviewer is told and not the model's thinking effort. The system SHALL preset the start form, where the repository's `[policy]` says nothing, to the flow that goes on alone: no wait for the spec approval, the design reviewed by an agent, `arbitrate-go`, the spec reviewed quickly and the design at the standard depth; SHALL let the person change each choice; and SHALL keep for a work what it started with.
+
+#### Scenario: A repository with no policy
+
+- **WHEN** a person opens the start form for a repository whose file has no `[policy]`
+- **THEN** the spec approval is not asked, the design review is on, the answer to a disagreement is `arbitrate-go`, and each choice can be changed
+
+#### Scenario: A slider
+
+- **WHEN** a person moves the design depth slider with the arrow keys
+- **THEN** the label, the legend and the stored choice follow the stop it rests on
+
 ### Requirement: A stop is a decision card, not a pasted review
 
 The system SHALL show a work that waits for a person at a disagreement as a decision card: the question in one line; what the reviewer says and what the author says, in two or three lines each with the full texts folded; the arbitrator's recommendation and brief when it ran; and buttons that act: follow the recommendation (send the changes with its text), edit it and send, go on and note it on the pull request (where the phase may be passed), and reject. The system SHALL write the comment on the pull request in the same shape, short, with the `/shelf changes` text ready to copy, and SHALL show an arbitration as an entry of its own in the conversation, with its verdict as a badge, and the work as arbitrating while it runs.
