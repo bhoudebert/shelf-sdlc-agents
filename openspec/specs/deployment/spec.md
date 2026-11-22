@@ -889,6 +889,25 @@ The system SHALL, when the operator sets `SHELF_NIX=on`, run a Nix daemon as a s
 - **WHEN** the operator sets `SHELF_NIX_STORE` to a folder of the host
 - **THEN** the store lives there, so that it can be kept, copied or emptied from the host
 
+### Requirement: The installer proves again the resolvers it stored, and stops when they no longer work
+
+The system SHALL, when `SHELF_STEP_DOCKER` is `on` and `SHELF_STEP_DNS` is already set in the environment file, prove at every run of the installer that those resolvers still resolve the model's host from a step under the configured runtime, by asking the host script for that proof alone (`--dns`: read-only, a few seconds, one container). When the proof fails the installer SHALL stop before it starts anything, name the resolvers it tried, and say how to find others (remove the `SHELF_STEP_DNS` line and run the installer again, or set the right addresses). It SHALL NOT replace a value the operator set. The full probe (the profile too) SHALL still run only when the profile or the resolvers are missing.
+
+#### Scenario: The stored resolvers still work
+
+- **WHEN** the installer runs with both values set and the resolvers resolve in a step
+- **THEN** it goes on without the full probe
+
+#### Scenario: The stored resolvers no longer work
+
+- **WHEN** the installer runs with `SHELF_STEP_DNS` set to addresses that no longer resolve in a step
+- **THEN** it stops before anything starts, names the resolvers, and says how to find others, and the value is not changed
+
+#### Scenario: The host script proves the resolvers alone
+
+- **WHEN** the host script runs with `--dns`
+- **THEN** it changes nothing, prints `dns=<resolvers>` when they resolve, and fails with what the step said when they do not
+
 ### Requirement: The operator can switch Nix on, and nothing else changes
 
 The system SHALL read `SHELF_NIX` from the environment, `off` by default, SHALL accept `on` and `off` only and refuse any other value by name, and SHALL not change what the worker does with a repository that has no flake when it is on.

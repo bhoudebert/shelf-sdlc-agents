@@ -494,6 +494,10 @@ case "$1" in
     echo "host-script --probe" >> "$DOCKER_LOG"
     [ -z "$HOST_PROBE_FAILS" ] || { echo "no profile works" >&2; exit 1; }
     echo "dns=${SHELF_STEP_DNS:-${HOST_DNS:-213.186.33.99}}"; echo "profile=${HOST_PROFILE:-standard}"; exit 0;;
+  --dns)
+    echo "dns-env=$SHELF_STEP_DNS" >> "$HOST_LOG"
+    [ -z "$HOST_DNS_FAILS" ] || { echo "a step could not resolve api.anthropic.com with $SHELF_STEP_DNS" >&2; exit 1; }
+    echo "dns=$SHELF_STEP_DNS"; exit 0;;
 esac
 """
 
@@ -755,6 +759,38 @@ def test_with_both_set_the_host_script_is_not_probed(server: Path) -> None:
 
     assert done.returncode == 0, done.stderr
     assert "--probe" not in (server / "host.log").read_text()
+
+
+def test_the_stored_resolvers_are_proved_again_by_the_host_script_alone(server: Path) -> None:
+    docker_server(server, SHELF_STEP_RUNTIME="kata", SHELF_STEP_DOCKER_PROFILE="full", SHELF_STEP_DNS="9.9.9.9")
+
+    done = run_docker(server, ready=True)
+
+    assert done.returncode == 0, done.stderr
+    log = (server / "host.log").read_text()
+    assert "host-runtime --dns" in log
+    assert "dns-env=9.9.9.9" in log
+
+
+def test_stored_resolvers_that_no_longer_work_stop_the_install_before_anything_starts(server: Path) -> None:
+    docker_server(server, SHELF_STEP_RUNTIME="kata", SHELF_STEP_DOCKER_PROFILE="full", SHELF_STEP_DNS="9.9.9.9")
+
+    done = run_docker(server, ready=True, HOST_DNS_FAILS="1")
+
+    assert done.returncode == 1
+    assert "9.9.9.9" in done.stderr
+    assert "SHELF_STEP_DNS" in done.stderr
+    assert "up -d" not in (server / "docker.log").read_text()
+    assert value_of(server, "SHELF_STEP_DNS") == ["SHELF_STEP_DNS=9.9.9.9"]
+
+
+def test_resolvers_that_are_not_stored_are_not_proved_twice(server: Path) -> None:
+    docker_server(server, SHELF_STEP_RUNTIME="kata")
+
+    done = run_docker(server, ready=True)
+
+    assert done.returncode == 0, done.stderr
+    assert "--dns" not in (server / "host.log").read_text()
 
 
 def test_a_probe_that_names_no_resolvers_stops_before_building(server: Path) -> None:
