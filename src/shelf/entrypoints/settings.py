@@ -56,6 +56,8 @@ class Settings:
     models: tuple[tuple[str, str], ...]
     """The model of each role that has one of its own (``SHELF_MODEL_<ROLE>``), as (role name, model) pairs."""
     max_turns: int
+    turns: tuple[tuple[str, int], ...]
+    """The turn limit of each role that has one of its own (``SHELF_MAX_TURNS_<ROLE>``), as (role name, turns) pairs."""
     max_budget_usd: float | None
     nested_sandbox: bool
     sandbox: bool
@@ -108,20 +110,30 @@ ROLE_NAMES = tuple(sorted({role.name for role in ROLES.values()} | {TITLER.name,
 """The agent roles, by name: what ``SHELF_MODEL_<ROLE>`` may name, in capitals."""
 
 
-def _models(environ: Mapping[str, str]) -> tuple[tuple[str, str], ...]:
-    """The ``SHELF_MODEL_<ROLE>`` settings. A name that is no role stops the start: a typo would leave a model unset."""
+def _per_role(environ: Mapping[str, str], prefix: str) -> tuple[tuple[str, str], ...]:
+    """The ``<prefix><ROLE>`` settings. A name that is no role stops the start: a typo would leave a setting unset."""
     found: list[tuple[str, str]] = []
     for key, raw in sorted(environ.items()):
         value = raw.strip()
-        if not key.startswith("SHELF_MODEL_") or not value:
+        if not key.startswith(prefix) or not value:
             continue
-        role = key.removeprefix("SHELF_MODEL_").lower()
+        role = key.removeprefix(prefix).lower()
         if role not in ROLE_NAMES:
-            names = ", ".join(f"SHELF_MODEL_{name.upper()}" for name in ROLE_NAMES)
+            names = ", ".join(f"{prefix}{name.upper()}" for name in ROLE_NAMES)
             message = f"{key} names no agent role: the roles are {names}"
             raise MissingSettingError(message)
         found.append((role, value))
     return tuple(found)
+
+
+def _models(environ: Mapping[str, str]) -> tuple[tuple[str, str], ...]:
+    """The ``SHELF_MODEL_<ROLE>`` settings."""
+    return _per_role(environ, "SHELF_MODEL_")
+
+
+def _turns(environ: Mapping[str, str]) -> tuple[tuple[str, int], ...]:
+    """The ``SHELF_MAX_TURNS_<ROLE>`` settings, each a whole number of turns."""
+    return tuple((role, int(value)) for role, value in _per_role(environ, "SHELF_MAX_TURNS_"))
 
 
 def _required(environ: Mapping[str, str], key: str) -> str:
@@ -247,6 +259,7 @@ def from_environ(environ: Mapping[str, str]) -> Settings:
         model=environ.get("SHELF_MODEL", "").strip() or None,
         models=_models(environ),
         max_turns=int(environ.get("SHELF_MAX_TURNS", "40")),
+        turns=_turns(environ),
         max_budget_usd=float(budget) if budget else None,
         nested_sandbox=environ.get("SHELF_NESTED_SANDBOX", "").strip().lower() in {"1", "true", "yes"},
         claude_cli=environ.get("SHELF_CLAUDE_CLI", "").strip() or None,

@@ -274,3 +274,14 @@ def test_the_arbitrator_has_a_model_setting_of_its_own() -> None:
     assert dict(from_environ({**BASE, "SHELF_MODEL_ARBITRATOR": "claude-opus-5-5"}).models) == {
         "arbitrator": "claude-opus-5-5"
     }
+
+
+def test_each_role_can_have_a_turn_limit_of_its_own() -> None:
+    settings = from_environ({**BASE, "SHELF_MAX_TURNS_IMPLEMENTER": " 120 ", "SHELF_MAX_TURNS_CODE_REVIEWER": "20"})
+    assert settings.turns == (("code_reviewer", 20), ("implementer", 120))
+    assert from_environ(BASE).turns == ()
+
+
+def test_a_turn_limit_for_a_name_that_is_no_role_stops_the_start() -> None:
+    with pytest.raises(MissingSettingError, match=r"SHELF_MAX_TURNS_PLANER names no agent role"):
+        from_environ({**BASE, "SHELF_MAX_TURNS_PLANER": "10"})

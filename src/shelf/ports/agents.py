@@ -1,7 +1,7 @@
 """The agent runtime: run one role on a working copy with a budget."""
 
-from collections.abc import Mapping
-from dataclasses import dataclass, field
+from collections.abc import Awaitable, Callable, Mapping
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Protocol
 
@@ -55,6 +55,35 @@ class AgentTask:
     """The work's id, for a backend that keeps a work's sessions together."""
     read_only_tools: bool = False
     """The role reads the repository's tools and caches but must not change them (a reviewer)."""
+
+
+OUT_OF_TURNS = "error_max_turns"
+"""How a run says it used all its turns."""
+
+GO_ON = (
+    "You used all your turns before you finished. Your work so far is kept in the working directory. Go on from where "
+    "you stopped, do what is left of the task, and end with the answer the task asks for."
+)
+
+
+async def go_on_after_turns(run: Callable[[AgentTask], Awaitable[str]], task: AgentTask) -> str:
+    """Run ``task``; when it uses all its turns in a session, ask that session once to go on, and add up the use.
+
+    A second run that ends badly too raises, as any failed run does.
+    """
+    try:
+        return await run(task)
+    except Exception:
+        sink = task.sink
+        if sink is None or sink.subtype != OUT_OF_TURNS or not sink.session_id:
+            raise
+        first = sink.usage
+        sink.error = ""
+        try:
+            return await run(replace(task, resume=sink.session_id, prompt=GO_ON, fallback_prompt=""))
+        finally:
+            if first is not None and sink.usage is not None:
+                sink.usage = first + sink.usage
 
 
 class AgentBackend(Protocol):

@@ -13,7 +13,7 @@ from shelf.domain.stepfail import explain_model_failure
 from shelf.domain.stepspec import ENV_ALLOWED, TOOLS
 from shelf.domain.stepstream import StepStream, StreamError
 from shelf.domain.toolchain import repository_folder
-from shelf.ports.agents import AgentTask, RunSink
+from shelf.ports.agents import AgentTask, RunSink, go_on_after_turns
 from shelf.ports.step_runner import StepRequest, StepRunner, StepSettings, task_input
 
 log = logging.getLogger(__name__)
@@ -120,13 +120,13 @@ class ContainerBackend:
         """Run ``task`` and return the final answer; a session that cannot be continued starts again from scratch."""
         if task.resume:
             try:
-                return await self._run_once(task)
+                return await go_on_after_turns(self._run_once, task)
             except Exception as error:  # noqa: BLE001 - whatever stopped the continuation, the step must still run
                 log.warning("could not continue the session of %s (%s): starting again", task.role.name, error)
                 if task.sink is not None:
                     task.sink.fell_back = True
                 task = replace(task, resume="", prompt=task.fallback_prompt or task.prompt)
-        return await self._run_once(task)
+        return await go_on_after_turns(self._run_once, task)
 
     def _request(self, task: AgentTask) -> StepRequest:
         """What to ask the runner for ``task``: its clone, repository, session and tools mode, their folders made."""

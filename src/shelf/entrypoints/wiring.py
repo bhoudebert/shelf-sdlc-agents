@@ -176,6 +176,7 @@ def build_services(settings: Settings, github: GitHubApp, client: httpx.AsyncCli
         model=settings.model,
         models=dict(settings.models),
         max_turns=settings.max_turns,
+        turns=dict(settings.turns),
         max_budget_usd=settings.max_budget_usd,
         cache_dir=settings.cache_dir,
         commands=command_runner(settings),

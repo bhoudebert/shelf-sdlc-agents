@@ -693,6 +693,20 @@ async def test_a_role_asks_for_its_own_model_and_the_others_for_the_general_one(
     assert [task.model for task in agents.tasks] == ["m-strong", "m-general"]
 
 
+async def test_the_implementer_takes_more_turns_and_a_role_can_have_its_own_limit() -> None:
+    agents = FakeAgents()
+    work = replace(steps(agents), max_turns=40, turns={"code_reviewer": 20})
+    for phase in (Phase.IMPLEMENT, Phase.CODE_REVIEW, Phase.PLAN):
+        await work.run(NEED, RunStep(phase, 0, ""))
+    assert [task.max_turns for task in agents.tasks] == [100, 20, 40]
+
+
+async def test_a_general_limit_above_the_default_of_the_implementer_is_kept() -> None:
+    agents = FakeAgents()
+    await replace(steps(agents), max_turns=150).run(NEED, RunStep(Phase.IMPLEMENT, 0, ""))
+    assert [task.max_turns for task in agents.tasks] == [150]
+
+
 async def test_a_role_with_no_model_of_any_kind_asks_for_none() -> None:
     agents = FakeAgents()
     await replace(steps(agents), model=None, models={}).run(NEED, RunStep(Phase.PLAN, 0, ""))

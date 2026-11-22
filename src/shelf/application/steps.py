@@ -130,6 +130,8 @@ ALONE_REVIEWER_NOTE = (
 
 
 DEFAULT_MODELS: Mapping[str, str] = {ARBITRATOR.name: "opus"}
+DEFAULT_TURNS: Mapping[str, int] = {"implementer": 100}
+"""The roles that need more turns than ``SHELF_MAX_TURNS`` gives: the implementer edits, builds and tests."""
 """The model of a role that must not follow the general one when nothing is set for it (ADR 0021)."""
 
 ARBITRATION_NOTE = (
@@ -409,6 +411,8 @@ class Steps:
     models: Mapping[str, str] = field(default_factory=dict[str, str])
     """The model of the roles that have one of their own, by role name; the others use ``model``."""
     max_turns: int = 40
+    turns: Mapping[str, int] = field(default_factory=dict[str, int])
+    """The turn limit of the roles that have one of their own, by role name; the others use ``max_turns``."""
     max_budget_usd: float | None = None
     base_path: str = ""
     """The ``PATH`` the agents start from; the tool shims are put in front of it."""
@@ -730,6 +734,10 @@ class Steps:
             return fallback
         return clean_title(answer, fallback)
 
+    def _turns_of(self, role: str) -> int:
+        """How many turns a role may take: its own limit, else the one of the role's kind, else the general one."""
+        return self.turns.get(role) or max(DEFAULT_TURNS.get(role, 0), self.max_turns)
+
     def _model_of(self, role: str) -> str | None:
         """The model a role asks for: its own, else the general one, else none (Claude Code decides)."""
         return self.models.get(role) or DEFAULT_MODELS.get(role) or self.model
@@ -815,7 +823,7 @@ class Steps:
                     tools=keep_events(sink.tools),
                     tool_calls=len(sink.tools),
                     web=self.web,
-                    max_turns=self.max_turns,
+                    max_turns=self._turns_of(_role_of(step).name),
                     answer_chars=len(answer),
                     repo=work.request.repo.full_name,
                     requester=work.request.requester,
@@ -871,7 +879,7 @@ class Steps:
                     **more_env,
                     **({"GH_TOKEN": token} if step.phase is Phase.IMPLEMENT else {}),
                 },
-                max_turns=self.max_turns,
+                max_turns=self._turns_of(role.name),
                 max_budget_usd=self.max_budget_usd,
                 model=self._model_of(role.name),
                 sink=sink,
