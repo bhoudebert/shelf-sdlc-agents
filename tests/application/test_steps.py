@@ -699,6 +699,30 @@ async def test_a_role_with_no_model_of_any_kind_asks_for_none() -> None:
     assert [task.model for task in agents.tasks] == [None]
 
 
+def _prompt_of(phase: Phase, autonomy: Autonomy) -> str:
+    request = WorkRequest(REPO, "alice", EntryPoint.NEED, "x", autonomy=autonomy)
+    return task_prompt(WorkContext(WorkId("w"), request), RunStep(phase, 0, ""))
+
+
+@pytest.mark.parametrize("phase", [Phase.SPEC_REVIEW, Phase.DESIGN_REVIEW])
+@pytest.mark.parametrize("autonomy", [Autonomy(False, True, False), Autonomy(True, False, False)])
+def test_a_reviewer_of_work_that_skips_a_stop_decides_what_the_author_can_decide(
+    phase: Phase, autonomy: Autonomy
+) -> None:
+    prompt = _prompt_of(phase, autonomy)
+    assert "Do not answer ESCALATE for a choice that the author can make" in prompt
+    assert "ask for it with CHANGES" in prompt
+
+
+def test_no_such_note_for_work_that_stops_everywhere_that_proceeds_on_deadlock_or_for_other_steps() -> None:
+    marker = "Do not answer ESCALATE"
+    assert marker not in _prompt_of(Phase.SPEC_REVIEW, Autonomy.strictest())
+    assert marker not in _prompt_of(Phase.SPEC_REVIEW, Autonomy(False, True, True))
+    assert "Nobody is available to answer" in _prompt_of(Phase.SPEC_REVIEW, Autonomy(False, True, True))
+    assert marker not in _prompt_of(Phase.CODE_REVIEW, Autonomy(False, True, False))
+    assert marker not in _prompt_of(Phase.IMPLEMENT, Autonomy(False, True, False))
+
+
 async def test_an_agent_is_told_where_the_lasting_results_go() -> None:
     agents = FakeAgents()
     await steps(agents).run(NEED, RunStep(Phase.DESIGN, 0, ""))

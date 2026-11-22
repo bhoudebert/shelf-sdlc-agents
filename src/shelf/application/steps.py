@@ -104,6 +104,14 @@ UNATTENDED_NOTE = (
     "reviewer states plainly any point it cannot settle: it is handed to the person with the pull request."
 )
 
+ALONE_REVIEWER_NOTE = (
+    "The person who started this work asked for it to go on without them wherever it can. Do not answer ESCALATE for a "
+    "choice that the author can make from the request and the repository, even a trade-off between two designs: "
+    "recommend one option, ask for it with CHANGES, and the author will record the choice under an `Assumptions` "
+    "heading. Keep ESCALATE for what nobody here can decide: a contradiction of the request, a fact that is not in "
+    "the repository, money or access."
+)
+
 
 def branch_of(work: WorkContext) -> str:
     """The branch the work lives on."""
@@ -119,6 +127,17 @@ def adopted_note(number: int | None, base: str) -> str:
         "fix what breaks. You have no credentials and need none: you do not push, the system does, replacing the "
         "branch only if nobody pushed to it in the meantime. After a rebase, run the project's own checks. The "
         "repository's CI runs on what is pushed, and the checks wait for it."
+    )
+
+
+def _reviews_alone(work: WorkContext, phase: Phase) -> bool:
+    """Whether this is a spec or design review of work that skips a stop but does not go on past a deadlock."""
+    chosen = work.request.autonomy
+    return (
+        phase in (Phase.SPEC_REVIEW, Phase.DESIGN_REVIEW)
+        and chosen is not None
+        and not chosen.proceed_on_deadlock
+        and (not chosen.spec_approval or not chosen.design_review)
     )
 
 
@@ -312,6 +331,8 @@ def task_prompt(  # noqa: PLR0913
         lines += ["", "The request:", work.request.text]
     if work.request.autonomy and work.request.autonomy.proceed_on_deadlock:
         lines += ["", UNATTENDED_NOTE]
+    elif _reviews_alone(work, step.phase):
+        lines += ["", ALONE_REVIEWER_NOTE]
     if step.feedback:
         lines += ["", f"This is round {step.attempt}. Address this feedback first:", step.feedback]
     if step.phase in REVIEWERS or role.name == "architect":
