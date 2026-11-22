@@ -239,3 +239,12 @@ The system SHALL name the autonomous policy (no spec approval, a design review, 
 
 - **WHEN** a work skips the spec approval and its answer is `ask` or `arbitrate-ask`
 - **THEN** the reviewers of its spec and design are told to decide what the author can decide
+
+### Requirement: Protocol 14 puts what was settled without the person in the ask for the merge
+
+The system SHALL start new work with protocol 14, under which the ask for the merge says what was settled without the person; work of earlier protocols keeps its behaviour.
+
+#### Scenario: A course of protocol 13
+
+- **WHEN** a course of protocol 13 reaches the merge
+- **THEN** it does not ask for the section

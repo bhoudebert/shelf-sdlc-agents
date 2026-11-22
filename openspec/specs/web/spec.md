@@ -1098,9 +1098,9 @@ The system SHALL show a work that waits for a person at a disagreement as a deci
 - **WHEN** a work that waits at a disagreement has no arbitration
 - **THEN** the card still asks the question from what is open, shows it in short and offers the buttons that apply
 
-### Requirement: The merge view and the pull request say what was settled without the person
+### Requirement: The merge view says what was settled without the person
 
-The system SHALL end the pull request description and the work page, when the work is ready to merge, with a section "Settled without you" that lists every arbitration (phase, verdict, one line of why, a link), every open point passed on and every assumption an agent recorded, and SHALL mark an `OVERRULE` and a passed deadlock as to check before merging.
+The system SHALL show on the work page a section "Settled without you" that lists, from the decision log, the conversation and the documents of the work, every arbitration that fixed or overruled (step, one line of why), every disagreement the work went on past and every assumption an agent wrote under an `Assumptions` heading, SHALL mark an overrule and a disagreement passed on as to check before merging and list them first, SHALL leave an escalation a person settled out, and SHALL say plainly when nothing was settled. The section is hidden before the merge when it has nothing to say.
 
 #### Scenario: Ready to merge after an overrule
 

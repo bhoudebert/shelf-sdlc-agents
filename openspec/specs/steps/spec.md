@@ -1707,3 +1707,17 @@ The system SHALL tell the arbitrator that an `ESCALATE` carries a line `Question
 
 - **WHEN** the arbitrator ends with `ESCALATE` and writes neither line
 - **THEN** the card asks the first line of its text and offers no recommendation button
+
+### Requirement: The merge announcement carries what was settled without the person
+
+The system SHALL build, from the work's documents and the conversation of its pull request, the section "Settled without you" (arbitrations that fixed or overruled, disagreements passed on, assumptions), put it as the detail of the ask for the merge, and never let a story it cannot read hold the ask back.
+
+#### Scenario: Something was overruled
+
+- **WHEN** the work reaches the merge after an arbitrator overruled a reviewer
+- **THEN** the ask for the merge on the pull request lists it, marked to check before merging
+
+#### Scenario: The documents cannot be read
+
+- **WHEN** GitHub refuses the documents at the merge
+- **THEN** the ask for the merge is posted without the section

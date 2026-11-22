@@ -986,3 +986,12 @@ The system SHALL accept `SHELF_MODEL_ARBITRATOR` among the per-role model settin
 
 - **WHEN** the environment file sets `SHELF_MODEL_ARBITRATOR`
 - **THEN** the service starts and the arbitrator uses that model
+
+### Requirement: The worker reads the documents of a work from GitHub at the merge
+
+The system SHALL give the worker its own, uncached, read of a work's documents, so that the section at the merge shows the decision log as it is when the person is asked, and SHALL let a failed read leave the section out.
+
+#### Scenario: A decision log written seconds ago
+
+- **WHEN** an arbitration is recorded just before the work asks for the merge
+- **THEN** the section lists it
