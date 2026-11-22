@@ -33,6 +33,17 @@ class DecisionKind(StrEnum):
     ABORT = auto()
 
 
+class ArbitrationVerdict(StrEnum):
+    """What an arbitrator concludes about a disagreement (ADR 0021)."""
+
+    FIX = auto()
+    """The reviewer is right: the author is sent back with the arbitrator's instructions."""
+    OVERRULE = auto()
+    """The reviewer is wrong or out of scope: the work goes on."""
+    ESCALATE = auto()
+    """Only a person can decide, or no evidence settles it."""
+
+
 class Reason(StrEnum):
     """Why a person is being asked."""
 
@@ -89,10 +100,21 @@ class Verified:
     """The repository's CI has not finished: look again later, without counting a round."""
 
 
+@dataclass(frozen=True, slots=True)
+class Arbitrated:
+    """An arbitrator settled a disagreement, or said that it cannot."""
+
+    verdict: ArbitrationVerdict
+    text: str = ""
+    """The instructions of a fix, the evidence of an overrule, or the brief for a person."""
+    usage: Usage | None = None
+    session: str = ""
+
+
 WAITING_FOR_CI = "waiting for CI"
 """The feedback of a checks step that only looks at the CI again: the local commands already passed."""
 
-type StepResult = Produced | Reviewed | Verified
+type StepResult = Produced | Reviewed | Verified | Arbitrated
 
 
 # Events: what happens to a piece of work.
@@ -147,6 +169,17 @@ class Running:
     """How many times in a row the checks failed that way."""
     fixes: int = 0
     """How many times the checks sent the work back: those rounds are not the code review's."""
+    arbitrated: tuple[Phase, ...] = ()
+    """The phases whose deadlock an arbitrator already looked at: it looks at each once (ADR 0021)."""
+
+
+@dataclass(frozen=True, slots=True)
+class Arbitrating:
+    """An arbitrator is reading a disagreement; ``was`` is where the work stood when it began."""
+
+    was: Running
+    issues: str
+    blocking: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,7 +198,7 @@ class Finished:
     outcome: Outcome
 
 
-type State = Running | AwaitingPerson | Finished
+type State = Running | Arbitrating | AwaitingPerson | Finished
 
 
 # Commands: what the world must do next.
@@ -180,6 +213,8 @@ class RunStep:
     feedback: str
     session: str = ""
     """The agent's session from an earlier round, to continue; empty when it has none."""
+    arbitrates: bool = False
+    """Only inside the application: this run is the arbitrator's, about the disagreement of ``phase``."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -225,7 +260,34 @@ class NoteOpenPoints:
     issues: str
 
 
-type Command = RunStep | AskPerson | CancelStep | PublishPullRequest | SetPullRequestReady | Conclude | NoteOpenPoints
+@dataclass(frozen=True, slots=True)
+class Arbitrate:
+    """Run the arbitrator on the disagreement of ``phase``, with the issues that could not be settled."""
+
+    phase: Phase
+    issues: str
+
+
+@dataclass(frozen=True, slots=True)
+class RecordArbitration:
+    """Write an arbitration into the decision log of the work, and say it on the pull request."""
+
+    phase: Phase
+    verdict: ArbitrationVerdict
+    text: str
+
+
+type Command = (
+    RunStep
+    | AskPerson
+    | CancelStep
+    | PublishPullRequest
+    | SetPullRequestReady
+    | Conclude
+    | NoteOpenPoints
+    | Arbitrate
+    | RecordArbitration
+)
 
 
 class Transition(NamedTuple):
@@ -250,6 +312,8 @@ def decide(course: Course, state: State, event: Event) -> Transition:
             return Transition(state)
         case Running():
             return _when_running(course, state, event)
+        case Arbitrating():
+            return _when_arbitrating(course, state, event)
         case AwaitingPerson():
             return _when_waiting(course, state, event)
         case _ as unreachable:
@@ -259,7 +323,8 @@ def decide(course: Course, state: State, event: Event) -> Transition:
 def _when_running(course: Course, state: Running, event: Event) -> Transition:
     match event:
         case StepDone(result):
-            return _with_publication(course, state, _remembering(course, state, _after_step(course, state, result)))
+            moved = _remembering(course, state, _after_step(course, state, result))
+            return _with_publication(course, state, _carrying_arbitrations(state, moved))
         case StepFailed(reason):
             return _ask(state.phase, Reason.FAILURE, reason)
         case PersonDecided(kind=DecisionKind.ABORT):
@@ -302,6 +367,63 @@ def _remembering(course: Course, state: Running, moved: Transition) -> Transitio
     return Transition(replace(after, **keep), moved.commands)
 
 
+def _carrying_arbitrations(state: Running, moved: Transition) -> Transition:
+    """Keep, across the phases, which deadlocks an arbitrator already looked at."""
+    if not state.arbitrated or not isinstance(moved.state, Running) or moved.state.arbitrated:
+        return moved
+    return Transition(replace(moved.state, arbitrated=state.arbitrated), moved.commands)
+
+
+def _when_arbitrating(course: Course, state: Arbitrating, event: Event) -> Transition:
+    """What follows while an arbitrator reads a disagreement: its verdict, or the same ends as for a running step."""
+    was = state.was
+    match event:
+        case StepDone(Arbitrated(verdict, text)):
+            return _after_arbitration(course, state, verdict, text)
+        case StepFailed():
+            return _unsettled(course, was.phase, state.issues, blocking=state.blocking)
+        case PersonDecided(kind=DecisionKind.ABORT):
+            return _stop(was.phase, Outcome.ABORTED)
+        case PersonDecided(kind=DecisionKind.REJECT):
+            return _stop(was.phase, Outcome.CLOSED)
+        case PullRequestClosed(merged):
+            return _stop(was.phase, _closed(merged=merged))
+        case StepDone() | PersonDecided():
+            return Transition(state)
+        case _ as unreachable:
+            assert_never(unreachable)
+
+
+FIX_PREFIX = (
+    "An arbitrator settled the disagreement and found the reviewer right. Do exactly what follows, as your only task. "
+    "Run each proof it names and report its result in your answer."
+)
+
+
+def _after_arbitration(course: Course, state: Arbitrating, verdict: ArbitrationVerdict, text: str) -> Transition:
+    was = state.was
+    phase = was.phase
+    done = (*was.arbitrated, phase)
+    record = RecordArbitration(phase, verdict, text)
+    if verdict is ArbitrationVerdict.OVERRULE and KIND[phase] is not Kind.REVIEW:
+        verdict = ArbitrationVerdict.ESCALATE  # a failing check is never overruled
+    match verdict:
+        case ArbitrationVerdict.FIX:
+            back = _enter(course, LOOP_BACK[phase], was.attempt + 1, f"{FIX_PREFIX}\n\n{text}")
+            if isinstance(back.state, Running):
+                carried = replace(back.state, failed=was.failed, same=was.same, fixes=was.fixes, arbitrated=done)
+                back = Transition(carried, back.commands)
+            return Transition(back.state, (record, *back.commands))
+        case ArbitrationVerdict.OVERRULE:
+            moved = _advance(course, phase, 0)
+            if isinstance(moved.state, Running):
+                moved = Transition(replace(moved.state, arbitrated=done), moved.commands)
+            return Transition(moved.state, (record, *moved.commands))
+        case ArbitrationVerdict.ESCALATE:
+            unsettled = _unsettled(course, phase, state.issues, blocking=state.blocking, brief=text)
+            return Transition(unsettled.state, (record, *unsettled.commands))
+
+
 def _with_publication(course: Course, state: Running, transition: Transition) -> Transition:
     """Open the pull request as soon as the first step is done, so that everything after it happens in the open.
 
@@ -326,7 +448,7 @@ def _after_step(course: Course, state: Running, result: StepResult) -> Transitio
         case Kind.REVIEW, Reviewed(Verdict.CHANGES, issues) as review:
             return _send_back(course, state, issues, review)
         case Kind.REVIEW, Reviewed(Verdict.ESCALATE, issues, blocking=blocking):
-            return _deadlocked(course, state.phase, issues, blocking=blocking)
+            return _deadlocked(course, state, issues, blocking=blocking)
         case Kind.VERIFY | Kind.MERGE, Verified() as seen:
             return _after_checks(course, state, seen)
         case _:
@@ -357,10 +479,10 @@ def _send_checks_back(course: Course, state: Running, report: str) -> Transition
     fixes = state.fixes + 1
     if same >= CHECK_REPEATS:
         detail = f"the checks failed the same way {same} times in a row:\n{report}"
-        return _deadlocked(course, state.phase, detail)
+        return _deadlocked(course, state, detail)
     limit = course.max_rounds * CHECK_CEILING
     if fixes >= limit:
-        return _deadlocked(course, state.phase, f"limit of {limit} rounds reached:\n{report}")
+        return _deadlocked(course, state, f"limit of {limit} rounds reached:\n{report}")
     back = _enter(course, LOOP_BACK[state.phase], state.attempt + 1, report)
     if isinstance(back.state, Running):
         back = Transition(replace(back.state, failed=failed, same=same, fixes=fixes), back.commands)
@@ -449,11 +571,11 @@ def _send_back(course: Course, state: Running, feedback: str, review: Reviewed |
     blocking = review.blocking if review else True
     if review and judges and review.repeated > 0:
         detail = f"the reviewer and the author disagree, {review.repeated} point(s) came back:\n{feedback}"
-        return _deadlocked(course, state.phase, detail, blocking=blocking)
+        return _deadlocked(course, state, detail, blocking=blocking)
     limit = course.max_rounds * 2 if judges else course.max_rounds
     used = state.attempt - state.fixes if course.judges_check_loops else state.attempt
     if used >= limit:
-        return _deadlocked(course, state.phase, f"limit of {limit} rounds reached:\n{feedback}", blocking=blocking)
+        return _deadlocked(course, state, f"limit of {limit} rounds reached:\n{feedback}", blocking=blocking)
     return _enter(course, LOOP_BACK[state.phase], state.attempt + 1, feedback)
 
 
@@ -461,13 +583,29 @@ PASSABLE = frozenset({Phase.SPEC_REVIEW, Phase.DESIGN_REVIEW})
 """The reviews of documents: the only ones whose open issues may be passed on. Code review and checks never are."""
 
 
-def _deadlocked(course: Course, phase: Phase, issues: str, *, blocking: bool = True) -> Transition:
-    """A review cannot settle: a person is asked, unless the work may go on, and then its open issues are noted."""
-    minor_code_review = course.judges_review_loops and phase is Phase.CODE_REVIEW and not blocking
-    if minor_code_review or (course.proceeds_on_deadlock and phase in PASSABLE):
+def _minor(course: Course, phase: Phase, *, blocking: bool) -> bool:
+    """Whether a code review's open points are all minor: the work goes on, with nobody asked and nothing to settle."""
+    return course.judges_review_loops and phase is Phase.CODE_REVIEW and not blocking
+
+
+def _deadlocked(course: Course, state: Running, issues: str, *, blocking: bool = True) -> Transition:
+    """A review cannot settle: an arbitrator reads it first when the work asked for one, once for each phase."""
+    phase = state.phase
+    if course.arbitrates and phase not in state.arbitrated and not _minor(course, phase, blocking=blocking):
+        return Transition(Arbitrating(state, issues, blocking), (Arbitrate(phase, issues),))
+    return _unsettled(course, phase, issues, blocking=blocking)
+
+
+def _unsettled(course: Course, phase: Phase, issues: str, *, blocking: bool = True, brief: str = "") -> Transition:
+    """A disagreement nobody settled: a person is asked, unless the work may go on, and then its open issues are noted.
+
+    ``brief`` is what the arbitrator said when it could not decide: the person, or the pull request, gets it first.
+    """
+    said = f"{brief}\n\n---\nThe dispute:\n{issues}" if brief else issues
+    if _minor(course, phase, blocking=blocking) or (course.proceeds_on_deadlock and phase in PASSABLE):
         moved = _advance(course, phase, 0)
-        return Transition(moved.state, (NoteOpenPoints(phase, issues), *moved.commands))
-    return _ask(phase, Reason.ESCALATION, issues)
+        return Transition(moved.state, (NoteOpenPoints(phase, said), *moved.commands))
+    return _ask(phase, Reason.ESCALATION, said)
 
 
 def _ask(phase: Phase, reason: Reason, detail: str) -> Transition:

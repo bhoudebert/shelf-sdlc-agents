@@ -1,9 +1,33 @@
 """How a piece of work is configured to run, and the course that results for an entry point."""
 
 from dataclasses import dataclass, replace
+from enum import StrEnum
 
 from shelf.domain.pipeline import FIRST_PHASE, PIPELINE, EntryPoint, Phase
 from shelf.domain.review import ReviewDepth
+
+
+class DeadlockMode(StrEnum):
+    """What happens when a reviewer and its author cannot agree (ADR 0021)."""
+
+    ASK = "ask"
+    """A person is asked."""
+    ARBITRATE_ASK = "arbitrate-ask"
+    """An arbitrator decides; a person is asked only when it cannot."""
+    ARBITRATE_GO = "arbitrate-go"
+    """An arbitrator decides; when it cannot, the work goes on where the phase may be passed."""
+    GO = "go"
+    """Nobody settles it: the work goes on and the open points are posted (ADR 0013)."""
+
+    @property
+    def arbitrates(self) -> bool:
+        """Whether an arbitrator is asked first."""
+        return self in (DeadlockMode.ARBITRATE_ASK, DeadlockMode.ARBITRATE_GO)
+
+    @property
+    def goes_on(self) -> bool:
+        """Whether a deadlock that stays unsettled lets the work go on, where the phase may be passed."""
+        return self in (DeadlockMode.ARBITRATE_GO, DeadlockMode.GO)
 
 
 @dataclass(frozen=True, slots=True)
@@ -22,6 +46,15 @@ class Policy:
     """How hard the spec review looks."""
     design_review_depth: ReviewDepth = ReviewDepth.STANDARD
     """How hard the design review looks."""
+    on_deadlock: DeadlockMode | None = None
+    """What happens when a reviewer and its author cannot agree; ``None`` reads ``proceed_on_deadlock`` (ADR 0021)."""
+
+    @property
+    def deadlock_mode(self) -> DeadlockMode:
+        """The answer chosen to a disagreement, else ``go`` when ``proceed_on_deadlock`` is set, else ``ask``."""
+        if self.on_deadlock is not None:
+            return self.on_deadlock
+        return DeadlockMode.GO if self.proceed_on_deadlock else DeadlockMode.ASK
 
     def removed_stops(self) -> tuple[str, ...]:
         """The stops a person is not asked at, by name: ``spec``, ``design`` and ``deadlock``."""
@@ -30,7 +63,7 @@ class Policy:
             for name, removed in (
                 ("spec", not self.spec_approval),
                 ("design", not self.design_review),
-                ("deadlock", self.proceed_on_deadlock),
+                ("deadlock", self.deadlock_mode.goes_on),
             )
             if removed
         )
@@ -53,6 +86,8 @@ class Autonomy:
     """How deep the spec review looks for this work; ``None`` leaves it to the repository's file."""
     design_review_depth: ReviewDepth | None = None
     """How deep the design review looks for this work; ``None`` leaves it to the repository's file."""
+    on_deadlock: DeadlockMode | None = None
+    """What happens at a disagreement for this work; ``None`` reads ``proceed_on_deadlock`` (ADR 0021)."""
 
     @classmethod
     def strictest(cls) -> "Autonomy":
@@ -68,6 +103,7 @@ class Autonomy:
             policy.proceed_on_deadlock,
             policy.spec_review_depth,
             policy.design_review_depth,
+            policy.on_deadlock,
         )
 
     def over(self, policy: Policy) -> Policy:
@@ -77,6 +113,7 @@ class Autonomy:
             spec_approval=self.spec_approval,
             design_review=self.design_review,
             proceed_on_deadlock=self.proceed_on_deadlock,
+            on_deadlock=self.on_deadlock,
             spec_review_depth=self.spec_review_depth or policy.spec_review_depth,
             design_review_depth=self.design_review_depth or policy.design_review_depth,
         )
@@ -84,7 +121,12 @@ class Autonomy:
     @property
     def removes_a_stop(self) -> bool:
         """Whether this asks a person less than the strictest choice does."""
-        return not self.spec_approval or not self.design_review or self.proceed_on_deadlock
+        return (
+            not self.spec_approval
+            or not self.design_review
+            or self.proceed_on_deadlock
+            or (self.on_deadlock is not None and self.on_deadlock is not DeadlockMode.ASK)
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,6 +141,8 @@ class Course:
     """True when the work changes the branch of a pull request that already exists (protocol 5 and later)."""
     proceeds_on_deadlock: bool = False
     """True when a spec or design review that cannot settle lets the work go on, its open issues posted."""
+    deadlock: DeadlockMode = DeadlockMode.ASK
+    """What the person who started the work asked for at a disagreement (ADR 0021; read from protocol 13)."""
     protocol: int = 1
     """How this piece of work behaves, fixed when it starts. Work already running keeps the behaviour it started with,
     so a new release never changes what a replayed history does: see ``CURRENT_PROTOCOL``."""
@@ -159,6 +203,11 @@ class Course:
         return self.protocol >= JUDGES_CHECK_LOOPS
 
     @property
+    def arbitrates(self) -> bool:
+        """Whether a deadlock goes to an arbitrator before a person or the end of the loop (protocol 13)."""
+        return self.protocol >= ARBITRATES and self.deadlock.arbitrates
+
+    @property
     def looks_at_ci_before_merge(self) -> bool:
         """Whether the CI is looked at again once the pull request is ready, before a person is asked (protocol 11)."""
         return self.protocol >= LOOKS_AT_CI_BEFORE_MERGE and self.readies_pull_request
@@ -169,7 +218,7 @@ class Course:
         return self.opens_early and (self.publishes_pull_request or self.adopts_pull_request)
 
 
-CURRENT_PROTOCOL = 12
+CURRENT_PROTOCOL = 13
 """The behaviour new work starts with. Raise it, and gate the new behaviour on it, whenever a change would alter what
 the workflow does for a history recorded before: protocol 1 is the original behaviour, which old work keeps."""
 
@@ -219,6 +268,10 @@ JUDGES_CHECK_LOOPS = 12
 asked when the same one comes back three times in a row, or at ten times the maximum number of rounds."""
 
 
+ARBITRATES = 13
+"""The protocol under which a deadlock goes to an arbitrator first, when the work asks for one (ADR 0021)."""
+
+
 def course_for(entry: EntryPoint, policy: Policy, protocol: int = CURRENT_PROTOCOL) -> Course:
     """Build the course for ``entry``: the pipeline from its first phase, minus what the policy turns off."""
     skipped = {
@@ -235,6 +288,7 @@ def course_for(entry: EntryPoint, policy: Policy, protocol: int = CURRENT_PROTOC
         max_rounds=policy.max_rounds,
         publishes_pull_request=entry not in (EntryPoint.PULL_REQUEST_REVIEW, EntryPoint.PULL_REQUEST_WORK),
         adopts_pull_request=entry is EntryPoint.PULL_REQUEST_WORK,
-        proceeds_on_deadlock=policy.proceed_on_deadlock,
+        proceeds_on_deadlock=policy.deadlock_mode.goes_on,
+        deadlock=policy.deadlock_mode,
         protocol=protocol,
     )

@@ -4,6 +4,7 @@ from shelf.adapters.config.toml_files import ConfigError, parse_operator, parse_
 from shelf.domain.access import AccessRules
 from shelf.domain.config import Role
 from shelf.domain.pipeline import EntryPoint
+from shelf.domain.policy import DeadlockMode
 from shelf.domain.polling import Mode
 
 
@@ -168,3 +169,11 @@ def test_the_two_reviews_can_have_different_depths() -> None:
 def test_a_review_depth_that_is_not_known_is_refused_with_the_choices() -> None:
     with pytest.raises(ConfigError, match="design_review_depth must be one of quick, standard, thorough"):
         parse_repo_config('[policy]\ndesign_review_depth = "deep"')
+
+
+def test_on_deadlock_names_what_happens_at_a_disagreement() -> None:
+    assert parse_repo_config("[policy]\non_deadlock = 'arbitrate-go'").policy.on_deadlock is DeadlockMode.ARBITRATE_GO
+    assert parse_repo_config("").policy.on_deadlock is None
+    assert parse_repo_config("[policy]\nproceed_on_deadlock = true").policy.deadlock_mode is DeadlockMode.GO
+    with pytest.raises(ConfigError, match="on_deadlock must be one of ask, arbitrate-ask, arbitrate-go, go"):
+        parse_repo_config("[policy]\non_deadlock = 'sometimes'")

@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 
 from shelf.domain.pipeline import Phase
 from shelf.domain.stage import RUNNING_NAMES
-from shelf.domain.work import Outcome, Produced, Reason, Reviewed, StepResult, Verdict, Verified
+from shelf.domain.work import Arbitrated, Outcome, Produced, Reason, Reviewed, StepResult, Verdict, Verified
 
 MARK = "<!-- shelf-progress:"
 TITLE = "### shelf-sdlc: progress"
@@ -64,13 +64,17 @@ def describe(result: StepResult, attempt: int) -> str:
             return f"waiting for CI{suffix}"
         case Verified(passed):
             return f"{'passed' if passed else 'failed'}{suffix}"
+        case Arbitrated(verdict):
+            return f"arbitrator: {verdict}{suffix}"
 
 
 def _symbol(text: str) -> str:
     if text.startswith(("approved", "passed", "written", "you: approve")):
         return "✅"
-    if text.startswith(("asked for changes", "failed", "you: changes")):
+    if text.startswith(("asked for changes", "failed", "you: changes", "arbitrator: fix")):
         return "🔁"
+    if text.startswith("arbitrator: overrule"):
+        return "⚖️"
     if text.startswith("waiting for CI"):
         return "⏳"
     return "⚠️"
