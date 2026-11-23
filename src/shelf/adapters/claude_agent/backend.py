@@ -22,7 +22,7 @@ from claude_agent_sdk.types import SandboxSettings
 from shelf.domain.runlog import ToolEvent, redact, result_note, tool_summary
 from shelf.domain.secrets import hidden_from_agents
 from shelf.domain.usage import Usage
-from shelf.ports.agents import AgentTask, RunSink
+from shelf.ports.agents import AgentTask, RunSink, go_on_after_turns
 
 log = logging.getLogger(__name__)
 
@@ -173,13 +173,13 @@ class ClaudeBackend:
         """Run ``task`` and return the final answer; a session that cannot be continued starts again from scratch."""
         if task.resume:
             try:
-                return await self._run_once(task)
+                return await go_on_after_turns(self._run_once, task)
             except Exception as error:  # noqa: BLE001 - whatever stopped the continuation, the step must still run
                 log.warning("could not continue the session of %s (%s): starting again", task.role.name, error)
                 if task.sink is not None:
                     task.sink.fell_back = True
                 task = replace(task, resume="", prompt=task.fallback_prompt or task.prompt)
-        return await self._run_once(task)
+        return await go_on_after_turns(self._run_once, task)
 
     async def _run_once(self, task: AgentTask) -> str:
         try:

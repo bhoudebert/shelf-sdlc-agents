@@ -1721,3 +1721,24 @@ The system SHALL build, from the work's documents and the conversation of its pu
 
 - **WHEN** GitHub refuses the documents at the merge
 - **THEN** the ask for the merge is posted without the section
+
+### Requirement: An agent that runs out of turns goes on in its own session
+
+The system SHALL, when an agent run ends because it used all its turns (`error_max_turns`) and the run has a session, ask the same agent once more, in that session, to go on from where it stopped, and SHALL add what both runs used to the record of the step. A second run that also ends without an answer fails the step as any other failure. The turn limit SHALL be settable for each agent role with `SHELF_MAX_TURNS_<ROLE>` (the role's name in capitals, as for the models), and the implementer's limit SHALL be 100 when nothing is set; the other roles keep `SHELF_MAX_TURNS`.
+
+#### Scenario: The implementer uses its turns
+
+- **WHEN** an implementer run ends with `error_max_turns` and a session
+- **THEN** the agent is asked to go on in that session and the work it did is kept
+- **AND** the step's usage is the sum of both runs
+
+#### Scenario: The second run runs out too
+
+- **WHEN** the continued run also ends with `error_max_turns`
+- **THEN** the step fails and a person is asked, as for any failed step
+
+#### Scenario: A role has its own limit
+
+- **WHEN** `SHELF_MAX_TURNS_CODE_REVIEWER` is set to 20 and `SHELF_MAX_TURNS` to 40
+- **THEN** the code reviewer may take 20 turns and the other roles 40, except the implementer, which takes 100
+
