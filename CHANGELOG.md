@@ -1,5 +1,58 @@
 # Changelog
 
+## [0.3.0](https://github.com/bhoudebert/shelf-sdlc-agents/compare/v0.2.0...v0.3.0) (2026-11-23)
+
+
+### Features
+
+* **deploy:** a host script that prepares the runtime for Docker in steps ([#199](https://github.com/bhoudebert/shelf-sdlc-agents/issues/199)) ([359eaf6](https://github.com/bhoudebert/shelf-sdlc-agents/commit/359eaf6ec2805166a764c3c9d24d349f7ba5f70d))
+* **steps:** a container step reports as versioned lines, read by a backend against a fake runner ([#188](https://github.com/bhoudebert/shelf-sdlc-agents/issues/188)) ([e228871](https://github.com/bhoudebert/shelf-sdlc-agents/commit/e228871425386d43ad0f40531c79864265e576b0))
+* **steps:** a step that runs repository code can have a Docker daemon of its own ([#200](https://github.com/bhoudebert/shelf-sdlc-agents/issues/200)) ([95d80ea](https://github.com/bhoudebert/shelf-sdlc-agents/commit/95d80eac098d0b8379c3f7ce3381e1cdd802febb))
+* **steps:** container mode gets its clone, tools, sessions and policy volumes (3a) ([#191](https://github.com/bhoudebert/shelf-sdlc-agents/issues/191)) ([2e774ae](https://github.com/bhoudebert/shelf-sdlc-agents/commit/2e774aebe9d9038c6a8c68df81141f36ff583759))
+* **steps:** give each role its turn limit and go on after running out of turns ([#230](https://github.com/bhoudebert/shelf-sdlc-agents/issues/230)) ([4f821d4](https://github.com/bhoudebert/shelf-sdlc-agents/commit/4f821d4ce5e03d527741e7a8511bf1b992dd3e25))
+* **steps:** in container mode the repository's checks run as steps of their own ([#203](https://github.com/bhoudebert/shelf-sdlc-agents/issues/203)) ([8150d92](https://github.com/bhoudebert/shelf-sdlc-agents/commit/8150d9299493e0cc6378d20c5ac2f262a1aa241f))
+* **steps:** let each agent role have a model of its own ([#219](https://github.com/bhoudebert/shelf-sdlc-agents/issues/219)) ([c965cc1](https://github.com/bhoudebert/shelf-sdlc-agents/commit/c965cc187f3e8e935b2607d66c9bcd32ec27a0db))
+* **steps:** the runner service starts each step in a container it builds itself ([#189](https://github.com/bhoudebert/shelf-sdlc-agents/issues/189)) ([8e024e9](https://github.com/bhoudebert/shelf-sdlc-agents/commit/8e024e9ad622a7433c2d71c98a1d0feab4cc096f))
+* **web:** one question about a disagreement, depth sliders, autonomous defaults ([#227](https://github.com/bhoudebert/shelf-sdlc-agents/issues/227)) ([2206e9d](https://github.com/bhoudebert/shelf-sdlc-agents/commit/2206e9d8021445e15c7f1ac4ae3814ac2dd9cb20))
+* **web:** say what was settled without the person before the merge ([#229](https://github.com/bhoudebert/shelf-sdlc-agents/issues/229)) ([83f370d](https://github.com/bhoudebert/shelf-sdlc-agents/commit/83f370dff71f6dc97fcd72e826813be2c78a58dd))
+* **web:** show a disagreement as a decision card, and announce it as a question ([#228](https://github.com/bhoudebert/shelf-sdlc-agents/issues/228)) ([f24e10d](https://github.com/bhoudebert/shelf-sdlc-agents/commit/f24e10d5bb7a5ea92f545a9579511628b04600e3))
+* **work:** arbitrate a deadlock before a person is asked ([#224](https://github.com/bhoudebert/shelf-sdlc-agents/issues/224)) ([ab066e4](https://github.com/bhoudebert/shelf-sdlc-agents/commit/ab066e425fe9bb9eddae78774e03321d89afddc0))
+* **work:** keep the checks loop going while its failure changes, ask when it repeats ([#216](https://github.com/bhoudebert/shelf-sdlc-agents/issues/216)) ([b85f199](https://github.com/bhoudebert/shelf-sdlc-agents/commit/b85f199ea9dfa7a5e52f1638ce9b709be7880762))
+
+
+### Bug fixes
+
+* **deploy:** make /proc/sys writable for a step's daemon, and climb the profiles to full ([#202](https://github.com/bhoudebert/shelf-sdlc-agents/issues/202)) ([312b901](https://github.com/bhoudebert/shelf-sdlc-agents/commit/312b901b1493c2771e61b0585036739599012f19))
+* **deploy:** prove again the stored step resolvers at every install and stop when they fail ([#217](https://github.com/bhoudebert/shelf-sdlc-agents/issues/217)) ([7aa7cb1](https://github.com/bhoudebert/shelf-sdlc-agents/commit/7aa7cb1f4ac9ada6c68da27b67941cb245d7c130))
+* **deploy:** prove Docker in a step the way the runner starts it, and find the host's profile ([#201](https://github.com/bhoudebert/shelf-sdlc-agents/issues/201)) ([ffcd53e](https://github.com/bhoudebert/shelf-sdlc-agents/commit/ffcd53e7c4f0c8e37cdf49270686d8e964f397d6))
+* **deploy:** prove exec, health and a published port on the host, as a check needs them ([#208](https://github.com/bhoudebert/shelf-sdlc-agents/issues/208)) ([7b6b0e6](https://github.com/bhoudebert/shelf-sdlc-agents/commit/7b6b0e6470cc5d23740fd4060fb5bff8c997b565))
+* **deploy:** run the Docker the host proved in a step, and prove the host in the step image ([#209](https://github.com/bhoudebert/shelf-sdlc-agents/issues/209)) ([1149ed3](https://github.com/bhoudebert/shelf-sdlc-agents/commit/1149ed3a3a94dd4bf35f3c5d718d886ff96ab000))
+* **deploy:** the clone and session folders belong to the agent user in the image ([#195](https://github.com/bhoudebert/shelf-sdlc-agents/issues/195)) ([3f0f56a](https://github.com/bhoudebert/shelf-sdlc-agents/commit/3f0f56a3d9535ce0b0471c21a0706ec23a20fbae))
+* **deploy:** the container overlay parses, and a Compose file it cannot read is reported ([#193](https://github.com/bhoudebert/shelf-sdlc-agents/issues/193)) ([f34cd44](https://github.com/bhoudebert/shelf-sdlc-agents/commit/f34cd44383e7b70e1182d4c9919f31b3f0aa5456))
+* **deploy:** the web service starts in container mode and holds no key to the runner ([#194](https://github.com/bhoudebert/shelf-sdlc-agents/issues/194)) ([7cc664f](https://github.com/bhoudebert/shelf-sdlc-agents/commit/7cc664f5d0fc37ff1f7d568d135fffa1da4273b3))
+* **steps:** a container step gets the model credential the worker was given ([#196](https://github.com/bhoudebert/shelf-sdlc-agents/issues/196)) ([d08cc13](https://github.com/bhoudebert/shelf-sdlc-agents/commit/d08cc136b642801b617fb8d27eca119e01c44db3))
+* **steps:** give a step the one JDK the worker installed as JAVA_HOME ([#214](https://github.com/bhoudebert/shelf-sdlc-agents/issues/214)) ([e55c56f](https://github.com/bhoudebert/shelf-sdlc-agents/commit/e55c56f013328c9a012b0e8d5b62bda349578e91))
+* **steps:** give a step with Docker real resolvers, found and proved on the host ([#204](https://github.com/bhoudebert/shelf-sdlc-agents/issues/204)) ([34f7266](https://github.com/bhoudebert/shelf-sdlc-agents/commit/34f7266fdadbb775a499dc3cabed023510326394))
+* **steps:** keep a step's Docker storage in memory, and say what the containers said on failure ([#207](https://github.com/bhoudebert/shelf-sdlc-agents/issues/207)) ([1b0bbe5](https://github.com/bhoudebert/shelf-sdlc-agents/commit/1b0bbe5249a6cf9ffeea4ef376d7f7076ac986c3))
+* **steps:** let a step enter containers that dropped their privileges, and prove it with a database ([#212](https://github.com/bhoudebert/shelf-sdlc-agents/issues/212)) ([a436c7d](https://github.com/bhoudebert/shelf-sdlc-agents/commit/a436c7dd0fea50d3a00d97f08861b513935e1ca8))
+* **steps:** let a step run programs from its temporary folder ([#220](https://github.com/bhoudebert/shelf-sdlc-agents/issues/220)) ([cf9b7c4](https://github.com/bhoudebert/shelf-sdlc-agents/commit/cf9b7c4ebf930f3e2087e5b406702997407d1229))
+* **steps:** never commit an agent's change to the repository's own configuration ([#210](https://github.com/bhoudebert/shelf-sdlc-agents/issues/210)) ([4996d10](https://github.com/bhoudebert/shelf-sdlc-agents/commit/4996d101b4fd327cb81d15b2f34a2cd50eafdef2))
+* **steps:** say at once when a step cannot reach the model and say what to check ([#215](https://github.com/bhoudebert/shelf-sdlc-agents/issues/215)) ([162025e](https://github.com/bhoudebert/shelf-sdlc-agents/commit/162025e56db8c9f0e11963f53b0ba2fca1e510fd))
+* **steps:** setting a step's resolvers never stops the step, and say when a step ends early ([#205](https://github.com/bhoudebert/shelf-sdlc-agents/issues/205)) ([802968a](https://github.com/bhoudebert/shelf-sdlc-agents/commit/802968a99d07b8307988718414257714f0a2cb0a))
+* **steps:** show the last probes of an unhealthy container in a failed check's report ([#211](https://github.com/bhoudebert/shelf-sdlc-agents/issues/211)) ([5b5db06](https://github.com/bhoudebert/shelf-sdlc-agents/commit/5b5db06e7eea2ad705cf6bc7e0414cacfc6b4040))
+* **steps:** tell a continued session whether Docker is available now ([#206](https://github.com/bhoudebert/shelf-sdlc-agents/issues/206)) ([12798ff](https://github.com/bhoudebert/shelf-sdlc-agents/commit/12798ffc65bffaef405cebbc66f838fe3e40be03))
+* **steps:** tell the reviewer of unattended work to decide what the author can decide ([#218](https://github.com/bhoudebert/shelf-sdlc-agents/issues/218)) ([bab1ab7](https://github.com/bhoudebert/shelf-sdlc-agents/commit/bab1ab74f43e03d3ba7bf4fb9c26a2245cd8cc51))
+* **steps:** the developer fixes what a reviewer finds, the reviewer does not approve an unproven fix ([#221](https://github.com/bhoudebert/shelf-sdlc-agents/issues/221)) ([b9b412a](https://github.com/bhoudebert/shelf-sdlc-agents/commit/b9b412a16530aced9044e0fd4ed3ee4bb579a59a))
+* **steps:** the step user's home in the user database is the one HOME names ([#197](https://github.com/bhoudebert/shelf-sdlc-agents/issues/197)) ([0811bfb](https://github.com/bhoudebert/shelf-sdlc-agents/commit/0811bfb98d4e8d09e38619f80161cf0a2feba392))
+* **web:** say the sites list is not applied when agents run in containers ([#222](https://github.com/bhoudebert/shelf-sdlc-agents/issues/222)) ([3acbb04](https://github.com/bhoudebert/shelf-sdlc-agents/commit/3acbb043d28e3e6811d98f2cdfc5dcc451e1fdfe))
+* **workflow:** read a finished work once instead of replaying it on every refresh ([#213](https://github.com/bhoudebert/shelf-sdlc-agents/issues/213)) ([4dd3620](https://github.com/bhoudebert/shelf-sdlc-agents/commit/4dd36204c8ae7c49fdd4c3cc3f5e411af49f9071))
+
+
+### Documentation
+
+* **adr:** let an arbitrator settle a disagreement between an author and a reviewer ([#223](https://github.com/bhoudebert/shelf-sdlc-agents/issues/223)) ([d6e3892](https://github.com/bhoudebert/shelf-sdlc-agents/commit/d6e3892ae3ed4c00433ea749a0a28e3dc3f15768))
+* **steps:** give each step its own Docker daemon ([#198](https://github.com/bhoudebert/shelf-sdlc-agents/issues/198)) ([9223d8f](https://github.com/bhoudebert/shelf-sdlc-agents/commit/9223d8f00d06753f981281d29455344c9ed47cb1))
+
 ## [0.2.0](https://github.com/bhoudebert/shelf-sdlc-agents/compare/v0.1.0...v0.2.0) (2026-11-18)
 
 

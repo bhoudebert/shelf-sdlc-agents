@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/bhoudebert/shelf-sdlc-agents/compare/warden-v0.1.0...warden-v0.2.0) (2026-11-23)
+
+
+### Features
+
+* **steps:** the runner service starts each step in a container it builds itself ([#189](https://github.com/bhoudebert/shelf-sdlc-agents/issues/189)) ([8e024e9](https://github.com/bhoudebert/shelf-sdlc-agents/commit/8e024e9ad622a7433c2d71c98a1d0feab4cc096f))
+
 ## 0.1.0 (2026-11-18)
 
 
